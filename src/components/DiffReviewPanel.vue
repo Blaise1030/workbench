@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch, watchEffect } from "vue";
 import { html as diffToHtml } from "diff2html";
 import { ColorSchemeType } from "diff2html/lib/types";
 import BaseButton from "@/components/ui/BaseButton.vue";
+import { titleWithShortcut } from "@/keybindings/registry";
+import { looksLikeUnifiedDiff, pathsFromUnifiedDiff } from "@shared/diffPaths";
 import "diff2html/bundles/css/diff2html.min.css";
 
 const props = withDefaults(
@@ -21,14 +23,69 @@ const props = withDefaults(
 const RICH_DIFF_MAX_BYTES = 900_000;
 
 const emit = defineEmits<{
-  stageAll: [];
-  discardAll: [];
+  stageSelected: [paths: string[]];
+  discardSelected: [paths: string[]];
   openInAgents: [];
   clearReviewItems: [];
 }>();
 
 const diffHostRef = ref<HTMLElement | null>(null);
 const rawCollapsed = ref(false);
+const changedFilesExpanded = ref(true);
+const masterCheckboxRef = ref<HTMLInputElement | null>(null);
+
+const diffFilePaths = computed(() => pathsFromUnifiedDiff(props.selectedDiff));
+const checkedByPath = ref<Record<string, boolean>>({});
+
+watch(
+  diffFilePaths,
+  (paths) => {
+    const next: Record<string, boolean> = {};
+    for (const p of paths) {
+      next[p] = checkedByPath.value[p] ?? true;
+    }
+    checkedByPath.value = next;
+  },
+  { immediate: true }
+);
+
+const checkedPaths = computed(() => diffFilePaths.value.filter((p) => checkedByPath.value[p]));
+const hasSelectableFiles = computed(() => diffFilePaths.value.length > 0);
+const allFilesChecked = computed(
+  () => hasSelectableFiles.value && checkedPaths.value.length === diffFilePaths.value.length
+);
+
+watchEffect(() => {
+  const el = masterCheckboxRef.value;
+  if (!el) return;
+  const n = checkedPaths.value.length;
+  const total = diffFilePaths.value.length;
+  el.indeterminate = n > 0 && n < total;
+});
+
+function togglePath(path: string, checked: boolean): void {
+  checkedByPath.value = { ...checkedByPath.value, [path]: checked };
+}
+
+function toggleSelectAll(checked: boolean): void {
+  const next = { ...checkedByPath.value };
+  for (const p of diffFilePaths.value) {
+    next[p] = checked;
+  }
+  checkedByPath.value = next;
+}
+
+function emitStageSelected(): void {
+  emit("stageSelected", [...checkedPaths.value]);
+}
+
+function emitDiscardSelected(): void {
+  emit("discardSelected", [...checkedPaths.value]);
+}
+
+defineExpose({
+  getCheckedPathsForStaging: (): string[] => [...checkedPaths.value]
+});
 
 /** diff2html has no theme toggle — only LIGHT / DARK / AUTO. Match `html.dark` like `globals.css`. */
 function diffColorSchemeFromDocument(): ColorSchemeType {
@@ -65,12 +122,6 @@ const diffRichHostClass = [
   "[&_.d2h-file-name]:!text-foreground [&_.d2h-icon]:!text-muted-foreground",
   "[&_.d2h-file-collapse]:!text-muted-foreground",
 ].join(" ");
-
-function looksLikeUnifiedDiff(text: string): boolean {
-  const t = text.trim();
-  if (!t) return false;
-  return t.includes("diff --git ") || /^---\s+/m.test(t);
-}
 
 function emitOpenInAgents(): void {
   emit("openInAgents");
@@ -166,6 +217,7 @@ watch(
   () => props.selectedDiff,
   () => {
     rawCollapsed.value = false;
+    changedFilesExpanded.value = true;
   }
 );
 
@@ -199,60 +251,125 @@ onBeforeUnmount(() => {
       ref="diffHostRef"
       class="diff-scroll-root flex min-h-0 min-w-0 flex-1 flex-col overflow-auto"
     >
-      <header
-        class="sticky top-0 z-10 flex shrink-0 flex-wrap items-center gap-2 border-b border-border bg-background p-3"
+      <!-- Toolbar + changed-files strip share one sticky stack so both stay visible while scrolling the diff. -->
+      <div
+        class="sticky top-0 z-10 shrink-0 border-b border-border bg-background shadow-sm"
       >
-        <div class="flex min-w-0 flex-wrap items-center gap-2">
-          <span
-            v-if="summaryLabelText"
-            class="min-w-0 max-w-[min(100%,28rem)] truncate text-xs text-muted-foreground"
-            :title="summaryLabelText"
-            >{{ summaryLabelText }}</span
+        <header class="flex shrink-0 flex-wrap items-center gap-2 bg-background p-3">
+          <div class="flex min-w-0 flex-wrap items-center gap-2">
+            <span
+              v-if="summaryLabelText"
+              class="min-w-0 max-w-[min(100%,28rem)] truncate text-xs text-muted-foreground"
+              :title="summaryLabelText ?? undefined"
+              >{{ summaryLabelText }}</span
+            >
+            <span
+              v-if="reviewBasketSummary"
+              class="inline-flex items-center rounded-full border border-border bg-muted/40 px-2.5 py-1 text-xs font-medium text-foreground"
+            >
+              {{ reviewBasketSummary }}
+            </span>
+          </div>
+          <div class="ml-auto flex flex-wrap gap-2">
+            <BaseButton
+              v-if="queuedReviewCountValue > 0"
+              size="sm"
+              variant="secondary"
+              class="border-0 shadow-none focus-visible:!border-transparent focus-visible:!outline-none focus-visible:!ring-0 focus-visible:!ring-offset-0"
+              aria-label="Open in Agents"
+              @click="emitOpenInAgents"
+            >
+              Open in Agents
+            </BaseButton>
+            <BaseButton
+              v-if="queuedReviewCountValue > 0"
+              size="sm"
+              variant="secondary"
+              class="border-0 shadow-none focus-visible:!border-transparent focus-visible:!outline-none focus-visible:!ring-0 focus-visible:!ring-offset-0"
+              aria-label="Clear review items"
+              @click="emit('clearReviewItems')"
+            >
+              Clear review items
+            </BaseButton>
+          </div>
+        </header>
+        <div
+          v-if="hasSelectableFiles"
+          data-testid="diff-file-selection"
+        >
+          <div
+            class="flex py-2 flex-wrap items-center gap-x-2 gap-y-2 border-b border-border py-0 pl-5 pr-3"
           >
-          <span
-            v-if="reviewBasketSummary"
-            class="inline-flex items-center rounded-full border border-border bg-muted/40 px-2.5 py-1 text-xs font-medium text-foreground"
+            <button
+              type="button"
+              class="inline-flex py-2 min-w-0 flex-1 items-center gap-2 rounded-[min(var(--radius-md),12px)] pl-2 pr-2.5 text-left text-[0.8rem] font-medium leading-none text-foreground hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+              :aria-expanded="changedFilesExpanded"
+              aria-controls="diff-changed-files-list"
+              @click="changedFilesExpanded = !changedFilesExpanded"
+            >
+              <span
+                class="pointer-events-none inline-block size-0 shrink-0 border-[5px] border-transparent border-t-muted-foreground/70 transition-transform duration-150 ease-out"
+                :class="changedFilesExpanded ? '' : '-rotate-90'"
+                aria-hidden="true"
+              />
+              <span>Changed files</span>
+            </button>
+            <div class="flex shrink-0 flex-wrap items-center justify-end gap-2">
+              <BaseButton
+                size="sm"
+                variant="secondary"
+                class="border-0 shadow-none focus-visible:!border-transparent focus-visible:!outline-none focus-visible:!ring-0 focus-visible:!ring-offset-0"
+                :disabled="checkedPaths.length === 0"
+                :title="titleWithShortcut('Stage selected files', 'stageAllDiff')"
+                @click="emitStageSelected"
+                >Stage selected</BaseButton
+              >
+              <BaseButton
+                size="sm"
+                variant="destructive"
+                class="border-0 shadow-none focus-visible:!border-transparent focus-visible:!outline-none focus-visible:!ring-0 focus-visible:!ring-offset-0"
+                :disabled="checkedPaths.length === 0"
+                title="Discard changes to selected files (no keyboard shortcut)"
+                @click="emitDiscardSelected"
+                >Discard selected</BaseButton
+              >
+              <label class="flex h-7 cursor-pointer items-center gap-1.5 pr-0.5">
+                <input
+                  ref="masterCheckboxRef"
+                  type="checkbox"
+                  class="size-3.5 rounded border border-border accent-primary"
+                  :checked="allFilesChecked"
+                  aria-label="Select all changed files"
+                  @change="toggleSelectAll(($event.target as HTMLInputElement).checked)"
+                />
+                <span class="sr-only">Select all</span>
+              </label>
+            </div>
+          </div>
+          <ul
+            v-show="changedFilesExpanded"
+            id="diff-changed-files-list"
+            class="m-0 max-h-32 list-none space-y-1 overflow-y-auto py-2 pl-5 pr-3 pt-1"
           >
-            {{ reviewBasketSummary }}
-          </span>
+            <li v-for="(p, i) in diffFilePaths" :key="p" class="flex min-w-0 items-center gap-2">
+              <input
+                :id="`diff-cb-${i}`"
+                type="checkbox"
+                class="size-3.5 shrink-0 rounded border border-border accent-primary"
+                :checked="Boolean(checkedByPath[p])"
+                :aria-label="`Select ${p} for stage or discard`"
+                @change="togglePath(p, ($event.target as HTMLInputElement).checked)"
+              />
+              <label
+                :for="`diff-cb-${i}`"
+                class="min-w-0 flex-1 cursor-pointer truncate font-mono text-xs text-foreground"
+                :title="p"
+                >{{ p }}</label
+              >
+            </li>
+          </ul>
         </div>
-        <div class="ml-auto flex flex-wrap gap-2">
-          <BaseButton
-            v-if="queuedReviewCountValue > 0"
-            size="sm"
-            variant="secondary"
-            class="border-0 shadow-none focus-visible:!border-transparent focus-visible:!outline-none focus-visible:!ring-0 focus-visible:!ring-offset-0"
-            aria-label="Open in Agents"
-            @click="emitOpenInAgents"
-          >
-            Open in Agents
-          </BaseButton>
-          <BaseButton
-            v-if="queuedReviewCountValue > 0"
-            size="sm"
-            variant="secondary"
-            class="border-0 shadow-none focus-visible:!border-transparent focus-visible:!outline-none focus-visible:!ring-0 focus-visible:!ring-offset-0"
-            aria-label="Clear review items"
-            @click="emit('clearReviewItems')"
-          >
-            Clear review items
-          </BaseButton>
-          <BaseButton
-            size="sm"
-            variant="secondary"
-            class="border-0 shadow-none focus-visible:!border-transparent focus-visible:!outline-none focus-visible:!ring-0 focus-visible:!ring-offset-0"
-            @click="emit('stageAll')"
-            >Stage All</BaseButton
-          >
-          <BaseButton
-            size="sm"
-            variant="destructive"
-            class="border-0 shadow-none focus-visible:!border-transparent focus-visible:!outline-none focus-visible:!ring-0 focus-visible:!ring-offset-0"
-            @click="emit('discardAll')"
-            >Discard All</BaseButton
-          >
-        </div>
-      </header>
+      </div>
       <div v-if="richDiffHtml" :class="diffRichHostClass" v-html="richDiffHtml" />
       <template v-else-if="diffEmptyVisual">
         <div class="flex min-h-0 min-w-0 flex-1 flex-col">

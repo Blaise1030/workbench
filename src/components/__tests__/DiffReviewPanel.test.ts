@@ -67,12 +67,34 @@ describe("DiffReviewPanel", () => {
     });
 
     const buttons = wrapper.findAll("button");
-    const stageAll = buttons.find((button) => button.text().includes("Stage All"));
-    const discardAll = buttons.find((button) => button.text().includes("Discard All"));
+    const stageSelected = buttons.find((button) => button.text().includes("Stage selected"));
+    const discardSelected = buttons.find((button) => button.text().includes("Discard selected"));
 
-    expect(stageAll?.classes()).toContain("border-0");
-    expect(stageAll?.classes()).toContain("shadow-none");
-    expect(discardAll?.classes()).toContain("border-0");
-    expect(discardAll?.classes()).toContain("shadow-none");
+    expect(stageSelected?.classes()).toContain("border-0");
+    expect(stageSelected?.classes()).toContain("shadow-none");
+    expect(discardSelected?.classes()).toContain("border-0");
+    expect(discardSelected?.classes()).toContain("shadow-none");
+  });
+
+  it("lists changed files with checkboxes and emits only checked paths for stage", async () => {
+    const diff =
+      "diff --git a/a.txt b/a.txt\n--- a/a.txt\n+++ b/a.txt\n@@ -1 +1 @@\n-a\n+b\n" +
+      "diff --git a/b.txt b/b.txt\n--- a/b.txt\n+++ b/b.txt\n@@ -1 +1 @@\n-x\n+y\n";
+    const wrapper = mountPanel({
+      selectedDiff: diff,
+      summaryLabel: "2 files",
+    });
+
+    expect(wrapper.get('[data-testid="diff-file-selection"]').text()).toContain("a.txt");
+    expect(wrapper.get('[data-testid="diff-file-selection"]').text()).toContain("b.txt");
+
+    const rowCheckboxes = wrapper.findAll('ul input[type="checkbox"]');
+    expect(rowCheckboxes).toHaveLength(2);
+    await rowCheckboxes[0]!.setValue(false);
+
+    const stageBtn = wrapper.findAll("button").find((b) => b.text().includes("Stage selected"));
+    await stageBtn!.trigger("click");
+
+    expect(wrapper.emitted("stageSelected")).toEqual([[["b.txt"]]]);
   });
 });

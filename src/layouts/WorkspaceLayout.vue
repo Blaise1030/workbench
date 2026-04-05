@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { Plus, Settings } from "lucide-vue-next";
 import BaseButton from "@/components/ui/BaseButton.vue";
 import DiffReviewPanel from "@/components/DiffReviewPanel.vue";
@@ -19,6 +19,8 @@ import {
 import { useTerminalAttentionSounds } from "@/composables/useTerminalAttentionSounds";
 import { useTerminalSoundSettings } from "@/composables/useTerminalSoundSettings";
 import { useToast } from "@/composables/useToast";
+import { useWorkspaceKeybindings } from "@/composables/useWorkspaceKeybindings";
+import { formatShortcut, shortcutForId, titleWithShortcut } from "@/keybindings/registry";
 import { useWorkspaceStore } from "@/stores/workspaceStore";
 import { useRunStore } from "@/stores/runStore";
 import { visibleTerminalSessionId } from "@/terminal/attentionRules";
@@ -48,16 +50,30 @@ const centerTab = ref<string>("agent");
 /** One UUID per integrated terminal tab (after Agent + Git Diff). */
 const shellSlotIds = ref<string[]>([]);
 
+const SHELL_TAB_CODES = ["Digit4", "Digit5", "Digit6", "Digit7", "Digit8", "Digit9"] as const;
+
+const threadSidebarRef = ref<InstanceType<typeof ThreadSidebar> | null>(null);
+const fileSearchRef = ref<InstanceType<typeof FileSearchEditor> | null>(null);
+const diffReviewPanelRef = ref<InstanceType<typeof DiffReviewPanel> | null>(null);
+const keybindingsEnabled = ref(true);
+
 const centerPanelTabs = computed<PillTabItem[]>(() => {
   const slots = shellSlotIds.value;
   return [
-    { value: "agent", label: "🤖 Agent" },
-    { value: "diff", label: "🌿 Git Diff" },
-    { value: "files", label: "📁 Files", dividerAfter: true },
+    { value: "agent", label: "🤖 Agent", shortcutHint: shortcutForId("centerTabAgent") },
+    { value: "diff", label: "🌿 Git Diff", shortcutHint: shortcutForId("centerTabDiff") },
+    {
+      value: "files",
+      label: "📁 Files",
+      dividerAfter: true,
+      shortcutHint: shortcutForId("centerTabFiles")
+    },
     ...slots.map((id, i) => ({
       value: `shell:${id}`,
       label: `💻 Terminal ${i + 1}`,
-      closable: true
+      closable: true,
+      shortcutHint:
+        i < SHELL_TAB_CODES.length ? formatShortcut({ mod: true, code: SHELL_TAB_CODES[i] }) : undefined
     }))
   ];
 });
@@ -230,12 +246,12 @@ async function refreshChangedFiles(): Promise<void> {
     const shown = unified.trim() ? diffGitHunkCount(unified) : 0;
     const label =
       shown > 1
-        ? `${shown} files`
+        ? null
         : shown === 1
           ? firstPathFromUnifiedDiff(unified) ?? files[0]!
           : files.length === 1
             ? files[0]!
-            : `${files.length} files`;
+            : null;
     diffSummaryLabel.value = label;
     selectedDiff.value = body;
   } catch (error) {
@@ -446,25 +462,95 @@ async function handleSelectThread(threadId: string): Promise<void> {
   await refreshSnapshot(snapshot);
 }
 
-async function handleStageAll(): Promise<void> {
+async function handleStageSelected(paths: string[]): Promise<void> {
   const api = getApi();
-  if (!api || !workspace.activeWorktree) return;
-  await api.stageAll(workspace.activeWorktree.path);
+  if (!api || !workspace.activeWorktree || paths.length === 0) return;
+  if (api.stagePaths) {
+    await api.stagePaths(workspace.activeWorktree.path, paths);
+  } else {
+    await api.stageAll(workspace.activeWorktree.path);
+  }
   await refreshChangedFiles();
 }
 
-async function handleDiscardAll(): Promise<void> {
+async function handleDiscardSelected(paths: string[]): Promise<void> {
   const api = getApi();
-  if (!api || !workspace.activeWorktree) return;
-  const confirmed = window.confirm("Discard all changes in this worktree?");
+  if (!api || !workspace.activeWorktree || paths.length === 0) return;
+  if (!api.discardPaths) {
+    toast.error(
+      "Cannot discard selection",
+      "Restart the desktop app so per-file discard is available, or discard from the terminal."
+    );
+    return;
+  }
+  const label = paths.length === 1 ? paths[0]! : `${paths.length} files`;
+  const confirmed = window.confirm(`Discard changes to ${label}?`);
   if (!confirmed) return;
-  await api.discardAll(workspace.activeWorktree.path);
+  await api.discardPaths(workspace.activeWorktree.path, paths);
   await refreshChangedFiles();
 }
 
 function handleConfigureCommands(): void {
   agentCommandsSettingsOpen.value = true;
 }
+
+function goPrevThread(): void {
+  const threads = workspace.activeThreads;
+  const cur = workspace.activeThreadId;
+  if (threads.length === 0) return;
+  const i = cur ? threads.findIndex((t) => t.id === cur) : 0;
+  const prev = i <= 0 ? threads.length - 1 : i - 1;
+  const t = threads[prev];
+  if (t) void handleSelectThread(t.id);
+}
+
+function goNextThread(): void {
+  const threads = workspace.activeThreads;
+  const cur = workspace.activeThreadId;
+  if (threads.length === 0) return;
+  const i = cur ? threads.findIndex((t) => t.id === cur) : -1;
+  const next = i < 0 || i >= threads.length - 1 ? 0 : i + 1;
+  const t = threads[next];
+  if (t) void handleSelectThread(t.id);
+}
+
+function toggleThreadsSidebar(): void {
+  threadsSidebarCollapsed.value = !threadsSidebarCollapsed.value;
+}
+
+function openNewThreadMenuFromShortcut(): void {
+  threadSidebarRef.value?.openNewThreadMenu();
+}
+
+function focusFileSearchShortcut(): void {
+  centerTab.value = "files";
+  void nextTick(() => {
+    fileSearchRef.value?.focusSearch();
+  });
+}
+
+useWorkspaceKeybindings(
+  {
+    workspaceUiActive: () => hasActiveWorkspace.value,
+    settingsOpen: () => agentCommandsSettingsOpen.value,
+    centerTab: () => centerTab.value,
+    shellSlotIds: () => shellSlotIds.value,
+    onSelectCenterTab: (tab) => {
+      centerTab.value = tab;
+    },
+    onPrevThread: goPrevThread,
+    onNextThread: goNextThread,
+    onToggleSidebar: toggleThreadsSidebar,
+    onOpenNewThreadMenu: openNewThreadMenuFromShortcut,
+    onAddTerminal: addShellTerminal,
+    onFocusFileSearch: focusFileSearchShortcut,
+    onStageAllDiff: () => {
+      void handleStageAll();
+    },
+    onOpenSettings: handleConfigureCommands
+  },
+  keybindingsEnabled
+);
 
 onMounted(async () => {
   await refreshSnapshot();
@@ -546,7 +632,7 @@ watch(shellSlotIds, (ids) => {
           variant="outline"
           size="icon-xs"
           aria-label="Settings"
-          title="Settings"
+          :title="titleWithShortcut('Settings', 'openSettings')"
           @click="handleConfigureCommands"
         >
           <Settings class="h-3.5 w-3.5" />
@@ -605,6 +691,7 @@ watch(shellSlotIds, (ids) => {
     <section v-else class="grid min-h-0 flex-1" :style="{ gridTemplateColumns: layoutColumns }">
       <section class="flex min-h-0 min-w-0 flex-col overflow-hidden border-r border-border">
         <ThreadSidebar
+          ref="threadSidebarRef"
           class="min-h-0 min-w-0 flex-1"
           :collapsed="threadsSidebarCollapsed"
           :threads="workspace.activeThreads"
@@ -649,7 +736,7 @@ watch(shellSlotIds, (ids) => {
             size="xs"
             class="shrink-0"
             aria-label="Add terminal"
-            title="Add terminal"
+            :title="titleWithShortcut('Add terminal', 'addTerminal')"
             @click="addShellTerminal"
           >
             Add terminal
@@ -661,7 +748,7 @@ watch(shellSlotIds, (ids) => {
             size="icon-xs"
             class="shrink-0"
             aria-label="Add terminal"
-            title="Add terminal"
+            :title="titleWithShortcut('Add terminal', 'addTerminal')"
             @click="addShellTerminal"
           >
             <Plus class="h-3.5 w-3.5" />
@@ -694,11 +781,11 @@ watch(shellSlotIds, (ids) => {
           </div>
           <div v-show="centerTab === 'diff'" class="flex min-h-0 flex-1 flex-col overflow-hidden">
             <DiffReviewPanel
+              ref="diffReviewPanelRef"
               :summary-label="diffSummaryLabel"
               :selected-diff="selectedDiff"
-              @stage-all="handleStageAll"
-              @discard-all="handleDiscardAll"
-              @go-to-first-tab="centerTab = 'agent'"
+              @stage-selected="handleStageSelected"
+              @discard-selected="handleDiscardSelected"
             />
           </div>
           <div
@@ -706,7 +793,10 @@ watch(shellSlotIds, (ids) => {
             data-testid="workspace-files-pane"
             class="flex min-h-0 flex-1 flex-col overflow-hidden border-t border-border"
           >
-            <FileSearchEditor :worktree-path="workspace.activeWorktree?.path ?? null" />
+            <FileSearchEditor
+              ref="fileSearchRef"
+              :worktree-path="workspace.activeWorktree?.path ?? null"
+            />
           </div>
         </div>
       </section>

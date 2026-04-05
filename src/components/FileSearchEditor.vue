@@ -58,6 +58,11 @@ type TreeContextMenuState =
 const treeContextMenu = ref<TreeContextMenuState | null>(null);
 const ctxMenuRoot = ref<HTMLElement | null>(null);
 
+const newFileDialogOpen = ref(false);
+const newFilePathDraft = ref("");
+const newFilePathInputRef = ref<HTMLInputElement | null>(null);
+const newFileDialogFieldError = ref<string | null>(null);
+
 const hasWorkspace = computed(() => Boolean(props.worktreePath));
 const dirty = computed(
   () => selectedPath.value !== null && draftContent.value !== loadedContent.value
@@ -247,6 +252,71 @@ function normalizeNewFilePathInput(raw: string): string {
   return raw.trim().replace(/\\/g, "/").replace(/^\/+/, "");
 }
 
+function computeNewFileDefaultValue(folderPathPrefix?: string): string {
+  if (folderPathPrefix !== undefined) {
+    const p = normalizeNewFilePathInput(folderPathPrefix);
+    return p ? `${p.replace(/\/+$/, "")}/` : "src/";
+  }
+  const folderHint = selectedPath.value?.includes("/")
+    ? selectedPath.value.replace(/\/[^/]+$/, "")
+    : selectedPath.value
+      ? ""
+      : "src";
+  return folderHint === "" ? "new-file.txt" : folderHint ? `${folderHint}/` : "src/";
+}
+
+function closeNewFileDialog(): void {
+  newFileDialogOpen.value = false;
+  newFileDialogFieldError.value = null;
+}
+
+function onNewFileBackdropPointerDown(event: MouseEvent): void {
+  if (event.target === event.currentTarget) closeNewFileDialog();
+}
+
+async function openNewFileDialog(folderPathPrefix?: string): Promise<void> {
+  const api = getApi();
+  const cwd = props.worktreePath;
+  if (!api || !cwd) return;
+
+  newFilePathDraft.value = computeNewFileDefaultValue(
+    typeof folderPathPrefix === "string" ? folderPathPrefix : undefined
+  );
+  newFileDialogFieldError.value = null;
+  newFileDialogOpen.value = true;
+  await nextTick();
+  const el = newFilePathInputRef.value;
+  el?.focus();
+  el?.select();
+}
+
+async function submitNewFile(): Promise<void> {
+  const api = getApi();
+  const cwd = props.worktreePath;
+  if (!api || !cwd) return;
+
+  const normalized = normalizeNewFilePathInput(newFilePathDraft.value);
+  if (!normalized || normalized.endsWith("/")) {
+    newFileDialogFieldError.value = "Enter a file path (not a folder).";
+    return;
+  }
+
+  newFileDialogFieldError.value = null;
+  error.value = null;
+
+  try {
+    await api.createFile(cwd, normalized);
+    closeNewFileDialog();
+    await loadFileSummaries();
+    expandAncestorFolders(normalized);
+    if (!(await confirmDiscardIfDirty())) return;
+    await openFile(normalized);
+  } catch (createError) {
+    error.value =
+      createError instanceof Error ? createError.message : "Could not create the file.";
+  }
+}
+
 function expandAncestorFolders(relativePath: string): void {
   const segments = relativePath.split("/").filter(Boolean);
   if (segments.length <= 1) return;
@@ -297,7 +367,13 @@ function onGlobalPointerDown(e: PointerEvent): void {
 }
 
 function onGlobalKeydown(e: KeyboardEvent): void {
-  if (e.key === "Escape") closeTreeContextMenu();
+  if (e.key === "Escape") {
+    if (newFileDialogOpen.value) {
+      closeNewFileDialog();
+      return;
+    }
+    closeTreeContextMenu();
+  }
 }
 
 function clearSelection(): void {
@@ -314,6 +390,7 @@ function resetState(): void {
   isSearching.value = false;
   isLoadingFile.value = false;
   isSaving.value = false;
+  closeNewFileDialog();
   clearSelection();
 }
 
@@ -392,45 +469,7 @@ async function handleSelectFile(relativePath: string): Promise<void> {
 async function handleAddFile(folderPathPrefix?: string): Promise<void> {
   const folderPrefix =
     typeof folderPathPrefix === "string" ? folderPathPrefix : undefined;
-  const api = getApi();
-  const cwd = props.worktreePath;
-  if (!api || !cwd) return;
-
-  let defaultValue: string;
-  if (folderPrefix !== undefined) {
-    const p = normalizeNewFilePathInput(folderPrefix);
-    defaultValue = p ? `${p.replace(/\/+$/, "")}/` : "src/";
-  } else {
-    const folderHint = selectedPath.value?.includes("/")
-      ? selectedPath.value.replace(/\/[^/]+$/, "")
-      : selectedPath.value
-        ? ""
-        : "src";
-    defaultValue =
-      folderHint === "" ? "new-file.txt" : folderHint ? `${folderHint}/` : "src/";
-  }
-
-  const raw = window.prompt("New file path (relative to workspace)", defaultValue);
-  if (raw === null) return;
-
-  const normalized = normalizeNewFilePathInput(raw);
-  if (!normalized || normalized.endsWith("/")) {
-    error.value = "Enter a file path (not a folder).";
-    return;
-  }
-
-  error.value = null;
-
-  try {
-    await api.createFile(cwd, normalized);
-    await loadFileSummaries();
-    expandAncestorFolders(normalized);
-    if (!(await confirmDiscardIfDirty())) return;
-    await openFile(normalized);
-  } catch (createError) {
-    error.value =
-      createError instanceof Error ? createError.message : "Could not create the file.";
-  }
+  await openNewFileDialog(folderPrefix);
 }
 
 async function deleteFileAtPath(relativePath: string): Promise<void> {
@@ -549,6 +588,12 @@ onUnmounted(() => {
   document.removeEventListener("pointerdown", onGlobalPointerDown, true);
   document.removeEventListener("keydown", onGlobalKeydown);
 });
+
+defineExpose({
+  focusSearch: (): void => {
+    void focusSearchInput();
+  }
+});
 </script>
 
 <template>
@@ -565,7 +610,7 @@ onUnmounted(() => {
         <BaseButton
           data-testid="file-search-sidebar-expand"
           variant="outline"
-          size="xs"
+          size="icon-xs"
           class="size-8 shrink-0 p-0"
           title="Show file explorer"
           aria-label="Show file explorer"
@@ -585,7 +630,7 @@ onUnmounted(() => {
           <BaseButton
             data-testid="file-search-sidebar-collapse"
             variant="outline"
-            size="xs"
+            size="icon-xs"
             class="shrink-0 px-1.5"
             title="Hide file explorer"
             aria-label="Hide file explorer"
@@ -614,7 +659,7 @@ onUnmounted(() => {
           <BaseButton
             data-testid="add-file"
             variant="outline"
-            size="xs"
+            size="icon-xs"
             class="shrink-0 px-1.5"
             :disabled="!hasWorkspace"
             :title="'Add file'"
@@ -809,6 +854,67 @@ onUnmounted(() => {
             Delete file
           </button>
         </template>
+      </div>
+    </Teleport>
+
+    <Teleport to="body">
+      <div
+        v-if="newFileDialogOpen"
+        data-testid="new-file-dialog"
+        class="fixed inset-0 z-[210] flex items-start justify-center overflow-y-auto bg-black/50 p-4 pt-[15vh] backdrop-blur-[1px]"
+        role="presentation"
+        @pointerdown="onNewFileBackdropPointerDown"
+      >
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="new-file-dialog-title"
+          class="relative w-full max-w-md rounded-lg border border-border bg-card p-4 text-card-foreground shadow-lg outline-none"
+          tabindex="-1"
+          @pointerdown.stop
+        >
+          <h2 id="new-file-dialog-title" class="text-sm font-semibold">New file</h2>
+          <p class="mt-1 text-xs text-muted-foreground">
+            Path relative to the workspace (use <span class="font-mono">/</span> for folders).
+          </p>
+          <form class="mt-4 space-y-3" @submit.prevent="submitNewFile">
+            <div>
+              <label for="new-file-path-input" class="sr-only">File path</label>
+              <input
+                id="new-file-path-input"
+                ref="newFilePathInputRef"
+                v-model="newFilePathDraft"
+                data-testid="new-file-path-input"
+                type="text"
+                autocomplete="off"
+                spellcheck="false"
+                class="h-9 w-full rounded-md border border-input bg-background px-2.5 text-xs text-foreground outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50"
+                placeholder="e.g. src/components/MyFile.ts"
+              />
+              <p
+                v-if="newFileDialogFieldError"
+                data-testid="new-file-dialog-error"
+                class="mt-1.5 text-xs text-destructive"
+              >
+                {{ newFileDialogFieldError }}
+              </p>
+            </div>
+            <div class="flex justify-end gap-2">
+              <BaseButton
+                type="button"
+                data-testid="new-file-cancel"
+                variant="outline"
+                size="xs"
+                @click="closeNewFileDialog"
+              >
+                Cancel
+              </BaseButton>
+              <BaseButton type="submit" data-testid="new-file-confirm" variant="default" size="xs">
+                Create
+              </BaseButton>
+            </div>
+          </form>
+        </div>
       </div>
     </Teleport>
   </section>

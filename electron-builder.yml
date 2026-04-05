@@ -5,6 +5,10 @@ copyright: Copyright © Instrument contributors
 
 directories:
   output: release
+  # App icons: build/icon.icns, build/icon.ico, build/icon.png (from build/icon-source.png).
+  # Regenerate: npx electron-icon-builder --input=build/icon-source.png --output=build --flatten
+  # then: cp build/icons/icon.icns build/ && cp build/icons/icon.ico build/ && cp build/icons/512x512.png build/icon.png && rm -rf build/icons
+  buildResources: build
 
 files:
   - dist-electron/**/*

@@ -7,6 +7,8 @@ export type PillTabItem = {
   closable?: boolean;
   /** When true, a vertical rule is drawn after this tab (e.g. before shell tabs). */
   dividerAfter?: boolean;
+  /** Shown as native tooltip (keyboard shortcut). */
+  shortcutHint?: string;
 };
 
 /** Matches `buttonSizeClassMap.xs` — shared tab trigger metrics with BaseButton `size="xs"`. */
@@ -71,6 +73,7 @@ function onTabKeydown(event: KeyboardEvent, index: number) {
             ? 'bg-muted font-medium text-foreground'
             : 'text-muted-foreground hover:bg-muted/50'
         ]"
+        :title="tab.shortcutHint"
         @click="select(tab.value)"
         @keydown="onTabKeydown($event, index)"
       >

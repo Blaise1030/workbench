@@ -26,6 +26,13 @@ const editService = new EditService();
 const fileService = new FileService();
 const ptyService = new PtyService();
 
+/** Dev / unpackaged window icon; packaged apps use platform icons from electron-builder. */
+function devAppIconPath(): string | undefined {
+  if (app.isPackaged) return undefined;
+  const p = path.join(__dirname, "../../build/icon.png");
+  return fs.existsSync(p) ? p : undefined;
+}
+
 function emitWorkspaceDidChange(): void {
   for (const win of BrowserWindow.getAllWindows()) {
     win.webContents.send(IPC_CHANNELS.workspaceDidChange);
@@ -41,6 +48,7 @@ function createMainWindow(): BrowserWindow {
   const win = new BrowserWindow({
     width: 1600,
     height: 980,
+    icon: devAppIconPath(),
     webPreferences: {
       preload: preloadPath,
       contextIsolation: true,
@@ -128,6 +136,12 @@ function registerIpc(workspaceService: WorkspaceService): void {
   ipcMain.handle(IPC_CHANNELS.diffWorkingTree, (_, cwd: string) => diffService.workingTreeDiff(cwd));
   ipcMain.handle(IPC_CHANNELS.diffStageAll, (_, cwd: string) => diffService.stageAll(cwd));
   ipcMain.handle(IPC_CHANNELS.diffDiscardAll, (_, cwd: string) => diffService.discardAll(cwd));
+  ipcMain.handle(IPC_CHANNELS.diffStagePaths, (_, payload: { cwd: string; paths: string[] }) =>
+    diffService.stagePaths(payload.cwd, payload.paths)
+  );
+  ipcMain.handle(IPC_CHANNELS.diffDiscardPaths, (_, payload: { cwd: string; paths: string[] }) =>
+    diffService.discardPaths(payload.cwd, payload.paths)
+  );
   ipcMain.handle(IPC_CHANNELS.filesList, (_, cwd: string) => fileService.listFileSummaries(cwd));
   ipcMain.handle(IPC_CHANNELS.filesSearch, (_, payload: { cwd: string; query: string }) =>
     fileService.searchFiles(payload.cwd, payload.query)

@@ -1,3 +1,13 @@
+<script lang="ts">
+import { titleWithShortcut } from "@/keybindings/registry";
+
+/** Module scope: withDefaults cannot reference <script setup> locals (defineProps is hoisted). */
+export const threadCreateButtonDefaultTitle = titleWithShortcut(
+  "New thread",
+  "newThreadMenu"
+);
+</script>
+
 <script setup lang="ts">
 import type { ThreadAgent } from "@shared/domain";
 import { nextTick, onBeforeUnmount, onMounted, ref, useId, watch } from "vue";
@@ -13,7 +23,7 @@ withDefaults(
   }>(),
   {
     ariaLabel: "New thread",
-    title: "New thread",
+    title: threadCreateButtonDefaultTitle,
     variant: "outline",
     size: "icon-xs"
   }
@@ -93,6 +103,13 @@ function togglePopover(): void {
 function closePopover(): void {
   popoverOpen.value = false;
 }
+
+function openMenu(): void {
+  if (popoverOpen.value) return;
+  popoverOpen.value = true;
+}
+
+defineExpose({ openMenu });
 
 function pickAgent(agent: ThreadAgent): void {
   emit("createWithAgent", agent);

@@ -26,6 +26,8 @@ interface WorkspaceApi {
   workingTreeDiff?: (cwd: string) => Promise<string>;
   stageAll: (cwd: string) => Promise<void>;
   discardAll: (cwd: string) => Promise<void>;
+  stagePaths?: (cwd: string, paths: string[]) => Promise<void>;
+  discardPaths?: (cwd: string, paths: string[]) => Promise<void>;
   listFiles: (cwd: string) => Promise<FileSummary[]>;
   searchFiles: (cwd: string, query: string) => Promise<string[]>;
   readFile: (cwd: string, relativePath: string) => Promise<string>;

@@ -39,6 +39,8 @@ electron_1.contextBridge.exposeInMainWorld("workspaceApi", {
     workingTreeDiff: (cwd) => electron_1.ipcRenderer.invoke(ipc_js_1.IPC_CHANNELS.diffWorkingTree, cwd),
     stageAll: (cwd) => electron_1.ipcRenderer.invoke(ipc_js_1.IPC_CHANNELS.diffStageAll, cwd),
     discardAll: (cwd) => electron_1.ipcRenderer.invoke(ipc_js_1.IPC_CHANNELS.diffDiscardAll, cwd),
+    stagePaths: (cwd, paths) => electron_1.ipcRenderer.invoke(ipc_js_1.IPC_CHANNELS.diffStagePaths, { cwd, paths }),
+    discardPaths: (cwd, paths) => electron_1.ipcRenderer.invoke(ipc_js_1.IPC_CHANNELS.diffDiscardPaths, { cwd, paths }),
     listFiles: (cwd) => electron_1.ipcRenderer.invoke(ipc_js_1.IPC_CHANNELS.filesList, cwd),
     searchFiles: (cwd, query) => electron_1.ipcRenderer.invoke(ipc_js_1.IPC_CHANNELS.filesSearch, { cwd, query }),
     readFile: (cwd, relativePath) => electron_1.ipcRenderer.invoke(ipc_js_1.IPC_CHANNELS.filesRead, { cwd, relativePath }),

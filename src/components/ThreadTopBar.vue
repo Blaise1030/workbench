@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import type { ThreadAgent } from "@shared/domain";
 import { PanelLeftClose, PanelLeftOpen, Plus } from "lucide-vue-next";
+import { ref } from "vue";
 import BaseButton from "@/components/ui/BaseButton.vue";
 import Badge from "@/components/ui/Badge.vue";
 import ThreadCreateButton from "@/components/ThreadCreateButton.vue";
 import { APP_DISPLAY_NAME } from "@/constants/appMeta";
+import { titleWithShortcut } from "@/keybindings/registry";
 
 withDefaults(
   defineProps<{
@@ -21,12 +23,20 @@ const emit = defineEmits<{
   collapse: [];
   expand: [];
 }>();
+
+const createButtonRef = ref<InstanceType<typeof ThreadCreateButton> | null>(null);
+
+function openNewThreadMenu(): void {
+  createButtonRef.value?.openMenu();
+}
+
+defineExpose({ openNewThreadMenu });
 </script>
 
 <template>
   <header
     v-if="collapsed"
-    class="flex shrink-0 flex-col items-center gap-2 bg-muted/25 px-1 py-2"
+    class="flex shrink-0 flex-col items-center gap-2 px-1 py-2"
   >
     <span class="sr-only">{{ title }} Alpha</span>
     <BaseButton
@@ -34,7 +44,7 @@ const emit = defineEmits<{
       size="icon-xs"
       variant="outline"
       aria-label="Expand threads sidebar"
-      title="Expand threads sidebar"
+      :title="titleWithShortcut('Expand threads sidebar', 'toggleThreadSidebar')"
       @click="emit('expand')"
     >
       <PanelLeftOpen class="h-3.5 w-3.5" />
@@ -57,7 +67,7 @@ const emit = defineEmits<{
       </Badge>
     </h2>
     <div class="flex shrink-0 items-center justify-end gap-1.5">
-      <ThreadCreateButton @create-with-agent="emit('createWithAgent', $event)">
+      <ThreadCreateButton ref="createButtonRef" @create-with-agent="emit('createWithAgent', $event)">
         <Plus class="h-3.5 w-3.5" />
       </ThreadCreateButton>
       <BaseButton
@@ -65,7 +75,7 @@ const emit = defineEmits<{
         size="icon-xs"
         variant="outline"
         aria-label="Collapse threads sidebar"
-        title="Collapse threads sidebar"
+        :title="titleWithShortcut('Collapse threads sidebar', 'toggleThreadSidebar')"
         @click="emit('collapse')"
       >
         <PanelLeftClose class="h-3.5 w-3.5" />

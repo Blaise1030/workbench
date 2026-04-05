@@ -19,6 +19,13 @@ const diffService = new diffService_js_1.DiffService();
 const editService = new editService_js_1.EditService();
 const fileService = new fileService_js_1.FileService();
 const ptyService = new ptyService_js_1.PtyService();
+/** Dev / unpackaged window icon; packaged apps use platform icons from electron-builder. */
+function devAppIconPath() {
+    if (electron_1.app.isPackaged)
+        return undefined;
+    const p = node_path_1.default.join(__dirname, "../../build/icon.png");
+    return node_fs_1.default.existsSync(p) ? p : undefined;
+}
 function emitWorkspaceDidChange() {
     for (const win of electron_1.BrowserWindow.getAllWindows()) {
         win.webContents.send(ipc_js_1.IPC_CHANNELS.workspaceDidChange);
@@ -32,6 +39,7 @@ function createMainWindow() {
     const win = new electron_1.BrowserWindow({
         width: 1600,
         height: 980,
+        icon: devAppIconPath(),
         webPreferences: {
             preload: preloadPath,
             contextIsolation: true,
@@ -112,6 +120,8 @@ function registerIpc(workspaceService) {
     electron_1.ipcMain.handle(ipc_js_1.IPC_CHANNELS.diffWorkingTree, (_, cwd) => diffService.workingTreeDiff(cwd));
     electron_1.ipcMain.handle(ipc_js_1.IPC_CHANNELS.diffStageAll, (_, cwd) => diffService.stageAll(cwd));
     electron_1.ipcMain.handle(ipc_js_1.IPC_CHANNELS.diffDiscardAll, (_, cwd) => diffService.discardAll(cwd));
+    electron_1.ipcMain.handle(ipc_js_1.IPC_CHANNELS.diffStagePaths, (_, payload) => diffService.stagePaths(payload.cwd, payload.paths));
+    electron_1.ipcMain.handle(ipc_js_1.IPC_CHANNELS.diffDiscardPaths, (_, payload) => diffService.discardPaths(payload.cwd, payload.paths));
     electron_1.ipcMain.handle(ipc_js_1.IPC_CHANNELS.filesList, (_, cwd) => fileService.listFileSummaries(cwd));
     electron_1.ipcMain.handle(ipc_js_1.IPC_CHANNELS.filesSearch, (_, payload) => fileService.searchFiles(payload.cwd, payload.query));
     electron_1.ipcMain.handle(ipc_js_1.IPC_CHANNELS.filesRead, (_, payload) => fileService.readFile(payload.cwd, payload.relativePath));

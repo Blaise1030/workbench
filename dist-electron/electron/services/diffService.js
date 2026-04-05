@@ -6,26 +6,8 @@ const node_util_1 = require("node:util");
 const node_fs_1 = require("node:fs");
 const node_path_1 = require("node:path");
 const simple_git_1 = require("simple-git");
+const diffPaths_js_1 = require("../../src/shared/diffPaths.js");
 const execFileAsync = (0, node_util_1.promisify)(node_child_process_1.execFile);
-/** `b/<path>` segment from `diff --git` (best-effort; matches normal paths). */
-function pathsFromUnifiedDiff(unified) {
-    const out = new Set();
-    for (const line of unified.split("\n")) {
-        if (!line.startsWith("diff --git "))
-            continue;
-        const i = line.lastIndexOf(" b/");
-        if (i < 0)
-            continue;
-        let p = line.slice(i + 3);
-        if (p.startsWith('"')) {
-            const end = p.lastIndexOf('"');
-            if (end > 0)
-                p = p.slice(1, end);
-        }
-        out.add(p);
-    }
-    return out;
-}
 class DiffService {
     async changedFiles(cwd) {
         const git = (0, simple_git_1.simpleGit)(cwd);
@@ -73,7 +55,7 @@ class DiffService {
         const git = (0, simple_git_1.simpleGit)(cwd);
         const base = await git.diff(["-U10", "--no-ext-diff"]);
         const changed = await this.changedFiles(cwd);
-        const already = pathsFromUnifiedDiff(base);
+        const already = (0, diffPaths_js_1.pathsFromUnifiedDiffSet)(base);
         const missing = changed.filter((p) => !already.has(p));
         const extras = await Promise.all(missing.map((p) => this.diffNewPathOnDisk(cwd, p)));
         return [base, ...extras].filter((c) => c.trim()).join("\n");
@@ -81,6 +63,35 @@ class DiffService {
     async stageAll(cwd) {
         const git = (0, simple_git_1.simpleGit)(cwd);
         await git.add(".");
+    }
+    async stagePaths(cwd, paths) {
+        if (paths.length === 0)
+            return;
+        const git = (0, simple_git_1.simpleGit)(cwd);
+        await git.add(paths);
+    }
+    /**
+     * Restore selected paths to HEAD (index + worktree) and remove untracked paths from disk.
+     * Matches per-file semantics of a full discard for the chosen paths only.
+     */
+    async discardPaths(cwd, paths) {
+        if (paths.length === 0)
+            return;
+        const unique = [...new Set(paths)];
+        const { stdout } = await execFileAsync("git", ["-C", cwd, "ls-files", "-z", "--cached", "--", ...unique], {
+            maxBuffer: 10 * 1024 * 1024,
+            encoding: "utf8"
+        });
+        const tracked = new Set(stdout.split("\0").filter(Boolean));
+        const toRestore = unique.filter((p) => tracked.has(p));
+        const toClean = unique.filter((p) => !tracked.has(p));
+        const git = (0, simple_git_1.simpleGit)(cwd);
+        if (toRestore.length > 0) {
+            await git.raw(["restore", "--source=HEAD", "--staged", "--worktree", "--", ...toRestore]);
+        }
+        if (toClean.length > 0) {
+            await git.clean("f", ["-d", "--", ...toClean]);
+        }
     }
     async discardAll(cwd) {
         const git = (0, simple_git_1.simpleGit)(cwd);

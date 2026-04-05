@@ -1,10 +1,15 @@
 <script setup lang="ts">
 import type { ThreadAgent } from "@shared/domain";
 import { THREAD_AGENT_BOOTSTRAP_COMMAND } from "@shared/threadAgentBootstrap";
-import { nextTick, onBeforeUnmount, ref, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, ref, watch } from "vue";
 import BaseButton from "@/components/ui/BaseButton.vue";
 import AgentIcon from "@/components/ui/AgentIcon.vue";
 import { useTerminalSoundSettings } from "@/composables/useTerminalSoundSettings";
+import {
+  formatShortcut,
+  KEYBINDING_DEFINITIONS,
+  type KeybindingCategory
+} from "@/keybindings/registry";
 
 const props = defineProps<{
   open: boolean;
@@ -27,11 +32,33 @@ const AGENT_ROWS: { agent: ThreadAgent; label: string }[] = [
 const draft = ref<Record<ThreadAgent, string>>({ ...props.commands });
 const panelRef = ref<HTMLElement | null>(null);
 
-type SettingsSection = "agents" | "terminal";
+type SettingsSection = "agents" | "terminal" | "keyboard";
 const activeSection = ref<SettingsSection>("agents");
 
 const settingsPanelAgentsId = "workspace-settings-panel-agents";
 const settingsPanelTerminalId = "workspace-settings-panel-terminal";
+const settingsPanelKeyboardId = "workspace-settings-panel-keyboard";
+
+const KEYBIND_CATEGORY_ORDER: KeybindingCategory[] = [
+  "Navigation",
+  "Threads",
+  "Git diff",
+  "Files",
+  "General"
+];
+
+const keyboardBindingsGrouped = computed(() => {
+  const map = new Map<KeybindingCategory, typeof KEYBINDING_DEFINITIONS>();
+  for (const def of KEYBINDING_DEFINITIONS) {
+    const list = map.get(def.category) ?? [];
+    list.push(def);
+    map.set(def.category, list);
+  }
+  return KEYBIND_CATEGORY_ORDER.filter((c) => map.has(c)).map((category) => ({
+    category,
+    rows: map.get(category)!
+  }));
+});
 
 const {
   terminalNotificationsEnabled,
@@ -157,6 +184,23 @@ function save(): void {
           >
             Terminal
           </button>
+          <button
+            id="settings-tab-keyboard"
+            type="button"
+            role="tab"
+            :aria-selected="activeSection === 'keyboard'"
+            :tabindex="activeSection === 'keyboard' ? 0 : -1"
+            :aria-controls="settingsPanelKeyboardId"
+            class="relative -mb-px border-b-2 px-3 pb-2.5 text-sm font-medium transition-colors focus-visible:z-10 focus-visible:rounded-t-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+            :class="
+              activeSection === 'keyboard'
+                ? 'border-primary text-foreground'
+                : 'border-transparent text-muted-foreground hover:text-foreground'
+            "
+            @click="activeSection = 'keyboard'"
+          >
+            Keyboard
+          </button>
         </div>
 
         <div class="mt-4 min-h-[12rem]">
@@ -234,6 +278,51 @@ function save(): void {
               Turn off <span class="font-medium text-foreground/80">Enable notifications</span> to silence all
               terminal attention sounds.
             </p>
+          </div>
+
+          <div
+            v-show="activeSection === 'keyboard'"
+            :id="settingsPanelKeyboardId"
+            role="tabpanel"
+            aria-labelledby="settings-tab-keyboard"
+          >
+            <p class="text-sm text-muted-foreground">
+              Shortcuts are disabled while this dialog is open. Most shortcuts are ignored when focus is in the
+              integrated terminal or in a text field (search, agent command inputs, code editor).
+            </p>
+            <div class="mt-4 space-y-5">
+              <div v-for="group in keyboardBindingsGrouped" :key="group.category">
+                <h3 class="mb-2 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+                  {{ group.category }}
+                </h3>
+                <table class="w-full border-collapse text-left text-sm">
+                  <thead>
+                    <tr class="border-b border-border text-muted-foreground">
+                      <th class="py-1.5 pr-3 font-medium">Action</th>
+                      <th class="py-1.5 font-medium">Shortcut</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr
+                      v-for="row in group.rows"
+                      :key="row.id"
+                      class="border-b border-border/60 align-top"
+                    >
+                      <td class="py-2 pr-3 text-foreground">{{ row.label }}</td>
+                      <td class="py-2">
+                        <kbd
+                          class="rounded border border-border bg-muted/50 px-1.5 py-0.5 font-mono text-xs text-foreground"
+                          >{{ formatShortcut(row.shortcut) }}</kbd
+                        >
+                        <p v-if="row.notes" class="mt-1 max-w-sm text-xs text-muted-foreground">
+                          {{ row.notes }}
+                        </p>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
         </div>
 

@@ -36,6 +36,10 @@ contextBridge.exposeInMainWorld("workspaceApi", {
   workingTreeDiff: (cwd: string) => ipcRenderer.invoke(IPC_CHANNELS.diffWorkingTree, cwd),
   stageAll: (cwd: string) => ipcRenderer.invoke(IPC_CHANNELS.diffStageAll, cwd),
   discardAll: (cwd: string) => ipcRenderer.invoke(IPC_CHANNELS.diffDiscardAll, cwd),
+  stagePaths: (cwd: string, paths: string[]) =>
+    ipcRenderer.invoke(IPC_CHANNELS.diffStagePaths, { cwd, paths }),
+  discardPaths: (cwd: string, paths: string[]) =>
+    ipcRenderer.invoke(IPC_CHANNELS.diffDiscardPaths, { cwd, paths }),
   listFiles: (cwd: string) => ipcRenderer.invoke(IPC_CHANNELS.filesList, cwd),
   searchFiles: (cwd: string, query: string) => ipcRenderer.invoke(IPC_CHANNELS.filesSearch, { cwd, query }),
   readFile: (cwd: string, relativePath: string) =>

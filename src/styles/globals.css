@@ -227,4 +227,88 @@
   .markdown-reader input[type="checkbox"] {
     @apply mr-1 align-middle;
   }
+
+  /**
+   * CodeMirror find/replace (host: .file-editor-cm in CodeMirrorEditor.vue).
+   * EditorView.darkTheme is synced with html.dark in CodeMirrorEditor.vue so
+   * CodeMirror’s light gray gradients are not paired with app light-on-dark text.
+   */
+  .file-editor-cm .cm-panels {
+    @apply bg-transparent;
+  }
+
+  .file-editor-cm .cm-panel.cm-search {
+    @apply rounded-t-md border-b border-border bg-card/95 shadow-[0_1px_0_color-mix(in_oklch,var(--border)_80%,transparent)] backdrop-blur-sm;
+  }
+
+  .dark .file-editor-cm .cm-panel.cm-search {
+    @apply bg-card/90;
+  }
+
+  .file-editor-cm .cm-search {
+    @apply relative pr-10 text-xs text-foreground;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.375rem 0.5rem;
+    padding-block: 0.5rem;
+    padding-inline: 0.625rem;
+  }
+
+  .file-editor-cm .cm-panel.cm-search .cm-search :where(input, button, label) {
+    margin: 0;
+  }
+
+  .file-editor-cm .cm-search > br {
+    flex-basis: 100%;
+    width: 0;
+    height: 0;
+    overflow: hidden;
+    margin: 0;
+  }
+
+  .file-editor-cm .cm-search .cm-textfield {
+    @apply h-7 min-w-[10rem] max-w-full shrink rounded-md border border-input bg-background px-2 py-0.5 text-xs text-foreground shadow-xs outline-none transition-[color,box-shadow] placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50 dark:bg-input/40;
+    background-image: none !important;
+    font-size: 12px !important;
+  }
+
+  /**
+   * Match `BaseButton` outline + xs (see `button.ts`): same as Revert / file toolbar.
+   * Primary fill on Replace only; Replace all stays outline like other bulk actions.
+   */
+  .file-editor-cm .cm-search .cm-button {
+    @apply inline-flex h-6 shrink-0 cursor-pointer items-center justify-center gap-1 rounded-[min(var(--radius-md),10px)] border border-border bg-clip-padding px-2 text-xs font-medium whitespace-nowrap text-foreground shadow-xs outline-none select-none transition-all;
+    @apply bg-background hover:bg-muted hover:text-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 active:translate-y-px;
+    @apply dark:border-input dark:bg-input/30 dark:hover:bg-input/50;
+    background-image: none !important;
+    line-height: 1.25;
+  }
+
+  .file-editor-cm .cm-search .cm-button[name="replace"] {
+    @apply border-transparent bg-primary text-primary-foreground shadow-none hover:bg-primary/80;
+  }
+
+  .file-editor-cm .cm-search label {
+    @apply inline-flex cursor-pointer items-center gap-1.5 text-[11px] text-muted-foreground select-none hover:text-foreground;
+  }
+
+  .file-editor-cm .cm-search input[type="checkbox"] {
+    @apply size-3.5 shrink-0 cursor-pointer rounded border border-input bg-background dark:bg-input/40;
+    accent-color: var(--primary);
+  }
+
+  .file-editor-cm .cm-search button[name="close"] {
+    @apply absolute top-1.5 right-2 inline-flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-[min(var(--radius-md),10px)] border border-transparent bg-transparent text-base leading-none font-medium text-muted-foreground outline-none transition-all select-none;
+    @apply hover:bg-muted hover:text-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 active:translate-y-px;
+    @apply dark:hover:bg-muted/50;
+  }
+
+  .file-editor-cm .cm-searchMatch {
+    background-color: color-mix(in oklch, var(--primary) 22%, transparent);
+  }
+
+  .file-editor-cm .cm-searchMatch.cm-searchMatch-selected {
+    background-color: color-mix(in oklch, var(--primary) 42%, transparent);
+  }
 }

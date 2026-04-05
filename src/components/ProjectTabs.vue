@@ -3,6 +3,7 @@ import type { Project, Thread, Worktree } from "@shared/domain";
 import { FolderGit2, Plus, Settings } from "lucide-vue-next";
 import { computed, ref } from "vue";
 import ThemeToggle from "@/components/ThemeToggle.vue";
+import { titleWithShortcut } from "@/keybindings/registry";
 
 const props = withDefaults(
   defineProps<{
@@ -166,7 +167,7 @@ function onTabLeave(): void {
         type="button"
         :class="newTabBtnClass"
         aria-label="Settings"
-        title="Settings"
+        :title="titleWithShortcut('Settings', 'openSettings')"
         @click="emit('configureCommands')"
       >
         <Settings class="h-3.5 w-3.5" :stroke-width="1.75" />

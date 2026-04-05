@@ -372,22 +372,36 @@ describe("FileSearchEditor", () => {
       ]);
     readFile.mockResolvedValue("");
     createFile.mockResolvedValue();
-    const promptSpy = vi.spyOn(window, "prompt").mockReturnValue("src/new.ts");
 
     const wrapper = mount(FileSearchEditor, {
-      props: { worktreePath: "/tmp/project" }
+      props: { worktreePath: "/tmp/project" },
+      attachTo: document.body
     });
 
-    await flushPromises();
-    await wrapper.get('[data-testid="add-file"]').trigger("click");
-    await flushPromises();
+    try {
+      await flushPromises();
+      await wrapper.get('[data-testid="add-file"]').trigger("click");
+      await flushPromises();
+      await nextTick();
 
-    expect(promptSpy).toHaveBeenCalled();
-    expect(createFile).toHaveBeenCalledWith("/tmp/project", "src/new.ts");
-    expect(listFiles).toHaveBeenCalledTimes(2);
-    expect(readFile).toHaveBeenCalledWith("/tmp/project", "src/new.ts");
+      const pathInput = document.querySelector(
+        '[data-testid="new-file-path-input"]'
+      ) as HTMLInputElement;
+      expect(pathInput).toBeTruthy();
+      pathInput.value = "src/new.ts";
+      pathInput.dispatchEvent(new Event("input", { bubbles: true }));
 
-    promptSpy.mockRestore();
+      const confirm = document.querySelector('[data-testid="new-file-confirm"]') as HTMLButtonElement;
+      expect(confirm).toBeTruthy();
+      confirm.click();
+      await flushPromises();
+
+      expect(createFile).toHaveBeenCalledWith("/tmp/project", "src/new.ts");
+      expect(listFiles).toHaveBeenCalledTimes(2);
+      expect(readFile).toHaveBeenCalledWith("/tmp/project", "src/new.ts");
+    } finally {
+      wrapper.unmount();
+    }
   });
 
   it("deletes the selected file after confirmation", async () => {
@@ -425,7 +439,6 @@ describe("FileSearchEditor", () => {
       ]);
     readFile.mockResolvedValue("");
     createFile.mockResolvedValue();
-    const promptSpy = vi.spyOn(window, "prompt").mockReturnValue("src/pane-new.ts");
 
     const wrapper = mount(FileSearchEditor, {
       props: { worktreePath: "/tmp/project" },
@@ -446,14 +459,21 @@ describe("FileSearchEditor", () => {
       expect(addItem).toBeTruthy();
       (addItem as HTMLButtonElement).click();
       await flushPromises();
+      await nextTick();
+
+      const pathInput = document.querySelector(
+        '[data-testid="new-file-path-input"]'
+      ) as HTMLInputElement;
+      expect(pathInput).toBeTruthy();
+      pathInput.value = "src/pane-new.ts";
+      pathInput.dispatchEvent(new Event("input", { bubbles: true }));
+      (document.querySelector('[data-testid="new-file-confirm"]') as HTMLButtonElement).click();
+      await flushPromises();
 
       expect(createFile).toHaveBeenCalledWith("/tmp/project", "src/pane-new.ts");
-      expect(promptSpy).toHaveBeenCalled();
     } finally {
       wrapper.unmount();
     }
-
-    promptSpy.mockRestore();
   });
 
   it("uses the folder path when adding a file from a folder context menu", async () => {
@@ -465,10 +485,6 @@ describe("FileSearchEditor", () => {
       ]);
     readFile.mockResolvedValue("");
     createFile.mockResolvedValue();
-    const promptSpy = vi.spyOn(window, "prompt").mockImplementation((_msg, def) => {
-      expect(def).toBe("src/");
-      return "src/ctx-new.ts";
-    });
 
     const wrapper = mount(FileSearchEditor, {
       props: { worktreePath: "/tmp/project" },
@@ -489,13 +505,22 @@ describe("FileSearchEditor", () => {
       expect(addItem).toBeTruthy();
       (addItem as HTMLButtonElement).click();
       await flushPromises();
+      await nextTick();
+
+      const pathInput = document.querySelector(
+        '[data-testid="new-file-path-input"]'
+      ) as HTMLInputElement;
+      expect(pathInput).toBeTruthy();
+      expect(pathInput.value).toBe("src/");
+      pathInput.value = "src/ctx-new.ts";
+      pathInput.dispatchEvent(new Event("input", { bubbles: true }));
+      (document.querySelector('[data-testid="new-file-confirm"]') as HTMLButtonElement).click();
+      await flushPromises();
 
       expect(createFile).toHaveBeenCalledWith("/tmp/project", "src/ctx-new.ts");
     } finally {
       wrapper.unmount();
     }
-
-    promptSpy.mockRestore();
   });
 
   it("deletes a file from the file row context menu without selecting it first", async () => {

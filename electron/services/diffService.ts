@@ -3,25 +3,9 @@ import { promisify } from "node:util";
 import { statSync } from "node:fs";
 import { resolve } from "node:path";
 import { simpleGit } from "simple-git";
+import { pathsFromUnifiedDiffSet } from "../../src/shared/diffPaths.js";
 
 const execFileAsync = promisify(execFile);
-
-/** `b/<path>` segment from `diff --git` (best-effort; matches normal paths). */
-function pathsFromUnifiedDiff(unified: string): Set<string> {
-  const out = new Set<string>();
-  for (const line of unified.split("\n")) {
-    if (!line.startsWith("diff --git ")) continue;
-    const i = line.lastIndexOf(" b/");
-    if (i < 0) continue;
-    let p = line.slice(i + 3);
-    if (p.startsWith('"')) {
-      const end = p.lastIndexOf('"');
-      if (end > 0) p = p.slice(1, end);
-    }
-    out.add(p);
-  }
-  return out;
-}
 
 export class DiffService {
   async changedFiles(cwd: string): Promise<string[]> {
@@ -68,7 +52,7 @@ export class DiffService {
     const git = simpleGit(cwd);
     const base = await git.diff(["-U10", "--no-ext-diff"]);
     const changed = await this.changedFiles(cwd);
-    const already = pathsFromUnifiedDiff(base);
+    const already = pathsFromUnifiedDiffSet(base);
     const missing = changed.filter((p) => !already.has(p));
     const extras = await Promise.all(missing.map((p) => this.diffNewPathOnDisk(cwd, p)));
     return [base, ...extras].filter((c) => c.trim()).join("\n");
@@ -77,6 +61,35 @@ export class DiffService {
   async stageAll(cwd: string): Promise<void> {
     const git = simpleGit(cwd);
     await git.add(".");
+  }
+
+  async stagePaths(cwd: string, paths: string[]): Promise<void> {
+    if (paths.length === 0) return;
+    const git = simpleGit(cwd);
+    await git.add(paths);
+  }
+
+  /**
+   * Restore selected paths to HEAD (index + worktree) and remove untracked paths from disk.
+   * Matches per-file semantics of a full discard for the chosen paths only.
+   */
+  async discardPaths(cwd: string, paths: string[]): Promise<void> {
+    if (paths.length === 0) return;
+    const unique = [...new Set(paths)];
+    const { stdout } = await execFileAsync("git", ["-C", cwd, "ls-files", "-z", "--cached", "--", ...unique], {
+      maxBuffer: 10 * 1024 * 1024,
+      encoding: "utf8"
+    });
+    const tracked = new Set(stdout.split("\0").filter(Boolean));
+    const toRestore = unique.filter((p) => tracked.has(p));
+    const toClean = unique.filter((p) => !tracked.has(p));
+    const git = simpleGit(cwd);
+    if (toRestore.length > 0) {
+      await git.raw(["restore", "--source=HEAD", "--staged", "--worktree", "--", ...toRestore]);
+    }
+    if (toClean.length > 0) {
+      await git.clean("f", ["-d", "--", ...toClean]);
+    }
   }
 
   async discardAll(cwd: string): Promise<void> {

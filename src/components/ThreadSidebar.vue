@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import type { RunStatus, Thread, ThreadAgent } from "@shared/domain";
 import { Plus } from "lucide-vue-next";
-import { ref, watch } from "vue";
+import { nextTick, ref, watch } from "vue";
 import ThreadCreateButton from "@/components/ThreadCreateButton.vue";
 import ThreadRow from "@/components/ThreadRow.vue";
 import ThreadTopBar from "@/components/ThreadTopBar.vue";
+import { titleWithShortcut } from "@/keybindings/registry";
 
 const props = defineProps<{
   threads: Thread[];
@@ -25,6 +26,8 @@ const emit = defineEmits<{
   collapse: [];
   expand: [];
 }>();
+
+const topBarRef = ref<InstanceType<typeof ThreadTopBar> | null>(null);
 
 const renderedThreads = ref<Thread[]>([...props.threads]);
 const draggedThreadId = ref<string | null>(null);
@@ -162,6 +165,19 @@ function handleKeyboardReorder(threadId: string, direction: "up" | "down"): void
 
   emit("reorder", getThreadIds(renderedThreads.value));
 }
+
+function openNewThreadMenu(): void {
+  if (props.collapsed) {
+    emit("expand");
+    void nextTick(() => {
+      topBarRef.value?.openNewThreadMenu();
+    });
+    return;
+  }
+  topBarRef.value?.openNewThreadMenu();
+}
+
+defineExpose({ openNewThreadMenu });
 </script>
 
 <template>
@@ -170,6 +186,7 @@ function handleKeyboardReorder(threadId: string, direction: "up" | "down"): void
     :data-thread-sidebar-collapsed="collapsed ? 'true' : undefined"
   >
     <ThreadTopBar
+      ref="topBarRef"
       :collapsed="collapsed"
       @create-with-agent="emit('createWithAgent', $event)"
       @collapse="emit('collapse')"
@@ -190,7 +207,7 @@ function handleKeyboardReorder(threadId: string, direction: "up" | "down"): void
         </div>
         <ThreadCreateButton
           aria-label="Add thread"
-          title="Add thread"
+          :title="titleWithShortcut('Add thread', 'newThreadMenu')"
           size="sm"
           @create-with-agent="emit('createWithAgent', $event)"
         >

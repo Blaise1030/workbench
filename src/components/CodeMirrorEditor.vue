@@ -1,11 +1,41 @@
 <script setup lang="ts">
 import { indentWithTab } from "@codemirror/commands";
 import { indentUnit } from "@codemirror/language";
+import { search, searchKeymap } from "@codemirror/search";
 import { EditorState, type Extension } from "@codemirror/state";
-import { EditorView, keymap } from "@codemirror/view";
+import type { EditorView, Panel, ViewUpdate } from "@codemirror/view";
+import { EditorView as CMEditorView, keymap } from "@codemirror/view";
 import { minimalSetup } from "codemirror";
 import { languageExtensionsFor } from "@/lib/codemirrorLanguageExtensions";
-import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from "vue";
+import CodeMirrorFindReplaceBar from "@/components/CodeMirrorFindReplaceBar.vue";
+import { type App, type ComponentPublicInstance, computed, createApp, onBeforeUnmount, onMounted, ref, shallowRef, watch } from "vue";
+
+type FindBarExposed = { syncFromView: (u: ViewUpdate) => void };
+
+function createCustomSearchPanel(view: EditorView): Panel {
+  const dom = document.createElement("div");
+  let app: App | null = null;
+  let bar: (ComponentPublicInstance & FindBarExposed) | null = null;
+  return {
+    dom,
+    top: true,
+    mount() {
+      app = createApp(CodeMirrorFindReplaceBar, { editorView: view });
+      bar = app.mount(dom) as ComponentPublicInstance & FindBarExposed;
+    },
+    update(u: ViewUpdate) {
+      bar?.syncFromView(u);
+    },
+    destroy() {
+      app?.unmount();
+      app = null;
+      bar = null;
+    }
+  };
+}
+
+/** CodeMirror’s `&light` / `&dark` panels follow this facet, not `html.dark`. */
+const colorSchemeDark = ref(false);
 
 const props = defineProps<{
   modelValue: string;
@@ -18,20 +48,23 @@ const emit = defineEmits<{
 }>();
 
 const hostRef = ref<HTMLDivElement | null>(null);
-const view = shallowRef<EditorView | null>(null);
+const view = shallowRef<CMEditorView | null>(null);
 let syncingFromProp = false;
 
 const extensions = computed((): Extension[] => {
   const attrs: Extension[] = [];
   if (props.ariaLabel) {
-    attrs.push(EditorView.contentAttributes.of({ "aria-label": props.ariaLabel }));
+    attrs.push(CMEditorView.contentAttributes.of({ "aria-label": props.ariaLabel }));
   }
   return [
     minimalSetup,
+    CMEditorView.darkTheme.of(colorSchemeDark.value),
+    search({ top: true, createPanel: createCustomSearchPanel }),
     indentUnit.of("  "),
     keymap.of([indentWithTab]),
+    keymap.of(searchKeymap),
     ...languageExtensionsFor(props.language),
-    EditorView.theme({
+    CMEditorView.theme({
       "&": {
         height: "100%",
         fontSize: "12px",
@@ -51,9 +84,16 @@ const extensions = computed((): Extension[] => {
       },
       ".cm-line": {
         padding: "0"
+      },
+      ".cm-panels": {
+        backgroundColor: "transparent !important"
+      },
+      ".cm-panels.cm-panels-top": {
+        padding: "8px 10px 0",
+        borderBottom: "none"
       }
     }),
-    EditorView.updateListener.of((update) => {
+    CMEditorView.updateListener.of((update) => {
       if (update.docChanged && !syncingFromProp) {
         emit("update:modelValue", update.state.doc.toString());
       }
@@ -69,16 +109,29 @@ function createState(doc: string) {
   });
 }
 
+let colorSchemeObserver: MutationObserver | null = null;
+
 onMounted(() => {
+  colorSchemeDark.value = document.documentElement.classList.contains("dark");
   const el = hostRef.value;
   if (!el) return;
-  view.value = new EditorView({
+  view.value = new CMEditorView({
     state: createState(props.modelValue),
     parent: el
+  });
+  colorSchemeObserver = new MutationObserver(() => {
+    const next = document.documentElement.classList.contains("dark");
+    if (next !== colorSchemeDark.value) colorSchemeDark.value = next;
+  });
+  colorSchemeObserver.observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ["class"]
   });
 });
 
 onBeforeUnmount(() => {
+  colorSchemeObserver?.disconnect();
+  colorSchemeObserver = null;
   view.value?.destroy();
   view.value = null;
 });
@@ -99,7 +152,7 @@ watch(
 );
 
 watch(
-  () => [props.language, props.ariaLabel] as const,
+  () => [props.language, props.ariaLabel, colorSchemeDark.value] as const,
   () => {
     const v = view.value;
     if (!v) return;

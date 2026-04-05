@@ -196,6 +196,7 @@ onMounted(async () => {
   });
   applyTheme();
   fit();
+  void document.fonts.ready.then(() => fit());
 
   const api = getApi();
   if (api) {
@@ -286,7 +287,8 @@ watch(
 
 <template>
   <section
-    class="relative flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-card p-3 text-card-foreground text-xs border-t border-border"
+    data-instrument-terminal
+    class="relative flex bg-muted h-full min-h-0 min-w-0 flex-col overflow-hidden bg-card p-3 text-card-foreground text-xs border-t border-border"
     role="document"
     :aria-label="paneAriaLabel"
   >
