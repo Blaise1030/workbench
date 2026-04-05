@@ -276,7 +276,7 @@ onBeforeUnmount(() => {
     >
       <!-- Toolbar + changed-files strip share one sticky stack so both stay visible while scrolling the diff. -->
       <div
-        class="sticky top-0 z-10 shrink-0 border-b border-border bg-background shadow-sm"
+        class="sticky top-0 z-10 shrink-0 border-b border-border bg-background"
       >
         <header class="flex shrink-0 flex-wrap items-center gap-2 bg-background p-3">
           <div class="flex min-w-0 flex-wrap items-center gap-2">
