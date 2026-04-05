@@ -8,7 +8,6 @@ function mountPanel(overrides: Record<string, unknown> = {}) {
       selectedDiff: "No unstaged changes.",
       summaryLabel: null,
       queuedReviewCount: 0,
-      canQueueReview: true,
       ...overrides,
     },
   });
@@ -59,76 +58,6 @@ describe("DiffReviewPanel", () => {
     await wrapper.get('[aria-label="Clear review items"]').trigger("click");
 
     expect(wrapper.emitted("clearReviewItems")).toEqual([[]]);
-  });
-
-  it("does not emit queueReviewItem for placeholder diff states", async () => {
-    const wrapper = mountPanel({
-      selectedDiff: "Could not load diff from source.",
-    });
-
-    await wrapper.get('[aria-label="Queue review item"]').trigger("click");
-
-    expect(wrapper.emitted("queueReviewItem")).toBeUndefined();
-  });
-
-  it("emits queueReviewItem with null line ranges for a zero-count hunk", async () => {
-    const wrapper = mountPanel({
-      selectedDiff: "diff --git a/a.txt b/a.txt\n--- a/a.txt\n+++ b/a.txt\n@@ -1,0 +1,0 @@\n",
-      summaryLabel: "a.txt",
-    });
-
-    await wrapper.get('[aria-label="Queue review item"]').trigger("click");
-
-    expect(wrapper.emitted("queueReviewItem")).toEqual([
-      [
-        {
-          worktreeId: "",
-          threadId: null,
-          filePath: "a.txt",
-          oldLineStart: null,
-          oldLineEnd: null,
-          newLineStart: null,
-          newLineEnd: null,
-          snippet: "@@ -1,0 +1,0 @@",
-          note: undefined,
-          intent: undefined,
-        },
-      ],
-    ]);
-  });
-
-  it("falls back to the active hunk when selected text points at another hunk", async () => {
-    const wrapper = mountPanel({
-      selectedDiff:
-        "diff --git a/a.txt b/a.txt\n--- a/a.txt\n+++ b/a.txt\n@@ -1 +1 @@\n-a\n+b\n@@ -10 +10 @@\n-old-second\n+new-second\n",
-      summaryLabel: "a.txt",
-    });
-
-    vi.spyOn(window, "getSelection").mockReturnValue({
-      isCollapsed: false,
-      toString: () => "new-second",
-      anchorNode: { nodeType: Node.TEXT_NODE, parentElement: wrapper.element.querySelector(".diff-scroll-root") },
-      focusNode: { nodeType: Node.TEXT_NODE, parentElement: wrapper.element.querySelector(".diff-scroll-root") },
-    } as unknown as Selection);
-
-    await wrapper.get('[aria-label="Queue review item"]').trigger("click");
-
-    expect(wrapper.emitted("queueReviewItem")).toEqual([
-      [
-        {
-          worktreeId: "",
-          threadId: null,
-          filePath: "a.txt",
-          oldLineStart: 1,
-          oldLineEnd: 1,
-          newLineStart: 1,
-          newLineEnd: 1,
-          snippet: "@@ -1 +1 @@\n-a\n+b",
-          note: undefined,
-          intent: undefined,
-        },
-      ],
-    ]);
   });
 
   it("renders flatter action buttons in the diff toolbar", () => {

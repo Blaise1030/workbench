@@ -3,7 +3,6 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue"
 import { html as diffToHtml } from "diff2html";
 import { ColorSchemeType } from "diff2html/lib/types";
 import BaseButton from "@/components/ui/BaseButton.vue";
-import type { DraftDiffReviewSelection } from "@/features/diffReview/types";
 import "diff2html/bundles/css/diff2html.min.css";
 
 const props = withDefaults(
@@ -12,11 +11,9 @@ const props = withDefaults(
     /** Optional context in the sticky bar (one path or "N files"). */
     summaryLabel: string | null;
     queuedReviewCount?: number;
-    canQueueReview?: boolean;
   }>(),
   {
     queuedReviewCount: 0,
-    canQueueReview: true,
   }
 );
 
@@ -26,7 +23,6 @@ const RICH_DIFF_MAX_BYTES = 900_000;
 const emit = defineEmits<{
   stageAll: [];
   discardAll: [];
-  queueReviewItem: [selection: DraftDiffReviewSelection];
   openInAgents: [];
   clearReviewItems: [];
 }>();
@@ -76,111 +72,8 @@ function looksLikeUnifiedDiff(text: string): boolean {
   return t.includes("diff --git ") || /^---\s+/m.test(t);
 }
 
-function shouldUseSummaryLabel(summaryLabel: string | null): boolean {
-  return !!summaryLabel && !/\bfiles?\b/i.test(summaryLabel);
-}
-
-function extractFilePathFromDiff(text: string): string | null {
-  const match = text.match(/^diff --git a\/(.+?) b\/(.+)$/m);
-  if (match) return match[2];
-
-  const fileMatch = text.match(/^\+\+\+ (?:b\/)?(.+)$/m);
-  if (fileMatch) return fileMatch[1];
-
-  return null;
-}
-
-function extractFirstHunk(text: string): {
-  oldLineStart: number | null;
-  oldLineEnd: number | null;
-  newLineStart: number | null;
-  newLineEnd: number | null;
-  snippet: string | null;
-} {
-  const match = text.match(/^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/m);
-  if (!match || match.index == null) {
-    return {
-      oldLineStart: null,
-      oldLineEnd: null,
-      newLineStart: null,
-      newLineEnd: null,
-      snippet: null,
-    };
-  }
-
-  const tail = text.slice(match.index + match[0].length);
-  const nextFileIndex = tail.search(/^diff --git /m);
-  const nextHunkIndex = tail.search(/^@@ /m);
-  const boundaryCandidates = [nextFileIndex, nextHunkIndex].filter((value) => value >= 0).sort((a, b) => a - b);
-  const end = boundaryCandidates.length > 0 ? match.index + match[0].length + boundaryCandidates[0] : text.length;
-
-  const oldLineStart = Number(match[1]);
-  const oldLineCount = Number(match[2] ?? "1");
-  const newLineStart = Number(match[3]);
-  const newLineCount = Number(match[4] ?? "1");
-
-  return {
-    oldLineStart: oldLineCount > 0 ? oldLineStart : null,
-    oldLineEnd: oldLineCount > 0 ? oldLineStart + oldLineCount - 1 : null,
-    newLineStart: newLineCount > 0 ? newLineStart : null,
-    newLineEnd: newLineCount > 0 ? newLineStart + newLineCount - 1 : null,
-    snippet: text.slice(match.index, end).trim(),
-  };
-}
-
-function selectionMatchesHunkSnippet(selectedText: string | null, hunkSnippet: string | null): boolean {
-  if (!selectedText || !hunkSnippet) return false;
-  const normalizedSelected = selectedText.replace(/\s+/g, " ").trim();
-  const normalizedHunk = hunkSnippet.replace(/\s+/g, " ").trim();
-  return normalizedSelected.length > 0 && normalizedHunk.includes(normalizedSelected);
-}
-
-function getSelectedDiffText(root: HTMLElement | null): string | null {
-  if (typeof window === "undefined" || !root) return null;
-  const selection = window.getSelection();
-  if (!selection || selection.isCollapsed) return null;
-
-  const text = selection.toString().trim();
-  if (!text) return null;
-
-  const anchorNode = selection.anchorNode;
-  const focusNode = selection.focusNode;
-  const anchorElement = anchorNode?.nodeType === Node.ELEMENT_NODE ? (anchorNode as Element) : anchorNode?.parentElement ?? null;
-  const focusElement = focusNode?.nodeType === Node.ELEMENT_NODE ? (focusNode as Element) : focusNode?.parentElement ?? null;
-
-  if (anchorElement && root.contains(anchorElement)) return text;
-  if (focusElement && root.contains(focusElement)) return text;
-  return null;
-}
-
-function buildQueueSelection(): DraftDiffReviewSelection {
-  const hunk = extractFirstHunk(props.selectedDiff);
-  const selectedText = getSelectedDiffText(diffHostRef.value);
-  const rawText = props.selectedDiff.trim();
-  const filePath = shouldUseSummaryLabel(props.summaryLabel)
-    ? props.summaryLabel
-    : extractFilePathFromDiff(props.selectedDiff) ?? props.summaryLabel ?? "";
-  const snippet = selectionMatchesHunkSnippet(selectedText, hunk.snippet) ? selectedText : hunk.snippet ?? rawText;
-
-  return {
-    worktreeId: "",
-    threadId: null,
-    filePath,
-    oldLineStart: hunk.oldLineStart,
-    oldLineEnd: hunk.oldLineEnd,
-    newLineStart: hunk.newLineStart,
-    newLineEnd: hunk.newLineEnd,
-    snippet,
-  };
-}
-
 function emitOpenInAgents(): void {
   emit("openInAgents");
-}
-
-function emitQueueReviewItem(): void {
-  if (!looksLikeUnifiedDiff(props.selectedDiff) || diffEmptyVisual.value) return;
-  emit("queueReviewItem", buildQueueSelection());
 }
 
 type DiffEmptyVisual = { emoji: string; caption: string; showRaw?: boolean };
@@ -207,7 +100,6 @@ const reviewBasketSummary = computed(() => {
 
 const summaryLabelText = computed(() => props.summaryLabel);
 const queuedReviewCountValue = computed(() => props.queuedReviewCount);
-const canQueueReviewEnabled = computed(() => props.canQueueReview);
 
 const richDiffHtml = computed(() => {
   const raw = props.selectedDiff;
@@ -325,16 +217,6 @@ onBeforeUnmount(() => {
           </span>
         </div>
         <div class="ml-auto flex flex-wrap gap-2">
-          <BaseButton
-            size="sm"
-            variant="secondary"
-            class="border-0 shadow-none focus-visible:!border-transparent focus-visible:!outline-none focus-visible:!ring-0 focus-visible:!ring-offset-0"
-            aria-label="Queue review item"
-            :disabled="!canQueueReviewEnabled"
-            @click="emitQueueReviewItem"
-          >
-            Queue review item
-          </BaseButton>
           <BaseButton
             v-if="queuedReviewCountValue > 0"
             size="sm"
