@@ -101,4 +101,32 @@ export class FileService {
     await fs.writeFile(absolutePath, content, "utf8");
     this.summaryCache.delete(path.resolve(root));
   }
+
+  async createFile(root: string, relativePath: string): Promise<void> {
+    const normalized = normalizeRelativePath(relativePath.trim()).replace(/^\/+/, "");
+    if (!normalized || normalized.endsWith("/")) {
+      throw new Error("Invalid file path");
+    }
+
+    const absolutePath = assertPathWithinRoot(root, normalized);
+    await fs.mkdir(path.dirname(absolutePath), { recursive: true });
+    const handle = await fs.open(absolutePath, "wx");
+    await handle.close();
+    this.summaryCache.delete(path.resolve(root));
+  }
+
+  async deleteFile(root: string, relativePath: string): Promise<void> {
+    const normalized = normalizeRelativePath(relativePath.trim()).replace(/^\/+/, "");
+    if (!normalized) {
+      throw new Error("Invalid file path");
+    }
+
+    const absolutePath = assertPathWithinRoot(root, normalized);
+    const stat = await fs.stat(absolutePath);
+    if (!stat.isFile()) {
+      throw new Error("Not a regular file");
+    }
+    await fs.unlink(absolutePath);
+    this.summaryCache.delete(path.resolve(root));
+  }
 }

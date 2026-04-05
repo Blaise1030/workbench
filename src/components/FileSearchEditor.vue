@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from "vue";
-import { Search } from "lucide-vue-next";
+import { FilePlus, Search, Trash2 } from "lucide-vue-next";
 import type { FileSummary } from "@shared/ipc";
 import BaseButton from "@/components/ui/BaseButton.vue";
 import FileTreeNode, { type FileTreeNodeData } from "@/components/FileTreeNode.vue";
+import PillTabs, { type PillTabItem } from "@/components/ui/PillTabs.vue";
+import { renderMarkdownToHtml } from "@/lib/markdown";
 
 const props = defineProps<{
   worktreePath: string | null;
@@ -26,6 +28,85 @@ const dirty = computed(
   () => selectedPath.value !== null && draftContent.value !== loadedContent.value
 );
 const hasActiveSearch = computed(() => query.value.trim().length > 0);
+
+const isMarkdownFile = computed(() => {
+  const p = selectedPath.value?.toLowerCase() ?? "";
+  return p.endsWith(".md") || p.endsWith(".markdown");
+});
+
+const mdViewMode = ref<"read" | "source">("read");
+
+const mdViewTabs = computed<PillTabItem[]>(() => [
+  { value: "read", label: "Read" },
+  { value: "source", label: "Source" }
+]);
+
+const markdownHtml = computed(() => {
+  if (!isMarkdownFile.value) return "";
+  return renderMarkdownToHtml(draftContent.value);
+});
+
+/** Hint from extension for `data-language` / a11y (no syntax highlighter yet). */
+const editorLanguage = computed(() => {
+  const path = selectedPath.value;
+  if (!path) return undefined;
+  const dot = path.lastIndexOf(".");
+  if (dot < 0) return "plain";
+  const ext = path.slice(dot + 1).toLowerCase();
+  const map: Record<string, string> = {
+    ts: "typescript",
+    tsx: "tsx",
+    js: "javascript",
+    jsx: "javascript",
+    vue: "vue",
+    json: "json",
+    md: "markdown",
+    css: "css",
+    scss: "scss",
+    sass: "sass",
+    less: "less",
+    html: "html",
+    htm: "html",
+    xml: "xml",
+    yml: "yaml",
+    yaml: "yaml",
+    sh: "shell",
+    bash: "shell",
+    zsh: "shell",
+    py: "python",
+    rs: "rust",
+    go: "go",
+    java: "java",
+    kt: "kotlin",
+    swift: "swift",
+    c: "c",
+    h: "c",
+    cpp: "cpp",
+    cc: "cpp",
+    hpp: "cpp",
+    cs: "csharp",
+    rb: "ruby",
+    php: "php",
+    sql: "sql",
+    toml: "toml"
+  };
+  return map[ext] ?? "plain";
+});
+
+function handleEditorKeydown(e: KeyboardEvent): void {
+  if (e.key !== "Tab") return;
+  if (e.shiftKey || e.ctrlKey || e.altKey || e.metaKey) return;
+  e.preventDefault();
+  const ta = e.target as HTMLTextAreaElement;
+  const start = ta.selectionStart;
+  const end = ta.selectionEnd;
+  const indent = "  ";
+  draftContent.value =
+    draftContent.value.slice(0, start) + indent + draftContent.value.slice(end);
+  void nextTick(() => {
+    ta.selectionStart = ta.selectionEnd = start + indent.length;
+  });
+}
 
 function compareTreeNodes(a: FileTreeNodeData, b: FileTreeNodeData): number {
   if (a.kind !== b.kind) return a.kind === "folder" ? -1 : 1;
@@ -125,6 +206,23 @@ function getApi(): WorkspaceApi | null {
   return window.workspaceApi ?? null;
 }
 
+function normalizeNewFilePathInput(raw: string): string {
+  return raw.trim().replace(/\\/g, "/").replace(/^\/+/, "");
+}
+
+function expandAncestorFolders(relativePath: string): void {
+  const segments = relativePath.split("/").filter(Boolean);
+  if (segments.length <= 1) return;
+
+  const next = new Set(expandedFolders.value);
+  let acc = "";
+  for (let i = 0; i < segments.length - 1; i++) {
+    acc = acc ? `${acc}/${segments[i]}` : segments[i]!;
+    next.add(acc);
+  }
+  expandedFolders.value = next;
+}
+
 function clearSelection(): void {
   selectedPath.value = null;
   loadedContent.value = "";
@@ -205,6 +303,65 @@ async function handleSelectFile(relativePath: string): Promise<void> {
   await openFile(relativePath);
 }
 
+async function handleAddFile(): Promise<void> {
+  const api = getApi();
+  const cwd = props.worktreePath;
+  if (!api || !cwd) return;
+
+  const folderHint = selectedPath.value?.includes("/")
+    ? selectedPath.value.replace(/\/[^/]+$/, "")
+    : selectedPath.value
+      ? ""
+      : "src";
+  const defaultValue =
+    folderHint === "" ? "new-file.txt" : folderHint ? `${folderHint}/` : "src/";
+
+  const raw = window.prompt("New file path (relative to workspace)", defaultValue);
+  if (raw === null) return;
+
+  const normalized = normalizeNewFilePathInput(raw);
+  if (!normalized || normalized.endsWith("/")) {
+    error.value = "Enter a file path (not a folder).";
+    return;
+  }
+
+  error.value = null;
+
+  try {
+    await api.createFile(cwd, normalized);
+    await loadFileSummaries();
+    expandAncestorFolders(normalized);
+    if (!(await confirmDiscardIfDirty())) return;
+    await openFile(normalized);
+  } catch (createError) {
+    error.value =
+      createError instanceof Error ? createError.message : "Could not create the file.";
+  }
+}
+
+async function handleDeleteFile(): Promise<void> {
+  const api = getApi();
+  const cwd = props.worktreePath;
+  const relativePath = selectedPath.value;
+  if (!api || !cwd || !relativePath) return;
+
+  const message = dirty.value
+    ? `Delete ${relativePath}? Unsaved changes will be lost.`
+    : `Delete ${relativePath}?`;
+  if (!window.confirm(message)) return;
+
+  error.value = null;
+
+  try {
+    await api.deleteFile(cwd, relativePath);
+    clearSelection();
+    await loadFileSummaries();
+  } catch (deleteError) {
+    error.value =
+      deleteError instanceof Error ? deleteError.message : "Could not delete the file.";
+  }
+}
+
 async function handleSave(): Promise<void> {
   const api = getApi();
   const cwd = props.worktreePath;
@@ -241,6 +398,12 @@ watch(query, () => {
   error.value = null;
 });
 
+watch(selectedPath, (path) => {
+  if (path && /\.(md|markdown)$/i.test(path)) {
+    mdViewMode.value = "read";
+  }
+});
+
 watch(
   () => props.worktreePath,
   async (next, previous) => {
@@ -267,9 +430,9 @@ onMounted(() => {
     <div class="flex w-80 shrink-0 flex-col border-r border-border">
       <div
         data-testid="file-search-header"
-        class="border-b border-border p-1"
+        class="flex items-center gap-1 border-b border-border p-1"
       >
-        <div class="relative text-muted-foreground">
+        <div class="relative min-w-0 flex-1 text-muted-foreground">
           <Search
             class="pointer-events-none absolute top-1/2 left-2.5 h-3.5 w-3.5 -translate-y-1/2"
           />
@@ -284,6 +447,18 @@ onMounted(() => {
             :disabled="!hasWorkspace"
           />
         </div>
+        <BaseButton
+          data-testid="add-file"
+          variant="outline"
+          size="xs"
+          class="shrink-0 px-1.5"
+          :disabled="!hasWorkspace"
+          :title="'Add file'"
+          @click="handleAddFile"
+        >
+          <FilePlus class="h-3.5 w-3.5" aria-hidden="true" />
+          <span class="sr-only">Add file</span>
+        </BaseButton>
       </div>
 
       <div class="min-h-0 flex-1 overflow-y-auto p-1.5">
@@ -322,14 +497,25 @@ onMounted(() => {
         data-testid="file-editor-header"
         class="flex items-center justify-between gap-3 border-b border-border px-4 py-1.5"
       >
-        <div class="min-w-0 gap-2 flex items-center">
-          <p class="truncate text-xs font-medium">
+        <div class="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+          <p class="min-w-0 truncate text-xs font-medium">
             {{ selectedPath ?? "No file selected" }}
           </p>
-          <div
-            v-if="dirty"
-            class="text-xs rounded-full size-2 bg-amber-600"
-          />        
+          <PillTabs
+            v-if="isMarkdownFile && selectedPath"
+            v-model="mdViewMode"
+            class="min-w-0 shrink-0 [&_[role=tablist]]:px-0 [&_[role=tablist]]:py-0"
+            aria-label="Markdown view"
+            :tabs="mdViewTabs"
+          />
+          <template v-if="dirty">
+            <span class="sr-only">Unsaved changes</span>
+            <div
+              class="shrink-0 rounded-full size-2 bg-amber-600"
+              aria-hidden="true"
+              title="Unsaved changes"
+            />
+          </template>
         </div>
         <div class="flex items-center gap-2">
           <BaseButton
@@ -350,34 +536,68 @@ onMounted(() => {
           >
             Save
           </BaseButton>
+          <BaseButton
+            data-testid="delete-file"
+            variant="outline"
+            size="xs"
+            class="text-destructive hover:bg-destructive/10 hover:text-destructive"
+            :disabled="!selectedPath"
+            :title="'Delete file'"
+            @click="handleDeleteFile"
+          >
+            <Trash2 class="h-3.5 w-3.5" aria-hidden="true" />
+            <span class="sr-only">Delete file</span>
+          </BaseButton>
         </div>
       </header>
 
-      <div class="min-h-0 flex-1 p-4">
+      <div class="flex min-h-0 min-w-0 flex-1 flex-col p-2">
         <p
           v-if="error && selectedPath"
-          class="mb-3 text-sm text-destructive"
+          class="mb-2 text-xs text-destructive"
         >
           {{ error }}
         </p>
-        <p
+        <div
           v-if="!selectedPath"
-          class="text-sm text-muted-foreground"
+          data-testid="file-editor-empty-state"
+          class="flex min-h-[18rem] flex-1 flex-col items-center justify-center gap-3 rounded-md bg-background px-4 py-8 text-center"
+          role="status"
+          aria-live="polite"
         >
-          Pick a file from the search results to view or edit it.
-        </p>
+          <span class="select-none text-4xl leading-none" aria-hidden="true">📄</span>
+          <p class="max-w-xs text-xs text-muted-foreground">
+            Pick a file from the search results to view or edit it.
+          </p>
+        </div>
         <p
           v-else-if="isLoadingFile"
-          class="text-sm text-muted-foreground"
+          class="text-xs text-muted-foreground"
         >
           Loading file…
         </p>
+        <div
+          v-else-if="isMarkdownFile && mdViewMode === 'read'"
+          data-testid="markdown-preview"
+          class="markdown-reader h-full min-h-[18rem] overflow-y-auto rounded-md bg-muted/10 px-3 py-2"
+          v-html="markdownHtml"
+        />
         <textarea
           v-else
           data-testid="file-editor"
           v-model="draftContent"
           spellcheck="false"
-          class="h-full min-h-[18rem] w-full resize-none rounded-lg border border-border bg-background px-3 py-3 font-mono text-sm leading-6 outline-none focus-visible:border-ring"
+          autocapitalize="off"
+          autocomplete="off"
+          autocorrect="off"
+          :data-language="editorLanguage"
+          :aria-label="
+            selectedPath
+              ? `Source code, ${editorLanguage ?? 'plain text'}, ${selectedPath}`
+              : undefined
+          "
+          class="file-editor-textarea h-full min-h-[18rem] w-full resize-none rounded-md border border-transparent bg-muted/15 px-2.5 py-2 font-mono text-xs leading-5 tracking-normal whitespace-pre overflow-x-auto outline-none focus-visible:border-ring [font-feature-settings:'liga'_0] [tab-size:2]"
+          @keydown="handleEditorKeydown"
         />
       </div>
     </div>

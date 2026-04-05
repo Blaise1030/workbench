@@ -54,6 +54,28 @@ const fileService_1 = require("../fileService");
     (0, vitest_1.it)("rejects writes that escape the root", async () => {
         await (0, vitest_1.expect)(service.writeFile(tempDir, "../outside.txt", "nope")).rejects.toThrow("Path escapes the active worktree");
     });
+    (0, vitest_1.it)("creates an empty file and parent directories", async () => {
+        await service.createFile(tempDir, "src/new/empty.ts");
+        await (0, vitest_1.expect)(promises_1.default.readFile(node_path_1.default.join(tempDir, "src", "new", "empty.ts"), "utf8")).resolves.toBe("");
+        await (0, vitest_1.expect)(service.listFileSummaries(tempDir)).resolves.toEqual([
+            vitest_1.expect.objectContaining({ relativePath: "src/new/empty.ts", size: 0 })
+        ]);
+    });
+    (0, vitest_1.it)("rejects create when the file already exists", async () => {
+        await promises_1.default.mkdir(node_path_1.default.join(tempDir, "src"), { recursive: true });
+        await promises_1.default.writeFile(node_path_1.default.join(tempDir, "src", "taken.ts"), "x", "utf8");
+        await (0, vitest_1.expect)(service.createFile(tempDir, "src/taken.ts")).rejects.toThrow();
+    });
+    (0, vitest_1.it)("deletes a regular file under the root", async () => {
+        await promises_1.default.mkdir(node_path_1.default.join(tempDir, "src"), { recursive: true });
+        await promises_1.default.writeFile(node_path_1.default.join(tempDir, "src", "gone.ts"), "bye", "utf8");
+        await service.deleteFile(tempDir, "src/gone.ts");
+        await (0, vitest_1.expect)(promises_1.default.access(node_path_1.default.join(tempDir, "src", "gone.ts"))).rejects.toThrow();
+        await (0, vitest_1.expect)(service.listFileSummaries(tempDir)).resolves.toEqual([]);
+    });
+    (0, vitest_1.it)("rejects deletes that escape the root", async () => {
+        await (0, vitest_1.expect)(service.deleteFile(tempDir, "../nope.txt")).rejects.toThrow("Path escapes the active worktree");
+    });
     (0, vitest_1.it)("reads and writes a text file under the root", async () => {
         await promises_1.default.mkdir(node_path_1.default.join(tempDir, "src"), { recursive: true });
         const filePath = node_path_1.default.join(tempDir, "src", "note.txt");

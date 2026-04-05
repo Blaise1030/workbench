@@ -10,12 +10,16 @@ describe("FileSearchEditor", () => {
   const listFiles = vi.fn<WorkspaceApi["listFiles"]>();
   const readFile = vi.fn<WorkspaceApi["readFile"]>();
   const writeFile = vi.fn<WorkspaceApi["writeFile"]>();
+  const createFile = vi.fn<WorkspaceApi["createFile"]>();
+  const deleteFile = vi.fn<WorkspaceApi["deleteFile"]>();
 
   beforeEach(() => {
     vi.useFakeTimers();
     listFiles.mockReset();
     readFile.mockReset();
     writeFile.mockReset();
+    createFile.mockReset();
+    deleteFile.mockReset();
 
     window.workspaceApi = {
       getSnapshot: vi.fn(),
@@ -38,6 +42,8 @@ describe("FileSearchEditor", () => {
       searchFiles: vi.fn(),
       readFile,
       writeFile,
+      createFile,
+      deleteFile,
       applyPatch: vi.fn(),
       ptyCreate: vi.fn(),
       ptyWrite: vi.fn(),
@@ -101,7 +107,7 @@ describe("FileSearchEditor", () => {
     await flushPromises();
 
     const header = wrapper.get('[data-testid="file-editor-header"]');
-    expect(header.classes()).toContain("py-2");
+    expect(header.classes()).toContain("py-1.5");
   });
 
   it("renders the search bar row at the same compact header height", async () => {
@@ -240,6 +246,48 @@ describe("FileSearchEditor", () => {
     );
   });
 
+  it("renders sanitized markdown preview for .md files on Read tab", async () => {
+    listFiles.mockResolvedValue([{ relativePath: "README.md", size: 20, modifiedAt: 1 }]);
+    readFile.mockResolvedValue("# Hello\n\n**Bold** text.");
+
+    const wrapper = mount(FileSearchEditor, {
+      props: { worktreePath: "/tmp/project" }
+    });
+
+    await flushPromises();
+    await wrapper.get('[data-testid="file-node-README.md"]').trigger("click");
+    await flushPromises();
+
+    const preview = wrapper.get('[data-testid="markdown-preview"]');
+    expect(preview.element.innerHTML).toContain("Hello");
+    expect(preview.element.innerHTML).toContain("<strong>");
+    expect(preview.element.innerHTML).not.toContain("<script");
+  });
+
+  it("switches markdown from Read to Source to show the raw editor", async () => {
+    listFiles.mockResolvedValue([{ relativePath: "note.md", size: 8, modifiedAt: 1 }]);
+    readFile.mockResolvedValue("# x");
+
+    const wrapper = mount(FileSearchEditor, {
+      props: { worktreePath: "/tmp/project" }
+    });
+
+    await flushPromises();
+    await wrapper.get('[data-testid="file-node-note.md"]').trigger("click");
+    await flushPromises();
+
+    expect(wrapper.find('[data-testid="markdown-preview"]').exists()).toBe(true);
+
+    const tabs = wrapper.findAll('[role="tab"]');
+    const source = tabs.find((t) => t.text().includes("Source"));
+    expect(source).toBeDefined();
+    await source!.trigger("click");
+    await flushPromises();
+
+    expect(wrapper.find('[data-testid="markdown-preview"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="file-editor"]').exists()).toBe(true);
+  });
+
   it("asks for confirmation before switching files when the current draft is dirty", async () => {
     listFiles.mockResolvedValue([
       { relativePath: "src/one.ts", size: 7, modifiedAt: 1 },
@@ -263,5 +311,58 @@ describe("FileSearchEditor", () => {
 
     expect(confirmSpy).toHaveBeenCalledWith("Discard unsaved changes?");
     expect(readFile).toHaveBeenCalledTimes(1);
+  });
+
+  it("creates a file from the add control and opens it", async () => {
+    listFiles
+      .mockResolvedValueOnce([{ relativePath: "src/App.vue", size: 1, modifiedAt: 1 }])
+      .mockResolvedValueOnce([
+        { relativePath: "src/App.vue", size: 1, modifiedAt: 1 },
+        { relativePath: "src/new.ts", size: 0, modifiedAt: 2 }
+      ]);
+    readFile.mockResolvedValue("");
+    createFile.mockResolvedValue();
+    const promptSpy = vi.spyOn(window, "prompt").mockReturnValue("src/new.ts");
+
+    const wrapper = mount(FileSearchEditor, {
+      props: { worktreePath: "/tmp/project" }
+    });
+
+    await flushPromises();
+    await wrapper.get('[data-testid="add-file"]').trigger("click");
+    await flushPromises();
+
+    expect(promptSpy).toHaveBeenCalled();
+    expect(createFile).toHaveBeenCalledWith("/tmp/project", "src/new.ts");
+    expect(listFiles).toHaveBeenCalledTimes(2);
+    expect(readFile).toHaveBeenCalledWith("/tmp/project", "src/new.ts");
+
+    promptSpy.mockRestore();
+  });
+
+  it("deletes the selected file after confirmation", async () => {
+    listFiles
+      .mockResolvedValueOnce([{ relativePath: "src/one.ts", size: 1, modifiedAt: 1 }])
+      .mockResolvedValueOnce([]);
+    readFile.mockResolvedValue("x");
+    deleteFile.mockResolvedValue();
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
+
+    const wrapper = mount(FileSearchEditor, {
+      props: { worktreePath: "/tmp/project" }
+    });
+
+    await flushPromises();
+    await wrapper.get('[data-testid="file-node-src/one.ts"]').trigger("click");
+    await flushPromises();
+    await wrapper.get('[data-testid="delete-file"]').trigger("click");
+    await flushPromises();
+
+    expect(confirmSpy).toHaveBeenCalledWith("Delete src/one.ts?");
+    expect(deleteFile).toHaveBeenCalledWith("/tmp/project", "src/one.ts");
+    expect(listFiles).toHaveBeenCalledTimes(2);
+    expect(wrapper.text()).toContain("No file selected");
+
+    confirmSpy.mockRestore();
   });
 });

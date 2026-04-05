@@ -24,6 +24,8 @@ exports.IPC_CHANNELS = {
     filesSearch: "files:search",
     filesRead: "files:read",
     filesWrite: "files:write",
+    filesCreate: "files:create",
+    filesDelete: "files:delete",
     editApplyPatch: "edit:applyPatch",
     previewSetUrl: "preview:setUrl",
     previewProbeUrl: "preview:probeUrl",

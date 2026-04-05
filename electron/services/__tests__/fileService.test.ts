@@ -64,6 +64,40 @@ describe("FileService", () => {
     );
   });
 
+  it("creates an empty file and parent directories", async () => {
+    await service.createFile(tempDir, "src/new/empty.ts");
+
+    await expect(fs.readFile(path.join(tempDir, "src", "new", "empty.ts"), "utf8")).resolves.toBe(
+      ""
+    );
+    await expect(service.listFileSummaries(tempDir)).resolves.toEqual([
+      expect.objectContaining({ relativePath: "src/new/empty.ts", size: 0 })
+    ]);
+  });
+
+  it("rejects create when the file already exists", async () => {
+    await fs.mkdir(path.join(tempDir, "src"), { recursive: true });
+    await fs.writeFile(path.join(tempDir, "src", "taken.ts"), "x", "utf8");
+
+    await expect(service.createFile(tempDir, "src/taken.ts")).rejects.toThrow();
+  });
+
+  it("deletes a regular file under the root", async () => {
+    await fs.mkdir(path.join(tempDir, "src"), { recursive: true });
+    await fs.writeFile(path.join(tempDir, "src", "gone.ts"), "bye", "utf8");
+
+    await service.deleteFile(tempDir, "src/gone.ts");
+
+    await expect(fs.access(path.join(tempDir, "src", "gone.ts"))).rejects.toThrow();
+    await expect(service.listFileSummaries(tempDir)).resolves.toEqual([]);
+  });
+
+  it("rejects deletes that escape the root", async () => {
+    await expect(service.deleteFile(tempDir, "../nope.txt")).rejects.toThrow(
+      "Path escapes the active worktree"
+    );
+  });
+
   it("reads and writes a text file under the root", async () => {
     await fs.mkdir(path.join(tempDir, "src"), { recursive: true });
     const filePath = path.join(tempDir, "src", "note.txt");

@@ -116,6 +116,8 @@ function registerIpc(workspaceService) {
     electron_1.ipcMain.handle(ipc_js_1.IPC_CHANNELS.filesSearch, (_, payload) => fileService.searchFiles(payload.cwd, payload.query));
     electron_1.ipcMain.handle(ipc_js_1.IPC_CHANNELS.filesRead, (_, payload) => fileService.readFile(payload.cwd, payload.relativePath));
     electron_1.ipcMain.handle(ipc_js_1.IPC_CHANNELS.filesWrite, (_, payload) => fileService.writeFile(payload.cwd, payload.relativePath, payload.content));
+    electron_1.ipcMain.handle(ipc_js_1.IPC_CHANNELS.filesCreate, (_, payload) => fileService.createFile(payload.cwd, payload.relativePath));
+    electron_1.ipcMain.handle(ipc_js_1.IPC_CHANNELS.filesDelete, (_, payload) => fileService.deleteFile(payload.cwd, payload.relativePath));
     electron_1.ipcMain.handle(ipc_js_1.IPC_CHANNELS.editApplyPatch, (_, payload) => editService.applyPatch(payload));
     electron_1.ipcMain.handle(ipc_js_1.IPC_CHANNELS.terminalPtyCreate, (_, payload) => ptyService.getOrCreate(payload.sessionId, payload.cwd, payload.worktreeId));
     electron_1.ipcMain.handle(ipc_js_1.IPC_CHANNELS.terminalPtyWrite, (_, payload) => {

@@ -138,6 +138,12 @@ function registerIpc(workspaceService: WorkspaceService): void {
   ipcMain.handle(IPC_CHANNELS.filesWrite, (_, payload: FileWriteInput) =>
     fileService.writeFile(payload.cwd, payload.relativePath, payload.content)
   );
+  ipcMain.handle(IPC_CHANNELS.filesCreate, (_, payload: FileReadInput) =>
+    fileService.createFile(payload.cwd, payload.relativePath)
+  );
+  ipcMain.handle(IPC_CHANNELS.filesDelete, (_, payload: FileReadInput) =>
+    fileService.deleteFile(payload.cwd, payload.relativePath)
+  );
   ipcMain.handle(IPC_CHANNELS.editApplyPatch, (_, payload) => editService.applyPatch(payload));
   ipcMain.handle(
     IPC_CHANNELS.terminalPtyCreate,

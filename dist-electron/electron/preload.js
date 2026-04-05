@@ -43,6 +43,8 @@ electron_1.contextBridge.exposeInMainWorld("workspaceApi", {
     searchFiles: (cwd, query) => electron_1.ipcRenderer.invoke(ipc_js_1.IPC_CHANNELS.filesSearch, { cwd, query }),
     readFile: (cwd, relativePath) => electron_1.ipcRenderer.invoke(ipc_js_1.IPC_CHANNELS.filesRead, { cwd, relativePath }),
     writeFile: (cwd, relativePath, content) => electron_1.ipcRenderer.invoke(ipc_js_1.IPC_CHANNELS.filesWrite, { cwd, relativePath, content }),
+    createFile: (cwd, relativePath) => electron_1.ipcRenderer.invoke(ipc_js_1.IPC_CHANNELS.filesCreate, { cwd, relativePath }),
+    deleteFile: (cwd, relativePath) => electron_1.ipcRenderer.invoke(ipc_js_1.IPC_CHANNELS.filesDelete, { cwd, relativePath }),
     applyPatch: (payload) => electron_1.ipcRenderer.invoke(ipc_js_1.IPC_CHANNELS.editApplyPatch, payload),
     ptyCreate: (sessionId, cwd, worktreeId) => electron_1.ipcRenderer.invoke(ipc_js_1.IPC_CHANNELS.terminalPtyCreate, { sessionId, cwd, worktreeId }),
     ptyWrite: (sessionId, data) => electron_1.ipcRenderer.invoke(ipc_js_1.IPC_CHANNELS.terminalPtyWrite, { sessionId, data }),

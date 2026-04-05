@@ -125,3 +125,106 @@
     @apply bg-background text-foreground;
   }
 }
+
+@layer components {
+  /**
+   * Markdown preview (FileSearchEditor). Keeps typography compact to match the app.
+   */
+  .markdown-reader {
+    @apply text-xs leading-relaxed text-foreground;
+    font-family: ui-sans-serif, system-ui, sans-serif;
+  }
+
+  .markdown-reader :where(h1, h2, h3, h4, h5, h6) {
+    @apply font-semibold tracking-tight text-foreground;
+  }
+
+  .markdown-reader h1 {
+    @apply mt-0 mb-2 border-b border-border pb-1 text-sm;
+  }
+
+  .markdown-reader h2 {
+    @apply mt-4 mb-1.5 text-[13px];
+  }
+
+  .markdown-reader h3 {
+    @apply mt-3 mb-1 text-[12px];
+  }
+
+  .markdown-reader h4,
+  .markdown-reader h5,
+  .markdown-reader h6 {
+    @apply mt-2 mb-1 text-[12px];
+  }
+
+  .markdown-reader p {
+    @apply my-2 first:mt-0 last:mb-0;
+  }
+
+  .markdown-reader a {
+    @apply text-primary underline underline-offset-2 hover:opacity-90;
+  }
+
+  .markdown-reader ul,
+  .markdown-reader ol {
+    @apply my-2 pl-5;
+  }
+
+  .markdown-reader ul {
+    @apply list-disc;
+  }
+
+  .markdown-reader ol {
+    @apply list-decimal;
+  }
+
+  .markdown-reader li {
+    @apply my-0.5;
+  }
+
+  .markdown-reader li > ul,
+  .markdown-reader li > ol {
+    @apply my-1;
+  }
+
+  .markdown-reader blockquote {
+    @apply my-2 border-l-2 border-muted-foreground/40 pl-3 text-muted-foreground italic;
+  }
+
+  .markdown-reader hr {
+    @apply my-4 border-border;
+  }
+
+  .markdown-reader :not(pre) > code {
+    @apply rounded bg-muted px-1 py-0.5 font-mono text-[11px] text-foreground;
+  }
+
+  .markdown-reader pre {
+    @apply my-2 overflow-x-auto rounded-md border border-border bg-muted/40 p-2;
+  }
+
+  .markdown-reader pre code {
+    @apply block bg-transparent p-0 font-mono text-[11px] leading-5 text-foreground;
+  }
+
+  .markdown-reader table {
+    @apply my-2 w-full border-collapse text-left text-[11px];
+  }
+
+  .markdown-reader th,
+  .markdown-reader td {
+    @apply border border-border px-2 py-1 align-top;
+  }
+
+  .markdown-reader th {
+    @apply bg-muted/50 font-medium;
+  }
+
+  .markdown-reader img {
+    @apply my-2 max-h-48 max-w-full rounded-md border border-border object-contain;
+  }
+
+  .markdown-reader input[type="checkbox"] {
+    @apply mr-1 align-middle;
+  }
+}
