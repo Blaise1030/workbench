@@ -1,2 +1,27 @@
+# Dependencies (never commit — includes Electron binary ~150MB+)
+node_modules/
+
 # electron-builder output (installers / unpacked app)
 release/
+
+# Compiled Electron output (regenerate with npm run build:electron)
+dist-electron/*
+
+# Vite frontend build
+dist/
+
+# Local / secrets
+.env
+.env.*
+!.env.example
+
+# Logs & OS noise
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db
+
+# Test / tooling caches
+coverage/
+.vitest/
+*.tsbuildinfo

@@ -56,7 +56,7 @@ function updateFloatingPosition(): void {
   const rect = el.getBoundingClientRect();
   const sidebarRect = el.closest("aside")?.getBoundingClientRect();
   const gap = 4;
-  const minMenuWidthPx = 280;
+  const minMenuWidthPx = 180;
   const widthPx = sidebarRect
     ? Math.max(minMenuWidthPx, sidebarRect.width * 0.9)
     : undefined;
@@ -64,7 +64,7 @@ function updateFloatingPosition(): void {
     top: `${rect.bottom + gap}px`,
     left: `${rect.left + rect.width / 2}px`,
     transform: "translateX(-50%)",
-    width: widthPx != null ? `${widthPx}px` : "22rem"
+    width: widthPx != null ? `${widthPx}px` : "20rem"
   };
 }
 
@@ -160,7 +160,7 @@ onBeforeUnmount(() => {
         :id="menuId"
         ref="menuPanelRef"
         data-testid="thread-agent-menu-panel"
-        class="fixed z-[200] rounded-md border border-border bg-popover p-2 text-popover-foreground shadow-md"
+        class="fixed z-[200] rounded-md border w-[100px] border-border bg-popover p-2 text-popover-foreground shadow-md"
         :style="floatingMenuStyle"
         role="menu"
         aria-label="Choose agent for new thread"

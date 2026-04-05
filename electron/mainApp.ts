@@ -39,6 +39,12 @@ function emitWorkspaceDidChange(): void {
   }
 }
 
+function emitWorkingTreeFilesDidChange(): void {
+  for (const win of BrowserWindow.getAllWindows()) {
+    win.webContents.send(IPC_CHANNELS.workingTreeFilesDidChange);
+  }
+}
+
 function createMainWindow(): BrowserWindow {
   const preloadPath = path.join(__dirname, "preload.js");
   if (!fs.existsSync(preloadPath)) {
@@ -149,16 +155,22 @@ function registerIpc(workspaceService: WorkspaceService): void {
   ipcMain.handle(IPC_CHANNELS.filesRead, (_, payload: FileReadInput) =>
     fileService.readFile(payload.cwd, payload.relativePath)
   );
-  ipcMain.handle(IPC_CHANNELS.filesWrite, (_, payload: FileWriteInput) =>
-    fileService.writeFile(payload.cwd, payload.relativePath, payload.content)
-  );
-  ipcMain.handle(IPC_CHANNELS.filesCreate, (_, payload: FileReadInput) =>
-    fileService.createFile(payload.cwd, payload.relativePath)
-  );
-  ipcMain.handle(IPC_CHANNELS.filesDelete, (_, payload: FileReadInput) =>
-    fileService.deleteFile(payload.cwd, payload.relativePath)
-  );
-  ipcMain.handle(IPC_CHANNELS.editApplyPatch, (_, payload) => editService.applyPatch(payload));
+  ipcMain.handle(IPC_CHANNELS.filesWrite, async (_, payload: FileWriteInput) => {
+    await fileService.writeFile(payload.cwd, payload.relativePath, payload.content);
+    emitWorkingTreeFilesDidChange();
+  });
+  ipcMain.handle(IPC_CHANNELS.filesCreate, async (_, payload: FileReadInput) => {
+    await fileService.createFile(payload.cwd, payload.relativePath);
+    emitWorkingTreeFilesDidChange();
+  });
+  ipcMain.handle(IPC_CHANNELS.filesDelete, async (_, payload: FileReadInput) => {
+    await fileService.deleteFile(payload.cwd, payload.relativePath);
+    emitWorkingTreeFilesDidChange();
+  });
+  ipcMain.handle(IPC_CHANNELS.editApplyPatch, async (_, payload) => {
+    await editService.applyPatch(payload);
+    emitWorkingTreeFilesDidChange();
+  });
   ipcMain.handle(
     IPC_CHANNELS.terminalPtyCreate,
     (_, payload: { sessionId: string; cwd: string; worktreeId: string }) =>

@@ -78,6 +78,7 @@ describe("FileSearchEditor", () => {
       ptyKill: vi.fn(),
       onPtyData: vi.fn(() => () => {}),
       onWorkspaceChanged: vi.fn(() => () => {}),
+      onWorkingTreeFilesChanged: vi.fn(() => () => {}),
       pickRepoDirectory: vi.fn()
     };
   });

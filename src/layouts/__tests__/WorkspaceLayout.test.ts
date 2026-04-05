@@ -156,7 +156,8 @@ describe("WorkspaceLayout", () => {
       onWorkspaceChanged: vi.fn((callback: () => void) => {
         onWorkspaceChanged = callback;
         return () => {};
-      })
+      }),
+      onWorkingTreeFilesChanged: vi.fn(() => () => {})
     };
 
     const wrapper = mount(WorkspaceLayout, {
@@ -211,7 +212,8 @@ describe("WorkspaceLayout", () => {
       ptyKill: vi.fn(),
       onPtyData: vi.fn(() => () => {}),
       pickRepoDirectory: vi.fn(),
-      onWorkspaceChanged: vi.fn(() => () => {})
+      onWorkspaceChanged: vi.fn(() => () => {}),
+      onWorkingTreeFilesChanged: vi.fn(() => () => {})
     };
 
     const wrapper = mount(WorkspaceLayout, {
@@ -278,7 +280,8 @@ describe("WorkspaceLayout", () => {
       ptyKill: vi.fn(),
       onPtyData: vi.fn(() => () => {}),
       pickRepoDirectory: vi.fn(),
-      onWorkspaceChanged: vi.fn(() => () => {})
+      onWorkspaceChanged: vi.fn(() => () => {}),
+      onWorkingTreeFilesChanged: vi.fn(() => () => {})
     };
 
     const wrapper = mount(WorkspaceLayout, {

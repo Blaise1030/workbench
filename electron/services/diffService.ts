@@ -4,6 +4,7 @@ import { statSync } from "node:fs";
 import { resolve } from "node:path";
 import { simpleGit } from "simple-git";
 import { pathsFromUnifiedDiffSet } from "../../src/shared/diffPaths.js";
+import { truncateUnifiedDiff } from "../../src/shared/diffTruncate.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -26,7 +27,7 @@ export class DiffService {
       return "";
     }
     const nullDevice = process.platform === "win32" ? "NUL" : "/dev/null";
-    const args = ["-C", cwd, "diff", "-U10", "--no-ext-diff", "--no-index", "--", nullDevice, file];
+    const args = ["-C", cwd, "diff", "-U3", "--no-ext-diff", "--no-index", "--", nullDevice, file];
     try {
       const { stdout } = await execFileAsync("git", args, {
         maxBuffer: 10 * 1024 * 1024,
@@ -42,20 +43,20 @@ export class DiffService {
 
   async fileDiff(cwd: string, file: string): Promise<string> {
     const git = simpleGit(cwd);
-    const tracked = await git.diff(["-U10", "--no-ext-diff", "--", file]);
-    if (tracked.trim()) return tracked;
-    return this.diffNewPathOnDisk(cwd, file);
+    const tracked = await git.diff(["-U3", "--no-ext-diff", "--", file]);
+    if (tracked.trim()) return truncateUnifiedDiff(tracked);
+    return truncateUnifiedDiff(await this.diffNewPathOnDisk(cwd, file));
   }
 
   /** Full unstaged diff (all changed paths) as one unified diff for multi-file review. */
   async workingTreeDiff(cwd: string): Promise<string> {
     const git = simpleGit(cwd);
-    const base = await git.diff(["-U10", "--no-ext-diff"]);
+    const base = await git.diff(["-U3", "--no-ext-diff"]);
     const changed = await this.changedFiles(cwd);
     const already = pathsFromUnifiedDiffSet(base);
     const missing = changed.filter((p) => !already.has(p));
     const extras = await Promise.all(missing.map((p) => this.diffNewPathOnDisk(cwd, p)));
-    return [base, ...extras].filter((c) => c.trim()).join("\n");
+    return truncateUnifiedDiff([base, ...extras].filter((c) => c.trim()).join("\n"));
   }
 
   async stageAll(cwd: string): Promise<void> {

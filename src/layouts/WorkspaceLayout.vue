@@ -24,6 +24,7 @@ import { formatShortcut, shortcutForId, titleWithShortcut } from "@/keybindings/
 import { useWorkspaceStore } from "@/stores/workspaceStore";
 import { useRunStore } from "@/stores/runStore";
 import { visibleTerminalSessionId } from "@/terminal/attentionRules";
+import { truncateUnifiedDiff } from "@shared/diffTruncate";
 import type { Thread, ThreadAgent } from "@shared/domain";
 import type {
   AddProjectInput,
@@ -43,6 +44,9 @@ const toast = useToast();
 /** Sticky bar hint: single path or "N files" when multiple unstaged paths. */
 const diffSummaryLabel = ref<string | null>(null);
 const selectedDiff = ref("Diff preview will render here.");
+/** Same order as `git status`-style `changedFiles`; avoids parsing huge unified diffs for checklists. */
+const diffChangedFilePaths = ref<string[]>([]);
+
 /** When true, thread rail shows agent icons only (narrow column). */
 const threadsSidebarCollapsed = ref(false);
 /** `agent` | `diff` | `shell:${uuid}` for each extra terminal. */
@@ -175,6 +179,9 @@ const pendingAgentBootstrap = ref<{ threadId: string; command: string } | null>(
 const repoDirectoryInput = ref<HTMLInputElement | null>(null);
 let pendingRepoDirectoryResolve: ((value: string | null) => void) | null = null;
 let disposeWorkspaceChanged: (() => void) | null = null;
+let disposeWorkingTreeFilesChanged: (() => void) | null = null;
+/** Incremented per diff refresh; stale async results are ignored (rapid worktree switch / overlap). */
+let diffRefreshSeq = 0;
 
 const layoutColumns = computed(() => {
   const threadsWidth = threadsSidebarCollapsed.value ? "3.5rem" : "260px";
@@ -186,23 +193,6 @@ const hasActiveWorkspace = computed(() => Boolean(workspace.activeWorktree));
 
 function getApi(): WorkspaceApi | null {
   return window.workspaceApi ?? null;
-}
-
-function diffGitHunkCount(unified: string): number {
-  return (unified.match(/^diff --git /gm) ?? []).length;
-}
-
-function firstPathFromUnifiedDiff(unified: string): string | null {
-  const line = unified.split("\n").find((l) => l.startsWith("diff --git "));
-  if (!line) return null;
-  const i = line.lastIndexOf(" b/");
-  if (i < 0) return null;
-  let p = line.slice(i + 3);
-  if (p.startsWith('"')) {
-    const end = p.lastIndexOf('"');
-    if (end > 0) p = p.slice(1, end);
-  }
-  return p;
 }
 
 /** Prefer one `git diff`; fall back per-file when main has no `diff:workingTree` handler or invoke fails. */
@@ -230,32 +220,31 @@ async function refreshChangedFiles(): Promise<void> {
   const api = getApi();
   if (!api || !workspace.activeWorktree) {
     diffSummaryLabel.value = null;
+    diffChangedFilePaths.value = [];
     selectedDiff.value = "Diff preview will render here.";
     return;
   }
+  const seq = ++diffRefreshSeq;
+  const cwd = workspace.activeWorktree.path;
   try {
-    const files = await api.changedFiles(workspace.activeWorktree.path);
+    const files = await api.changedFiles(cwd);
+    if (seq !== diffRefreshSeq || workspace.activeWorktree?.path !== cwd) return;
     if (!files.length) {
       diffSummaryLabel.value = null;
+      diffChangedFilePaths.value = [];
       selectedDiff.value = "No unstaged changes.";
       return;
     }
-    const cwd = workspace.activeWorktree.path;
     const unified = await loadWorkingTreeUnifiedDiff(api, cwd, files);
+    if (seq !== diffRefreshSeq || workspace.activeWorktree?.path !== cwd) return;
     const body = unified.trim() ? unified : "No unstaged changes.";
-    const shown = unified.trim() ? diffGitHunkCount(unified) : 0;
-    const label =
-      shown > 1
-        ? null
-        : shown === 1
-          ? firstPathFromUnifiedDiff(unified) ?? files[0]!
-          : files.length === 1
-            ? files[0]!
-            : null;
-    diffSummaryLabel.value = label;
-    selectedDiff.value = body;
+    diffChangedFilePaths.value = files;
+    diffSummaryLabel.value = files.length === 1 ? files[0]! : null;
+    selectedDiff.value = body === "No unstaged changes." ? body : truncateUnifiedDiff(body);
   } catch (error) {
+    if (seq !== diffRefreshSeq || workspace.activeWorktree?.path !== cwd) return;
     diffSummaryLabel.value = null;
+    diffChangedFilePaths.value = [];
     selectedDiff.value =
       error instanceof Error
         ? `Could not load diff: ${error.message}`
@@ -561,11 +550,18 @@ onMounted(async () => {
       void refreshSnapshot();
     });
   }
+  if (api?.onWorkingTreeFilesChanged) {
+    disposeWorkingTreeFilesChanged = api.onWorkingTreeFilesChanged(() => {
+      void refreshChangedFiles();
+    });
+  }
 });
 
 onBeforeUnmount(() => {
   disposeWorkspaceChanged?.();
   disposeWorkspaceChanged = null;
+  disposeWorkingTreeFilesChanged?.();
+  disposeWorkingTreeFilesChanged = null;
 });
 
 watch(
@@ -618,6 +614,13 @@ watch(shellSlotIds, (ids) => {
   const slotId = tab.slice("shell:".length);
   if (!ids.includes(slotId)) centerTab.value = "agent";
 });
+
+watch(
+  () => centerTab.value,
+  (tab) => {
+    if (tab === "diff") void refreshChangedFiles();
+  }
+);
 </script>
 
 <template>
@@ -784,6 +787,7 @@ watch(shellSlotIds, (ids) => {
               ref="diffReviewPanelRef"
               :summary-label="diffSummaryLabel"
               :selected-diff="selectedDiff"
+              :changed-file-paths="diffChangedFilePaths"
               @stage-selected="handleStageSelected"
               @discard-selected="handleDiscardSelected"
             />

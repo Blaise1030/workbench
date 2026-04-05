@@ -4,6 +4,7 @@ import { PanelLeftClose, PanelLeftOpen, Plus } from "lucide-vue-next";
 import { ref } from "vue";
 import BaseButton from "@/components/ui/BaseButton.vue";
 import Badge from "@/components/ui/Badge.vue";
+import InstrumentalLogoMark from "@/components/InstrumentalLogoMark.vue";
 import ThreadCreateButton from "@/components/ThreadCreateButton.vue";
 import { APP_DISPLAY_NAME } from "@/constants/appMeta";
 import { titleWithShortcut } from "@/keybindings/registry";
@@ -39,6 +40,7 @@ defineExpose({ openNewThreadMenu });
     class="flex shrink-0 flex-col items-center gap-2 px-1 py-2"
   >
     <span class="sr-only">{{ title }} Alpha</span>
+    <InstrumentalLogoMark variant="sm" />
     <BaseButton
       type="button"
       size="icon-xs"
@@ -52,9 +54,10 @@ defineExpose({ openNewThreadMenu });
   </header>
   <header v-else class="flex shrink-0 items-center gap-2 px-3 py-2 pr-1.5">
     <h2
-      class="m-0 flex min-w-0 flex-1 items-center gap-2 overflow-hidden p-0 text-foreground"
+      class="m-0 flex min-w-0 flex-1 flex-nowrap items-center gap-2 overflow-hidden p-0 text-foreground"
       data-testid="thread-sidebar-brand"
     >
+      <InstrumentalLogoMark variant="md" />
       <span
         class="min-w-0 truncate font-instrument text-lg leading-none tracking-tight"
         data-testid="app-title-a11y"

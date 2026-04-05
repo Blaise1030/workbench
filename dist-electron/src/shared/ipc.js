@@ -12,6 +12,8 @@ exports.IPC_CHANNELS = {
     workspaceDeleteThread: "workspace:deleteThread",
     workspaceRenameThread: "workspace:renameThread",
     workspaceDidChange: "workspace:didChange",
+    /** Repo working tree may have changed (save, patch, etc.); refresh diff / git state in renderer. */
+    workingTreeFilesDidChange: "diff:workingTreeFilesDidChange",
     runStart: "run:start",
     runSendInput: "run:sendInput",
     runInterrupt: "run:interrupt",

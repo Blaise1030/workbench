@@ -7,6 +7,7 @@ const node_fs_1 = require("node:fs");
 const node_path_1 = require("node:path");
 const simple_git_1 = require("simple-git");
 const diffPaths_js_1 = require("../../src/shared/diffPaths.js");
+const diffTruncate_js_1 = require("../../src/shared/diffTruncate.js");
 const execFileAsync = (0, node_util_1.promisify)(node_child_process_1.execFile);
 class DiffService {
     async changedFiles(cwd) {
@@ -28,7 +29,7 @@ class DiffService {
             return "";
         }
         const nullDevice = process.platform === "win32" ? "NUL" : "/dev/null";
-        const args = ["-C", cwd, "diff", "-U10", "--no-ext-diff", "--no-index", "--", nullDevice, file];
+        const args = ["-C", cwd, "diff", "-U3", "--no-ext-diff", "--no-index", "--", nullDevice, file];
         try {
             const { stdout } = await execFileAsync("git", args, {
                 maxBuffer: 10 * 1024 * 1024,
@@ -45,20 +46,20 @@ class DiffService {
     }
     async fileDiff(cwd, file) {
         const git = (0, simple_git_1.simpleGit)(cwd);
-        const tracked = await git.diff(["-U10", "--no-ext-diff", "--", file]);
+        const tracked = await git.diff(["-U3", "--no-ext-diff", "--", file]);
         if (tracked.trim())
-            return tracked;
-        return this.diffNewPathOnDisk(cwd, file);
+            return (0, diffTruncate_js_1.truncateUnifiedDiff)(tracked);
+        return (0, diffTruncate_js_1.truncateUnifiedDiff)(await this.diffNewPathOnDisk(cwd, file));
     }
     /** Full unstaged diff (all changed paths) as one unified diff for multi-file review. */
     async workingTreeDiff(cwd) {
         const git = (0, simple_git_1.simpleGit)(cwd);
-        const base = await git.diff(["-U10", "--no-ext-diff"]);
+        const base = await git.diff(["-U3", "--no-ext-diff"]);
         const changed = await this.changedFiles(cwd);
         const already = (0, diffPaths_js_1.pathsFromUnifiedDiffSet)(base);
         const missing = changed.filter((p) => !already.has(p));
         const extras = await Promise.all(missing.map((p) => this.diffNewPathOnDisk(cwd, p)));
-        return [base, ...extras].filter((c) => c.trim()).join("\n");
+        return (0, diffTruncate_js_1.truncateUnifiedDiff)([base, ...extras].filter((c) => c.trim()).join("\n"));
     }
     async stageAll(cwd) {
         const git = (0, simple_git_1.simpleGit)(cwd);

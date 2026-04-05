@@ -46,6 +46,8 @@ interface WorkspaceApi {
   ptyGetBuffer?: (sessionId: string) => Promise<{ buffer: string }>;
   onPtyData: (callback: (sessionId: string, data: string) => void) => () => void;
   onWorkspaceChanged?: (callback: () => void) => () => void;
+  /** After save/create/delete/applyPatch in the active repo (Electron); refresh git diff. */
+  onWorkingTreeFilesChanged?: (callback: () => void) => () => void;
   pickRepoDirectory: () => Promise<string | null>;
   /** Present when running under Electron preload; maps a webkitdirectory file to the chosen folder path. */
   resolveRepoRootFromWebkitFile?: (file: File) => string;

@@ -12,9 +12,15 @@ const props = withDefaults(
     selectedDiff: string;
     /** Optional context in the sticky bar (one path or "N files"). */
     summaryLabel: string | null;
+    /**
+     * When set (e.g. from `git status`), used for the file checklist instead of re-scanning
+     * `selectedDiff` — avoids O(size of diff) work when the unified diff is huge.
+     */
+    changedFilePaths?: string[] | null;
     queuedReviewCount?: number;
   }>(),
   {
+    changedFilePaths: null,
     queuedReviewCount: 0,
   }
 );
@@ -22,7 +28,12 @@ const props = withDefaults(
 /** Above this, skip HTML diff (parse cost + DOM size). Raw view stays instant. */
 const RICH_DIFF_MAX_BYTES = 900_000;
 
+/** Cap text in `<pre>` so Vue/DOM do not choke on multi‑MB strings. */
+const RAW_PRE_MAX_CHARS = 450_000;
+
 const emit = defineEmits<{
+  stageAll: [];
+  discardAll: [];
   stageSelected: [paths: string[]];
   discardSelected: [paths: string[]];
   openInAgents: [];
@@ -34,7 +45,19 @@ const rawCollapsed = ref(false);
 const changedFilesExpanded = ref(true);
 const masterCheckboxRef = ref<HTMLInputElement | null>(null);
 
-const diffFilePaths = computed(() => pathsFromUnifiedDiff(props.selectedDiff));
+const diffFilePaths = computed(() => {
+  const fromStatus = props.changedFilePaths;
+  if (fromStatus != null && fromStatus.length > 0) return fromStatus;
+  return pathsFromUnifiedDiff(props.selectedDiff);
+});
+
+const displayedDiffForPre = computed(() => {
+  const raw = props.selectedDiff;
+  if (raw.length <= RAW_PRE_MAX_CHARS) return raw;
+  const cut = raw.lastIndexOf("\n", RAW_PRE_MAX_CHARS);
+  const safe = cut > RAW_PRE_MAX_CHARS * 0.85 ? cut : RAW_PRE_MAX_CHARS;
+  return `${raw.slice(0, safe)}\n\n… (${raw.length.toLocaleString()} characters total; preview truncated)`;
+});
 const checkedByPath = ref<Record<string, boolean>>({});
 
 watch(
@@ -254,7 +277,61 @@ onBeforeUnmount(() => {
       <!-- Toolbar + changed-files strip share one sticky stack so both stay visible while scrolling the diff. -->
       <div
         class="sticky top-0 z-10 shrink-0 border-b border-border bg-background shadow-sm"
-      >      
+      >
+        <header class="flex shrink-0 flex-wrap items-center gap-2 bg-background p-3">
+          <div class="flex min-w-0 flex-wrap items-center gap-2">
+            <span
+              v-if="summaryLabelText"
+              class="min-w-0 max-w-[min(100%,28rem)] truncate text-xs text-muted-foreground"
+              :title="summaryLabelText ?? undefined"
+              >{{ summaryLabelText }}</span
+            >
+            <span
+              v-if="reviewBasketSummary"
+              class="inline-flex items-center rounded-full border border-border bg-muted/40 px-2.5 py-1 text-xs font-medium text-foreground"
+            >
+              {{ reviewBasketSummary }}
+            </span>
+          </div>
+          <div class="ml-auto flex flex-wrap gap-2">
+            <BaseButton
+              v-if="queuedReviewCountValue > 0"
+              size="sm"
+              variant="secondary"
+              class="border-0 shadow-none focus-visible:!border-transparent focus-visible:!outline-none focus-visible:!ring-0 focus-visible:!ring-offset-0"
+              aria-label="Open in Agents"
+              @click="emitOpenInAgents"
+            >
+              Open in Agents
+            </BaseButton>
+            <BaseButton
+              v-if="queuedReviewCountValue > 0"
+              size="sm"
+              variant="secondary"
+              class="border-0 shadow-none focus-visible:!border-transparent focus-visible:!outline-none focus-visible:!ring-0 focus-visible:!ring-offset-0"
+              aria-label="Clear review items"
+              @click="emit('clearReviewItems')"
+            >
+              Clear review items
+            </BaseButton>
+            <BaseButton
+              size="sm"
+              variant="secondary"
+              class="border-0 shadow-none focus-visible:!border-transparent focus-visible:!outline-none focus-visible:!ring-0 focus-visible:!ring-offset-0"
+              :title="titleWithShortcut('Stage all', 'stageAllDiff')"
+              @click="emit('stageAll')"
+              >Stage All</BaseButton
+            >
+            <BaseButton
+              size="sm"
+              variant="destructive"
+              class="border-0 shadow-none focus-visible:!border-transparent focus-visible:!outline-none focus-visible:!ring-0 focus-visible:!ring-offset-0"
+              title="Discard all changes in this worktree (no keyboard shortcut)"
+              @click="emit('discardAll')"
+              >Discard All</BaseButton
+            >
+          </div>
+        </header>
         <div
           v-if="hasSelectableFiles"
           data-testid="diff-file-selection"
@@ -282,7 +359,6 @@ onBeforeUnmount(() => {
                 variant="secondary"
                 class="border-0 shadow-none focus-visible:!border-transparent focus-visible:!outline-none focus-visible:!ring-0 focus-visible:!ring-offset-0"
                 :disabled="checkedPaths.length === 0"
-                :title="titleWithShortcut('Stage selected files', 'stageAllDiff')"
                 @click="emitStageSelected"
                 >Stage selected</BaseButton
               >
@@ -355,7 +431,7 @@ onBeforeUnmount(() => {
           <div v-if="diffEmptyVisual.showRaw" class="shrink-0 border-t border-border p-2">
             <pre
               class="m-0 overflow-auto rounded-md border border-border bg-background p-3 text-left text-xs whitespace-pre-wrap font-mono"
-              >{{ selectedDiff }}</pre
+              >{{ displayedDiffForPre }}</pre
             >
           </div>
         </div>
@@ -380,7 +456,7 @@ onBeforeUnmount(() => {
             <pre
               v-show="!rawCollapsed || !summaryLabelText"
               class="m-0 bg-background p-3 whitespace-pre-wrap font-mono"
-              >{{ selectedDiff }}</pre
+              >{{ displayedDiffForPre }}</pre
             >
           </div>
         </div>
