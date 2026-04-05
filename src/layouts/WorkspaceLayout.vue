@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue";
-import { PanelLeftOpen, Plus } from "lucide-vue-next";
+import { PanelLeftOpen, Plus, Settings } from "lucide-vue-next";
 import BaseButton from "@/components/ui/BaseButton.vue";
 import DiffReviewPanel from "@/components/DiffReviewPanel.vue";
 import PillTabs, { type PillTabItem } from "@/components/ui/PillTabs.vue";
@@ -439,7 +439,17 @@ watch(
       v-if="workspace.projects.length === 0"
       class="pointer-events-none absolute top-2 right-2 z-10"
     >
-      <div class="pointer-events-auto">
+      <div class="pointer-events-auto flex items-center gap-1">
+        <BaseButton
+          type="button"
+          variant="outline"
+          size="icon-xs"
+          aria-label="Agent terminal commands"
+          title="Agent terminal commands"
+          @click="handleConfigureCommands"
+        >
+          <Settings class="h-3.5 w-3.5" />
+        </BaseButton>
         <ThemeToggle />
       </div>
     </div>
@@ -459,6 +469,7 @@ watch(
       :active-project-id="workspace.activeProjectId"
       @select="handleSelectProject"
       @create="handleCreateProject"
+      @configure-commands="handleConfigureCommands"
     />
 
     <section

@@ -15,6 +15,7 @@ const emit = defineEmits<{
   remove: [threadId: string];
   rename: [threadId: string, newTitle: string];
   collapse: [];
+  configureCommands: [];
 }>();
 </script>
 
@@ -23,6 +24,7 @@ const emit = defineEmits<{
     <ThreadTopBar
       @create-with-agent="emit('createWithAgent', $event)"
       @collapse="emit('collapse')"
+      @configure-commands="emit('configureCommands')"
     />
     <ul class="min-h-0 flex-1 space-y-0.5 overflow-y-auto pb-3 pl-3 pr-1.5 pt-2">
       <li v-for="thread in threads" :key="thread.id">

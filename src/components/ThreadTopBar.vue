@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { ThreadAgent } from "@shared/domain";
 import { onBeforeUnmount, onMounted, ref } from "vue";
-import { PanelLeftClose, Plus } from "lucide-vue-next";
+import { PanelLeftClose, Plus, Settings } from "lucide-vue-next";
 import AgentIcon from "@/components/ui/AgentIcon.vue";
 import BaseButton from "@/components/ui/BaseButton.vue";
 import Badge from "@/components/ui/Badge.vue";
@@ -18,6 +18,7 @@ withDefaults(
 const emit = defineEmits<{
   createWithAgent: [agent: ThreadAgent];
   collapse: [];
+  configureCommands: [];
 }>();
 
 const AGENT_OPTIONS: { agent: ThreadAgent; label: string }[] = [
@@ -75,7 +76,10 @@ onBeforeUnmount(() => {
       class="m-0 flex min-w-0 flex-1 items-center gap-2 overflow-hidden p-0 text-foreground"
       data-testid="thread-sidebar-brand"
     >
-      <span class="min-w-0 truncate font-instrument text-lg leading-none tracking-tight">{{ title }}</span>
+      <span
+        class="min-w-0 truncate font-instrument text-lg leading-none tracking-tight"
+        data-testid="app-title-a11y"
+      >{{ title }}</span>
       <Badge
         variant="secondary"
         class="h-5 shrink-0 px-1.5 py-0 text-[10px] font-semibold uppercase tracking-wider"
@@ -121,6 +125,16 @@ onBeforeUnmount(() => {
           </div>
         </div>
       </div>
+      <BaseButton
+        type="button"
+        size="icon-xs"
+        variant="outline"
+        aria-label="Agent terminal commands"
+        title="Agent terminal commands"
+        @click="emit('configureCommands')"
+      >
+        <Settings class="h-3.5 w-3.5" />
+      </BaseButton>
       <BaseButton
         type="button"
         size="icon-xs"
