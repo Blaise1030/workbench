@@ -48,7 +48,7 @@ export function decideTerminalAttentionChunk(input: AttentionChunkInput): Attent
   const hasNonBell = chunkHasNonBellContent(input.data);
   const inView = input.visibleSessionId != null && input.sessionId === input.visibleSessionId;
 
-  const playBell = input.bellEnabled && hasBell;
+  const playBell = input.bellEnabled && hasBell && !inView;
   const playBackground =
     input.backgroundEnabled && !inView && hasNonBell && input.backgroundArmed;
 

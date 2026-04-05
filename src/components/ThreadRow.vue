@@ -1,13 +1,15 @@
 <script setup lang="ts">
 import type { RunStatus, Thread } from "@shared/domain";
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue";
-import { ChevronDown } from "lucide-vue-next";
+import { computed, nextTick, ref } from "vue";
+import { Pencil, Trash2 } from "lucide-vue-next";
 import AgentIcon from "@/components/ui/AgentIcon.vue";
 
 const props = defineProps<{
   thread: Thread;
   isActive: boolean;
   runStatus?: RunStatus | null;
+  /** Terminal needed attention (bell / background output) while this thread was not in view. */
+  needsAttention?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -16,16 +18,17 @@ const emit = defineEmits<{
   rename: [newTitle: string];
 }>();
 
-const menuOpen = ref(false);
 const rowHovered = ref(false);
 const isEditing = ref(false);
 const editValue = ref("");
-const menuRootRef = ref<HTMLElement | null>(null);
 const editInputRef = ref<HTMLInputElement | null>(null);
 
-const showThreadMenu = computed(() => !isEditing.value && (rowHovered.value || menuOpen.value));
+const showThreadMenu = computed(() => !isEditing.value && rowHovered.value);
 
 const iconClass = computed(() => {
+  if (props.needsAttention) {
+    return "animate-pulse text-blue-600 dark:text-blue-400";
+  }
   switch (props.runStatus) {
     case "running":     return "animate-pulse text-foreground";
     case "needsReview": return "animate-pulse text-orange-500";
@@ -35,16 +38,7 @@ const iconClass = computed(() => {
   }
 });
 
-function toggleMenu(): void {
-  menuOpen.value = !menuOpen.value;
-}
-
-function closeMenu(): void {
-  menuOpen.value = false;
-}
-
 function startRename(): void {
-  closeMenu();
   editValue.value = props.thread.title;
   isEditing.value = true;
   void nextTick(() => {
@@ -69,30 +63,8 @@ function handleRenameKeydown(event: KeyboardEvent): void {
 }
 
 function handleDelete(): void {
-  closeMenu();
   emit("remove");
 }
-
-function onDocumentPointerDown(event: MouseEvent): void {
-  if (!menuOpen.value) return;
-  if (menuRootRef.value && !menuRootRef.value.contains(event.target as Node)) {
-    closeMenu();
-  }
-}
-
-function onDocumentKeydown(event: KeyboardEvent): void {
-  if (event.key === "Escape") closeMenu();
-}
-
-onMounted(() => {
-  document.addEventListener("pointerdown", onDocumentPointerDown);
-  document.addEventListener("keydown", onDocumentKeydown);
-});
-
-onBeforeUnmount(() => {
-  document.removeEventListener("pointerdown", onDocumentPointerDown);
-  document.removeEventListener("keydown", onDocumentKeydown);
-});
 </script>
 
 <template>
@@ -127,44 +99,26 @@ onBeforeUnmount(() => {
 
     <div
       v-if="showThreadMenu"
-      ref="menuRootRef"
-      class="relative flex h-7 w-7 shrink-0 items-center justify-center"
+      class="relative flex h-7 shrink-0 items-center justify-center gap-1"
     >
       <button
         type="button"
-        data-testid="thread-menu-trigger"
-        class="flex h-full w-full items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground"
-        aria-label="Thread actions"
-        aria-haspopup="menu"
-        :aria-expanded="menuOpen"
-        @click.stop="toggleMenu"
+        data-testid="thread-rename"
+        class="flex h-7 w-7 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground"
+        title="Rename"
+        @click.stop="startRename"
       >
-        <ChevronDown class="h-2.5 w-2.5" stroke-width="2.5" />
+        <Pencil class="h-3.5 w-3.5" />
       </button>
-      <div
-        v-if="menuOpen"
-        class="absolute right-0 top-full z-50 mt-0.5 min-w-[8rem] rounded-md border border-border bg-popover p-1 shadow-md"
-        role="menu"
+      <button
+        type="button"
+        data-testid="thread-delete"
+        class="flex h-7 w-7 items-center justify-center rounded text-muted-foreground hover:bg-destructive hover:text-destructive-foreground"
+        title="Delete"
+        @click.stop="handleDelete"
       >
-        <button
-          type="button"
-          role="menuitem"
-          data-testid="thread-rename"
-          class="w-full rounded px-2 py-1.5 text-left text-sm hover:bg-accent"
-          @click="startRename"
-        >
-          Rename
-        </button>
-        <button
-          type="button"
-          role="menuitem"
-          data-testid="thread-delete"
-          class="w-full rounded px-2 py-1.5 text-left text-sm text-destructive hover:bg-accent"
-          @click="handleDelete"
-        >
-          Delete
-        </button>
-      </div>
+        <Trash2 class="h-3.5 w-3.5" />
+      </button>
     </div>
   </div>
 </template>

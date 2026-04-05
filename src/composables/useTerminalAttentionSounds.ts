@@ -8,8 +8,11 @@ import { playTerminalChirp } from "@/terminal/playTerminalChirp";
  */
 export function useTerminalAttentionSounds(opts: {
   visibleSessionId: Ref<string | null>;
+  notificationsEnabled: Ref<boolean>;
   bellEnabled: Ref<boolean>;
   backgroundEnabled: Ref<boolean>;
+  /** Fired when terminal attention would play a sound for a session that is not currently visible (e.g. another thread or Git Diff tab). */
+  onUnviewedAttention?: (sessionId: string) => void;
 }): void {
   /** `true` = one-shot armed; `false` = disarmed until re-arm; missing = treat as armed. */
   const backgroundArmedBySession = new Map<string, boolean>();
@@ -36,6 +39,7 @@ export function useTerminalAttentionSounds(opts: {
     disposePty = api.onPtyData((sessionId, data) => {
       const visibleSessionId = opts.visibleSessionId.value;
       const armed = backgroundArmedBySession.get(sessionId) !== false;
+      const inView = visibleSessionId != null && sessionId === visibleSessionId;
 
       const decision = decideTerminalAttentionChunk({
         sessionId,
@@ -46,8 +50,11 @@ export function useTerminalAttentionSounds(opts: {
         backgroundArmed: armed
       });
 
-      if (decision.playSound) {
+      if (decision.playSound && opts.notificationsEnabled.value) {
         playTerminalChirp();
+      }
+      if (decision.playSound && opts.notificationsEnabled.value && !inView) {
+        opts.onUnviewedAttention?.(sessionId);
       }
       if (decision.consumedBackgroundOneShot) {
         backgroundArmedBySession.set(sessionId, false);

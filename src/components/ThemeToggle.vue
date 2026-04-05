@@ -2,7 +2,16 @@
 import { computed } from "vue";
 import { Laptop, Moon, Sun } from "lucide-vue-next";
 import BaseButton from "@/components/ui/BaseButton.vue";
+import type { ButtonSize, ButtonVariant } from "@/components/ui/button";
 import { useColorScheme, type ColorSchemePreference } from "@/composables/useColorScheme";
+
+const props = withDefaults(
+  defineProps<{
+    variant?: ButtonVariant;
+    size?: ButtonSize;
+  }>(),
+  { variant: "outline", size: "icon-xs" }
+);
 
 const { preference, cycle } = useColorScheme();
 
@@ -21,8 +30,8 @@ const title = computed(() => `${label.value} (click to change)`);
 <template>
   <BaseButton
     type="button"
-    variant="outline"
-    size="icon-xs"
+    :variant="props.variant"
+    :size="props.size"
     :aria-label="title"
     :title="title"
     @click="cycle"

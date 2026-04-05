@@ -4,6 +4,7 @@ import { THREAD_AGENT_BOOTSTRAP_COMMAND } from "@shared/threadAgentBootstrap";
 import { nextTick, onBeforeUnmount, ref, watch } from "vue";
 import BaseButton from "@/components/ui/BaseButton.vue";
 import AgentIcon from "@/components/ui/AgentIcon.vue";
+import { useTerminalSoundSettings } from "@/composables/useTerminalSoundSettings";
 
 const props = defineProps<{
   open: boolean;
@@ -25,6 +26,12 @@ const AGENT_ROWS: { agent: ThreadAgent; label: string }[] = [
 
 const draft = ref<Record<ThreadAgent, string>>({ ...props.commands });
 const panelRef = ref<HTMLElement | null>(null);
+
+const {
+  terminalNotificationsEnabled,
+  terminalBellSound,
+  terminalBackgroundOutputSound
+} = useTerminalSoundSettings();
 
 let removeEscapeListener: (() => void) | null = null;
 
@@ -97,20 +104,20 @@ function save(): void {
         ref="panelRef"
         role="dialog"
         aria-modal="true"
-        aria-labelledby="agent-commands-dialog-title"
+        aria-labelledby="workspace-settings-dialog-title"
         class="relative w-full max-w-md rounded-lg border border-border bg-card p-4 text-card-foreground shadow-lg outline-none"
         tabindex="-1"
         @pointerdown.stop
       >
-        <h2 id="agent-commands-dialog-title" class="text-base font-semibold">
-          Agent terminal commands
-        </h2>
+        <h2 id="workspace-settings-dialog-title" class="text-base font-semibold">Settings</h2>
+
+        <h3 class="mt-4 text-sm font-semibold text-foreground">Agent terminal commands</h3>
         <p class="mt-1 text-sm text-muted-foreground">
           Command typed into the thread terminal when you start a new thread with each agent (then Enter is
           sent). Use the exact CLI you have on your PATH.
         </p>
 
-        <div class="mt-4 space-y-3">
+        <div class="mt-3 space-y-3">
           <div v-for="row in AGENT_ROWS" :key="row.agent" class="space-y-1">
             <label
               class="flex items-center gap-2 text-sm font-medium"
@@ -129,6 +136,44 @@ function save(): void {
             />
           </div>
         </div>
+
+        <h3 class="mt-6 text-sm font-semibold text-foreground">Terminal</h3>
+        <p class="mt-1 text-sm text-muted-foreground">
+          Short sounds when the integrated terminal needs your attention (bell character or output while you are
+          on another tab or thread).
+        </p>
+        <div class="mt-3 space-y-2.5 text-sm">
+          <label class="flex cursor-pointer items-start gap-2.5 select-none">
+            <input
+              v-model="terminalNotificationsEnabled"
+              type="checkbox"
+              class="mt-0.5 size-3.5 shrink-0 rounded border-border accent-primary"
+            />
+            <span>Enable notifications</span>
+          </label>
+          <label class="flex cursor-pointer items-start gap-2.5 select-none">
+            <input
+              v-model="terminalBellSound"
+              type="checkbox"
+              class="mt-0.5 size-3.5 shrink-0 rounded border-border accent-primary"
+            />
+            <span
+              >Bell (<kbd class="rounded bg-muted px-1 font-mono text-[0.65rem]">\a</kbd>)</span
+            >
+          </label>
+          <label class="flex cursor-pointer items-start gap-2.5 select-none">
+            <input
+              v-model="terminalBackgroundOutputSound"
+              type="checkbox"
+              class="mt-0.5 size-3.5 shrink-0 rounded border-border accent-primary"
+            />
+            <span>Background output (once until you view that terminal)</span>
+          </label>
+        </div>
+        <p class="mt-2 text-xs text-muted-foreground">
+          Turn off <span class="font-medium text-foreground/80">Enable notifications</span> to silence all
+          terminal attention sounds.
+        </p>
 
         <div class="mt-6 flex flex-wrap items-center justify-between gap-2">
           <BaseButton type="button" variant="ghost" size="sm" @click="resetDraftToDefaults">

@@ -6,7 +6,6 @@ import DiffReviewPanel from "@/components/DiffReviewPanel.vue";
 import PillTabs, { type PillTabItem } from "@/components/ui/PillTabs.vue";
 import ProjectTabs from "@/components/ProjectTabs.vue";
 import TerminalPane from "@/components/TerminalPane.vue";
-import TerminalSoundSettings from "@/components/TerminalSoundSettings.vue";
 import ThemeToggle from "@/components/ThemeToggle.vue";
 import AgentCommandsSettingsDialog from "@/components/AgentCommandsSettingsDialog.vue";
 import ThreadSidebar from "@/components/ThreadSidebar.vue";
@@ -26,7 +25,8 @@ import type {
   WorkspaceSnapshot
 } from "@shared/ipc";
 const workspace = useWorkspaceStore();
-const { terminalBellSound, terminalBackgroundOutputSound } = useTerminalSoundSettings();
+const { terminalNotificationsEnabled, terminalBellSound, terminalBackgroundOutputSound } =
+  useTerminalSoundSettings();
 const { commands, applySaved, bootstrapCommandFor } = useAgentBootstrapCommands();
 const agentCommandsSettingsOpen = ref(false);
 const runs = useRunStore();
@@ -44,11 +44,11 @@ const centerPanelTabs = computed<PillTabItem[]>(() => {
   const slots = shellSlotIds.value;
   return [
     { value: "agent", label: "🤖 Agent" },
-    { value: "diff", label: "🌿 Git Diff" },
+    { value: "diff", label: "🌿 Git Diff", dividerAfter: true },
     ...slots.map((id, i) => ({
       value: `shell:${id}`,
       label: `💻 Terminal ${i + 1}`,
-      closable: slots.length > 1
+      closable: true
     }))
   ];
 });
@@ -59,6 +59,23 @@ const centerTabModel = computed({
     centerTab.value = v;
   }
 });
+
+/** Agent threads that got terminal attention (sound rules) while their PTY was not the visible session. */
+const threadsNeedingAttention = ref<Set<string>>(new Set());
+
+function markThreadNeedingAttention(sessionId: string): void {
+  if (!workspace.threads.some((t) => t.id === sessionId)) return;
+  const next = new Set(threadsNeedingAttention.value);
+  next.add(sessionId);
+  threadsNeedingAttention.value = next;
+}
+
+function clearAttentionForVisibleSession(visibleId: string | null): void {
+  if (visibleId == null || !threadsNeedingAttention.value.has(visibleId)) return;
+  const next = new Set(threadsNeedingAttention.value);
+  next.delete(visibleId);
+  threadsNeedingAttention.value = next;
+}
 
 /** PTY session id currently visible in the center panel, or `null` when Git Diff (or no session). */
 const visiblePtySessionId = computed(() => {
@@ -73,10 +90,35 @@ const visiblePtySessionId = computed(() => {
   return null;
 });
 
+watch(visiblePtySessionId, (vid) => clearAttentionForVisibleSession(vid), { flush: "sync" });
+
+watch(
+  () => workspace.threads.map((t) => t.id).join("\0"),
+  () => {
+    const allow = new Set(workspace.threads.map((t) => t.id));
+    const filtered = [...threadsNeedingAttention.value].filter((id) => allow.has(id));
+    if (filtered.length === threadsNeedingAttention.value.size) return;
+    threadsNeedingAttention.value = new Set(filtered);
+  }
+);
+
+/** Projects that have at least one thread with unviewed terminal attention. */
+const projectIdsNeedingAttention = computed(() => {
+  const next = new Set<string>();
+  for (const t of workspace.threads) {
+    if (threadsNeedingAttention.value.has(t.id)) {
+      next.add(t.projectId);
+    }
+  }
+  return next;
+});
+
 useTerminalAttentionSounds({
   visibleSessionId: visiblePtySessionId,
+  notificationsEnabled: terminalNotificationsEnabled,
   bellEnabled: terminalBellSound,
-  backgroundEnabled: terminalBackgroundOutputSound
+  backgroundEnabled: terminalBackgroundOutputSound,
+  onUnviewedAttention: markThreadNeedingAttention
 });
 
 function addShellTerminal(): void {
@@ -88,7 +130,6 @@ function addShellTerminal(): void {
 async function onCenterTabClose(tabValue: string): Promise<void> {
   if (!tabValue.startsWith("shell:")) return;
   const slotId = tabValue.slice("shell:".length);
-  if (shellSlotIds.value.length <= 1) return;
   const api = getApi();
   const wt = workspace.activeWorktreeId;
   if (api && wt) {
@@ -417,20 +458,23 @@ watch(
   async (wt, prev) => {
     if (!wt) {
       shellSlotIds.value = [];
-    } else {
-      if (prev != null && wt !== prev) {
-        shellSlotIds.value = [crypto.randomUUID()];
-        if (centerTab.value.startsWith("shell:")) {
-          centerTab.value = "agent";
-        }
-      } else if (shellSlotIds.value.length === 0) {
-        shellSlotIds.value = [crypto.randomUUID()];
+    } else if (prev != null && wt !== prev) {
+      shellSlotIds.value = [];
+      if (centerTab.value.startsWith("shell:")) {
+        centerTab.value = "agent";
       }
     }
     await refreshChangedFiles();
   },
   { immediate: true }
 );
+
+watch(shellSlotIds, (ids) => {
+  const tab = centerTab.value;
+  if (!tab.startsWith("shell:")) return;
+  const slotId = tab.slice("shell:".length);
+  if (!ids.includes(slotId)) centerTab.value = "agent";
+});
 </script>
 
 <template>
@@ -444,8 +488,8 @@ watch(
           type="button"
           variant="outline"
           size="icon-xs"
-          aria-label="Agent terminal commands"
-          title="Agent terminal commands"
+          aria-label="Settings"
+          title="Settings"
           @click="handleConfigureCommands"
         >
           <Settings class="h-3.5 w-3.5" />
@@ -463,10 +507,13 @@ watch(
       @change="onRepoDirectoryInputChange"
     />
     <ProjectTabs
-      v-if="workspace.projects.length > 0"
+      v-if="workspace.projects.length > 0 && !hasActiveWorkspace"
       :projects="workspace.projects"
       :worktrees="workspace.worktrees"
+      :threads="workspace.threads"
+      :thread-ids-needing-attention="threadsNeedingAttention"
       :active-project-id="workspace.activeProjectId"
+      :project-ids-needing-attention="projectIdsNeedingAttention"
       @select="handleSelectProject"
       @create="handleCreateProject"
       @configure-commands="handleConfigureCommands"
@@ -508,12 +555,12 @@ watch(
           :threads="workspace.activeThreads"
           :active-thread-id="workspace.activeThreadId"
           :run-status-by-thread-id="runs.statusByThreadId"
+          :threads-needing-attention="threadsNeedingAttention"
           @create-with-agent="handleCreateThreadWithAgent"
           @select="handleSelectThread"
           @remove="handleRemoveThread"
           @rename="handleRenameThread"
           @collapse="threadsVisible = false"
-          @configure-commands="handleConfigureCommands"
         />
       </section>
       <section v-else class="flex h-full items-start justify-center border-r border-border px-1 py-2">
@@ -529,8 +576,20 @@ watch(
         </BaseButton>
       </section>
       <section class="flex min-h-0 min-w-0 flex-col border-r border-border">
+        <ProjectTabs
+          v-if="workspace.projects.length > 0"
+          :projects="workspace.projects"
+          :worktrees="workspace.worktrees"
+          :threads="workspace.threads"
+          :thread-ids-needing-attention="threadsNeedingAttention"
+          :active-project-id="workspace.activeProjectId"
+          :project-ids-needing-attention="projectIdsNeedingAttention"
+          @select="handleSelectProject"
+          @create="handleCreateProject"
+          @configure-commands="handleConfigureCommands"
+        />
         <div
-          class="flex min-h-10 min-w-0 shrink-0 items-center gap-1 border-b border-border py-0.5 pr-1 pl-0.5"
+          class="flex min-h-10 min-w-0 shrink-0 items-center justify-start gap-1 border-b border-border py-0.5 pr-1 pl-0.5"
         >
           <PillTabs
             v-model="centerTabModel"
@@ -539,6 +598,19 @@ watch(
             @tab-close="onCenterTabClose"
           />
           <BaseButton
+            v-if="shellSlotIds.length === 0"
+            type="button"
+            variant="outline"
+            size="xs"
+            class="shrink-0"
+            aria-label="Add terminal"
+            title="Add terminal"
+            @click="addShellTerminal"
+          >
+            Add terminal
+          </BaseButton>
+          <BaseButton
+            v-else
             type="button"
             variant="outline"
             size="icon-xs"
@@ -550,7 +622,6 @@ watch(
             <Plus class="h-3.5 w-3.5" />
           </BaseButton>
         </div>
-        <TerminalSoundSettings v-if="hasActiveWorkspace" class="shrink-0" />
         <div class="flex min-h-0 flex-1 flex-col overflow-hidden">
           <div v-show="centerTab === 'agent'" class="flex min-h-0 flex-1 flex-col overflow-hidden">
             <TerminalPane

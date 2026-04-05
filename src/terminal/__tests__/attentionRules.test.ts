@@ -55,13 +55,13 @@ describe("decideTerminalAttentionChunk", () => {
     backgroundArmed: true
   };
 
-  it("in-view + BEL: bell only, does not consume background shot", () => {
+  it("in-view + BEL: no sound (user is already on this tab)", () => {
     const r = decideTerminalAttentionChunk({
       ...base,
       data: "\x07",
       visibleSessionId: "s1"
     });
-    expect(r.playSound).toBe(true);
+    expect(r.playSound).toBe(false);
     expect(r.consumedBackgroundOneShot).toBe(false);
   });
 
