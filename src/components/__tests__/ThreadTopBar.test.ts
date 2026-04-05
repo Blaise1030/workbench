@@ -41,6 +41,19 @@ describe("ThreadTopBar", () => {
     expect(wrapper.emitted("createWithAgent")).toEqual([["codex"]]);
   });
 
+  it("renders agent picker items as bordered tiles with subtle shadows", async () => {
+    wrapper = mount(ThreadTopBar);
+
+    await wrapper.get('[aria-label="New thread"]').trigger("click");
+    await nextTick();
+    const items = getAgentMenuPanel().querySelectorAll('[role="menuitem"]');
+    expect(items).toHaveLength(4);
+    for (const item of items) {
+      expect(item.className).toContain("border");
+      expect(item.className).toContain("shadow-");
+    }
+  });
+
   it("shows product title and Alpha badge in header", () => {
     wrapper = mount(ThreadTopBar);
     const brand = wrapper.get('[data-testid="thread-sidebar-brand"]');
@@ -52,5 +65,16 @@ describe("ThreadTopBar", () => {
     wrapper = mount(ThreadTopBar);
     await wrapper.get('[aria-label="Collapse threads sidebar"]').trigger("click");
     expect(wrapper.emitted("collapse")).toEqual([[]]);
+  });
+
+  it("emits expand when collapsed and expand control is used", async () => {
+    wrapper = mount(ThreadTopBar, { props: { collapsed: true } });
+    await wrapper.get('[aria-label="Expand threads sidebar"]').trigger("click");
+    expect(wrapper.emitted("expand")).toEqual([[]]);
+  });
+
+  it("does not show new thread control when collapsed", () => {
+    wrapper = mount(ThreadTopBar, { props: { collapsed: true } });
+    expect(wrapper.find('[aria-label="New thread"]').exists()).toBe(false);
   });
 });

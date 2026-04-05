@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
-import { PanelLeftOpen, Plus, Settings } from "lucide-vue-next";
+import { Plus, Settings } from "lucide-vue-next";
 import BaseButton from "@/components/ui/BaseButton.vue";
 import DiffReviewPanel from "@/components/DiffReviewPanel.vue";
 import PillTabs, { type PillTabItem } from "@/components/ui/PillTabs.vue";
@@ -22,6 +22,7 @@ import type {
   AddProjectInput,
   CreateThreadInput,
   DeleteThreadInput,
+  ReorderThreadsInput,
   RenameThreadInput,
   WorkspaceSnapshot
 } from "@shared/ipc";
@@ -35,7 +36,8 @@ const toast = useToast();
 /** Sticky bar hint: single path or "N files" when multiple unstaged paths. */
 const diffSummaryLabel = ref<string | null>(null);
 const selectedDiff = ref("Diff preview will render here.");
-const threadsVisible = ref(true);
+/** When true, thread rail shows agent icons only (narrow column). */
+const threadsSidebarCollapsed = ref(false);
 /** `agent` | `diff` | `shell:${uuid}` for each extra terminal. */
 const centerTab = ref<string>("agent");
 /** One UUID per integrated terminal tab (after Agent + Git Diff). */
@@ -154,7 +156,7 @@ let pendingRepoDirectoryResolve: ((value: string | null) => void) | null = null;
 let disposeWorkspaceChanged: (() => void) | null = null;
 
 const layoutColumns = computed(() => {
-  const threadsWidth = threadsVisible.value ? "260px" : "44px";
+  const threadsWidth = threadsSidebarCollapsed.value ? "3.5rem" : "260px";
   return `${threadsWidth} minmax(0, 1fr)`;
 });
 
@@ -415,6 +417,22 @@ async function handleRenameThread(threadId: string, newTitle: string): Promise<v
   await refreshSnapshot();
 }
 
+async function handleReorderThreads(orderedThreadIds: string[]): Promise<void> {
+  const api = getApi();
+  const worktreeId = workspace.activeWorktreeId;
+  if (!api || !worktreeId) return;
+
+  workspace.reorderThreadsLocal(worktreeId, orderedThreadIds);
+
+  try {
+    const payload: ReorderThreadsInput = { worktreeId, orderedThreadIds };
+    await api.reorderThreads(payload);
+    await refreshSnapshot();
+  } catch {
+    await refreshSnapshot();
+  }
+}
+
 async function handleSelectThread(threadId: string): Promise<void> {
   centerTab.value = "agent";
   const api = getApi();
@@ -560,12 +578,10 @@ watch(shellSlotIds, (ids) => {
     </section>
 
     <section v-else class="grid min-h-0 flex-1" :style="{ gridTemplateColumns: layoutColumns }">
-      <section
-        v-if="threadsVisible"
-        class="flex min-h-0 min-w-0 flex-col overflow-hidden border-r border-border"
-      >
+      <section class="flex min-h-0 min-w-0 flex-col overflow-hidden border-r border-border">
         <ThreadSidebar
           class="min-h-0 min-w-0 flex-1"
+          :collapsed="threadsSidebarCollapsed"
           :threads="workspace.activeThreads"
           :active-thread-id="workspace.activeThreadId"
           :run-status-by-thread-id="runs.statusByThreadId"
@@ -574,20 +590,10 @@ watch(shellSlotIds, (ids) => {
           @select="handleSelectThread"
           @remove="handleRemoveThread"
           @rename="handleRenameThread"
-          @collapse="threadsVisible = false"
+          @reorder="handleReorderThreads"
+          @collapse="threadsSidebarCollapsed = true"
+          @expand="threadsSidebarCollapsed = false"
         />
-      </section>
-      <section v-else class="flex h-full items-start justify-center border-r border-border px-1 py-2">
-        <BaseButton
-          type="button"
-          variant="outline"
-          size="icon-xs"
-          aria-label="Expand threads sidebar"
-          title="Expand threads sidebar"
-          @click="threadsVisible = true"
-        >
-          <PanelLeftOpen class="h-3.5 w-3.5" />
-        </BaseButton>
       </section>
       <section class="flex min-h-0 min-w-0 flex-col border-r border-border">
         <ProjectTabs
@@ -670,7 +676,11 @@ watch(shellSlotIds, (ids) => {
               @go-to-first-tab="centerTab = 'agent'"
             />
           </div>
-          <div v-show="centerTab === 'files'" class="flex min-h-0 flex-1 flex-col overflow-hidden">
+          <div
+            v-show="centerTab === 'files'"
+            data-testid="workspace-files-pane"
+            class="flex min-h-0 flex-1 flex-col overflow-hidden border-t border-border"
+          >
             <FileSearchEditor :worktree-path="workspace.activeWorktree?.path ?? null" />
           </div>
         </div>

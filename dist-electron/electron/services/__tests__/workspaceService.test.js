@@ -145,36 +145,3 @@ function buildThread(overrides = {}) {
         (0, vitest_1.expect)(reorderThreads).toHaveBeenCalledWith("worktree-1", ["thread-2", "thread-1"]);
     });
 });
-(0, vitest_1.describe)("WorkspaceService.createThread", () => {
-    (0, vitest_1.it)("assigns sortOrder from the next thread slot for the worktree", () => {
-        const nextThreadSortOrder = vitest_1.vi.fn(() => 7);
-        const upsertThread = vitest_1.vi.fn();
-        const setActiveState = vitest_1.vi.fn();
-        const store = {
-            getSnapshot: vitest_1.vi.fn(),
-            upsertProject: vitest_1.vi.fn(),
-            setActiveState,
-            upsertWorktree: vitest_1.vi.fn(),
-            upsertThread,
-            deleteThread: vitest_1.vi.fn(),
-            renameThread: vitest_1.vi.fn(),
-            getThread: vitest_1.vi.fn(),
-            nextThreadSortOrder
-        };
-        const service = new workspaceService_1.WorkspaceService(store);
-        const created = service.createThread({
-            projectId: "project-1",
-            worktreeId: "worktree-1",
-            title: "Codex CLI",
-            agent: "codex"
-        });
-        (0, vitest_1.expect)(nextThreadSortOrder).toHaveBeenCalledWith("worktree-1");
-        (0, vitest_1.expect)(upsertThread).toHaveBeenCalledWith(vitest_1.expect.objectContaining({
-            sortOrder: 7,
-            worktreeId: "worktree-1",
-            projectId: "project-1"
-        }));
-        (0, vitest_1.expect)(setActiveState).toHaveBeenCalledWith("project-1", "worktree-1", created.id);
-        (0, vitest_1.expect)(created.sortOrder).toBe(7);
-    });
-});

@@ -2,13 +2,23 @@ import { mount } from "@vue/test-utils";
 import { describe, expect, it } from "vitest";
 import DiffReviewPanel from "@/components/DiffReviewPanel.vue";
 
+function mountPanel(overrides: Record<string, unknown> = {}) {
+  return mount(DiffReviewPanel, {
+    props: {
+      selectedDiff: "No unstaged changes.",
+      summaryLabel: null,
+      queuedReviewCount: 0,
+      canQueueReview: true,
+      ...overrides,
+    },
+  });
+}
+
 describe("DiffReviewPanel", () => {
   it("renders the sticky toolbar without a top border and with the background token", () => {
-    const wrapper = mount(DiffReviewPanel, {
-      props: {
-        selectedDiff: "No unstaged changes.",
-        summaryLabel: null
-      }
+    const wrapper = mountPanel({
+      selectedDiff: "diff --git a/a.txt b/a.txt\n--- a/a.txt\n+++ b/a.txt\n@@ -1 +1 @@\n-a\n+b\n",
+      summaryLabel: "a.txt",
     });
 
     const header = wrapper.get("header");
@@ -18,34 +28,122 @@ describe("DiffReviewPanel", () => {
     expect(topBorderClasses).toEqual([]);
   });
 
-  it("emits goToFirstTab when Open Agent tab is clicked in the empty state", async () => {
-    const wrapper = mount(DiffReviewPanel, {
-      props: {
-        selectedDiff: "No unstaged changes.",
-        summaryLabel: null
-      }
+  it("shows the queued review count in the sticky header", () => {
+    const wrapper = mountPanel({
+      selectedDiff: "diff --git a/a.txt b/a.txt\n--- a/a.txt\n+++ b/a.txt\n@@ -1 +1 @@\n-a\n+b\n",
+      summaryLabel: "a.txt",
+      queuedReviewCount: 3,
     });
 
-    await wrapper.get('[aria-label="Open Agent tab"]').trigger("click");
-    expect(wrapper.emitted("goToFirstTab")).toEqual([[]]);
+    expect(wrapper.get("header").text()).toContain("3 review items queued");
+  });
+
+  it("emits openInAgents from the empty-state action", async () => {
+    const wrapper = mountPanel({
+      selectedDiff: "No unstaged changes.",
+    });
+
+    await wrapper.get('[aria-label="Open in Agents"]').trigger("click");
+
+    expect(wrapper.emitted("openInAgents")).toEqual([[]]);
+    expect(wrapper.emitted("goToFirstTab")).toBeUndefined();
+  });
+
+  it("emits clearReviewItems from the basket action", async () => {
+    const wrapper = mountPanel({
+      selectedDiff: "diff --git a/a.txt b/a.txt\n--- a/a.txt\n+++ b/a.txt\n@@ -1 +1 @@\n-a\n+b\n",
+      summaryLabel: "a.txt",
+      queuedReviewCount: 2,
+    });
+
+    await wrapper.get('[aria-label="Clear review items"]').trigger("click");
+
+    expect(wrapper.emitted("clearReviewItems")).toEqual([[]]);
+  });
+
+  it("does not emit queueReviewItem for placeholder diff states", async () => {
+    const wrapper = mountPanel({
+      selectedDiff: "Could not load diff from source.",
+    });
+
+    await wrapper.get('[aria-label="Queue review item"]').trigger("click");
+
+    expect(wrapper.emitted("queueReviewItem")).toBeUndefined();
+  });
+
+  it("emits queueReviewItem with null line ranges for a zero-count hunk", async () => {
+    const wrapper = mountPanel({
+      selectedDiff: "diff --git a/a.txt b/a.txt\n--- a/a.txt\n+++ b/a.txt\n@@ -1,0 +1,0 @@\n",
+      summaryLabel: "a.txt",
+    });
+
+    await wrapper.get('[aria-label="Queue review item"]').trigger("click");
+
+    expect(wrapper.emitted("queueReviewItem")).toEqual([
+      [
+        {
+          worktreeId: "",
+          threadId: null,
+          filePath: "a.txt",
+          oldLineStart: null,
+          oldLineEnd: null,
+          newLineStart: null,
+          newLineEnd: null,
+          snippet: "@@ -1,0 +1,0 @@",
+          note: undefined,
+          intent: undefined,
+        },
+      ],
+    ]);
+  });
+
+  it("falls back to the active hunk when selected text points at another hunk", async () => {
+    const wrapper = mountPanel({
+      selectedDiff:
+        "diff --git a/a.txt b/a.txt\n--- a/a.txt\n+++ b/a.txt\n@@ -1 +1 @@\n-a\n+b\n@@ -10 +10 @@\n-old-second\n+new-second\n",
+      summaryLabel: "a.txt",
+    });
+
+    vi.spyOn(window, "getSelection").mockReturnValue({
+      isCollapsed: false,
+      toString: () => "new-second",
+      anchorNode: { nodeType: Node.TEXT_NODE, parentElement: wrapper.element.querySelector(".diff-scroll-root") },
+      focusNode: { nodeType: Node.TEXT_NODE, parentElement: wrapper.element.querySelector(".diff-scroll-root") },
+    } as unknown as Selection);
+
+    await wrapper.get('[aria-label="Queue review item"]').trigger("click");
+
+    expect(wrapper.emitted("queueReviewItem")).toEqual([
+      [
+        {
+          worktreeId: "",
+          threadId: null,
+          filePath: "a.txt",
+          oldLineStart: 1,
+          oldLineEnd: 1,
+          newLineStart: 1,
+          newLineEnd: 1,
+          snippet: "@@ -1 +1 @@\n-a\n+b",
+          note: undefined,
+          intent: undefined,
+        },
+      ],
+    ]);
   });
 
   it("renders flatter action buttons in the diff toolbar", () => {
-    const wrapper = mount(DiffReviewPanel, {
-      props: {
-        selectedDiff: "diff --git a/a.txt b/a.txt\n--- a/a.txt\n+++ b/a.txt\n@@ -1 +1 @@\n-a\n+b\n",
-        summaryLabel: "a.txt"
-      }
+    const wrapper = mountPanel({
+      selectedDiff: "diff --git a/a.txt b/a.txt\n--- a/a.txt\n+++ b/a.txt\n@@ -1 +1 @@\n-a\n+b\n",
+      summaryLabel: "a.txt",
     });
 
     const buttons = wrapper.findAll("button");
-    const [stageAll, discardAll] = buttons;
+    const stageAll = buttons.find((button) => button.text().includes("Stage All"));
+    const discardAll = buttons.find((button) => button.text().includes("Discard All"));
 
-    expect(stageAll).toBeTruthy();
-    expect(discardAll).toBeTruthy();
-    expect(stageAll!.classes()).toContain("border-0");
-    expect(stageAll!.classes()).toContain("shadow-none");
-    expect(discardAll!.classes()).toContain("border-0");
-    expect(discardAll!.classes()).toContain("shadow-none");
+    expect(stageAll?.classes()).toContain("border-0");
+    expect(stageAll?.classes()).toContain("shadow-none");
+    expect(discardAll?.classes()).toContain("border-0");
+    expect(discardAll?.classes()).toContain("shadow-none");
   });
 });

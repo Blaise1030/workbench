@@ -1,8 +1,14 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+vi.mock("better-sqlite3", async () => {
+  const module = await import("./betterSqlite3Compat");
+  return { default: module.default };
+});
+
 import Database from "better-sqlite3";
-import { afterEach, describe, expect, it } from "vitest";
 import type { Project, Thread, Worktree } from "../../../src/shared/domain";
 import { WorkspaceStore } from "../store";
 

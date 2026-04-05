@@ -41,6 +41,22 @@ export const useWorkspaceStore = defineStore("workspace", {
       this.activeThreadId = threadId;
     },
     /** Immediate UI update; call refreshSnapshot after IPC so server state wins. */
+    reorderThreadsLocal(worktreeId: string, orderedThreadIds: string[]): void {
+      const orderedThreads = orderedThreadIds
+        .map((threadId) =>
+          this.threads.find((thread) => thread.worktreeId === worktreeId && thread.id === threadId)
+        )
+        .filter((thread): thread is Thread => thread !== undefined);
+      let nextOrderedIndex = 0;
+
+      this.threads = this.threads.map((thread) => {
+        if (thread.worktreeId !== worktreeId) return thread;
+        const nextThread = orderedThreads[nextOrderedIndex];
+        nextOrderedIndex += 1;
+        return nextThread ?? thread;
+      });
+    },
+    /** Immediate UI update; call refreshSnapshot after IPC so server state wins. */
     removeThreadLocal(threadId: string): void {
       const wasActive = this.activeThreadId === threadId;
       this.threads = this.threads.filter((t) => t.id !== threadId);

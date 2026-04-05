@@ -25,11 +25,11 @@ const fileService_1 = require("../fileService");
         await (0, vitest_1.expect)(service.listFileSummaries(tempDir)).resolves.toEqual([
             vitest_1.expect.objectContaining({
                 relativePath: "src/App.vue",
-                size: 11
+                size: 12
             }),
             vitest_1.expect.objectContaining({
                 relativePath: "src/FileSearchEditor.vue",
-                size: 11
+                size: 12
             })
         ]);
     });

@@ -53,11 +53,24 @@ vi.mock("@/components/ThreadSidebar.vue", () => ({
         return this.threads.map((t: { title: string }) => t.title).join("|");
       }
     },
-    template: '<div data-testid="thread-sidebar">{{ titles }}</div>'
+    template: `
+      <div>
+        <div data-testid="thread-sidebar">{{ titles }}</div>
+        <button
+          type="button"
+          data-testid="thread-sidebar-reorder"
+          @click="$emit('reorder', ['thread-2', 'thread-1'])"
+        >
+          reorder
+        </button>
+      </div>
+    `
   }
 }));
 
-function makeSnapshot(title: string): WorkspaceSnapshot {
+function makeSnapshot(threadTitles: string | string[]): WorkspaceSnapshot {
+  const titles = Array.isArray(threadTitles) ? threadTitles : [threadTitles];
+
   return {
     projects: [
       {
@@ -81,18 +94,16 @@ function makeSnapshot(title: string): WorkspaceSnapshot {
         updatedAt: "2026-04-06T00:00:00.000Z"
       }
     ],
-    threads: [
-      {
-        id: "thread-1",
-        projectId: "project-1",
-        worktreeId: "worktree-1",
-        title,
-        agent: "codex",
-        sortOrder: 0,
-        createdAt: "2026-04-06T00:00:00.000Z",
-        updatedAt: "2026-04-06T00:00:00.000Z"
-      }
-    ],
+    threads: titles.map((title, index) => ({
+      id: `thread-${index + 1}`,
+      projectId: "project-1",
+      worktreeId: "worktree-1",
+      title,
+      agent: "codex",
+      sortOrder: index,
+      createdAt: "2026-04-06T00:00:00.000Z",
+      updatedAt: "2026-04-06T00:00:00.000Z"
+    })),
     activeProjectId: "project-1",
     activeWorktreeId: "worktree-1",
     activeThreadId: "thread-1"
@@ -129,6 +140,8 @@ describe("WorkspaceLayout", () => {
       fileDiff: vi.fn(),
       stageAll: vi.fn(),
       discardAll: vi.fn(),
+      listFiles: vi.fn(),
+      searchFiles: vi.fn(),
       applyPatch: vi.fn(),
       ptyCreate: vi.fn().mockResolvedValue({ buffer: "" }),
       ptyWrite: vi.fn(),
@@ -181,6 +194,7 @@ describe("WorkspaceLayout", () => {
       fileDiff: vi.fn(),
       stageAll: vi.fn(),
       discardAll: vi.fn(),
+      listFiles: vi.fn(),
       searchFiles: vi.fn(),
       readFile: vi.fn(),
       writeFile: vi.fn(),
@@ -208,5 +222,79 @@ describe("WorkspaceLayout", () => {
     await flushPromises();
 
     expect(wrapper.get('[data-testid="file-search-editor"]').text()).toBe("/tmp/instrument");
+    expect(wrapper.get('[data-testid="workspace-files-pane"]').classes()).toContain("border-t");
+  });
+
+  it("persists reordered active-worktree threads and then accepts the refreshed snapshot order", async () => {
+    const { default: WorkspaceLayout } = await import("../WorkspaceLayout.vue");
+    const initialSnapshot = makeSnapshot(["First", "Second"]);
+    const refreshedSnapshot = makeSnapshot(["Server Second", "Server First"]);
+    const getSnapshot = vi
+      .fn<WorkspaceApi["getSnapshot"]>()
+      .mockResolvedValueOnce(initialSnapshot)
+      .mockResolvedValueOnce(refreshedSnapshot);
+    const changedFiles = vi.fn<WorkspaceApi["changedFiles"]>().mockResolvedValue([]);
+    let resolveReorder: (() => void) | undefined;
+    const reorderThreads = vi.fn<WorkspaceApi["reorderThreads"]>(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveReorder = resolve;
+        })
+    );
+
+    window.workspaceApi = {
+      getSnapshot,
+      reorderThreads,
+      changedFiles,
+      addProject: vi.fn(),
+      addWorktree: vi.fn(),
+      setActive: vi.fn(),
+      createThread: vi.fn(),
+      setActiveThread: vi.fn(),
+      deleteThread: vi.fn(),
+      renameThread: vi.fn(),
+      startRun: vi.fn(),
+      sendRunInput: vi.fn(),
+      interruptRun: vi.fn(),
+      fileDiff: vi.fn(),
+      stageAll: vi.fn(),
+      discardAll: vi.fn(),
+      listFiles: vi.fn(),
+      searchFiles: vi.fn(),
+      readFile: vi.fn(),
+      writeFile: vi.fn(),
+      applyPatch: vi.fn(),
+      ptyCreate: vi.fn().mockResolvedValue({ buffer: "" }),
+      ptyWrite: vi.fn(),
+      ptyResize: vi.fn(),
+      ptyKill: vi.fn(),
+      onPtyData: vi.fn(() => () => {}),
+      pickRepoDirectory: vi.fn(),
+      onWorkspaceChanged: vi.fn(() => () => {})
+    };
+
+    const wrapper = mount(WorkspaceLayout, {
+      global: {
+        plugins: [createPinia()]
+      }
+    });
+
+    await flushPromises();
+    expect(wrapper.get('[data-testid="thread-sidebar"]').text()).toBe("First|Second");
+
+    await wrapper.get('[data-testid="thread-sidebar-reorder"]').trigger("click");
+    await flushPromises();
+
+    expect(reorderThreads).toHaveBeenCalledWith({
+      worktreeId: "worktree-1",
+      orderedThreadIds: ["thread-2", "thread-1"]
+    });
+    expect(wrapper.get('[data-testid="thread-sidebar"]').text()).toBe("Second|First");
+
+    resolveReorder?.();
+    await flushPromises();
+
+    expect(getSnapshot).toHaveBeenCalledTimes(2);
+    expect(wrapper.get('[data-testid="thread-sidebar"]').text()).toBe("Server Second|Server First");
   });
 });

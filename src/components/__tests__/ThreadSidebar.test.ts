@@ -8,6 +8,26 @@ async function hoverFirstThreadRow(wrapper: ReturnType<typeof mount>): Promise<v
   await wrapper.get('[data-testid="thread-row"]').trigger("mouseenter");
 }
 
+function createDragData(): {
+  dropEffect: string;
+  effectAllowed: string;
+  setData: (format: string, value: string) => void;
+  getData: (format: string) => string;
+} {
+  const values = new Map<string, string>();
+
+  return {
+    dropEffect: "move",
+    effectAllowed: "move",
+    setData(format: string, value: string) {
+      values.set(format, value);
+    },
+    getData(format: string) {
+      return values.get(format) ?? "";
+    }
+  };
+}
+
 describe("ThreadSidebar", () => {
   let wrapper: ReturnType<typeof mount<typeof ThreadSidebar>>;
 
@@ -27,6 +47,48 @@ describe("ThreadSidebar", () => {
       updatedAt: "2026-04-05T00:00:00.000Z"
     }
   ];
+
+  const reorderedThreads: Thread[] = [
+    threads[0],
+    {
+      id: "t2",
+      projectId: "p1",
+      worktreeId: "w1",
+      title: "Claude Code · docs",
+      agent: "claude",
+      sortOrder: 1,
+      createdAt: "2026-04-05T00:01:00.000Z",
+      updatedAt: "2026-04-05T00:01:00.000Z"
+    },
+    {
+      id: "t3",
+      projectId: "p1",
+      worktreeId: "w1",
+      title: "Gemini CLI · review",
+      agent: "gemini",
+      sortOrder: 2,
+      createdAt: "2026-04-05T00:02:00.000Z",
+      updatedAt: "2026-04-05T00:02:00.000Z"
+    }
+  ];
+
+  it("shows icon-only thread rows when collapsed", () => {
+    wrapper = mount(ThreadSidebar, {
+      props: {
+        threads: reorderedThreads,
+        activeThreadId: "t1",
+        collapsed: true
+      }
+    });
+
+    expect(wrapper.attributes("data-thread-sidebar-collapsed")).toBe("true");
+    expect(wrapper.findAll('[data-testid="thread-select"]').map((n) => n.text())).toEqual([
+      "",
+      "",
+      ""
+    ]);
+    expect(wrapper.findAll('[data-testid="thread-drag-handle"]')).toHaveLength(0);
+  });
 
   it("emits createWithAgent when an agent row is chosen", async () => {
     wrapper = mount(ThreadSidebar, {
@@ -64,5 +126,169 @@ describe("ThreadSidebar", () => {
     await input.setValue("Renamed");
     await input.trigger("keydown", { key: "Enter" });
     expect(wrapper.emitted("rename")).toEqual([["t1", "Renamed"]]);
+  });
+
+  it("preserves the provided thread order on initial render", () => {
+    wrapper = mount(ThreadSidebar, {
+      props: {
+        threads: reorderedThreads,
+        activeThreadId: "t1"
+      }
+    });
+
+    expect(wrapper.findAll('[data-testid="thread-select"]').map((node) => node.text())).toEqual([
+      "Codex CLI · test",
+      "Claude Code · docs",
+      "Gemini CLI · review"
+    ]);
+  });
+
+  it("renders a local reordered list during drag interaction", async () => {
+    wrapper = mount(ThreadSidebar, {
+      props: {
+        threads: reorderedThreads,
+        activeThreadId: "t1"
+      }
+    });
+
+    const dragRows = wrapper.findAll('[data-testid="thread-row"]');
+    const dragHandles = wrapper.findAll('[data-testid="thread-drag-handle"]');
+    const dataTransfer = createDragData();
+
+    expect(dragHandles).toHaveLength(3);
+    expect(dragRows[0]!.attributes("draggable")).toBeUndefined();
+    expect(dragHandles[0]!.attributes("draggable")).toBe("true");
+    expect(dragHandles[0]!.classes()).toContain("absolute");
+    expect(dragHandles[0]!.classes()).toContain("right-8");
+    expect(dragRows[0]!.classes()).not.toContain("pl-9");
+    expect(dragHandles[0]!.classes()).toContain("opacity-0");
+    expect(dragHandles[0]!.classes()).toContain("pointer-events-none");
+
+    await dragRows[0]!.trigger("mouseenter");
+
+    expect(dragHandles[0]!.classes()).toContain("opacity-100");
+    expect(dragHandles[0]!.classes()).not.toContain("pointer-events-none");
+
+    await dragHandles[0]!.trigger("dragstart", { dataTransfer });
+    await dragRows[2]!.trigger("dragenter", { dataTransfer });
+
+    expect(wrapper.findAll('[data-testid="thread-select"]').map((node) => node.text())).toEqual([
+      "Claude Code · docs",
+      "Gemini CLI · review",
+      "Codex CLI · test"
+    ]);
+  });
+
+  it("reorders from the drag handle with keyboard controls", async () => {
+    wrapper = mount(ThreadSidebar, {
+      props: {
+        threads: reorderedThreads,
+        activeThreadId: "t1"
+      }
+    });
+
+    const dragHandles = wrapper.findAll('[data-testid="thread-drag-handle"]');
+
+    await dragHandles[1]!.trigger("keydown", { key: "ArrowDown" });
+
+    expect(wrapper.emitted("reorder")).toEqual([[["t1", "t3", "t2"]]]);
+    expect(wrapper.findAll('[data-testid="thread-select"]').map((node) => node.text())).toEqual([
+      "Codex CLI · test",
+      "Gemini CLI · review",
+      "Claude Code · docs"
+    ]);
+  });
+
+  it("emits reorder with the final visible ids on drop", async () => {
+    wrapper = mount(ThreadSidebar, {
+      props: {
+        threads: reorderedThreads,
+        activeThreadId: "t1"
+      }
+    });
+
+    const dragRows = wrapper.findAll('[data-testid="thread-row"]');
+    const dragHandles = wrapper.findAll('[data-testid="thread-drag-handle"]');
+    const dataTransfer = createDragData();
+
+    await dragHandles[0]!.trigger("dragstart", { dataTransfer });
+    await dragRows[2]!.trigger("dragenter", { dataTransfer });
+    await dragRows[2]!.trigger("drop", { dataTransfer });
+    await dragHandles[0]!.trigger("dragend", { dataTransfer });
+
+    expect(wrapper.emitted("reorder")).toEqual([[["t2", "t3", "t1"]]]);
+    expect(wrapper.findAll('[data-testid="thread-select"]').map((node) => node.text())).toEqual([
+      "Claude Code · docs",
+      "Gemini CLI · review",
+      "Codex CLI · test"
+    ]);
+  });
+
+  it("reorders on drop even if dragenter did not fire for the final target", async () => {
+    wrapper = mount(ThreadSidebar, {
+      props: {
+        threads: reorderedThreads,
+        activeThreadId: "t1"
+      }
+    });
+
+    const dragRows = wrapper.findAll('[data-testid="thread-row"]');
+    const dragHandles = wrapper.findAll('[data-testid="thread-drag-handle"]');
+    const dataTransfer = createDragData();
+
+    await dragHandles[0]!.trigger("dragstart", { dataTransfer });
+    await dragRows[2]!.trigger("drop", { dataTransfer });
+    await dragHandles[0]!.trigger("dragend", { dataTransfer });
+
+    expect(wrapper.emitted("reorder")).toEqual([[["t2", "t3", "t1"]]]);
+    expect(wrapper.findAll('[data-testid="thread-select"]').map((node) => node.text())).toEqual([
+      "Claude Code · docs",
+      "Gemini CLI · review",
+      "Codex CLI · test"
+    ]);
+  });
+
+  it("does not emit reorder for a no-op drag and drop", async () => {
+    wrapper = mount(ThreadSidebar, {
+      props: {
+        threads: reorderedThreads,
+        activeThreadId: "t1"
+      }
+    });
+
+    const dragRows = wrapper.findAll('[data-testid="thread-row"]');
+    const dragHandles = wrapper.findAll('[data-testid="thread-drag-handle"]');
+    const dataTransfer = createDragData();
+
+    await dragHandles[1]!.trigger("dragstart", { dataTransfer });
+    await dragRows[1]!.trigger("dragenter", { dataTransfer });
+    await dragRows[1]!.trigger("drop", { dataTransfer });
+    await dragHandles[1]!.trigger("dragend", { dataTransfer });
+
+    expect(wrapper.emitted("reorder")).toBeUndefined();
+  });
+
+  it("restores the original order and does not emit reorder when drag is canceled", async () => {
+    wrapper = mount(ThreadSidebar, {
+      props: {
+        threads: reorderedThreads,
+        activeThreadId: "t1"
+      }
+    });
+
+    const dragRows = wrapper.findAll('[data-testid="thread-row"]');
+    const dragHandles = wrapper.findAll('[data-testid="thread-drag-handle"]');
+    const dataTransfer = createDragData();
+
+    await dragHandles[0]!.trigger("dragstart", { dataTransfer });
+    await dragRows[2]!.trigger("dragenter", { dataTransfer });
+    await dragHandles[0]!.trigger("dragend", { dataTransfer });
+
+    expect(wrapper.emitted("reorder")).toBeUndefined();
+    expect(wrapper.findAll('[data-testid="thread-select"]').map((node) => node.text())).toEqual([
+      "Codex CLI · test",
+      "Claude Code · docs",
+      "Gemini CLI · review"
+    ]);
   });
 });

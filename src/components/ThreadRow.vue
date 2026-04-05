@@ -1,31 +1,44 @@
 <script setup lang="ts">
 import type { RunStatus, Thread } from "@shared/domain";
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue";
-import { ChevronDown, Pencil, Trash2 } from "lucide-vue-next";
+import { ChevronDown, GripVertical, Pencil, Trash2 } from "lucide-vue-next";
 import AgentIcon from "@/components/ui/AgentIcon.vue";
 
-const props = defineProps<{
-  thread: Thread;
-  isActive: boolean;
-  runStatus?: RunStatus | null;
-  /** Terminal needed attention (bell / background output) while this thread was not in view. */
-  needsAttention?: boolean;
-}>();
+const props = withDefaults(
+  defineProps<{
+    thread: Thread;
+    isActive: boolean;
+    /** Icon-only row (narrow sidebar). */
+    collapsed?: boolean;
+    runStatus?: RunStatus | null;
+    /** Terminal needed attention (bell / background output) while this thread was not in view. */
+    needsAttention?: boolean;
+    isDragging?: boolean;
+    isDragTarget?: boolean;
+  }>(),
+  { collapsed: false }
+);
 
 const emit = defineEmits<{
-  select: [];
-  remove: [];
-  rename: [newTitle: string];
+  (e: "dragstart", event: DragEvent): void;
+  (e: "dragend", event: DragEvent): void;
+  (e: "keyboard-reorder", direction: "up" | "down"): void;
+  (e: "select"): void;
+  (e: "remove"): void;
+  (e: "rename", newTitle: string): void;
 }>();
 
 const menuOpen = ref(false);
 const rowHovered = ref(false);
+const handleFocused = ref(false);
 const isEditing = ref(false);
 const editValue = ref("");
 const menuRootRef = ref<HTMLElement | null>(null);
 const editInputRef = ref<HTMLInputElement | null>(null);
 
-const showThreadMenu = computed(() => !isEditing.value && (rowHovered.value || menuOpen.value));
+const showThreadMenu = computed(
+  () => !props.collapsed && !isEditing.value && (rowHovered.value || menuOpen.value)
+);
 
 const iconClass = computed(() => {
   if (props.needsAttention) {
@@ -78,6 +91,16 @@ function handleDelete(): void {
   emit("remove");
 }
 
+function handleDragKeydown(event: KeyboardEvent): void {
+  if (event.key === "ArrowUp") {
+    event.preventDefault();
+    emit("keyboard-reorder", "up");
+  } else if (event.key === "ArrowDown") {
+    event.preventDefault();
+    emit("keyboard-reorder", "down");
+  }
+}
+
 function onDocumentPointerDown(event: MouseEvent): void {
   if (!menuOpen.value) return;
   if (menuRootRef.value && !menuRootRef.value.contains(event.target as Node)) {
@@ -103,32 +126,72 @@ onBeforeUnmount(() => {
 <template>
   <div
     data-testid="thread-row"
-    class="relative flex h-9 min-h-9 max-h-9 min-w-0 items-center gap-2.5 rounded-sm px-2"
-    :class="isActive ? 'bg-accent' : 'hover:bg-accent/50'"
+    class="relative flex h-9 min-h-9 max-h-9 min-w-0 items-center gap-2.5 rounded-sm"
+    :class="[
+      props.collapsed ? 'justify-center px-1.5' : 'pl-3 pr-2',
+      isActive ? 'bg-accent' : 'hover:bg-accent/50',
+      props.isDragging ? 'opacity-60' : '',
+      props.isDragTarget ? 'ring-1 ring-border/80' : ''
+    ]"
     @mouseenter="rowHovered = true"
     @mouseleave="rowHovered = false"
   >
-    <AgentIcon :agent="thread.agent" :size="14" class="shrink-0" :class="iconClass" />
-
     <button
-      v-if="!isEditing"
-      data-testid="thread-select"
+      v-if="!collapsed"
       type="button"
-      class="min-w-0 flex-1 truncate text-left text-sm"
-      @click="emit('select')"
+      data-testid="thread-drag-handle"
+      class="absolute right-8 top-1/2 z-10 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded text-muted-foreground transition-opacity hover:bg-accent hover:text-foreground active:cursor-grabbing focus:outline-none"
+      :class="[
+        props.isDragging ? 'cursor-grabbing opacity-100' : 'cursor-grab',
+        rowHovered || props.isDragging || handleFocused ? 'opacity-100' : 'pointer-events-none opacity-0'
+      ]"
+      draggable="true"
+      aria-label="Reorder thread"
+      @focus="handleFocused = true"
+      @blur="handleFocused = false"
+      @dragstart="emit('dragstart', $event)"
+      @dragend="emit('dragend', $event)"
+      @keydown="handleDragKeydown"
     >
-      {{ thread.title }}
+      <GripVertical class="h-3.5 w-3.5" />
     </button>
-    <input
-      v-else
-      ref="editInputRef"
-      v-model="editValue"
-      data-testid="thread-rename-input"
-      type="text"
-      class="min-w-0 flex-1 rounded border border-border bg-background px-1 text-sm outline-none"
-      @keydown="handleRenameKeydown"
-      @blur="cancelRename"
-    />
+
+    <template v-if="collapsed && !isEditing">
+      <button
+        type="button"
+        data-testid="thread-select"
+        class="flex h-8 w-8 shrink-0 items-center justify-center rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background"
+        :aria-current="isActive ? 'true' : undefined"
+        :aria-label="thread.title"
+        :title="thread.title"
+        @click="emit('select')"
+      >
+        <AgentIcon :agent="thread.agent" :size="14" class="shrink-0" :class="iconClass" />
+      </button>
+    </template>
+    <template v-else>
+      <AgentIcon :agent="thread.agent" :size="14" class="shrink-0" :class="iconClass" />
+
+      <button
+        v-if="!isEditing"
+        data-testid="thread-select"
+        type="button"
+        class="min-w-0 flex-1 truncate text-left text-sm"
+        @click="emit('select')"
+      >
+        {{ thread.title }}
+      </button>
+      <input
+        v-else
+        ref="editInputRef"
+        v-model="editValue"
+        data-testid="thread-rename-input"
+        type="text"
+        class="min-w-0 flex-1 rounded border border-border bg-background px-1 text-sm outline-none"
+        @keydown="handleRenameKeydown"
+        @blur="cancelRename"
+      />
+    </template>
 
     <div
       v-if="showThreadMenu"

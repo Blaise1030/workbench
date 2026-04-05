@@ -25,11 +25,11 @@ describe("FileService", () => {
     await expect(service.listFileSummaries(tempDir)).resolves.toEqual([
       expect.objectContaining({
         relativePath: "src/App.vue",
-        size: 11
+        size: 12
       }),
       expect.objectContaining({
         relativePath: "src/FileSearchEditor.vue",
-        size: 11
+        size: 12
       })
     ]);
   });

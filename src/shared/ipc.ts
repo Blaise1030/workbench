@@ -19,6 +19,7 @@ export const IPC_CHANNELS = {
   diffWorkingTree: "diff:workingTree",
   diffStageAll: "diff:stageAll",
   diffDiscardAll: "diff:discardAll",
+  filesList: "files:list",
   filesSearch: "files:search",
   filesRead: "files:read",
   filesWrite: "files:write",
@@ -79,6 +80,12 @@ export interface RenameThreadInput {
 export interface FileReadInput {
   cwd: string;
   relativePath: string;
+}
+
+export interface FileSummary {
+  relativePath: string;
+  size: number;
+  modifiedAt: number;
 }
 
 export interface FileWriteInput extends FileReadInput {

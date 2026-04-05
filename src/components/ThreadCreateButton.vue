@@ -46,11 +46,15 @@ function updateFloatingPosition(): void {
   const rect = el.getBoundingClientRect();
   const sidebarRect = el.closest("aside")?.getBoundingClientRect();
   const gap = 4;
+  const minMenuWidthPx = 280;
+  const widthPx = sidebarRect
+    ? Math.max(minMenuWidthPx, sidebarRect.width * 0.9)
+    : undefined;
   floatingMenuStyle.value = {
     top: `${rect.bottom + gap}px`,
     left: `${rect.left + rect.width / 2}px`,
     transform: "translateX(-50%)",
-    width: sidebarRect ? `${sidebarRect.width * 0.9}px` : "22rem"
+    width: widthPx != null ? `${widthPx}px` : "22rem"
   };
 }
 
@@ -151,7 +155,7 @@ onBeforeUnmount(() => {
             type="button"
             role="menuitem"
             :title="opt.label"
-            class="flex aspect-square w-full min-w-0 flex-col items-center justify-center gap-3 rounded-md p-1.5 text-center hover:bg-accent"
+            class="flex aspect-square w-full min-w-0 flex-col items-center justify-center gap-3 rounded-lg border border-border/70 bg-card/60 p-1.5 text-center shadow-sm transition-[border-color,box-shadow,background-color] duration-150 hover:border-border hover:bg-accent/40 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-popover"
             @click="pickAgent(opt.agent)"
           >
             <AgentIcon :agent="opt.agent" :size="28" class="shrink-0" />

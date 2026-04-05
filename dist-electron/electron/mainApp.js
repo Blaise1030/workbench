@@ -112,6 +112,7 @@ function registerIpc(workspaceService) {
     electron_1.ipcMain.handle(ipc_js_1.IPC_CHANNELS.diffWorkingTree, (_, cwd) => diffService.workingTreeDiff(cwd));
     electron_1.ipcMain.handle(ipc_js_1.IPC_CHANNELS.diffStageAll, (_, cwd) => diffService.stageAll(cwd));
     electron_1.ipcMain.handle(ipc_js_1.IPC_CHANNELS.diffDiscardAll, (_, cwd) => diffService.discardAll(cwd));
+    electron_1.ipcMain.handle(ipc_js_1.IPC_CHANNELS.filesList, (_, cwd) => fileService.listFileSummaries(cwd));
     electron_1.ipcMain.handle(ipc_js_1.IPC_CHANNELS.filesSearch, (_, payload) => fileService.searchFiles(payload.cwd, payload.query));
     electron_1.ipcMain.handle(ipc_js_1.IPC_CHANNELS.filesRead, (_, payload) => fileService.readFile(payload.cwd, payload.relativePath));
     electron_1.ipcMain.handle(ipc_js_1.IPC_CHANNELS.filesWrite, (_, payload) => fileService.writeFile(payload.cwd, payload.relativePath, payload.content));

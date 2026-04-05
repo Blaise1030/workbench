@@ -25,6 +25,15 @@ describe("ThreadRow", () => {
     expect(wrapper.emitted("select")).toHaveLength(1);
   });
 
+  it("collapsed mode uses icon button with thread title as accessible name", async () => {
+    const wrapper = mount(ThreadRow, { props: { thread, isActive: false, collapsed: true } });
+    const btn = wrapper.get('[data-testid="thread-select"]');
+    expect(btn.attributes("aria-label")).toBe(thread.title);
+    expect(wrapper.find('[data-testid="thread-menu-trigger"]').exists()).toBe(false);
+    await btn.trigger("click");
+    expect(wrapper.emitted("select")).toHaveLength(1);
+  });
+
   it("applies active styling when isActive is true", () => {
     const wrapper = mount(ThreadRow, { props: { thread, isActive: true } });
     expect(wrapper.get('[data-testid="thread-row"]').classes()).toContain("bg-accent");

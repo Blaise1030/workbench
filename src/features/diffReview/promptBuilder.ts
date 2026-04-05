@@ -19,6 +19,12 @@ function formatNote(note: string): string {
   return trimmed.length > 0 ? trimmed : "Please review this selected change";
 }
 
+function formatNoteBlock(note: string): string {
+  const lines = formatNote(note).split("\n");
+
+  return ["note: |", ...lines.map((line) => `  ${line}`)].join("\n");
+}
+
 export function buildAgentReviewPrompt(items: DiffReviewItem[]): string {
   const lines: string[] = ["Please address the following review findings from the current git diff."];
 
@@ -29,7 +35,7 @@ export function buildAgentReviewPrompt(items: DiffReviewItem[]): string {
     if (item.intent !== null) {
       lines.push(`intent: ${item.intent}`);
     }
-    lines.push(`note: ${formatNote(item.note)}`);
+    lines.push(formatNoteBlock(item.note));
     lines.push("snippet:");
     lines.push(item.snippet);
   });

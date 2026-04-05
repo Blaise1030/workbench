@@ -20,6 +20,7 @@ exports.IPC_CHANNELS = {
     diffWorkingTree: "diff:workingTree",
     diffStageAll: "diff:stageAll",
     diffDiscardAll: "diff:discardAll",
+    filesList: "files:list",
     filesSearch: "files:search",
     filesRead: "files:read",
     filesWrite: "files:write",

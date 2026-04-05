@@ -1,4 +1,5 @@
 /// <reference types="vite/client" />
+import type { FileSummary } from "@shared/ipc";
 
 declare module "*.vue" {
   import type { DefineComponent } from "vue";
@@ -25,6 +26,7 @@ interface WorkspaceApi {
   workingTreeDiff?: (cwd: string) => Promise<string>;
   stageAll: (cwd: string) => Promise<void>;
   discardAll: (cwd: string) => Promise<void>;
+  listFiles: (cwd: string) => Promise<FileSummary[]>;
   searchFiles: (cwd: string, query: string) => Promise<string[]>;
   readFile: (cwd: string, relativePath: string) => Promise<string>;
   writeFile: (cwd: string, relativePath: string, content: string) => Promise<void>;

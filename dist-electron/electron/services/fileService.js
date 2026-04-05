@@ -35,17 +35,47 @@ async function collectFiles(root, currentDir, output) {
         output.push(normalizeRelativePath(node_path_1.default.relative(root, absolutePath)));
     }
 }
+async function collectFileSummaries(root, currentDir, output) {
+    const entries = await promises_1.default.readdir(currentDir, { withFileTypes: true });
+    for (const entry of entries) {
+        if (entry.isDirectory()) {
+            if (IGNORED_DIRECTORY_NAMES.has(entry.name))
+                continue;
+            await collectFileSummaries(root, node_path_1.default.join(currentDir, entry.name), output);
+            continue;
+        }
+        if (!entry.isFile())
+            continue;
+        const absolutePath = node_path_1.default.join(currentDir, entry.name);
+        const stat = await promises_1.default.stat(absolutePath);
+        output.push({
+            relativePath: normalizeRelativePath(node_path_1.default.relative(root, absolutePath)),
+            size: stat.size,
+            modifiedAt: stat.mtimeMs
+        });
+    }
+}
 class FileService {
+    summaryCache = new Map();
+    async listFileSummaries(root) {
+        const resolvedRoot = node_path_1.default.resolve(root);
+        const cached = this.summaryCache.get(resolvedRoot);
+        if (cached)
+            return cached;
+        const summaries = [];
+        await collectFileSummaries(resolvedRoot, resolvedRoot, summaries);
+        summaries.sort((a, b) => a.relativePath.localeCompare(b.relativePath));
+        this.summaryCache.set(resolvedRoot, summaries);
+        return summaries;
+    }
     async searchFiles(root, query) {
         const trimmedQuery = query.trim().toLowerCase();
+        const allFiles = await this.listFileSummaries(root);
         if (!trimmedQuery)
-            return [];
-        const resolvedRoot = node_path_1.default.resolve(root);
-        const allFiles = [];
-        await collectFiles(resolvedRoot, resolvedRoot, allFiles);
+            return allFiles.map((file) => file.relativePath);
         return allFiles
-            .filter((relativePath) => relativePath.toLowerCase().includes(trimmedQuery))
-            .sort((a, b) => a.localeCompare(b));
+            .map((file) => file.relativePath)
+            .filter((relativePath) => relativePath.toLowerCase().includes(trimmedQuery));
     }
     async readFile(root, relativePath) {
         const absolutePath = assertPathWithinRoot(root, relativePath);
@@ -54,6 +84,7 @@ class FileService {
     async writeFile(root, relativePath, content) {
         const absolutePath = assertPathWithinRoot(root, relativePath);
         await promises_1.default.writeFile(absolutePath, content, "utf8");
+        this.summaryCache.delete(node_path_1.default.resolve(root));
     }
 }
 exports.FileService = FileService;
