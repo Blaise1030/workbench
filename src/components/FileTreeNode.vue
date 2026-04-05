@@ -37,29 +37,31 @@ function isExpanded(path: string): boolean {
       v-if="node.kind === 'folder'"
       :data-testid="`folder-toggle-${node.path}`"
       type="button"
-      class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-foreground transition-colors hover:bg-muted"
+      class="flex w-full items-center gap-1.5 rounded-md px-1.5 py-1 text-left text-xs text-foreground transition-colors hover:bg-muted"
       @click="emit('toggleFolder', node.path)"
     >
-      <span class="w-4 text-center text-xs text-muted-foreground">
+      <span class="w-3.5 shrink-0 text-center text-[10px] leading-none text-muted-foreground">
         {{ isExpanded(node.path) ? "▾" : "▸" }}
       </span>
-      <span class="truncate font-medium">{{ node.name }}</span>
+      <span class="shrink-0 text-[13px] leading-none" aria-hidden="true">📁</span>
+      <span class="min-w-0 truncate font-medium">{{ node.name }}</span>
     </button>
     <button
       v-else
       :data-testid="`file-node-${node.path}`"
       type="button"
-      class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-muted"
+      class="flex w-full items-center gap-1.5 rounded-md px-1.5 py-1 text-left text-xs transition-colors hover:bg-muted"
       :class="selectedPath === node.path ? 'bg-muted text-foreground' : 'text-muted-foreground'"
       @click="emit('selectFile', node.path)"
     >
-      <span class="w-4 text-center text-xs text-muted-foreground">•</span>
-      <span class="truncate">{{ node.name }}</span>
+      <span class="w-3.5 shrink-0" aria-hidden="true" />
+      <span class="shrink-0 text-[13px] leading-none" aria-hidden="true">📄</span>
+      <span class="min-w-0 truncate">{{ node.name }}</span>
     </button>
 
     <ul
       v-if="node.kind === 'folder' && isExpanded(node.path)"
-      class="ml-4 space-y-1"
+      class="ml-3 space-y-0.5 border-l border-border/60 pl-2"
     >
       <FileTreeNode
         v-for="child in node.children"

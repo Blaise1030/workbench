@@ -267,11 +267,11 @@ onMounted(() => {
     <div class="flex w-80 shrink-0 flex-col border-r border-border">
       <div
         data-testid="file-search-header"
-        class="border-b border-border bg-muted/40 p-1"
+        class="border-b border-border p-1"
       >
         <div class="relative text-muted-foreground">
           <Search
-            class="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2"
+            class="pointer-events-none absolute top-1/2 left-2.5 h-3.5 w-3.5 -translate-y-1/2"
           />
           <input
             id="file-search"
@@ -280,29 +280,29 @@ onMounted(() => {
             data-testid="file-search-input"
             type="text"
             placeholder="Search paths..."
-            class="h-8 w-full min-w-0 rounded-lg border border-input bg-background py-1 pr-2.5 pl-10 text-base text-foreground transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 md:text-sm dark:bg-input/30 dark:disabled:bg-input/80 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40"
+            class="h-7 w-full bg-muted min-w-0 rounded-md border border-input bg-background py-0.5 pr-2 pl-8 text-xs text-foreground transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-2 aria-invalid:ring-destructive/20 dark:bg-input/30 dark:disabled:bg-input/80 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40"
             :disabled="!hasWorkspace"
           />
         </div>
       </div>
 
-      <div class="min-h-0 flex-1 overflow-y-auto p-2">
-        <p v-if="!hasWorkspace" class="px-2 py-3 text-sm text-muted-foreground">
+      <div class="min-h-0 flex-1 overflow-y-auto p-1.5">
+        <p v-if="!hasWorkspace" class="px-1.5 py-2 text-xs text-muted-foreground">
           Open a workspace to search and edit files.
         </p>
-        <p v-else-if="isSearching" class="px-2 py-3 text-sm text-muted-foreground">
+        <p v-else-if="isSearching" class="px-1.5 py-2 text-xs text-muted-foreground">
           Loading files…
         </p>
-        <p v-else-if="error" class="px-2 py-3 text-sm text-destructive">
+        <p v-else-if="error" class="px-1.5 py-2 text-xs text-destructive">
           {{ error }}
         </p>
         <p
           v-else-if="visibleTree.length === 0"
-          class="px-2 py-3 text-sm text-muted-foreground"
+          class="px-1.5 py-2 text-xs text-muted-foreground"
         >
           No matching files.
         </p>
-        <ul v-else class="space-y-1">
+        <ul v-else class="space-y-0.5 text-xs">
           <FileTreeNode
             v-for="node in visibleTree"
             :key="node.path"
@@ -320,18 +320,16 @@ onMounted(() => {
     <div class="flex min-h-0 min-w-0 flex-1 flex-col">
       <header
         data-testid="file-editor-header"
-        class="flex items-center justify-between gap-3 border-b border-border px-4 py-2"
+        class="flex items-center justify-between gap-3 border-b border-border px-4 py-1.5"
       >
-        <div class="min-w-0">
-          <p class="truncate text-sm font-medium">
+        <div class="min-w-0 gap-2 flex items-center">
+          <p class="truncate text-xs font-medium">
             {{ selectedPath ?? "No file selected" }}
           </p>
-          <p
+          <div
             v-if="dirty"
-            class="text-xs text-amber-600"
-          >
-            Unsaved changes
-          </p>
+            class="text-xs rounded-full size-2 bg-amber-600"
+          />        
         </div>
         <div class="flex items-center gap-2">
           <BaseButton

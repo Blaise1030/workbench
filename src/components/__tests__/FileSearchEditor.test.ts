@@ -83,11 +83,11 @@ describe("FileSearchEditor", () => {
     await flushPromises();
 
     const input = wrapper.get('[data-testid="file-search-input"]');
-    expect(input.classes()).toContain("h-8");
-    expect(input.classes()).toContain("rounded-lg");
+    expect(input.classes()).toContain("h-7");
+    expect(input.classes()).toContain("rounded-md");
     expect(input.classes()).toContain("border");
     expect(input.classes()).toContain("bg-background");
-    expect(input.classes()).toContain("focus-visible:ring-3");
+    expect(input.classes()).toContain("focus-visible:ring-2");
     expect(input.classes()).toContain("disabled:bg-input/50");
   });
 
