@@ -1,9 +1,13 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref, watch } from "vue";
-import { FilePlus, Search, Trash2 } from "lucide-vue-next";
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
+import { FilePlus, PanelLeftClose, PanelLeftOpen, Search, Trash2 } from "lucide-vue-next";
 import type { FileSummary } from "@shared/ipc";
 import BaseButton from "@/components/ui/BaseButton.vue";
-import FileTreeNode, { type FileTreeNodeData } from "@/components/FileTreeNode.vue";
+import FileTreeNode, {
+  type FileTreeContextCoords,
+  type FileTreeNodeData
+} from "@/components/FileTreeNode.vue";
+import CodeMirrorEditor from "@/components/CodeMirrorEditor.vue";
 import PillTabs, { type PillTabItem } from "@/components/ui/PillTabs.vue";
 import { renderMarkdownToHtml } from "@/lib/markdown";
 
@@ -22,6 +26,37 @@ const isSearching = ref(false);
 const isLoadingFile = ref(false);
 const isSaving = ref(false);
 const error = ref<string | null>(null);
+
+const SIDEBAR_COLLAPSED_KEY = "instrument.fileSearchSidebarCollapsed";
+
+const sidebarCollapsed = ref(
+  (() => {
+    try {
+      return (
+        typeof localStorage !== "undefined" &&
+        localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "1"
+      );
+    } catch {
+      return false;
+    }
+  })()
+);
+
+watch(sidebarCollapsed, (collapsed) => {
+  try {
+    localStorage.setItem(SIDEBAR_COLLAPSED_KEY, collapsed ? "1" : "0");
+  } catch {
+    /* ignore quota / private mode */
+  }
+});
+
+type TreeContextMenuState =
+  | { x: number; y: number; variant: "pane" }
+  | { x: number; y: number; variant: "folder"; folderPath: string }
+  | { x: number; y: number; variant: "file"; filePath: string };
+
+const treeContextMenu = ref<TreeContextMenuState | null>(null);
+const ctxMenuRoot = ref<HTMLElement | null>(null);
 
 const hasWorkspace = computed(() => Boolean(props.worktreePath));
 const dirty = computed(
@@ -46,7 +81,7 @@ const markdownHtml = computed(() => {
   return renderMarkdownToHtml(draftContent.value);
 });
 
-/** Hint from extension for `data-language` / a11y (no syntax highlighter yet). */
+/** Extension → CodeMirror language id (see `codemirrorLanguageExtensions.ts`). */
 const editorLanguage = computed(() => {
   const path = selectedPath.value;
   if (!path) return undefined;
@@ -92,21 +127,6 @@ const editorLanguage = computed(() => {
   };
   return map[ext] ?? "plain";
 });
-
-function handleEditorKeydown(e: KeyboardEvent): void {
-  if (e.key !== "Tab") return;
-  if (e.shiftKey || e.ctrlKey || e.altKey || e.metaKey) return;
-  e.preventDefault();
-  const ta = e.target as HTMLTextAreaElement;
-  const start = ta.selectionStart;
-  const end = ta.selectionEnd;
-  const indent = "  ";
-  draftContent.value =
-    draftContent.value.slice(0, start) + indent + draftContent.value.slice(end);
-  void nextTick(() => {
-    ta.selectionStart = ta.selectionEnd = start + indent.length;
-  });
-}
 
 function compareTreeNodes(a: FileTreeNodeData, b: FileTreeNodeData): number {
   if (a.kind !== b.kind) return a.kind === "folder" ? -1 : 1;
@@ -202,6 +222,23 @@ function defaultExpandedFolders(files: FileSummary[]): Set<string> {
 const fileTree = computed(() => buildFileTree(allFiles.value));
 const visibleTree = computed(() => filterTreeNodes(fileTree.value, query.value));
 
+const contextMenuStyle = computed(() => {
+  const m = treeContextMenu.value;
+  if (!m) return {};
+  const pad = 8;
+  const menuW = 200;
+  const menuH = 80;
+  let x = m.x;
+  let y = m.y;
+  if (typeof window !== "undefined") {
+    x = Math.min(x, window.innerWidth - menuW - pad);
+    y = Math.min(y, window.innerHeight - menuH - pad);
+    x = Math.max(pad, x);
+    y = Math.max(pad, y);
+  }
+  return { left: `${x}px`, top: `${y}px` };
+});
+
 function getApi(): WorkspaceApi | null {
   return window.workspaceApi ?? null;
 }
@@ -221,6 +258,46 @@ function expandAncestorFolders(relativePath: string): void {
     next.add(acc);
   }
   expandedFolders.value = next;
+}
+
+function closeTreeContextMenu(): void {
+  treeContextMenu.value = null;
+}
+
+function handleTreePaneContextMenu(e: MouseEvent): void {
+  if (!hasWorkspace.value || isSearching.value) return;
+  if ((e.target as HTMLElement).closest("button")) return;
+  e.preventDefault();
+  treeContextMenu.value = { x: e.clientX, y: e.clientY, variant: "pane" };
+}
+
+function handleContextMenuFolder(payload: FileTreeContextCoords): void {
+  treeContextMenu.value = {
+    x: payload.clientX,
+    y: payload.clientY,
+    variant: "folder",
+    folderPath: payload.path
+  };
+}
+
+function handleContextMenuFile(payload: FileTreeContextCoords): void {
+  treeContextMenu.value = {
+    x: payload.clientX,
+    y: payload.clientY,
+    variant: "file",
+    filePath: payload.path
+  };
+}
+
+function onGlobalPointerDown(e: PointerEvent): void {
+  if (!treeContextMenu.value) return;
+  const t = e.target as Node | null;
+  if (t && ctxMenuRoot.value?.contains(t)) return;
+  closeTreeContextMenu();
+}
+
+function onGlobalKeydown(e: KeyboardEvent): void {
+  if (e.key === "Escape") closeTreeContextMenu();
 }
 
 function clearSelection(): void {
@@ -243,6 +320,15 @@ function resetState(): void {
 async function focusSearchInput(): Promise<void> {
   await nextTick();
   searchInput.value?.focus();
+}
+
+function collapseSidebar(): void {
+  sidebarCollapsed.value = true;
+}
+
+async function expandSidebar(): Promise<void> {
+  sidebarCollapsed.value = false;
+  await focusSearchInput();
 }
 
 async function confirmDiscardIfDirty(): Promise<boolean> {
@@ -303,18 +389,26 @@ async function handleSelectFile(relativePath: string): Promise<void> {
   await openFile(relativePath);
 }
 
-async function handleAddFile(): Promise<void> {
+async function handleAddFile(folderPathPrefix?: string): Promise<void> {
+  const folderPrefix =
+    typeof folderPathPrefix === "string" ? folderPathPrefix : undefined;
   const api = getApi();
   const cwd = props.worktreePath;
   if (!api || !cwd) return;
 
-  const folderHint = selectedPath.value?.includes("/")
-    ? selectedPath.value.replace(/\/[^/]+$/, "")
-    : selectedPath.value
-      ? ""
-      : "src";
-  const defaultValue =
-    folderHint === "" ? "new-file.txt" : folderHint ? `${folderHint}/` : "src/";
+  let defaultValue: string;
+  if (folderPrefix !== undefined) {
+    const p = normalizeNewFilePathInput(folderPrefix);
+    defaultValue = p ? `${p.replace(/\/+$/, "")}/` : "src/";
+  } else {
+    const folderHint = selectedPath.value?.includes("/")
+      ? selectedPath.value.replace(/\/[^/]+$/, "")
+      : selectedPath.value
+        ? ""
+        : "src";
+    defaultValue =
+      folderHint === "" ? "new-file.txt" : folderHint ? `${folderHint}/` : "src/";
+  }
 
   const raw = window.prompt("New file path (relative to workspace)", defaultValue);
   if (raw === null) return;
@@ -339,13 +433,14 @@ async function handleAddFile(): Promise<void> {
   }
 }
 
-async function handleDeleteFile(): Promise<void> {
+async function deleteFileAtPath(relativePath: string): Promise<void> {
   const api = getApi();
   const cwd = props.worktreePath;
-  const relativePath = selectedPath.value;
-  if (!api || !cwd || !relativePath) return;
+  if (!api || !cwd) return;
 
-  const message = dirty.value
+  const isSelected = selectedPath.value === relativePath;
+  const loseEdits = isSelected && dirty.value;
+  const message = loseEdits
     ? `Delete ${relativePath}? Unsaved changes will be lost.`
     : `Delete ${relativePath}?`;
   if (!window.confirm(message)) return;
@@ -354,12 +449,36 @@ async function handleDeleteFile(): Promise<void> {
 
   try {
     await api.deleteFile(cwd, relativePath);
-    clearSelection();
+    if (isSelected) clearSelection();
     await loadFileSummaries();
   } catch (deleteError) {
     error.value =
       deleteError instanceof Error ? deleteError.message : "Could not delete the file.";
   }
+}
+
+async function handleDeleteFile(): Promise<void> {
+  const relativePath = selectedPath.value;
+  if (!relativePath) return;
+  await deleteFileAtPath(relativePath);
+}
+
+async function onCtxAddFile(): Promise<void> {
+  const m = treeContextMenu.value;
+  closeTreeContextMenu();
+  if (!m) return;
+  if (m.variant === "folder") {
+    await handleAddFile(m.folderPath);
+  } else if (m.variant === "pane") {
+    await handleAddFile();
+  }
+}
+
+async function onCtxDeleteFile(): Promise<void> {
+  const m = treeContextMenu.value;
+  closeTreeContextMenu();
+  if (!m || m.variant !== "file") return;
+  await deleteFileAtPath(m.filePath);
 }
 
 async function handleSave(): Promise<void> {
@@ -422,74 +541,126 @@ watch(
 
 onMounted(() => {
   void focusSearchInput();
+  document.addEventListener("pointerdown", onGlobalPointerDown, true);
+  document.addEventListener("keydown", onGlobalKeydown);
+});
+
+onUnmounted(() => {
+  document.removeEventListener("pointerdown", onGlobalPointerDown, true);
+  document.removeEventListener("keydown", onGlobalKeydown);
 });
 </script>
 
 <template>
   <section class="flex h-full min-h-0 bg-background text-foreground">
-    <div class="flex w-80 shrink-0 flex-col border-r border-border">
+    <div
+      id="file-search-sidebar"
+      class="flex shrink-0 flex-col overflow-hidden border-r border-border transition-[width] duration-200 ease-out"
+      :class="sidebarCollapsed ? 'w-11' : 'w-72'"
+    >
       <div
-        data-testid="file-search-header"
-        class="flex items-center gap-1 border-b border-border p-1"
+        v-if="sidebarCollapsed"
+        class="flex flex-col items-center gap-1 border-b border-border p-1"
       >
-        <div class="relative min-w-0 flex-1 text-muted-foreground">
-          <Search
-            class="pointer-events-none absolute top-1/2 left-2.5 h-3.5 w-3.5 -translate-y-1/2"
-          />
-          <input
-            id="file-search"
-            ref="searchInput"
-            v-model="query"
-            data-testid="file-search-input"
-            type="text"
-            placeholder="Search paths..."
-            class="h-7 w-full bg-muted min-w-0 rounded-md border border-input bg-background py-0.5 pr-2 pl-8 text-xs text-foreground transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-2 aria-invalid:ring-destructive/20 dark:bg-input/30 dark:disabled:bg-input/80 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40"
-            :disabled="!hasWorkspace"
-          />
-        </div>
         <BaseButton
-          data-testid="add-file"
+          data-testid="file-search-sidebar-expand"
           variant="outline"
           size="xs"
-          class="shrink-0 px-1.5"
-          :disabled="!hasWorkspace"
-          :title="'Add file'"
-          @click="handleAddFile"
+          class="size-8 shrink-0 p-0"
+          title="Show file explorer"
+          aria-label="Show file explorer"
+          :aria-expanded="false"
+          aria-controls="file-search-sidebar"
+          @click="expandSidebar()"
         >
-          <FilePlus class="h-3.5 w-3.5" aria-hidden="true" />
-          <span class="sr-only">Add file</span>
+          <PanelLeftOpen class="h-3.5 w-3.5" aria-hidden="true" />
+          <span class="sr-only">Show file explorer</span>
         </BaseButton>
       </div>
-
-      <div class="min-h-0 flex-1 overflow-y-auto p-1.5">
-        <p v-if="!hasWorkspace" class="px-1.5 py-2 text-xs text-muted-foreground">
-          Open a workspace to search and edit files.
-        </p>
-        <p v-else-if="isSearching" class="px-1.5 py-2 text-xs text-muted-foreground">
-          Loading files…
-        </p>
-        <p v-else-if="error" class="px-1.5 py-2 text-xs text-destructive">
-          {{ error }}
-        </p>
-        <p
-          v-else-if="visibleTree.length === 0"
-          class="px-1.5 py-2 text-xs text-muted-foreground"
+      <template v-else>
+        <div
+          data-testid="file-search-header"
+          class="flex items-center gap-1 border-b border-border p-1"
         >
-          No matching files.
-        </p>
-        <ul v-else class="space-y-0.5 text-xs">
-          <FileTreeNode
-            v-for="node in visibleTree"
-            :key="node.path"
-            :node="node"
-            :selected-path="selectedPath"
-            :expanded-folders="expandedFolders"
-            :force-expanded="hasActiveSearch"
-            @toggle-folder="handleToggleFolder"
-            @select-file="handleSelectFile"
-          />
-        </ul>
-      </div>
+          <BaseButton
+            data-testid="file-search-sidebar-collapse"
+            variant="outline"
+            size="xs"
+            class="shrink-0 px-1.5"
+            title="Hide file explorer"
+            aria-label="Hide file explorer"
+            :aria-expanded="true"
+            aria-controls="file-search-sidebar"
+            @click="collapseSidebar()"
+          >
+            <PanelLeftClose class="h-3.5 w-3.5" aria-hidden="true" />
+            <span class="sr-only">Hide file explorer</span>
+          </BaseButton>
+          <div class="relative min-w-0 flex-1 text-muted-foreground">
+            <Search
+              class="pointer-events-none absolute top-1/2 left-2.5 h-3.5 w-3.5 -translate-y-1/2"
+            />
+            <input
+              id="file-search"
+              ref="searchInput"
+              v-model="query"
+              data-testid="file-search-input"
+              type="text"
+              placeholder="Search paths..."
+              class="h-7 w-full bg-muted min-w-0 rounded-md border border-input bg-background py-0.5 pr-2 pl-8 text-xs text-foreground transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-2 aria-invalid:ring-destructive/20 dark:bg-input/30 dark:disabled:bg-input/80 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40"
+              :disabled="!hasWorkspace"
+            />
+          </div>
+          <BaseButton
+            data-testid="add-file"
+            variant="outline"
+            size="xs"
+            class="shrink-0 px-1.5"
+            :disabled="!hasWorkspace"
+            :title="'Add file'"
+            @click="handleAddFile()"
+          >
+            <FilePlus class="h-3.5 w-3.5" aria-hidden="true" />
+            <span class="sr-only">Add file</span>
+          </BaseButton>
+        </div>
+
+        <div
+          data-testid="file-tree-scroll"
+          class="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto p-1.5"
+          @contextmenu="handleTreePaneContextMenu"
+        >
+          <p v-if="!hasWorkspace" class="px-1.5 py-2 text-xs text-muted-foreground">
+            Open a workspace to search and edit files.
+          </p>
+          <p v-else-if="isSearching" class="px-1.5 py-2 text-xs text-muted-foreground">
+            Loading files…
+          </p>
+          <p v-else-if="error" class="px-1.5 py-2 text-xs text-destructive">
+            {{ error }}
+          </p>
+          <p
+            v-else-if="visibleTree.length === 0"
+            class="px-1.5 py-2 text-xs text-muted-foreground"
+          >
+            No matching files.
+          </p>
+          <ul v-else class="space-y-0.5 text-xs">
+            <FileTreeNode
+              v-for="node in visibleTree"
+              :key="node.path"
+              :node="node"
+              :selected-path="selectedPath"
+              :expanded-folders="expandedFolders"
+              :force-expanded="hasActiveSearch"
+              @toggle-folder="handleToggleFolder"
+              @select-file="handleSelectFile"
+              @context-menu-folder="handleContextMenuFolder"
+              @context-menu-file="handleContextMenuFile"
+            />
+          </ul>
+        </div>
+      </template>
     </div>
 
     <div class="flex min-h-0 min-w-0 flex-1 flex-col">
@@ -501,13 +672,6 @@ onMounted(() => {
           <p class="min-w-0 truncate text-xs font-medium">
             {{ selectedPath ?? "No file selected" }}
           </p>
-          <PillTabs
-            v-if="isMarkdownFile && selectedPath"
-            v-model="mdViewMode"
-            class="min-w-0 shrink-0 [&_[role=tablist]]:px-0 [&_[role=tablist]]:py-0"
-            aria-label="Markdown view"
-            :tabs="mdViewTabs"
-          />
           <template v-if="dirty">
             <span class="sr-only">Unsaved changes</span>
             <div
@@ -517,7 +681,11 @@ onMounted(() => {
             />
           </template>
         </div>
-        <div class="flex items-center gap-2">
+        <div
+          role="toolbar"
+          aria-label="File actions"
+          class="flex items-center gap-1"
+        >
           <BaseButton
             data-testid="revert-file"
             variant="outline"
@@ -551,10 +719,24 @@ onMounted(() => {
         </div>
       </header>
 
-      <div class="flex min-h-0 min-w-0 flex-1 flex-col p-2">
+      <div
+        data-testid="file-editor-body"
+        class="relative flex min-h-0 min-w-0 flex-1 flex-col"
+      >
+        <div
+          v-if="isMarkdownFile && selectedPath"
+          class="absolute top-2 right-3 z-20 rounded-lg border border-border/60 bg-background/95 p-0.5 shadow-sm backdrop-blur-sm supports-[backdrop-filter]:bg-background/80"
+        >
+          <PillTabs
+            v-model="mdViewMode"
+            class="min-w-0 shrink-0 [&_[role=tablist]]:px-0 [&_[role=tablist]]:py-0"
+            aria-label="Markdown view"
+            :tabs="mdViewTabs"
+          />
+        </div>
         <p
           v-if="error && selectedPath"
-          class="mb-2 text-xs text-destructive"
+          class="mb-2 px-4 pt-2 text-xs text-destructive"
         >
           {{ error }}
         </p>
@@ -572,34 +754,62 @@ onMounted(() => {
         </div>
         <p
           v-else-if="isLoadingFile"
-          class="text-xs text-muted-foreground"
+          class="px-4 pt-2 text-xs text-muted-foreground"
         >
           Loading file…
         </p>
         <div
           v-else-if="isMarkdownFile && mdViewMode === 'read'"
           data-testid="markdown-preview"
-          class="markdown-reader h-full min-h-[18rem] overflow-y-auto rounded-md bg-muted/10 px-3 py-2"
+          class="markdown-reader h-full min-h-[18rem] overflow-y-auto rounded-md bg-muted/10 px-3 py-3"
           v-html="markdownHtml"
         />
-        <textarea
+        <CodeMirrorEditor
           v-else
-          data-testid="file-editor"
           v-model="draftContent"
-          spellcheck="false"
-          autocapitalize="off"
-          autocomplete="off"
-          autocorrect="off"
-          :data-language="editorLanguage"
+          :language="editorLanguage"
           :aria-label="
             selectedPath
               ? `Source code, ${editorLanguage ?? 'plain text'}, ${selectedPath}`
               : undefined
           "
-          class="file-editor-textarea h-full min-h-[18rem] w-full resize-none rounded-md border border-transparent bg-muted/15 px-2.5 py-2 font-mono text-xs leading-5 tracking-normal whitespace-pre overflow-x-auto outline-none focus-visible:border-ring [font-feature-settings:'liga'_0] [tab-size:2]"
-          @keydown="handleEditorKeydown"
         />
       </div>
     </div>
+
+    <Teleport to="body">
+      <div
+        v-if="treeContextMenu"
+        ref="ctxMenuRoot"
+        data-testid="file-tree-context-menu"
+        class="fixed z-[200] min-w-[11rem] rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-md"
+        :style="contextMenuStyle"
+        role="menu"
+        @contextmenu.prevent
+      >
+        <template v-if="treeContextMenu.variant === 'folder' || treeContextMenu.variant === 'pane'">
+          <button
+            type="button"
+            role="menuitem"
+            data-testid="ctx-add-file"
+            class="flex w-full rounded-sm px-2 py-1.5 text-left text-xs hover:bg-muted"
+            @click="onCtxAddFile"
+          >
+            Add file…
+          </button>
+        </template>
+        <template v-if="treeContextMenu.variant === 'file'">
+          <button
+            type="button"
+            role="menuitem"
+            data-testid="ctx-delete-file"
+            class="flex w-full rounded-sm px-2 py-1.5 text-left text-xs text-destructive hover:bg-destructive/10"
+            @click="onCtxDeleteFile"
+          >
+            Delete file
+          </button>
+        </template>
+      </div>
+    </Teleport>
   </section>
 </template>

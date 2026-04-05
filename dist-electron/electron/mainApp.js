@@ -130,6 +130,7 @@ function registerIpc(workspaceService) {
         ptyService.kill(payload.sessionId);
     });
     electron_1.ipcMain.handle(ipc_js_1.IPC_CHANNELS.terminalPtyListSessions, () => ptyService.listSessionWorktreeIds());
+    electron_1.ipcMain.handle(ipc_js_1.IPC_CHANNELS.terminalPtyGetBuffer, (_, payload) => ptyService.getBuffer(payload.sessionId));
     electron_1.ipcMain.handle(ipc_js_1.IPC_CHANNELS.dialogPickRepoDirectory, async (event) => {
         const win = electron_1.BrowserWindow.fromWebContents(event.sender) ??
             electron_1.BrowserWindow.getFocusedWindow() ??

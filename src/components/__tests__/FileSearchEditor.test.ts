@@ -1,9 +1,35 @@
 import { mount, flushPromises } from "@vue/test-utils";
+import { defineComponent, h, nextTick } from "vue";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import FileSearchEditor from "../FileSearchEditor.vue";
 
 vi.mock("@/components/ui/BaseButton.vue", () => ({
   default: { template: "<button v-bind=\"$attrs\"><slot /></button>" }
+}));
+
+vi.mock("@/components/CodeMirrorEditor.vue", () => ({
+  default: defineComponent({
+    name: "CodeMirrorEditor",
+    props: {
+      modelValue: { type: String, default: "" },
+      language: String,
+      ariaLabel: String
+    },
+    emits: ["update:modelValue"],
+    setup(props, { emit }) {
+      return () =>
+        h("textarea", {
+          "data-testid": "file-editor",
+          class: "file-editor-textarea",
+          value: props.modelValue,
+          "data-language": props.language ?? undefined,
+          "aria-label": props.ariaLabel ?? undefined,
+          spellcheck: false,
+          onInput: (e: Event) =>
+            emit("update:modelValue", (e.target as HTMLTextAreaElement).value)
+        });
+    }
+  })
 }));
 
 describe("FileSearchEditor", () => {
@@ -15,6 +41,7 @@ describe("FileSearchEditor", () => {
 
   beforeEach(() => {
     vi.useFakeTimers();
+    localStorage.removeItem("instrument.fileSearchSidebarCollapsed");
     listFiles.mockReset();
     readFile.mockReset();
     writeFile.mockReset();
@@ -121,6 +148,29 @@ describe("FileSearchEditor", () => {
 
     const header = wrapper.get('[data-testid="file-search-header"]');
     expect(header.classes()).toContain("p-1");
+  });
+
+  it("collapses and expands the file sidebar", async () => {
+    listFiles.mockResolvedValue([]);
+
+    const wrapper = mount(FileSearchEditor, {
+      props: { worktreePath: "/tmp/project" }
+    });
+
+    await flushPromises();
+
+    expect(wrapper.find('[data-testid="file-search-input"]').exists()).toBe(true);
+
+    await wrapper.get('[data-testid="file-search-sidebar-collapse"]').trigger("click");
+    await flushPromises();
+
+    expect(wrapper.find('[data-testid="file-search-input"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="file-search-sidebar-expand"]').exists()).toBe(true);
+
+    await wrapper.get('[data-testid="file-search-sidebar-expand"]').trigger("click");
+    await flushPromises();
+
+    expect(wrapper.find('[data-testid="file-search-input"]').exists()).toBe(true);
   });
 
   it("toggles folders open and closed", async () => {
@@ -362,6 +412,125 @@ describe("FileSearchEditor", () => {
     expect(deleteFile).toHaveBeenCalledWith("/tmp/project", "src/one.ts");
     expect(listFiles).toHaveBeenCalledTimes(2);
     expect(wrapper.text()).toContain("No file selected");
+
+    confirmSpy.mockRestore();
+  });
+
+  it("opens the tree pane context menu to add a file", async () => {
+    listFiles
+      .mockResolvedValueOnce([{ relativePath: "src/App.vue", size: 1, modifiedAt: 1 }])
+      .mockResolvedValueOnce([
+        { relativePath: "src/App.vue", size: 1, modifiedAt: 1 },
+        { relativePath: "src/pane-new.ts", size: 0, modifiedAt: 2 }
+      ]);
+    readFile.mockResolvedValue("");
+    createFile.mockResolvedValue();
+    const promptSpy = vi.spyOn(window, "prompt").mockReturnValue("src/pane-new.ts");
+
+    const wrapper = mount(FileSearchEditor, {
+      props: { worktreePath: "/tmp/project" },
+      attachTo: document.body
+    });
+
+    try {
+      await flushPromises();
+
+      await wrapper.get('[data-testid="file-tree-scroll"]').trigger("contextmenu", {
+        clientX: 40,
+        clientY: 40
+      });
+      await flushPromises();
+      await nextTick();
+
+      const addItem = document.querySelector('[data-testid="ctx-add-file"]');
+      expect(addItem).toBeTruthy();
+      (addItem as HTMLButtonElement).click();
+      await flushPromises();
+
+      expect(createFile).toHaveBeenCalledWith("/tmp/project", "src/pane-new.ts");
+      expect(promptSpy).toHaveBeenCalled();
+    } finally {
+      wrapper.unmount();
+    }
+
+    promptSpy.mockRestore();
+  });
+
+  it("uses the folder path when adding a file from a folder context menu", async () => {
+    listFiles
+      .mockResolvedValueOnce([{ relativePath: "src/App.vue", size: 1, modifiedAt: 1 }])
+      .mockResolvedValueOnce([
+        { relativePath: "src/App.vue", size: 1, modifiedAt: 1 },
+        { relativePath: "src/ctx-new.ts", size: 0, modifiedAt: 2 }
+      ]);
+    readFile.mockResolvedValue("");
+    createFile.mockResolvedValue();
+    const promptSpy = vi.spyOn(window, "prompt").mockImplementation((_msg, def) => {
+      expect(def).toBe("src/");
+      return "src/ctx-new.ts";
+    });
+
+    const wrapper = mount(FileSearchEditor, {
+      props: { worktreePath: "/tmp/project" },
+      attachTo: document.body
+    });
+
+    try {
+      await flushPromises();
+
+      await wrapper.get('[data-testid="folder-toggle-src"]').trigger("contextmenu", {
+        clientX: 4,
+        clientY: 4
+      });
+      await flushPromises();
+      await nextTick();
+
+      const addItem = document.querySelector('[data-testid="ctx-add-file"]');
+      expect(addItem).toBeTruthy();
+      (addItem as HTMLButtonElement).click();
+      await flushPromises();
+
+      expect(createFile).toHaveBeenCalledWith("/tmp/project", "src/ctx-new.ts");
+    } finally {
+      wrapper.unmount();
+    }
+
+    promptSpy.mockRestore();
+  });
+
+  it("deletes a file from the file row context menu without selecting it first", async () => {
+    listFiles
+      .mockResolvedValueOnce([{ relativePath: "src/only.ts", size: 1, modifiedAt: 1 }])
+      .mockResolvedValueOnce([]);
+    deleteFile.mockResolvedValue();
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
+
+    const wrapper = mount(FileSearchEditor, {
+      props: { worktreePath: "/tmp/project" },
+      attachTo: document.body
+    });
+
+    try {
+      await flushPromises();
+
+      await wrapper.get('[data-testid="file-node-src/only.ts"]').trigger("contextmenu", {
+        clientX: 2,
+        clientY: 2
+      });
+      await flushPromises();
+      await nextTick();
+
+      const del = document.querySelector('[data-testid="ctx-delete-file"]');
+      expect(del).toBeTruthy();
+      (del as HTMLButtonElement).click();
+      await flushPromises();
+
+      expect(confirmSpy).toHaveBeenCalledWith("Delete src/only.ts?");
+      expect(deleteFile).toHaveBeenCalledWith("/tmp/project", "src/only.ts");
+      expect(wrapper.text()).toContain("No file selected");
+    } finally {
+      wrapper.unmount();
+    }
 
     confirmSpy.mockRestore();
   });

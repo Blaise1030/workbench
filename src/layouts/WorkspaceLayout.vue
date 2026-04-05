@@ -11,6 +11,11 @@ import AgentCommandsSettingsDialog from "@/components/AgentCommandsSettingsDialo
 import FileSearchEditor from "@/components/FileSearchEditor.vue";
 import ThreadSidebar from "@/components/ThreadSidebar.vue";
 import { useAgentBootstrapCommands } from "@/composables/useAgentBootstrapCommands";
+import {
+  loadTerminalLayout,
+  resolveCenterTab,
+  saveTerminalLayout
+} from "@/composables/useTerminalLayoutPersistence";
 import { useTerminalAttentionSounds } from "@/composables/useTerminalAttentionSounds";
 import { useTerminalSoundSettings } from "@/composables/useTerminalSoundSettings";
 import { useToast } from "@/composables/useToast";
@@ -490,15 +495,35 @@ watch(
   async (wt, prev) => {
     if (!wt) {
       shellSlotIds.value = [];
-    } else if (prev != null && wt !== prev) {
-      shellSlotIds.value = [];
-      if (centerTab.value.startsWith("shell:")) {
-        centerTab.value = "agent";
+      centerTab.value = "agent";
+    } else if (prev !== wt) {
+      const saved = loadTerminalLayout(wt);
+      if (saved) {
+        shellSlotIds.value = saved.shellSlotIds;
+        centerTab.value = resolveCenterTab(saved.centerTab, saved.shellSlotIds);
+      } else if (prev != null) {
+        shellSlotIds.value = [];
+        if (centerTab.value.startsWith("shell:")) {
+          centerTab.value = "agent";
+        }
       }
     }
     await refreshChangedFiles();
   },
   { immediate: true }
+);
+
+watch(
+  [centerTab, shellSlotIds, () => workspace.activeWorktreeId],
+  () => {
+    const wt = workspace.activeWorktreeId;
+    if (!wt) return;
+    saveTerminalLayout(wt, {
+      centerTab: centerTab.value,
+      shellSlotIds: [...shellSlotIds.value]
+    });
+  },
+  { deep: true }
 );
 
 watch(shellSlotIds, (ids) => {

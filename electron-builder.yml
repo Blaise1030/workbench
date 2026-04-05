@@ -1,0 +1,36 @@
+# https://www.electron.build/configuration
+appId: com.instrument.desktop
+productName: Instrumental
+copyright: Copyright © Instrument contributors
+
+directories:
+  output: release
+
+files:
+  - dist-electron/**/*
+  - package.json
+  - "!dist-electron/**/*.map"
+
+asarUnpack:
+  - "**/*.node"
+
+mac:
+  category: public.app-category.developer-tools
+  target:
+    - dmg
+    - zip
+  hardenedRuntime: true
+  gatekeeperAssess: false
+
+win:
+  target:
+    - nsis
+
+linux:
+  target:
+    - AppImage
+  category: Development
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true

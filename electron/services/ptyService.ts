@@ -77,6 +77,11 @@ export class PtyService {
     this.pendingInputBySessionId.delete(sessionId);
   }
 
+  /** Scrollback held in the main process (same bytes replayed on attach). */
+  getBuffer(sessionId: string): { buffer: string } {
+    return { buffer: this.sessions.get(sessionId)?.buffer ?? "" };
+  }
+
   /** Distinct worktree IDs that have at least one live integrated-terminal session. */
   listSessionWorktreeIds(): string[] {
     const set = new Set<string>();

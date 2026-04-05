@@ -160,6 +160,9 @@ function registerIpc(workspaceService: WorkspaceService): void {
     ptyService.kill(payload.sessionId);
   });
   ipcMain.handle(IPC_CHANNELS.terminalPtyListSessions, () => ptyService.listSessionWorktreeIds());
+  ipcMain.handle(IPC_CHANNELS.terminalPtyGetBuffer, (_, payload: { sessionId: string }) =>
+    ptyService.getBuffer(payload.sessionId)
+  );
 
   ipcMain.handle(IPC_CHANNELS.dialogPickRepoDirectory, async (event) => {
     const win =

@@ -33,6 +33,7 @@ export const IPC_CHANNELS = {
   terminalPtyResize: "terminal:ptyResize",
   terminalPtyKill: "terminal:ptyKill",
   terminalPtyListSessions: "terminal:ptyListSessions",
+  terminalPtyGetBuffer: "terminal:ptyGetBuffer",
   terminalPtyData: "terminal:ptyData",
   dialogPickRepoDirectory: "dialog:pickRepoDirectory"
 } as const;

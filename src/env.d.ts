@@ -40,6 +40,8 @@ interface WorkspaceApi {
   ptyKill: (sessionId: string) => Promise<void>;
   /** Worktree IDs with an active integrated terminal session (Electron only). */
   ptyListSessions?: () => Promise<string[]>;
+  /** Replay scrollback from the main process into xterm (Electron only). */
+  ptyGetBuffer?: (sessionId: string) => Promise<{ buffer: string }>;
   onPtyData: (callback: (sessionId: string, data: string) => void) => () => void;
   onWorkspaceChanged?: (callback: () => void) => () => void;
   pickRepoDirectory: () => Promise<string | null>;

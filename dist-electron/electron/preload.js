@@ -51,6 +51,7 @@ electron_1.contextBridge.exposeInMainWorld("workspaceApi", {
     ptyResize: (sessionId, cols, rows) => electron_1.ipcRenderer.invoke(ipc_js_1.IPC_CHANNELS.terminalPtyResize, { sessionId, cols, rows }),
     ptyKill: (sessionId) => electron_1.ipcRenderer.invoke(ipc_js_1.IPC_CHANNELS.terminalPtyKill, { sessionId }),
     ptyListSessions: () => electron_1.ipcRenderer.invoke(ipc_js_1.IPC_CHANNELS.terminalPtyListSessions),
+    ptyGetBuffer: (sessionId) => electron_1.ipcRenderer.invoke(ipc_js_1.IPC_CHANNELS.terminalPtyGetBuffer, { sessionId }),
     onPtyData: (callback) => {
         const handler = (_event, payload) => {
             callback(payload.sessionId, payload.data);

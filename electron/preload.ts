@@ -55,6 +55,8 @@ contextBridge.exposeInMainWorld("workspaceApi", {
     ipcRenderer.invoke(IPC_CHANNELS.terminalPtyResize, { sessionId, cols, rows }),
   ptyKill: (sessionId: string) => ipcRenderer.invoke(IPC_CHANNELS.terminalPtyKill, { sessionId }),
   ptyListSessions: () => ipcRenderer.invoke(IPC_CHANNELS.terminalPtyListSessions) as Promise<string[]>,
+  ptyGetBuffer: (sessionId: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.terminalPtyGetBuffer, { sessionId }) as Promise<{ buffer: string }>,
   onPtyData: (callback: (sessionId: string, data: string) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, payload: { sessionId: string; data: string }) => {
       callback(payload.sessionId, payload.data);
