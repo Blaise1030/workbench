@@ -50,7 +50,7 @@ defineExpose({ openNewThreadMenu });
       <PanelLeftOpen class="h-3.5 w-3.5" />
     </BaseButton>
   </header>
-  <header v-else class="flex shrink-0 items-center gap-2 bg-muted/25 px-3 py-2 pr-1.5">
+  <header v-else class="flex shrink-0 items-center gap-2 px-3 py-2 pr-1.5">
     <h2
       class="m-0 flex min-w-0 flex-1 items-center gap-2 overflow-hidden p-0 text-foreground"
       data-testid="thread-sidebar-brand"

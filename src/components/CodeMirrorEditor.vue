@@ -65,8 +65,10 @@ const extensions = computed((): Extension[] => {
     keymap.of(searchKeymap),
     ...languageExtensionsFor(props.language),
     CMEditorView.theme({
+      /* Fill flex parent (.file-editor-cm); avoid height:100% when parent height is indefinite */
       "&": {
-        height: "100%",
+        flex: "1 1 0%",
+        minHeight: 0,
         fontSize: "12px",
         backgroundColor: "transparent"
       },
@@ -76,7 +78,9 @@ const extensions = computed((): Extension[] => {
       ".cm-scroller": {
         fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
         lineHeight: "1.25rem",
-        overflow: "auto"
+        overflow: "auto",
+        minHeight: 0,
+        flex: "1 1 0%"
       },
       ".cm-content": {
         caretColor: "var(--foreground)",
@@ -166,7 +170,7 @@ watch(
   <div
     ref="hostRef"
     data-testid="file-editor"
-    class="file-editor-cm h-full min-h-[18rem] w-full overflow-hidden rounded-md bg-muted/15 [font-feature-settings:'liga'_0]"
+    class="file-editor-cm flex min-h-0 w-full flex-1 flex-col overflow-hidden rounded-md bg-muted/15 [font-feature-settings:'liga'_0]"
     :data-language="language"
   />
 </template>
