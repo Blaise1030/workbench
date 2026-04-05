@@ -100,7 +100,7 @@ onBeforeUnmount(() => {
                 type="button"
                 role="menuitem"
                 :title="opt.label"
-                class="flex aspect-square w-full min-w-0 flex-col items-center justify-center gap-2 rounded-md p-1.5 text-center hover:bg-accent"
+                class="flex aspect-square w-full min-w-0 flex-col items-center justify-center gap-3 rounded-md p-1.5 text-center hover:bg-accent"
                 @click="pickAgent(opt.agent)"
               >
                 <AgentIcon :agent="opt.agent" :size="28" class="shrink-0" />

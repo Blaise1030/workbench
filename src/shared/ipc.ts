@@ -1,4 +1,4 @@
-import type { Project, Thread, Worktree } from "./domain";
+import type { Project, Thread, ThreadAgent, Worktree } from "./domain";
 
 export const IPC_CHANNELS = {
   workspaceGetSnapshot: "workspace:getSnapshot",
@@ -7,6 +7,8 @@ export const IPC_CHANNELS = {
   workspaceSetActive: "workspace:setActive",
   workspaceCreateThread: "workspace:createThread",
   workspaceSetActiveThread: "workspace:setActiveThread",
+  workspaceDeleteThread: "workspace:deleteThread",
+  workspaceRenameThread: "workspace:renameThread",
   runStart: "run:start",
   runSendInput: "run:sendInput",
   runInterrupt: "run:interrupt",
@@ -40,7 +42,7 @@ export interface CreateThreadInput {
   projectId: string;
   worktreeId: string;
   title: string;
-  agent: "codex" | "claude";
+  agent: ThreadAgent;
 }
 
 export interface AddProjectInput {
@@ -53,6 +55,15 @@ export interface AddWorktreeInput {
   projectId: string;
   branch: string;
   worktreePath: string;
+}
+
+export interface DeleteThreadInput {
+  threadId: string;
+}
+
+export interface RenameThreadInput {
+  threadId: string;
+  title: string;
 }
 
 /** Result of checking whether a preview URL responds (main process; no CORS). */

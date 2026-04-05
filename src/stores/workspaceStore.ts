@@ -39,6 +39,15 @@ export const useWorkspaceStore = defineStore("workspace", {
     },
     setActiveThread(threadId: string): void {
       this.activeThreadId = threadId;
+    },
+    /** Immediate UI update; call refreshSnapshot after IPC so server state wins. */
+    removeThreadLocal(threadId: string): void {
+      const wasActive = this.activeThreadId === threadId;
+      this.threads = this.threads.filter((t) => t.id !== threadId);
+      if (wasActive) {
+        this.activeThreadId =
+          this.threads.find((t) => t.worktreeId === this.activeWorktreeId)?.id ?? null;
+      }
     }
   }
 });

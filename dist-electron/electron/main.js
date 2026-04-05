@@ -67,6 +67,12 @@ function registerIpc(workspaceService) {
         workspaceService.setActive(snapshot.activeProjectId, snapshot.activeWorktreeId, threadId);
         return workspaceService.getSnapshot();
     });
+    electron_1.ipcMain.handle(ipc_js_1.IPC_CHANNELS.workspaceDeleteThread, (_, payload) => {
+        workspaceService.deleteThread(payload.threadId);
+    });
+    electron_1.ipcMain.handle(ipc_js_1.IPC_CHANNELS.workspaceRenameThread, (_, payload) => {
+        workspaceService.renameThread(payload.threadId, payload.title);
+    });
     electron_1.ipcMain.handle(ipc_js_1.IPC_CHANNELS.runStart, (_, payload) => runService.start(payload.agent, payload.cwd, payload.prompt, () => { }, () => { }));
     electron_1.ipcMain.handle(ipc_js_1.IPC_CHANNELS.runSendInput, (_, payload) => runService.sendInput(payload.runId, payload.input));
     electron_1.ipcMain.handle(ipc_js_1.IPC_CHANNELS.runInterrupt, (_, runId) => runService.interrupt(runId));
@@ -76,15 +82,15 @@ function registerIpc(workspaceService) {
     electron_1.ipcMain.handle(ipc_js_1.IPC_CHANNELS.diffStageAll, (_, cwd) => diffService.stageAll(cwd));
     electron_1.ipcMain.handle(ipc_js_1.IPC_CHANNELS.diffDiscardAll, (_, cwd) => diffService.discardAll(cwd));
     electron_1.ipcMain.handle(ipc_js_1.IPC_CHANNELS.editApplyPatch, (_, payload) => editService.applyPatch(payload));
-    electron_1.ipcMain.handle(ipc_js_1.IPC_CHANNELS.terminalPtyCreate, (_, payload) => ptyService.getOrCreate(payload.worktreeId, payload.cwd));
+    electron_1.ipcMain.handle(ipc_js_1.IPC_CHANNELS.terminalPtyCreate, (_, payload) => ptyService.getOrCreate(payload.sessionId, payload.cwd, payload.worktreeId));
     electron_1.ipcMain.handle(ipc_js_1.IPC_CHANNELS.terminalPtyWrite, (_, payload) => {
-        ptyService.write(payload.worktreeId, payload.data);
+        ptyService.write(payload.sessionId, payload.data);
     });
     electron_1.ipcMain.handle(ipc_js_1.IPC_CHANNELS.terminalPtyResize, (_, payload) => {
-        ptyService.resize(payload.worktreeId, payload.cols, payload.rows);
+        ptyService.resize(payload.sessionId, payload.cols, payload.rows);
     });
     electron_1.ipcMain.handle(ipc_js_1.IPC_CHANNELS.terminalPtyKill, (_, payload) => {
-        ptyService.kill(payload.worktreeId);
+        ptyService.kill(payload.sessionId);
     });
     electron_1.ipcMain.handle(ipc_js_1.IPC_CHANNELS.terminalPtyListSessions, () => ptyService.listSessionWorktreeIds());
     electron_1.ipcMain.handle(ipc_js_1.IPC_CHANNELS.dialogPickRepoDirectory, async (event) => {

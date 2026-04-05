@@ -58,6 +58,14 @@ export class WorkspaceService {
     return thread;
   }
 
+  deleteThread(threadId: string): void {
+    this.store.deleteThread(threadId);
+  }
+
+  renameThread(threadId: string, title: string): void {
+    this.store.renameThread(threadId, title);
+  }
+
   setActive(projectId: string | null, worktreeId: string | null, threadId: string | null): void {
     this.store.setActiveState(projectId, worktreeId, threadId);
   }

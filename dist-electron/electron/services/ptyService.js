@@ -40,8 +40,11 @@ const ipc_js_1 = require("../../src/shared/ipc.js");
 const MAX_BUFFER_BYTES = 100 * 1024; // 100 KB
 class PtyService {
     sessions = new Map();
-    getOrCreate(worktreeId, cwd) {
-        const existing = this.sessions.get(worktreeId);
+    /**
+     * @param sessionId Stable PTY key: thread id, or `__wt:${worktreeId}` when no thread is active.
+     */
+    getOrCreate(sessionId, cwd, worktreeId) {
+        const existing = this.sessions.get(sessionId);
         if (existing) {
             return { buffer: existing.buffer };
         }
@@ -53,40 +56,43 @@ class PtyService {
             cols: 80,
             rows: 24
         });
-        const session = { pty: instance, buffer: "" };
-        this.sessions.set(worktreeId, session);
+        const session = { pty: instance, buffer: "", worktreeId };
+        this.sessions.set(sessionId, session);
         instance.onData((data) => {
             session.buffer += data;
             if (Buffer.byteLength(session.buffer, "utf8") > MAX_BUFFER_BYTES) {
-                // Trim from the front, keeping roughly the last MAX_BUFFER_BYTES
                 session.buffer = session.buffer.slice(-MAX_BUFFER_BYTES);
             }
-            const payload = { worktreeId, data };
+            const payload = { sessionId, data };
             for (const win of electron_1.BrowserWindow.getAllWindows()) {
                 win.webContents.send(ipc_js_1.IPC_CHANNELS.terminalPtyData, payload);
             }
         });
         instance.onExit(() => {
-            this.sessions.delete(worktreeId);
+            this.sessions.delete(sessionId);
         });
         return { buffer: "" };
     }
-    write(worktreeId, data) {
-        this.sessions.get(worktreeId)?.pty.write(data);
+    write(sessionId, data) {
+        this.sessions.get(sessionId)?.pty.write(data);
     }
-    resize(worktreeId, cols, rows) {
-        this.sessions.get(worktreeId)?.pty.resize(cols, rows);
+    resize(sessionId, cols, rows) {
+        this.sessions.get(sessionId)?.pty.resize(cols, rows);
     }
-    kill(worktreeId) {
-        const session = this.sessions.get(worktreeId);
+    kill(sessionId) {
+        const session = this.sessions.get(sessionId);
         if (session) {
             session.pty.kill();
-            this.sessions.delete(worktreeId);
+            this.sessions.delete(sessionId);
         }
     }
-    /** Worktree IDs that currently have a live integrated-terminal PTY session. */
+    /** Distinct worktree IDs that have at least one live integrated-terminal session. */
     listSessionWorktreeIds() {
-        return [...this.sessions.keys()];
+        const set = new Set();
+        for (const s of this.sessions.values()) {
+            set.add(s.worktreeId);
+        }
+        return [...set];
     }
 }
 exports.PtyService = PtyService;

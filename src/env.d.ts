@@ -13,6 +13,8 @@ interface WorkspaceApi {
   setActive: (payload: { projectId: string | null; worktreeId: string | null; threadId: string | null }) => Promise<void>;
   createThread: (payload: unknown) => Promise<unknown>;
   setActiveThread: (threadId: string) => Promise<unknown>;
+  deleteThread: (payload: { threadId: string }) => Promise<void>;
+  renameThread: (payload: { threadId: string; title: string }) => Promise<void>;
   startRun: (payload: unknown) => Promise<string>;
   sendRunInput: (runId: string, input: string) => Promise<void>;
   interruptRun: (runId: string) => Promise<void>;
@@ -23,16 +25,19 @@ interface WorkspaceApi {
   stageAll: (cwd: string) => Promise<void>;
   discardAll: (cwd: string) => Promise<void>;
   applyPatch: (payload: unknown) => Promise<void>;
-  ptyCreate: (worktreeId: string, cwd: string) => Promise<{ buffer: string }>;
-  ptyWrite: (worktreeId: string, data: string) => Promise<void>;
-  ptyResize: (worktreeId: string, cols: number, rows: number) => Promise<void>;
-  ptyKill: (worktreeId: string) => Promise<void>;
+  /** @param sessionId Thread id or `__wt:${worktreeId}` when no thread is selected. */
+  ptyCreate: (sessionId: string, cwd: string, worktreeId: string) => Promise<{ buffer: string }>;
+  ptyWrite: (sessionId: string, data: string) => Promise<void>;
+  ptyResize: (sessionId: string, cols: number, rows: number) => Promise<void>;
+  ptyKill: (sessionId: string) => Promise<void>;
   /** Worktree IDs with an active integrated terminal session (Electron only). */
   ptyListSessions?: () => Promise<string[]>;
-  onPtyData: (callback: (worktreeId: string, data: string) => void) => () => void;
+  onPtyData: (callback: (sessionId: string, data: string) => void) => () => void;
   pickRepoDirectory: () => Promise<string | null>;
   /** Present when running under Electron preload; maps a webkitdirectory file to the chosen folder path. */
   resolveRepoRootFromWebkitFile?: (file: File) => string;
+  /** Present when running under Electron preload; absolute path for a dropped `File`. */
+  getPathForFile?: (file: File) => string;
 }
 
 declare global {

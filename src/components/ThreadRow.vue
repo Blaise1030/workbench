@@ -98,7 +98,7 @@ onBeforeUnmount(() => {
 <template>
   <div
     data-testid="thread-row"
-    class="relative flex h-9 min-h-9 max-h-9 min-w-0 items-center gap-1.5 rounded-sm px-2"
+    class="relative flex h-9 min-h-9 max-h-9 min-w-0 items-center gap-2.5 rounded-sm px-2"
     :class="isActive ? 'bg-accent' : 'hover:bg-accent/50'"
     @mouseenter="rowHovered = true"
     @mouseleave="rowHovered = false"

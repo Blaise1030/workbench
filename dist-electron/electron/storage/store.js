@@ -57,6 +57,20 @@ class WorkspaceStore {
            updated_at=excluded.updated_at`)
             .run(thread);
     }
+    deleteThread(id) {
+        this.db.prepare("DELETE FROM threads WHERE id = ?").run(id);
+        this.db
+            .prepare(`UPDATE app_state
+         SET active_thread_id = CASE WHEN active_thread_id = ? THEN NULL ELSE active_thread_id END
+         WHERE id = 1`)
+            .run(id);
+    }
+    renameThread(id, title) {
+        const updatedAt = new Date().toISOString();
+        this.db
+            .prepare("UPDATE threads SET title = ?, updated_at = ? WHERE id = ?")
+            .run(title, updatedAt, id);
+    }
     setActiveState(activeProjectId, activeWorktreeId, activeThreadId) {
         this.db
             .prepare("UPDATE app_state SET active_project_id = ?, active_worktree_id = ?, active_thread_id = ? WHERE id = 1")

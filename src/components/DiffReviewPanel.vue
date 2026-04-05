@@ -64,6 +64,22 @@ function looksLikeUnifiedDiff(text: string): boolean {
   return t.includes("diff --git ") || /^---\s+/m.test(t);
 }
 
+type DiffEmptyVisual = { emoji: string; caption: string; showRaw?: boolean };
+
+const diffEmptyVisual = computed((): DiffEmptyVisual | null => {
+  const t = props.selectedDiff.trim();
+  if (t === "No unstaged changes.") {
+    return { emoji: "✨", caption: "Working tree is clean — nothing to diff." };
+  }
+  if (t === "Diff preview will render here.") {
+    return { emoji: "🌿", caption: "Your diff will show up here." };
+  }
+  if (t.startsWith("Could not load diff")) {
+    return { emoji: "😵", caption: "Could not load the diff.", showRaw: true };
+  }
+  return null;
+});
+
 const richDiffHtml = computed(() => {
   const raw = props.selectedDiff;
   if (!looksLikeUnifiedDiff(raw)) return null;
@@ -186,6 +202,21 @@ onBeforeUnmount(() => {
         </div>
       </header>      
       <div v-if="richDiffHtml" :class="diffRichHostClass" v-html="richDiffHtml" />
+      <template v-else-if="diffEmptyVisual">
+        <div
+          class="flex flex-col items-center justify-center gap-2 px-4 py-14 text-center"
+          role="status"
+        >
+          <span class="text-4xl leading-none" aria-hidden="true">{{ diffEmptyVisual.emoji }}</span>
+          <p class="max-w-xs text-sm text-muted-foreground">{{ diffEmptyVisual.caption }}</p>
+        </div>
+        <div v-if="diffEmptyVisual.showRaw" class="p-2">
+          <pre
+            class="m-0 overflow-auto rounded-md border border-border bg-background p-3 text-left text-xs whitespace-pre-wrap font-mono"
+            >{{ selectedDiff }}</pre
+          >
+        </div>
+      </template>
       <template v-else>
         <div class="p-2">
           <div class="overflow-hidden rounded-md border border-border bg-background shadow-sm">

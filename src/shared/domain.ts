@@ -1,5 +1,8 @@
 export type RunStatus = "running" | "needsReview" | "failed" | "done";
 
+/** Agent associated with a thread (run adapters may only support a subset). */
+export type ThreadAgent = "claude" | "cursor" | "codex" | "gemini";
+
 export interface Project {
   id: string;
   name: string;
@@ -25,7 +28,7 @@ export interface Thread {
   projectId: string;
   worktreeId: string;
   title: string;
-  agent: "codex" | "claude";
+  agent: ThreadAgent;
   createdAt: string;
   updatedAt: string;
 }

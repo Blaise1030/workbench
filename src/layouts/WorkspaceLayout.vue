@@ -11,7 +11,7 @@ import ThreadSidebar from "@/components/ThreadSidebar.vue";
 import { useToast } from "@/composables/useToast";
 import { useWorkspaceStore } from "@/stores/workspaceStore";
 import { useRunStore } from "@/stores/runStore";
-import type { ThreadAgent } from "@shared/domain";
+import type { Thread, ThreadAgent } from "@shared/domain";
 import type {
   AddProjectInput,
   CreateThreadInput,
@@ -27,17 +27,21 @@ const toast = useToast();
 const diffSummaryLabel = ref<string | null>(null);
 const selectedDiff = ref("Diff preview will render here.");
 const threadsVisible = ref(true);
-const centerTab = ref<"terminal" | "diff">("terminal");
+const centerTab = ref<"agent" | "shell" | "diff">("agent");
 const centerPanelTabs = [
-  { value: "terminal", label: "Terminal" },
-  { value: "diff", label: "Git Diff" }
+  { value: "agent", label: "🤖 Agent" },
+  { value: "shell", label: "💻 Terminal" },
+  { value: "diff", label: "🌿 Git Diff" }
 ] as const;
 const centerTabModel = computed({
   get: () => centerTab.value,
   set: (v: string) => {
-    centerTab.value = v as "terminal" | "diff";
+    centerTab.value = v as "agent" | "shell" | "diff";
   }
 });
+
+/** After creating a thread from the agent menu, run `agents` in that thread's PTY once. */
+const pendingAgentsThreadId = ref<string | null>(null);
 const repoDirectoryInput = ref<HTMLInputElement | null>(null);
 let pendingRepoDirectoryResolve: ((value: string | null) => void) | null = null;
 
@@ -240,7 +244,7 @@ function defaultTitleForAgent(agent: ThreadAgent): string {
 }
 
 async function handleCreateThreadWithAgent(agent: ThreadAgent): Promise<void> {
-  centerTab.value = "terminal";
+  centerTab.value = "agent";
   const api = getApi();
   if (!api || !workspace.activeProjectId || !workspace.activeWorktreeId) return;
   const payload: CreateThreadInput = {
@@ -249,8 +253,13 @@ async function handleCreateThreadWithAgent(agent: ThreadAgent): Promise<void> {
     title: defaultTitleForAgent(agent),
     agent
   };
-  await api.createThread(payload);
+  const created = (await api.createThread(payload)) as Thread;
+  pendingAgentsThreadId.value = created.id;
   await refreshSnapshot();
+}
+
+function onTerminalAutoAgentsConsumed(): void {
+  pendingAgentsThreadId.value = null;
 }
 
 async function handleRemoveThread(threadId: string): Promise<void> {
@@ -260,17 +269,23 @@ async function handleRemoveThread(threadId: string): Promise<void> {
   const nextThread = wasActive
     ? workspace.activeThreads.find((t) => t.id !== threadId) ?? null
     : null;
-  await api.ptyKill(threadId);
-  const payload: DeleteThreadInput = { threadId };
-  await api.deleteThread(payload);
-  if (wasActive) {
-    await api.setActive({
-      projectId: workspace.activeProjectId,
-      worktreeId: workspace.activeWorktreeId,
-      threadId: nextThread?.id ?? null
-    });
+  workspace.removeThreadLocal(threadId);
+  try {
+    await api.ptyKill(threadId);
+    const payload: DeleteThreadInput = { threadId };
+    await api.deleteThread(payload);
+    if (wasActive) {
+      await api.setActive({
+        projectId: workspace.activeProjectId,
+        worktreeId: workspace.activeWorktreeId,
+        threadId: nextThread?.id ?? null
+      });
+    }
+    await refreshSnapshot();
+  } catch (e) {
+    await refreshSnapshot();
+    throw e;
   }
-  await refreshSnapshot();
 }
 
 async function handleRenameThread(threadId: string, newTitle: string): Promise<void> {
@@ -282,7 +297,7 @@ async function handleRenameThread(threadId: string, newTitle: string): Promise<v
 }
 
 async function handleSelectThread(threadId: string): Promise<void> {
-  centerTab.value = "terminal";
+  centerTab.value = "agent";
   const api = getApi();
   if (!api) return;
   const snapshot = (await api.setActiveThread(threadId)) as WorkspaceSnapshot;
@@ -315,6 +330,14 @@ watch(
   () => workspace.activeWorktreeId,
   async () => {
     await refreshChangedFiles();
+  }
+);
+
+watch(
+  () => workspace.activeThreadId,
+  (id) => {
+    const pending = pendingAgentsThreadId.value;
+    if (pending && id !== pending) pendingAgentsThreadId.value = null;
   }
 );
 </script>
@@ -400,8 +423,19 @@ watch(
       <section class="flex min-h-0 min-w-0 flex-col border-r border-border">
         <PillTabs v-model="centerTabModel" :tabs="centerPanelTabs" aria-label="Center panel" />
         <div class="flex min-h-0 flex-1 flex-col overflow-hidden">
-          <div v-show="centerTab === 'terminal'" class="flex min-h-0 flex-1 flex-col overflow-hidden">
+          <div v-show="centerTab === 'agent'" class="flex min-h-0 flex-1 flex-col overflow-hidden">
             <TerminalPane
+              pty-kind="agent"
+              :worktree-id="workspace.activeWorktreeId ?? ''"
+              :thread-id="workspace.activeThreadId ?? ''"
+              :cwd="workspace.activeWorktree?.path ?? ''"
+              :pending-agents-thread-id="pendingAgentsThreadId"
+              @auto-agents-consumed="onTerminalAutoAgentsConsumed"
+            />
+          </div>
+          <div v-show="centerTab === 'shell'" class="flex min-h-0 flex-1 flex-col overflow-hidden">
+            <TerminalPane
+              pty-kind="shell"
               :worktree-id="workspace.activeWorktreeId ?? ''"
               :thread-id="workspace.activeThreadId ?? ''"
               :cwd="workspace.activeWorktree?.path ?? ''"

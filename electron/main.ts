@@ -5,7 +5,9 @@ import {
   IPC_CHANNELS,
   type AddProjectInput,
   type AddWorktreeInput,
-  type CreateThreadInput
+  type CreateThreadInput,
+  type DeleteThreadInput,
+  type RenameThreadInput
 } from "../src/shared/ipc.js";
 import { ClaudeCodeCliAdapter } from "./adapters/claudeCodeCliAdapter.js";
 import { CodexCliAdapter } from "./adapters/codexCliAdapter.js";
@@ -72,6 +74,12 @@ function registerIpc(workspaceService: WorkspaceService): void {
     workspaceService.setActive(snapshot.activeProjectId, snapshot.activeWorktreeId, threadId);
     return workspaceService.getSnapshot();
   });
+  ipcMain.handle(IPC_CHANNELS.workspaceDeleteThread, (_, payload: DeleteThreadInput) => {
+    workspaceService.deleteThread(payload.threadId);
+  });
+  ipcMain.handle(IPC_CHANNELS.workspaceRenameThread, (_, payload: RenameThreadInput) => {
+    workspaceService.renameThread(payload.threadId, payload.title);
+  });
 
   ipcMain.handle(IPC_CHANNELS.runStart, (_, payload: { agent: "codex" | "claude"; cwd: string; prompt: string }) =>
     runService.start(payload.agent, payload.cwd, payload.prompt, () => {}, () => {})
@@ -85,17 +93,19 @@ function registerIpc(workspaceService: WorkspaceService): void {
   ipcMain.handle(IPC_CHANNELS.diffStageAll, (_, cwd: string) => diffService.stageAll(cwd));
   ipcMain.handle(IPC_CHANNELS.diffDiscardAll, (_, cwd: string) => diffService.discardAll(cwd));
   ipcMain.handle(IPC_CHANNELS.editApplyPatch, (_, payload) => editService.applyPatch(payload));
-  ipcMain.handle(IPC_CHANNELS.terminalPtyCreate, (_, payload: { worktreeId: string; cwd: string }) =>
-    ptyService.getOrCreate(payload.worktreeId, payload.cwd)
+  ipcMain.handle(
+    IPC_CHANNELS.terminalPtyCreate,
+    (_, payload: { sessionId: string; cwd: string; worktreeId: string }) =>
+      ptyService.getOrCreate(payload.sessionId, payload.cwd, payload.worktreeId)
   );
-  ipcMain.handle(IPC_CHANNELS.terminalPtyWrite, (_, payload: { worktreeId: string; data: string }) => {
-    ptyService.write(payload.worktreeId, payload.data);
+  ipcMain.handle(IPC_CHANNELS.terminalPtyWrite, (_, payload: { sessionId: string; data: string }) => {
+    ptyService.write(payload.sessionId, payload.data);
   });
-  ipcMain.handle(IPC_CHANNELS.terminalPtyResize, (_, payload: { worktreeId: string; cols: number; rows: number }) => {
-    ptyService.resize(payload.worktreeId, payload.cols, payload.rows);
+  ipcMain.handle(IPC_CHANNELS.terminalPtyResize, (_, payload: { sessionId: string; cols: number; rows: number }) => {
+    ptyService.resize(payload.sessionId, payload.cols, payload.rows);
   });
-  ipcMain.handle(IPC_CHANNELS.terminalPtyKill, (_, payload: { worktreeId: string }) => {
-    ptyService.kill(payload.worktreeId);
+  ipcMain.handle(IPC_CHANNELS.terminalPtyKill, (_, payload: { sessionId: string }) => {
+    ptyService.kill(payload.sessionId);
   });
   ipcMain.handle(IPC_CHANNELS.terminalPtyListSessions, () => ptyService.listSessionWorktreeIds());
 

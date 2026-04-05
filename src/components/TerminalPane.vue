@@ -2,23 +2,85 @@
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "xterm";
 import "xterm/css/xterm.css";
-import { onBeforeUnmount, onMounted, watch } from "vue";
-import { ref } from "vue";
+import { Loader2 } from "lucide-vue-next";
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 
-const props = defineProps<{
-  worktreeId: string;
-  cwd: string;
+const props = withDefaults(
+  defineProps<{
+    worktreeId: string;
+    /** When set, PTY is keyed by thread so each thread has its own shell. */
+    threadId: string;
+    cwd: string;
+    /** When this matches the session thread id after `ptyCreate`, send `agents` + Enter once. */
+    pendingAgentsThreadId?: string | null;
+    /**
+     * `agent` — one PTY per thread (or worktree fallback). `shell` — one shared PTY per worktree
+     * for a general terminal, independent of the active thread.
+     */
+    ptyKind?: "agent" | "shell";
+  }>(),
+  { ptyKind: "agent" }
+);
+
+const emit = defineEmits<{
+  autoAgentsConsumed: [];
 }>();
 
+const paneAriaLabel = computed(() =>
+  props.ptyKind === "shell" ? "Terminal" : "Agent"
+);
+
 const containerRef = ref<HTMLElement | null>(null);
+const ptyBusy = ref(false);
+/** Routes stdin/resize to the PTY the renderer is showing (avoids stale worktree-only keys). */
+const activeSessionId = ref("");
 let terminal: Terminal | null = null;
 let fitAddon: FitAddon | null = null;
 let resizeObserver: ResizeObserver | null = null;
 let themeObserver: MutationObserver | null = null;
 let ptyDataDisposer: (() => void) | null = null;
+let attachGeneration = 0;
+/** After first mount attach, focus terminal when session props change (e.g. thread switch). */
+let didCompleteInitialAttach = false;
+let dropHandlersCleanup: (() => void) | null = null;
+
+/** Safe for POSIX shells (zsh/bash): single-quote and escape embedded quotes. */
+function shellQuotePathForPty(absPath: string): string {
+  if (absPath === "") return "''";
+  if (!/[\s#'"`$&|;<>*?()[\]{}~!\\]/.test(absPath)) {
+    return absPath;
+  }
+  return `'${absPath.replace(/'/g, `'\\''`)}'`;
+}
+
+function pathsFromFileDrop(dt: DataTransfer): string[] {
+  const api = getApi();
+  const getPath = api?.getPathForFile;
+  if (!getPath || dt.files.length === 0) {
+    return [];
+  }
+  const out: string[] = [];
+  for (let i = 0; i < dt.files.length; i++) {
+    const file = dt.files.item(i);
+    if (!file) continue;
+    try {
+      out.push(getPath(file));
+    } catch {
+      // Invalid / non-local file in some environments
+    }
+  }
+  return out;
+}
 
 function getApi(): WorkspaceApi | null {
   return window.workspaceApi ?? null;
+}
+
+function ptySessionId(): string {
+  if (props.ptyKind === "shell") {
+    return `__shell:${props.worktreeId}`;
+  }
+  return props.threadId ? props.threadId : `__wt:${props.worktreeId}`;
 }
 
 function applyTheme(): void {
@@ -36,24 +98,46 @@ function fit(): void {
   fitAddon.fit();
 }
 
-async function attachPty(worktreeId: string, cwd: string): Promise<void> {
-  const api = getApi();
-  if (!api || !terminal) return;
+async function attachPty(): Promise<void> {
+  const gen = ++attachGeneration;
+  const sessionId = ptySessionId();
+  ptyBusy.value = true;
+  try {
+    const api = getApi();
+    if (!api || !terminal) return;
 
-  // Detach previous listener
-  ptyDataDisposer?.();
-  ptyDataDisposer = null;
+    ptyDataDisposer?.();
+    ptyDataDisposer = null;
 
-  terminal.reset();
+    terminal.reset();
 
-  const { buffer } = await api.ptyCreate(worktreeId, cwd);
-  if (buffer) {
-    terminal.write(buffer);
+    const { buffer } = await api.ptyCreate(sessionId, props.cwd, props.worktreeId);
+    if (gen !== attachGeneration) return;
+
+    activeSessionId.value = sessionId;
+
+    if (buffer) {
+      terminal.write(buffer);
+    }
+
+    ptyDataDisposer = api.onPtyData((id, data) => {
+      if (gen !== attachGeneration || id !== sessionId) return;
+      terminal?.write(data);
+    });
+
+    if (
+      props.pendingAgentsThreadId &&
+      sessionId === props.pendingAgentsThreadId &&
+      gen === attachGeneration
+    ) {
+      void api.ptyWrite(sessionId, "agents\r");
+      emit("autoAgentsConsumed");
+    }
+  } finally {
+    if (gen === attachGeneration) {
+      ptyBusy.value = false;
+    }
   }
-
-  ptyDataDisposer = api.onPtyData((wid, data) => {
-    if (wid === worktreeId) terminal?.write(data);
-  });
 }
 
 onMounted(async () => {
@@ -79,10 +163,12 @@ onMounted(async () => {
   const api = getApi();
   if (api) {
     terminal.onData((data) => {
-      api.ptyWrite(props.worktreeId, data);
+      const sid = activeSessionId.value;
+      if (sid) void api.ptyWrite(sid, data);
     });
     terminal.onResize(({ cols, rows }) => {
-      api.ptyResize(props.worktreeId, cols, rows);
+      const sid = activeSessionId.value;
+      if (sid) void api.ptyResize(sid, cols, rows);
     });
   }
 
@@ -95,10 +181,41 @@ onMounted(async () => {
   themeObserver = new MutationObserver(() => applyTheme());
   themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
 
-  await attachPty(props.worktreeId, props.cwd);
+  await attachPty();
+  didCompleteInitialAttach = true;
+
+  const onDragOver = (e: DragEvent) => {
+    if (!e.dataTransfer) return;
+    if (![...e.dataTransfer.types].includes("Files")) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "copy";
+  };
+
+  const onDrop = (e: DragEvent) => {
+    if (!e.dataTransfer) return;
+    const paths = pathsFromFileDrop(e.dataTransfer);
+    if (paths.length === 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const sid = activeSessionId.value;
+    const api = getApi();
+    if (!sid || !api) return;
+    const payload = paths.map(shellQuotePathForPty).join(" ");
+    void api.ptyWrite(sid, payload);
+    terminal?.focus();
+  };
+
+  el.addEventListener("dragover", onDragOver);
+  el.addEventListener("drop", onDrop);
+  dropHandlersCleanup = () => {
+    el.removeEventListener("dragover", onDragOver);
+    el.removeEventListener("drop", onDrop);
+    dropHandlersCleanup = null;
+  };
 });
 
 onBeforeUnmount(() => {
+  dropHandlersCleanup?.();
   resizeObserver?.disconnect();
   resizeObserver = null;
   themeObserver?.disconnect();
@@ -111,20 +228,40 @@ onBeforeUnmount(() => {
 });
 
 watch(
-  () => props.worktreeId,
-  async (newId) => {
-    await attachPty(newId, props.cwd);
+  () =>
+    [
+      props.worktreeId,
+      props.cwd,
+      props.ptyKind,
+      props.ptyKind === "shell" ? props.worktreeId : props.threadId
+    ] as const,
+  async () => {
+    await attachPty();
+    if (didCompleteInitialAttach) {
+      fit();
+      terminal?.focus();
+    }
   }
 );
 </script>
 
 <template>
   <section
-    ref="containerRef"
-    class="terminal-pane h-full min-h-0 min-w-0 overflow-hidden bg-card p-3 text-card-foreground text-xs"
+    class="relative flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-card p-3 text-card-foreground text-xs"
     role="document"
-    aria-label="Terminal"
-  />
+    :aria-label="paneAriaLabel"
+  >
+    <div ref="containerRef" class="terminal-pane min-h-0 flex-1 overflow-hidden" />
+    <div
+      v-show="ptyBusy"
+      class="pointer-events-auto absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 bg-card/85 backdrop-blur-[1px]"
+      aria-live="polite"
+      aria-busy="true"
+    >
+      <Loader2 class="h-8 w-8 animate-spin text-muted-foreground" aria-hidden="true" />
+      <span class="text-sm text-muted-foreground">Starting terminal…</span>
+    </div>
+  </section>
 </template>
 
 <style scoped>

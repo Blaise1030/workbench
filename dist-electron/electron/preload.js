@@ -28,6 +28,8 @@ electron_1.contextBridge.exposeInMainWorld("workspaceApi", {
     setActive: (payload) => electron_1.ipcRenderer.invoke(ipc_js_1.IPC_CHANNELS.workspaceSetActive, payload),
     createThread: (payload) => electron_1.ipcRenderer.invoke(ipc_js_1.IPC_CHANNELS.workspaceCreateThread, payload),
     setActiveThread: (threadId) => electron_1.ipcRenderer.invoke(ipc_js_1.IPC_CHANNELS.workspaceSetActiveThread, threadId),
+    deleteThread: (payload) => electron_1.ipcRenderer.invoke(ipc_js_1.IPC_CHANNELS.workspaceDeleteThread, payload),
+    renameThread: (payload) => electron_1.ipcRenderer.invoke(ipc_js_1.IPC_CHANNELS.workspaceRenameThread, payload),
     startRun: (payload) => electron_1.ipcRenderer.invoke(ipc_js_1.IPC_CHANNELS.runStart, payload),
     sendRunInput: (runId, input) => electron_1.ipcRenderer.invoke(ipc_js_1.IPC_CHANNELS.runSendInput, { runId, input }),
     interruptRun: (runId) => electron_1.ipcRenderer.invoke(ipc_js_1.IPC_CHANNELS.runInterrupt, runId),
@@ -37,18 +39,20 @@ electron_1.contextBridge.exposeInMainWorld("workspaceApi", {
     stageAll: (cwd) => electron_1.ipcRenderer.invoke(ipc_js_1.IPC_CHANNELS.diffStageAll, cwd),
     discardAll: (cwd) => electron_1.ipcRenderer.invoke(ipc_js_1.IPC_CHANNELS.diffDiscardAll, cwd),
     applyPatch: (payload) => electron_1.ipcRenderer.invoke(ipc_js_1.IPC_CHANNELS.editApplyPatch, payload),
-    ptyCreate: (worktreeId, cwd) => electron_1.ipcRenderer.invoke(ipc_js_1.IPC_CHANNELS.terminalPtyCreate, { worktreeId, cwd }),
-    ptyWrite: (worktreeId, data) => electron_1.ipcRenderer.invoke(ipc_js_1.IPC_CHANNELS.terminalPtyWrite, { worktreeId, data }),
-    ptyResize: (worktreeId, cols, rows) => electron_1.ipcRenderer.invoke(ipc_js_1.IPC_CHANNELS.terminalPtyResize, { worktreeId, cols, rows }),
-    ptyKill: (worktreeId) => electron_1.ipcRenderer.invoke(ipc_js_1.IPC_CHANNELS.terminalPtyKill, { worktreeId }),
+    ptyCreate: (sessionId, cwd, worktreeId) => electron_1.ipcRenderer.invoke(ipc_js_1.IPC_CHANNELS.terminalPtyCreate, { sessionId, cwd, worktreeId }),
+    ptyWrite: (sessionId, data) => electron_1.ipcRenderer.invoke(ipc_js_1.IPC_CHANNELS.terminalPtyWrite, { sessionId, data }),
+    ptyResize: (sessionId, cols, rows) => electron_1.ipcRenderer.invoke(ipc_js_1.IPC_CHANNELS.terminalPtyResize, { sessionId, cols, rows }),
+    ptyKill: (sessionId) => electron_1.ipcRenderer.invoke(ipc_js_1.IPC_CHANNELS.terminalPtyKill, { sessionId }),
     ptyListSessions: () => electron_1.ipcRenderer.invoke(ipc_js_1.IPC_CHANNELS.terminalPtyListSessions),
     onPtyData: (callback) => {
         const handler = (_event, payload) => {
-            callback(payload.worktreeId, payload.data);
+            callback(payload.sessionId, payload.data);
         };
         electron_1.ipcRenderer.on(ipc_js_1.IPC_CHANNELS.terminalPtyData, handler);
         return () => electron_1.ipcRenderer.off(ipc_js_1.IPC_CHANNELS.terminalPtyData, handler);
     },
     pickRepoDirectory: () => electron_1.ipcRenderer.invoke(ipc_js_1.IPC_CHANNELS.dialogPickRepoDirectory),
-    resolveRepoRootFromWebkitFile: (file) => resolveRepoRootFromWebkitFile(file)
+    resolveRepoRootFromWebkitFile: (file) => resolveRepoRootFromWebkitFile(file),
+    /** Absolute path for a file from a drag-and-drop `DataTransfer` (Electron). */
+    getPathForFile: (file) => electron_1.webUtils.getPathForFile(file)
 });

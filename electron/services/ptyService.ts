@@ -7,13 +7,18 @@ const MAX_BUFFER_BYTES = 100 * 1024; // 100 KB
 interface PtySession {
   pty: pty.IPty;
   buffer: string;
+  /** Owning worktree (for UI: “terminal open on this worktree”). */
+  worktreeId: string;
 }
 
 export class PtyService {
   private sessions = new Map<string, PtySession>();
 
-  getOrCreate(worktreeId: string, cwd: string): { buffer: string } {
-    const existing = this.sessions.get(worktreeId);
+  /**
+   * @param sessionId Stable PTY key: thread id, or `__wt:${worktreeId}` when no thread is active.
+   */
+  getOrCreate(sessionId: string, cwd: string, worktreeId: string): { buffer: string } {
+    const existing = this.sessions.get(sessionId);
     if (existing) {
       return { buffer: existing.buffer };
     }
@@ -27,46 +32,49 @@ export class PtyService {
       rows: 24
     });
 
-    const session: PtySession = { pty: instance, buffer: "" };
-    this.sessions.set(worktreeId, session);
+    const session: PtySession = { pty: instance, buffer: "", worktreeId };
+    this.sessions.set(sessionId, session);
 
     instance.onData((data) => {
       session.buffer += data;
       if (Buffer.byteLength(session.buffer, "utf8") > MAX_BUFFER_BYTES) {
-        // Trim from the front, keeping roughly the last MAX_BUFFER_BYTES
         session.buffer = session.buffer.slice(-MAX_BUFFER_BYTES);
       }
-      const payload = { worktreeId, data };
+      const payload = { sessionId, data };
       for (const win of BrowserWindow.getAllWindows()) {
         win.webContents.send(IPC_CHANNELS.terminalPtyData, payload);
       }
     });
 
     instance.onExit(() => {
-      this.sessions.delete(worktreeId);
+      this.sessions.delete(sessionId);
     });
 
     return { buffer: "" };
   }
 
-  write(worktreeId: string, data: string): void {
-    this.sessions.get(worktreeId)?.pty.write(data);
+  write(sessionId: string, data: string): void {
+    this.sessions.get(sessionId)?.pty.write(data);
   }
 
-  resize(worktreeId: string, cols: number, rows: number): void {
-    this.sessions.get(worktreeId)?.pty.resize(cols, rows);
+  resize(sessionId: string, cols: number, rows: number): void {
+    this.sessions.get(sessionId)?.pty.resize(cols, rows);
   }
 
-  kill(worktreeId: string): void {
-    const session = this.sessions.get(worktreeId);
+  kill(sessionId: string): void {
+    const session = this.sessions.get(sessionId);
     if (session) {
       session.pty.kill();
-      this.sessions.delete(worktreeId);
+      this.sessions.delete(sessionId);
     }
   }
 
-  /** Worktree IDs that currently have a live integrated-terminal PTY session. */
+  /** Distinct worktree IDs that have at least one live integrated-terminal session. */
   listSessionWorktreeIds(): string[] {
-    return [...this.sessions.keys()];
+    const set = new Set<string>();
+    for (const s of this.sessions.values()) {
+      set.add(s.worktreeId);
+    }
+    return [...set];
   }
 }

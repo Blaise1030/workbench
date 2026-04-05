@@ -8,6 +8,8 @@ exports.IPC_CHANNELS = {
     workspaceSetActive: "workspace:setActive",
     workspaceCreateThread: "workspace:createThread",
     workspaceSetActiveThread: "workspace:setActiveThread",
+    workspaceDeleteThread: "workspace:deleteThread",
+    workspaceRenameThread: "workspace:renameThread",
     runStart: "run:start",
     runSendInput: "run:sendInput",
     runInterrupt: "run:interrupt",

@@ -55,6 +55,12 @@ class WorkspaceService {
         this.store.setActiveState(input.projectId, input.worktreeId, thread.id);
         return thread;
     }
+    deleteThread(threadId) {
+        this.store.deleteThread(threadId);
+    }
+    renameThread(threadId, title) {
+        this.store.renameThread(threadId, title);
+    }
     setActive(projectId, worktreeId, threadId) {
         this.store.setActiveState(projectId, worktreeId, threadId);
     }
