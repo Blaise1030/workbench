@@ -254,45 +254,7 @@ onBeforeUnmount(() => {
       <!-- Toolbar + changed-files strip share one sticky stack so both stay visible while scrolling the diff. -->
       <div
         class="sticky top-0 z-10 shrink-0 border-b border-border bg-background shadow-sm"
-      >
-        <header class="flex shrink-0 flex-wrap items-center gap-2 bg-background p-3">
-          <div class="flex min-w-0 flex-wrap items-center gap-2">
-            <span
-              v-if="summaryLabelText"
-              class="min-w-0 max-w-[min(100%,28rem)] truncate text-xs text-muted-foreground"
-              :title="summaryLabelText ?? undefined"
-              >{{ summaryLabelText }}</span
-            >
-            <span
-              v-if="reviewBasketSummary"
-              class="inline-flex items-center rounded-full border border-border bg-muted/40 px-2.5 py-1 text-xs font-medium text-foreground"
-            >
-              {{ reviewBasketSummary }}
-            </span>
-          </div>
-          <div class="ml-auto flex flex-wrap gap-2">
-            <BaseButton
-              v-if="queuedReviewCountValue > 0"
-              size="sm"
-              variant="secondary"
-              class="border-0 shadow-none focus-visible:!border-transparent focus-visible:!outline-none focus-visible:!ring-0 focus-visible:!ring-offset-0"
-              aria-label="Open in Agents"
-              @click="emitOpenInAgents"
-            >
-              Open in Agents
-            </BaseButton>
-            <BaseButton
-              v-if="queuedReviewCountValue > 0"
-              size="sm"
-              variant="secondary"
-              class="border-0 shadow-none focus-visible:!border-transparent focus-visible:!outline-none focus-visible:!ring-0 focus-visible:!ring-offset-0"
-              aria-label="Clear review items"
-              @click="emit('clearReviewItems')"
-            >
-              Clear review items
-            </BaseButton>
-          </div>
-        </header>
+      >      
         <div
           v-if="hasSelectableFiles"
           data-testid="diff-file-selection"
