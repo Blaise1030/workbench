@@ -34,13 +34,25 @@ draw = ImageDraw.Draw(mask)
 
 font = None
 font_size = 600
+
+# Download Inter Bold if not already present
+inter_path = os.path.join(os.path.dirname(__file__), "Inter-Bold.ttf")
+if not os.path.exists(inter_path):
+    import urllib.request
+    # Inter Bold from the official GitHub release
+    url = "https://github.com/rsms/inter/raw/master/docs/font-files/Inter-Bold.ttf"
+    try:
+        print(f"Downloading Inter Bold...")
+        urllib.request.urlretrieve(url, inter_path)
+        print(f"Downloaded Inter Bold to {inter_path}")
+    except Exception as e:
+        print(f"Could not download Inter Bold: {e}")
+
 candidates = [
-    "/System/Library/Fonts/Supplemental/Georgia Bold.ttf",
-    "/System/Library/Fonts/Supplemental/Georgia.ttf",
-    "/Library/Fonts/Georgia Bold.ttf",
-    "/System/Library/Fonts/NewYork.ttf",
-    "/System/Library/Fonts/Helvetica.ttc",
+    inter_path,
+    "/System/Library/Fonts/SFNS.ttf",
     "/System/Library/Fonts/SFNSText.ttf",
+    "/System/Library/Fonts/Helvetica.ttc",
 ]
 for path in candidates:
     if os.path.exists(path):

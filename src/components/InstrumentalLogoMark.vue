@@ -66,7 +66,7 @@ const sizeClass = computed(() => (props.variant === "sm" ? "size-6" : "size-7"))
       dominant-baseline="central"
       class="select-none"
       style="
-        font-family: ui-sans-serif, system-ui, sans-serif;
+        font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
         font-size: 11.5px;
         font-weight: 700;
         letter-spacing: -0.02em;
