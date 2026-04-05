@@ -34,21 +34,10 @@ describe("ThreadSidebar", () => {
     expect(wrapper.emitted("createWithAgent")).toEqual([["claude"]]);
   });
 
-  it("emits createWithAgent with codex when Codex CLI row is clicked", async () => {
-    const wrapper = mount(ThreadSidebar, {
-      props: {
-        threads: [],
-        activeThreadId: null
-      }
-    });
-
-    await wrapper.get('[aria-label="New thread"]').trigger("click");
-    const items = wrapper.findAll('[role="menuitem"]');
-    const codex = items.find((w) => w.text() === "Codex CLI");
-    expect(codex).toBeDefined();
-    await codex!.trigger("click");
-
-    expect(wrapper.emitted("createWithAgent")).toEqual([["codex"]]);
+  it("emits configureCommands when agent command settings is clicked", async () => {
+    const wrapper = mount(ThreadSidebar, { props: { threads, activeThreadId: "t1" } });
+    await wrapper.get('[aria-label="Agent terminal commands"]').trigger("click");
+    expect(wrapper.emitted("configureCommands")).toEqual([[]]);
   });
 
   it("emits remove with threadId when a ThreadRow emits remove", async () => {

@@ -11,19 +11,21 @@ const props = withDefaults(
     /** When set, PTY is keyed by thread so each thread has its own shell. */
     threadId: string;
     cwd: string;
-    /** When this matches the session thread id after `ptyCreate`, send `agents` + Enter once. */
-    pendingAgentsThreadId?: string | null;
+    /** After `ptyCreate` for this thread, type `command` + Enter once. */
+    pendingAgentBootstrap?: { threadId: string; command: string } | null;
     /**
-     * `agent` — one PTY per thread (or worktree fallback). `shell` — one shared PTY per worktree
-     * for a general terminal, independent of the active thread.
+     * `agent` — one PTY per thread (or worktree fallback). `shell` — extra PTY per worktree slot
+     * (see `shellSlotId`), independent of the active thread.
      */
     ptyKind?: "agent" | "shell";
+    /** Distinct id for each extra terminal tab (PTY key includes worktree + this). */
+    shellSlotId?: string;
   }>(),
-  { ptyKind: "agent" }
+  { ptyKind: "agent", shellSlotId: "main" }
 );
 
 const emit = defineEmits<{
-  autoAgentsConsumed: [];
+  bootstrapConsumed: [];
 }>();
 
 const paneAriaLabel = computed(() =>
@@ -78,7 +80,7 @@ function getApi(): WorkspaceApi | null {
 
 function ptySessionId(): string {
   if (props.ptyKind === "shell") {
-    return `__shell:${props.worktreeId}`;
+    return `__shell:${props.worktreeId}:${props.shellSlotId}`;
   }
   return props.threadId ? props.threadId : `__wt:${props.worktreeId}`;
 }
@@ -125,13 +127,15 @@ async function attachPty(): Promise<void> {
       terminal?.write(data);
     });
 
+    const boot = props.pendingAgentBootstrap;
     if (
-      props.pendingAgentsThreadId &&
-      sessionId === props.pendingAgentsThreadId &&
+      boot &&
+      boot.command.trim() &&
+      sessionId === boot.threadId &&
       gen === attachGeneration
     ) {
-      void api.ptyWrite(sessionId, "agents\r");
-      emit("autoAgentsConsumed");
+      void api.ptyWrite(sessionId, `${boot.command}\r`);
+      emit("bootstrapConsumed");
     }
   } finally {
     if (gen === attachGeneration) {
@@ -151,7 +155,8 @@ onMounted(async () => {
     cursorBlink: true,
     cursorStyle: "block",
     convertEol: false,
-    disableStdin: false
+    disableStdin: false,
+    bellStyle: "none"
   });
 
   fitAddon = new FitAddon();
@@ -233,7 +238,9 @@ watch(
       props.worktreeId,
       props.cwd,
       props.ptyKind,
-      props.ptyKind === "shell" ? props.worktreeId : props.threadId
+      props.ptyKind === "shell"
+        ? `${props.worktreeId}:${props.shellSlotId}`
+        : props.threadId
     ] as const,
   async () => {
     await attachPty();

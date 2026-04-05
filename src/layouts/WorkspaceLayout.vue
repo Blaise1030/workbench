@@ -1,16 +1,22 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue";
-import { PanelLeftOpen } from "lucide-vue-next";
+import { PanelLeftOpen, Plus } from "lucide-vue-next";
 import BaseButton from "@/components/ui/BaseButton.vue";
 import DiffReviewPanel from "@/components/DiffReviewPanel.vue";
-import PillTabs from "@/components/ui/PillTabs.vue";
+import PillTabs, { type PillTabItem } from "@/components/ui/PillTabs.vue";
 import ProjectTabs from "@/components/ProjectTabs.vue";
 import TerminalPane from "@/components/TerminalPane.vue";
+import TerminalSoundSettings from "@/components/TerminalSoundSettings.vue";
 import ThemeToggle from "@/components/ThemeToggle.vue";
+import AgentCommandsSettingsDialog from "@/components/AgentCommandsSettingsDialog.vue";
 import ThreadSidebar from "@/components/ThreadSidebar.vue";
+import { useAgentBootstrapCommands } from "@/composables/useAgentBootstrapCommands";
+import { useTerminalAttentionSounds } from "@/composables/useTerminalAttentionSounds";
+import { useTerminalSoundSettings } from "@/composables/useTerminalSoundSettings";
 import { useToast } from "@/composables/useToast";
 import { useWorkspaceStore } from "@/stores/workspaceStore";
 import { useRunStore } from "@/stores/runStore";
+import { visibleTerminalSessionId } from "@/terminal/attentionRules";
 import type { Thread, ThreadAgent } from "@shared/domain";
 import type {
   AddProjectInput,
@@ -19,29 +25,87 @@ import type {
   RenameThreadInput,
   WorkspaceSnapshot
 } from "@shared/ipc";
-
 const workspace = useWorkspaceStore();
+const { terminalBellSound, terminalBackgroundOutputSound } = useTerminalSoundSettings();
+const { commands, applySaved, bootstrapCommandFor } = useAgentBootstrapCommands();
+const agentCommandsSettingsOpen = ref(false);
 const runs = useRunStore();
 const toast = useToast();
 /** Sticky bar hint: single path or "N files" when multiple unstaged paths. */
 const diffSummaryLabel = ref<string | null>(null);
 const selectedDiff = ref("Diff preview will render here.");
 const threadsVisible = ref(true);
-const centerTab = ref<"agent" | "shell" | "diff">("agent");
-const centerPanelTabs = [
-  { value: "agent", label: "🤖 Agent" },
-  { value: "shell", label: "💻 Terminal" },
-  { value: "diff", label: "🌿 Git Diff" }
-] as const;
+/** `agent` | `diff` | `shell:${uuid}` for each extra terminal. */
+const centerTab = ref<string>("agent");
+/** One UUID per integrated terminal tab (after Agent + Git Diff). */
+const shellSlotIds = ref<string[]>([]);
+
+const centerPanelTabs = computed<PillTabItem[]>(() => {
+  const slots = shellSlotIds.value;
+  return [
+    { value: "agent", label: "🤖 Agent" },
+    { value: "diff", label: "🌿 Git Diff" },
+    ...slots.map((id, i) => ({
+      value: `shell:${id}`,
+      label: `💻 Terminal ${i + 1}`,
+      closable: slots.length > 1
+    }))
+  ];
+});
+
 const centerTabModel = computed({
   get: () => centerTab.value,
   set: (v: string) => {
-    centerTab.value = v as "agent" | "shell" | "diff";
+    centerTab.value = v;
   }
 });
 
-/** After creating a thread from the agent menu, run `agents` in that thread's PTY once. */
-const pendingAgentsThreadId = ref<string | null>(null);
+/** PTY session id currently visible in the center panel, or `null` when Git Diff (or no session). */
+const visiblePtySessionId = computed(() => {
+  const tab = centerTab.value;
+  const wt = workspace.activeWorktreeId;
+  if (tab === "agent") {
+    return visibleTerminalSessionId(workspace.activeThreadId, wt);
+  }
+  if (tab.startsWith("shell:") && wt) {
+    return `__shell:${wt}:${tab.slice("shell:".length)}`;
+  }
+  return null;
+});
+
+useTerminalAttentionSounds({
+  visibleSessionId: visiblePtySessionId,
+  bellEnabled: terminalBellSound,
+  backgroundEnabled: terminalBackgroundOutputSound
+});
+
+function addShellTerminal(): void {
+  const id = crypto.randomUUID();
+  shellSlotIds.value = [...shellSlotIds.value, id];
+  centerTab.value = `shell:${id}`;
+}
+
+async function onCenterTabClose(tabValue: string): Promise<void> {
+  if (!tabValue.startsWith("shell:")) return;
+  const slotId = tabValue.slice("shell:".length);
+  if (shellSlotIds.value.length <= 1) return;
+  const api = getApi();
+  const wt = workspace.activeWorktreeId;
+  if (api && wt) {
+    try {
+      await api.ptyKill(`__shell:${wt}:${slotId}`);
+    } catch {
+      /* session may already be gone */
+    }
+  }
+  shellSlotIds.value = shellSlotIds.value.filter((s) => s !== slotId);
+  if (centerTab.value === tabValue) {
+    centerTab.value = "agent";
+  }
+}
+
+/** After creating a thread from the agent menu, run the agent’s bootstrap CLI once in that PTY. */
+const pendingAgentBootstrap = ref<{ threadId: string; command: string } | null>(null);
 const repoDirectoryInput = ref<HTMLInputElement | null>(null);
 let pendingRepoDirectoryResolve: ((value: string | null) => void) | null = null;
 
@@ -234,6 +298,8 @@ const THREAD_AGENT_LABELS: Record<ThreadAgent, string> = {
 
 function defaultTitleForAgent(agent: ThreadAgent): string {
   const label = THREAD_AGENT_LABELS[agent];
+  const sameAgentCount = workspace.activeThreads.filter((t) => t.agent === agent).length;
+  if (sameAgentCount === 0) return label;
   const stamp = new Date().toLocaleString(undefined, {
     month: "short",
     day: "numeric",
@@ -254,12 +320,21 @@ async function handleCreateThreadWithAgent(agent: ThreadAgent): Promise<void> {
     agent
   };
   const created = (await api.createThread(payload)) as Thread;
-  pendingAgentsThreadId.value = created.id;
+  if (created.id) {
+    pendingAgentBootstrap.value = {
+      threadId: created.id,
+      command: bootstrapCommandFor(agent)
+    };
+  }
   await refreshSnapshot();
 }
 
-function onTerminalAutoAgentsConsumed(): void {
-  pendingAgentsThreadId.value = null;
+function onTerminalBootstrapConsumed(): void {
+  pendingAgentBootstrap.value = null;
+}
+
+function onSaveAgentCommands(next: Record<ThreadAgent, string>): void {
+  applySaved(next);
 }
 
 async function handleRemoveThread(threadId: string): Promise<void> {
@@ -320,6 +395,9 @@ async function handleDiscardAll(): Promise<void> {
   await refreshChangedFiles();
 }
 
+function handleConfigureCommands(): void {
+  agentCommandsSettingsOpen.value = true;
+}
 
 onMounted(async () => {
   await refreshSnapshot();
@@ -327,18 +405,31 @@ onMounted(async () => {
 });
 
 watch(
-  () => workspace.activeWorktreeId,
-  async () => {
-    await refreshChangedFiles();
+  () => workspace.activeThreadId,
+  (id) => {
+    const pending = pendingAgentBootstrap.value;
+    if (pending && id !== pending.threadId) pendingAgentBootstrap.value = null;
   }
 );
 
 watch(
-  () => workspace.activeThreadId,
-  (id) => {
-    const pending = pendingAgentsThreadId.value;
-    if (pending && id !== pending) pendingAgentsThreadId.value = null;
-  }
+  () => workspace.activeWorktreeId,
+  async (wt, prev) => {
+    if (!wt) {
+      shellSlotIds.value = [];
+    } else {
+      if (prev != null && wt !== prev) {
+        shellSlotIds.value = [crypto.randomUUID()];
+        if (centerTab.value.startsWith("shell:")) {
+          centerTab.value = "agent";
+        }
+      } else if (shellSlotIds.value.length === 0) {
+        shellSlotIds.value = [crypto.randomUUID()];
+      }
+    }
+    await refreshChangedFiles();
+  },
+  { immediate: true }
 );
 </script>
 
@@ -397,17 +488,23 @@ watch(
     </section>
 
     <section v-else class="grid min-h-0 flex-1" :style="{ gridTemplateColumns: layoutColumns }">
-      <ThreadSidebar
+      <section
         v-if="threadsVisible"
-        :threads="workspace.activeThreads"
-        :active-thread-id="workspace.activeThreadId"
-        :run-status-by-thread-id="runs.statusByThreadId"
-        @create-with-agent="handleCreateThreadWithAgent"
-        @select="handleSelectThread"
-        @remove="handleRemoveThread"
-        @rename="handleRenameThread"
-        @collapse="threadsVisible = false"
-      />
+        class="flex min-h-0 min-w-0 flex-col overflow-hidden border-r border-border"
+      >
+        <ThreadSidebar
+          class="min-h-0 min-w-0 flex-1"
+          :threads="workspace.activeThreads"
+          :active-thread-id="workspace.activeThreadId"
+          :run-status-by-thread-id="runs.statusByThreadId"
+          @create-with-agent="handleCreateThreadWithAgent"
+          @select="handleSelectThread"
+          @remove="handleRemoveThread"
+          @rename="handleRenameThread"
+          @collapse="threadsVisible = false"
+          @configure-commands="handleConfigureCommands"
+        />
+      </section>
       <section v-else class="flex h-full items-start justify-center border-r border-border px-1 py-2">
         <BaseButton
           type="button"
@@ -421,7 +518,28 @@ watch(
         </BaseButton>
       </section>
       <section class="flex min-h-0 min-w-0 flex-col border-r border-border">
-        <PillTabs v-model="centerTabModel" :tabs="centerPanelTabs" aria-label="Center panel" />
+        <div
+          class="flex min-h-10 min-w-0 shrink-0 items-center gap-1 border-b border-border py-0.5 pr-1 pl-0.5"
+        >
+          <PillTabs
+            v-model="centerTabModel"
+            :tabs="centerPanelTabs"
+            aria-label="Center panel"
+            @tab-close="onCenterTabClose"
+          />
+          <BaseButton
+            type="button"
+            variant="outline"
+            size="icon-xs"
+            class="shrink-0"
+            aria-label="Add terminal"
+            title="Add terminal"
+            @click="addShellTerminal"
+          >
+            <Plus class="h-3.5 w-3.5" />
+          </BaseButton>
+        </div>
+        <TerminalSoundSettings v-if="hasActiveWorkspace" class="shrink-0" />
         <div class="flex min-h-0 flex-1 flex-col overflow-hidden">
           <div v-show="centerTab === 'agent'" class="flex min-h-0 flex-1 flex-col overflow-hidden">
             <TerminalPane
@@ -429,13 +547,19 @@ watch(
               :worktree-id="workspace.activeWorktreeId ?? ''"
               :thread-id="workspace.activeThreadId ?? ''"
               :cwd="workspace.activeWorktree?.path ?? ''"
-              :pending-agents-thread-id="pendingAgentsThreadId"
-              @auto-agents-consumed="onTerminalAutoAgentsConsumed"
+              :pending-agent-bootstrap="pendingAgentBootstrap"
+              @bootstrap-consumed="onTerminalBootstrapConsumed"
             />
           </div>
-          <div v-show="centerTab === 'shell'" class="flex min-h-0 flex-1 flex-col overflow-hidden">
+          <div
+            v-for="slotId in shellSlotIds"
+            :key="slotId"
+            v-show="centerTab === `shell:${slotId}`"
+            class="flex min-h-0 flex-1 flex-col overflow-hidden"
+          >
             <TerminalPane
               pty-kind="shell"
+              :shell-slot-id="slotId"
               :worktree-id="workspace.activeWorktreeId ?? ''"
               :thread-id="workspace.activeThreadId ?? ''"
               :cwd="workspace.activeWorktree?.path ?? ''"
@@ -452,5 +576,12 @@ watch(
         </div>
       </section>
     </section>
+
+    <AgentCommandsSettingsDialog
+      :open="agentCommandsSettingsOpen"
+      :commands="commands"
+      @update:open="agentCommandsSettingsOpen = $event"
+      @save="onSaveAgentCommands"
+    />
   </main>
 </template>

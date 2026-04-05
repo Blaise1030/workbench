@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { buttonSizeClassMap } from "@/components/ui/button";
 
-export type PillTabItem = { value: string; label: string };
+export type PillTabItem = { value: string; label: string; closable?: boolean };
 
 /** Matches `buttonSizeClassMap.xs` — shared tab trigger metrics with BaseButton `size="xs"`. */
 const tabTriggerSizeClass = buttonSizeClassMap.xs;
@@ -17,10 +17,17 @@ const props = withDefaults(
 
 const emit = defineEmits<{
   "update:modelValue": [value: string];
+  tabClose: [value: string];
 }>();
 
 function select(value: string) {
   emit("update:modelValue", value);
+}
+
+function onCloseClick(event: MouseEvent, value: string): void {
+  event.stopPropagation();
+  event.preventDefault();
+  emit("tabClose", value);
 }
 
 function onTabKeydown(event: KeyboardEvent, index: number) {
@@ -43,7 +50,7 @@ function onTabKeydown(event: KeyboardEvent, index: number) {
     role="tablist"
     data-slot="button-group"
     :aria-label="ariaLabel"
-    class="flex items-center gap-1 px-1.5 py-1"
+    class="flex min-w-0 flex-1 flex-wrap items-center gap-1 px-1.5 py-1"
   >
     <button
       v-for="(tab, index) in tabs"
@@ -52,7 +59,7 @@ function onTabKeydown(event: KeyboardEvent, index: number) {
       role="tab"
       :aria-selected="modelValue === tab.value"
       :tabindex="modelValue === tab.value ? 0 : -1"
-      class="inline-flex shrink-0 items-center justify-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background"
+      class="inline-flex max-w-full shrink-0 items-center justify-center gap-0.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background"
       :class="[
         tabTriggerSizeClass,
         modelValue === tab.value
@@ -62,7 +69,22 @@ function onTabKeydown(event: KeyboardEvent, index: number) {
       @click="select(tab.value)"
       @keydown="onTabKeydown($event, index)"
     >
-      {{ tab.label }}
+      <span class="min-w-0 truncate">{{ tab.label }}</span>
+      <span
+        v-if="tab.closable"
+        class="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-sm text-muted-foreground hover:bg-background/80 hover:text-foreground"
+        role="presentation"
+      >
+        <button
+          type="button"
+          class="flex h-full w-full items-center justify-center rounded-sm text-[10px] leading-none"
+          :aria-label="`Close ${tab.label}`"
+          tabindex="-1"
+          @click="onCloseClick($event, tab.value)"
+        >
+          ×
+        </button>
+      </span>
     </button>
   </div>
 </template>
