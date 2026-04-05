@@ -80,6 +80,7 @@ class WorkspaceService {
             worktreeId: input.worktreeId,
             title: input.title,
             agent: input.agent,
+            sortOrder: this.store.nextThreadSortOrder(input.worktreeId),
             createdAt: now,
             updatedAt: now
         };
@@ -96,20 +97,24 @@ class WorkspaceService {
     maybeRenameThreadFromPrompt(threadId, input) {
         const nextTitle = deriveThreadTitleFromPrompt(input);
         if (!nextTitle)
-            return;
+            return false;
         const thread = this.store.getThread(threadId);
         if (!thread)
-            return;
+            return false;
         if (thread.createdAt !== thread.updatedAt)
-            return;
+            return false;
         if (!hasDefaultGeneratedTitle(thread))
-            return;
+            return false;
         if (thread.title === nextTitle)
-            return;
+            return false;
         this.store.renameThread(threadId, nextTitle);
+        return true;
     }
     setActive(projectId, worktreeId, threadId) {
         this.store.setActiveState(projectId, worktreeId, threadId);
+    }
+    reorderThreads(worktreeId, orderedThreadIds) {
+        this.store.reorderThreads(worktreeId, orderedThreadIds);
     }
 }
 exports.WorkspaceService = WorkspaceService;

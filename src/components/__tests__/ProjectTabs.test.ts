@@ -91,6 +91,7 @@ describe("ProjectTabs", () => {
         worktreeId: "w1",
         title: "Quiet thread",
         agent: "claude",
+        sortOrder: 0,
         createdAt: "2026-04-05T00:00:00.000Z",
         updatedAt: "2026-04-05T00:00:00.000Z"
       },
@@ -100,6 +101,7 @@ describe("ProjectTabs", () => {
         worktreeId: "w1",
         title: "Noisy thread",
         agent: "codex",
+        sortOrder: 1,
         createdAt: "2026-04-05T00:00:00.000Z",
         updatedAt: "2026-04-05T00:00:00.000Z"
       },
@@ -109,6 +111,7 @@ describe("ProjectTabs", () => {
         worktreeId: "w2",
         title: "Other project thread",
         agent: "claude",
+        sortOrder: 0,
         createdAt: "2026-04-05T00:00:00.000Z",
         updatedAt: "2026-04-05T00:00:00.000Z"
       }
@@ -142,6 +145,7 @@ describe("ProjectTabs", () => {
         worktreeId: "w1",
         title: "First noisy",
         agent: "claude",
+        sortOrder: 0,
         createdAt: "2026-04-05T00:00:00.000Z",
         updatedAt: "2026-04-05T00:00:00.000Z"
       },
@@ -151,6 +155,7 @@ describe("ProjectTabs", () => {
         worktreeId: "w1",
         title: "Second noisy",
         agent: "codex",
+        sortOrder: 1,
         createdAt: "2026-04-05T00:00:00.000Z",
         updatedAt: "2026-04-05T00:00:00.000Z"
       }
@@ -182,6 +187,7 @@ describe("ProjectTabs", () => {
         worktreeId: "w1",
         title: "Only thread",
         agent: "claude",
+        sortOrder: 0,
         createdAt: "2026-04-05T00:00:00.000Z",
         updatedAt: "2026-04-05T00:00:00.000Z"
       }

@@ -29,6 +29,7 @@ export interface Thread {
   worktreeId: string;
   title: string;
   agent: ThreadAgent;
+  sortOrder: number;
   createdAt: string;
   updatedAt: string;
 }

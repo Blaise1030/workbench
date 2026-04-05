@@ -17,6 +17,8 @@ const RICH_DIFF_MAX_BYTES = 900_000;
 const emit = defineEmits<{
   stageAll: [];
   discardAll: [];
+  /** Switch center panel to the first tab (Agent). */
+  goToFirstTab: [];
 }>();
 
 const diffHostRef = ref<HTMLElement | null>(null);
@@ -172,11 +174,14 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <section class="flex bg-muted h-full min-h-0 flex-col bg-card text-xs">
+  <section class="flex h-full min-h-0 flex-col bg-background text-xs">
     <!-- Single scrollport: toolbar + diff share one overflow (toolbar is sticky). -->
-    <div ref="diffHostRef" class="diff-scroll-root min-h-0 flex-1 overflow-auto">
+    <div
+      ref="diffHostRef"
+      class="diff-scroll-root flex min-h-0 min-w-0 flex-1 flex-col overflow-auto"
+    >
       <header
-        class="sticky top-0 z-10 flex flex-wrap items-center gap-2 border-b border-border bg-background p-3"
+        class="sticky top-0 z-10 flex shrink-0 flex-wrap items-center gap-2 border-b border-border bg-background p-3"
       >
         <span
           v-if="summaryLabel"
@@ -203,18 +208,30 @@ onBeforeUnmount(() => {
       </header>      
       <div v-if="richDiffHtml" :class="diffRichHostClass" v-html="richDiffHtml" />
       <template v-else-if="diffEmptyVisual">
-        <div
-          class="flex flex-col items-center justify-center gap-2 px-4 py-14 text-center"
-          role="status"
-        >
-          <span class="text-4xl leading-none" aria-hidden="true">{{ diffEmptyVisual.emoji }}</span>
-          <p class="max-w-xs text-sm text-muted-foreground">{{ diffEmptyVisual.caption }}</p>
-        </div>
-        <div v-if="diffEmptyVisual.showRaw" class="p-2">
-          <pre
-            class="m-0 overflow-auto rounded-md border border-border bg-background p-3 text-left text-xs whitespace-pre-wrap font-mono"
-            >{{ selectedDiff }}</pre
+        <div class="flex min-h-0 min-w-0 flex-1 flex-col">
+          <div
+            class="flex flex-1 flex-col items-center justify-center gap-3 px-4 py-8 text-center"
+            role="status"
           >
+            <span class="text-4xl leading-none" aria-hidden="true">{{ diffEmptyVisual.emoji }}</span>
+            <p class="max-w-xs text-sm text-muted-foreground">{{ diffEmptyVisual.caption }}</p>
+            <BaseButton
+              type="button"
+              variant="outline"
+              size="sm"
+              class="mt-1"
+              aria-label="Open Agent tab"
+              @click="emit('goToFirstTab')"
+            >
+              Open Agent tab
+            </BaseButton>
+          </div>
+          <div v-if="diffEmptyVisual.showRaw" class="shrink-0 border-t border-border p-2">
+            <pre
+              class="m-0 overflow-auto rounded-md border border-border bg-background p-3 text-left text-xs whitespace-pre-wrap font-mono"
+              >{{ selectedDiff }}</pre
+            >
+          </div>
         </div>
       </template>
       <template v-else>

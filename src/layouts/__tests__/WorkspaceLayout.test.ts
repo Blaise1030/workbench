@@ -16,13 +16,34 @@ vi.mock("@/components/DiffReviewPanel.vue", () => ({
   default: { template: "<div />" }
 }));
 vi.mock("@/components/ui/PillTabs.vue", () => ({
-  default: { template: "<div />" }
+  default: {
+    props: ["modelValue", "tabs"],
+    emits: ["update:modelValue"],
+    template: `
+      <div>
+        <button
+          v-for="tab in tabs"
+          :key="tab.value"
+          type="button"
+          @click="$emit('update:modelValue', tab.value)"
+        >
+          {{ tab.label }}
+        </button>
+      </div>
+    `
+  }
 }));
 vi.mock("@/components/ui/BaseButton.vue", () => ({
   default: { template: "<button><slot /></button>" }
 }));
 vi.mock("@/components/TerminalPane.vue", () => ({
   default: { template: "<div />" }
+}));
+vi.mock("@/components/FileSearchEditor.vue", () => ({
+  default: {
+    props: ["worktreePath"],
+    template: '<div data-testid="file-search-editor">{{ worktreePath }}</div>'
+  }
 }));
 vi.mock("@/components/ThreadSidebar.vue", () => ({
   default: {
@@ -67,6 +88,7 @@ function makeSnapshot(title: string): WorkspaceSnapshot {
         worktreeId: "worktree-1",
         title,
         agent: "codex",
+        sortOrder: 0,
         createdAt: "2026-04-06T00:00:00.000Z",
         updatedAt: "2026-04-06T00:00:00.000Z"
       }
@@ -136,5 +158,55 @@ describe("WorkspaceLayout", () => {
     expect(wrapper.get('[data-testid="thread-sidebar"]').text()).toContain(
       "Rename thread from first prompt"
     );
+  });
+
+  it("renders the file search editor when the Files tab is selected", async () => {
+    const { default: WorkspaceLayout } = await import("../WorkspaceLayout.vue");
+    const getSnapshot = vi.fn<WorkspaceApi["getSnapshot"]>().mockResolvedValue(makeSnapshot("Codex CLI"));
+    const changedFiles = vi.fn<WorkspaceApi["changedFiles"]>().mockResolvedValue([]);
+
+    window.workspaceApi = {
+      getSnapshot,
+      changedFiles,
+      addProject: vi.fn(),
+      addWorktree: vi.fn(),
+      setActive: vi.fn(),
+      createThread: vi.fn(),
+      setActiveThread: vi.fn(),
+      deleteThread: vi.fn(),
+      renameThread: vi.fn(),
+      startRun: vi.fn(),
+      sendRunInput: vi.fn(),
+      interruptRun: vi.fn(),
+      fileDiff: vi.fn(),
+      stageAll: vi.fn(),
+      discardAll: vi.fn(),
+      searchFiles: vi.fn(),
+      readFile: vi.fn(),
+      writeFile: vi.fn(),
+      applyPatch: vi.fn(),
+      ptyCreate: vi.fn().mockResolvedValue({ buffer: "" }),
+      ptyWrite: vi.fn(),
+      ptyResize: vi.fn(),
+      ptyKill: vi.fn(),
+      onPtyData: vi.fn(() => () => {}),
+      pickRepoDirectory: vi.fn(),
+      onWorkspaceChanged: vi.fn(() => () => {})
+    };
+
+    const wrapper = mount(WorkspaceLayout, {
+      global: {
+        plugins: [createPinia()]
+      }
+    });
+
+    await flushPromises();
+    const filesButton = wrapper.findAll("button").find((button) => button.text().includes("Files"));
+
+    expect(filesButton).toBeTruthy();
+    await filesButton!.trigger("click");
+    await flushPromises();
+
+    expect(wrapper.get('[data-testid="file-search-editor"]').text()).toBe("/tmp/instrument");
   });
 });

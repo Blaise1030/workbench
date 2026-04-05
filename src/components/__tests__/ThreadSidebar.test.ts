@@ -22,6 +22,7 @@ describe("ThreadSidebar", () => {
       worktreeId: "w1",
       title: "Codex CLI · test",
       agent: "codex",
+      sortOrder: 0,
       createdAt: "2026-04-05T00:00:00.000Z",
       updatedAt: "2026-04-05T00:00:00.000Z"
     }

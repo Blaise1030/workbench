@@ -30,6 +30,7 @@ electron_1.contextBridge.exposeInMainWorld("workspaceApi", {
     setActiveThread: (threadId) => electron_1.ipcRenderer.invoke(ipc_js_1.IPC_CHANNELS.workspaceSetActiveThread, threadId),
     deleteThread: (payload) => electron_1.ipcRenderer.invoke(ipc_js_1.IPC_CHANNELS.workspaceDeleteThread, payload),
     renameThread: (payload) => electron_1.ipcRenderer.invoke(ipc_js_1.IPC_CHANNELS.workspaceRenameThread, payload),
+    reorderThreads: (payload) => electron_1.ipcRenderer.invoke(ipc_js_1.IPC_CHANNELS.workspaceReorderThreads, payload),
     startRun: (payload) => electron_1.ipcRenderer.invoke(ipc_js_1.IPC_CHANNELS.runStart, payload),
     sendRunInput: (runId, input) => electron_1.ipcRenderer.invoke(ipc_js_1.IPC_CHANNELS.runSendInput, { runId, input }),
     interruptRun: (runId) => electron_1.ipcRenderer.invoke(ipc_js_1.IPC_CHANNELS.runInterrupt, runId),
@@ -38,6 +39,9 @@ electron_1.contextBridge.exposeInMainWorld("workspaceApi", {
     workingTreeDiff: (cwd) => electron_1.ipcRenderer.invoke(ipc_js_1.IPC_CHANNELS.diffWorkingTree, cwd),
     stageAll: (cwd) => electron_1.ipcRenderer.invoke(ipc_js_1.IPC_CHANNELS.diffStageAll, cwd),
     discardAll: (cwd) => electron_1.ipcRenderer.invoke(ipc_js_1.IPC_CHANNELS.diffDiscardAll, cwd),
+    searchFiles: (cwd, query) => electron_1.ipcRenderer.invoke(ipc_js_1.IPC_CHANNELS.filesSearch, { cwd, query }),
+    readFile: (cwd, relativePath) => electron_1.ipcRenderer.invoke(ipc_js_1.IPC_CHANNELS.filesRead, { cwd, relativePath }),
+    writeFile: (cwd, relativePath, content) => electron_1.ipcRenderer.invoke(ipc_js_1.IPC_CHANNELS.filesWrite, { cwd, relativePath, content }),
     applyPatch: (payload) => electron_1.ipcRenderer.invoke(ipc_js_1.IPC_CHANNELS.editApplyPatch, payload),
     ptyCreate: (sessionId, cwd, worktreeId) => electron_1.ipcRenderer.invoke(ipc_js_1.IPC_CHANNELS.terminalPtyCreate, { sessionId, cwd, worktreeId }),
     ptyWrite: (sessionId, data) => electron_1.ipcRenderer.invoke(ipc_js_1.IPC_CHANNELS.terminalPtyWrite, { sessionId, data }),
@@ -50,6 +54,11 @@ electron_1.contextBridge.exposeInMainWorld("workspaceApi", {
         };
         electron_1.ipcRenderer.on(ipc_js_1.IPC_CHANNELS.terminalPtyData, handler);
         return () => electron_1.ipcRenderer.off(ipc_js_1.IPC_CHANNELS.terminalPtyData, handler);
+    },
+    onWorkspaceChanged: (callback) => {
+        const handler = () => callback();
+        electron_1.ipcRenderer.on(ipc_js_1.IPC_CHANNELS.workspaceDidChange, handler);
+        return () => electron_1.ipcRenderer.off(ipc_js_1.IPC_CHANNELS.workspaceDidChange, handler);
     },
     pickRepoDirectory: () => electron_1.ipcRenderer.invoke(ipc_js_1.IPC_CHANNELS.dialogPickRepoDirectory),
     resolveRepoRootFromWebkitFile: (file) => resolveRepoRootFromWebkitFile(file),

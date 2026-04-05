@@ -27,6 +27,7 @@ contextBridge.exposeInMainWorld("workspaceApi", {
   setActiveThread: (threadId: string) => ipcRenderer.invoke(IPC_CHANNELS.workspaceSetActiveThread, threadId),
   deleteThread: (payload: unknown) => ipcRenderer.invoke(IPC_CHANNELS.workspaceDeleteThread, payload),
   renameThread: (payload: unknown) => ipcRenderer.invoke(IPC_CHANNELS.workspaceRenameThread, payload),
+  reorderThreads: (payload: unknown) => ipcRenderer.invoke(IPC_CHANNELS.workspaceReorderThreads, payload),
   startRun: (payload: unknown) => ipcRenderer.invoke(IPC_CHANNELS.runStart, payload),
   sendRunInput: (runId: string, input: string) => ipcRenderer.invoke(IPC_CHANNELS.runSendInput, { runId, input }),
   interruptRun: (runId: string) => ipcRenderer.invoke(IPC_CHANNELS.runInterrupt, runId),
@@ -35,6 +36,11 @@ contextBridge.exposeInMainWorld("workspaceApi", {
   workingTreeDiff: (cwd: string) => ipcRenderer.invoke(IPC_CHANNELS.diffWorkingTree, cwd),
   stageAll: (cwd: string) => ipcRenderer.invoke(IPC_CHANNELS.diffStageAll, cwd),
   discardAll: (cwd: string) => ipcRenderer.invoke(IPC_CHANNELS.diffDiscardAll, cwd),
+  searchFiles: (cwd: string, query: string) => ipcRenderer.invoke(IPC_CHANNELS.filesSearch, { cwd, query }),
+  readFile: (cwd: string, relativePath: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.filesRead, { cwd, relativePath }),
+  writeFile: (cwd: string, relativePath: string, content: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.filesWrite, { cwd, relativePath, content }),
   applyPatch: (payload: unknown) => ipcRenderer.invoke(IPC_CHANNELS.editApplyPatch, payload),
   ptyCreate: (sessionId: string, cwd: string, worktreeId: string) =>
     ipcRenderer.invoke(IPC_CHANNELS.terminalPtyCreate, { sessionId, cwd, worktreeId }),
@@ -50,6 +56,11 @@ contextBridge.exposeInMainWorld("workspaceApi", {
     };
     ipcRenderer.on(IPC_CHANNELS.terminalPtyData, handler);
     return () => ipcRenderer.off(IPC_CHANNELS.terminalPtyData, handler);
+  },
+  onWorkspaceChanged: (callback: () => void) => {
+    const handler = () => callback();
+    ipcRenderer.on(IPC_CHANNELS.workspaceDidChange, handler);
+    return () => ipcRenderer.off(IPC_CHANNELS.workspaceDidChange, handler);
   },
   pickRepoDirectory: () => ipcRenderer.invoke(IPC_CHANNELS.dialogPickRepoDirectory),
   resolveRepoRootFromWebkitFile: (file: File) => resolveRepoRootFromWebkitFile(file),

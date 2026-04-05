@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { PanelLeftOpen, Plus, Settings } from "lucide-vue-next";
 import BaseButton from "@/components/ui/BaseButton.vue";
 import DiffReviewPanel from "@/components/DiffReviewPanel.vue";
@@ -8,6 +8,7 @@ import ProjectTabs from "@/components/ProjectTabs.vue";
 import TerminalPane from "@/components/TerminalPane.vue";
 import ThemeToggle from "@/components/ThemeToggle.vue";
 import AgentCommandsSettingsDialog from "@/components/AgentCommandsSettingsDialog.vue";
+import FileSearchEditor from "@/components/FileSearchEditor.vue";
 import ThreadSidebar from "@/components/ThreadSidebar.vue";
 import { useAgentBootstrapCommands } from "@/composables/useAgentBootstrapCommands";
 import { useTerminalAttentionSounds } from "@/composables/useTerminalAttentionSounds";
@@ -44,7 +45,8 @@ const centerPanelTabs = computed<PillTabItem[]>(() => {
   const slots = shellSlotIds.value;
   return [
     { value: "agent", label: "🤖 Agent" },
-    { value: "diff", label: "🌿 Git Diff", dividerAfter: true },
+    { value: "diff", label: "🌿 Git Diff" },
+    { value: "files", label: "📁 Files", dividerAfter: true },
     ...slots.map((id, i) => ({
       value: `shell:${id}`,
       label: `💻 Terminal ${i + 1}`,
@@ -149,6 +151,7 @@ async function onCenterTabClose(tabValue: string): Promise<void> {
 const pendingAgentBootstrap = ref<{ threadId: string; command: string } | null>(null);
 const repoDirectoryInput = ref<HTMLInputElement | null>(null);
 let pendingRepoDirectoryResolve: ((value: string | null) => void) | null = null;
+let disposeWorkspaceChanged: (() => void) | null = null;
 
 const layoutColumns = computed(() => {
   const threadsWidth = threadsVisible.value ? "260px" : "44px";
@@ -443,6 +446,17 @@ function handleConfigureCommands(): void {
 onMounted(async () => {
   await refreshSnapshot();
   await refreshChangedFiles();
+  const api = getApi();
+  if (api?.onWorkspaceChanged) {
+    disposeWorkspaceChanged = api.onWorkspaceChanged(() => {
+      void refreshSnapshot();
+    });
+  }
+});
+
+onBeforeUnmount(() => {
+  disposeWorkspaceChanged?.();
+  disposeWorkspaceChanged = null;
 });
 
 watch(
@@ -653,7 +667,11 @@ watch(shellSlotIds, (ids) => {
               :selected-diff="selectedDiff"
               @stage-all="handleStageAll"
               @discard-all="handleDiscardAll"
+              @go-to-first-tab="centerTab = 'agent'"
             />
+          </div>
+          <div v-show="centerTab === 'files'" class="flex min-h-0 flex-1 flex-col overflow-hidden">
+            <FileSearchEditor :worktree-path="workspace.activeWorktree?.path ?? null" />
           </div>
         </div>
       </section>

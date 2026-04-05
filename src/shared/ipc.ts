@@ -6,9 +6,11 @@ export const IPC_CHANNELS = {
   workspaceAddWorktree: "workspace:addWorktree",
   workspaceSetActive: "workspace:setActive",
   workspaceCreateThread: "workspace:createThread",
+  workspaceReorderThreads: "workspace:reorderThreads",
   workspaceSetActiveThread: "workspace:setActiveThread",
   workspaceDeleteThread: "workspace:deleteThread",
   workspaceRenameThread: "workspace:renameThread",
+  workspaceDidChange: "workspace:didChange",
   runStart: "run:start",
   runSendInput: "run:sendInput",
   runInterrupt: "run:interrupt",
@@ -17,6 +19,9 @@ export const IPC_CHANNELS = {
   diffWorkingTree: "diff:workingTree",
   diffStageAll: "diff:stageAll",
   diffDiscardAll: "diff:discardAll",
+  filesSearch: "files:search",
+  filesRead: "files:read",
+  filesWrite: "files:write",
   editApplyPatch: "edit:applyPatch",
   previewSetUrl: "preview:setUrl",
   previewProbeUrl: "preview:probeUrl",
@@ -45,6 +50,11 @@ export interface CreateThreadInput {
   agent: ThreadAgent;
 }
 
+export interface ReorderThreadsInput {
+  worktreeId: string;
+  orderedThreadIds: string[];
+}
+
 export interface AddProjectInput {
   name: string;
   repoPath: string;
@@ -64,6 +74,15 @@ export interface DeleteThreadInput {
 export interface RenameThreadInput {
   threadId: string;
   title: string;
+}
+
+export interface FileReadInput {
+  cwd: string;
+  relativePath: string;
+}
+
+export interface FileWriteInput extends FileReadInput {
+  content: string;
 }
 
 /** Result of checking whether a preview URL responds (main process; no CORS). */

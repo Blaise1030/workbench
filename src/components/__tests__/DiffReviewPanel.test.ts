@@ -18,6 +18,18 @@ describe("DiffReviewPanel", () => {
     expect(topBorderClasses).toEqual([]);
   });
 
+  it("emits goToFirstTab when Open Agent tab is clicked in the empty state", async () => {
+    const wrapper = mount(DiffReviewPanel, {
+      props: {
+        selectedDiff: "No unstaged changes.",
+        summaryLabel: null
+      }
+    });
+
+    await wrapper.get('[aria-label="Open Agent tab"]').trigger("click");
+    expect(wrapper.emitted("goToFirstTab")).toEqual([[]]);
+  });
+
   it("renders flatter action buttons in the diff toolbar", () => {
     const wrapper = mount(DiffReviewPanel, {
       props: {

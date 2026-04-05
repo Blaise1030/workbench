@@ -15,7 +15,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "eslint .",
-    "typecheck": "vue-tsc --noEmit"
+    "typecheck": "vue-tsc --noEmit",
+    "postinstall": "electron-rebuild -f -w better-sqlite3 && electron-rebuild -f -w node-pty",
+    "rebuild:natives": "electron-rebuild -f -w better-sqlite3 && electron-rebuild -f -w node-pty"
   },
   "dependencies": {
     "@xterm/addon-fit": "^0.11.0",
