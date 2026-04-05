@@ -12,6 +12,7 @@ directories:
 
 files:
   - dist-electron/**/*
+  - electron/storage/schema.sql
   - package.json
   - "!dist-electron/**/*.map"
 
@@ -26,15 +27,3 @@ mac:
   hardenedRuntime: true
   gatekeeperAssess: false
 
-win:
-  target:
-    - nsis
-
-linux:
-  target:
-    - AppImage
-  category: Development
-
-nsis:
-  oneClick: false
-  allowToChangeInstallationDirectory: true

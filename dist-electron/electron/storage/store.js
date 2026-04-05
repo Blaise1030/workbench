@@ -94,10 +94,12 @@ class WorkspaceStore {
         if (duplicateCount > 0 || missingThreadIds.length > 0 || unexpectedThreadIds.length > 0) {
             throw new Error(`orderedThreadIds must be a full permutation of the worktree's thread ids; missing=[${missingThreadIds.join(", ")}] unexpected=[${unexpectedThreadIds.join(", ")}] duplicates=${duplicateCount}`);
         }
+        const getMaxSortOrder = this.db.prepare("SELECT COALESCE(MAX(sort_order), -1) AS maxVal FROM threads WHERE worktree_id = ?");
         const shiftSortOrder = this.db.prepare("UPDATE threads SET sort_order = sort_order + ? WHERE worktree_id = ?");
         const updateSortOrder = this.db.prepare("UPDATE threads SET sort_order = ? WHERE worktree_id = ? AND id = ?");
         const reorder = this.db.transaction((targetWorktreeId, threadIds) => {
-            shiftSortOrder.run(threadIds.length, targetWorktreeId);
+            const row = getMaxSortOrder.get(targetWorktreeId);
+            shiftSortOrder.run(row.maxVal + 1, targetWorktreeId);
             threadIds.forEach((threadId, index) => {
                 updateSortOrder.run(index, targetWorktreeId, threadId);
             });
