@@ -1,8 +1,40 @@
 import { mount, flushPromises } from "@vue/test-utils";
 import { createPinia } from "pinia";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import WorkspaceLayout from "../WorkspaceLayout.vue";
 import type { WorkspaceSnapshot } from "@shared/ipc";
+
+vi.mock("@/components/ProjectTabs.vue", () => ({
+  default: { template: "<div />" }
+}));
+vi.mock("@/components/ThemeToggle.vue", () => ({
+  default: { template: "<div />" }
+}));
+vi.mock("@/components/AgentCommandsSettingsDialog.vue", () => ({
+  default: { template: "<div />" }
+}));
+vi.mock("@/components/DiffReviewPanel.vue", () => ({
+  default: { template: "<div />" }
+}));
+vi.mock("@/components/ui/PillTabs.vue", () => ({
+  default: { template: "<div />" }
+}));
+vi.mock("@/components/ui/BaseButton.vue", () => ({
+  default: { template: "<button><slot /></button>" }
+}));
+vi.mock("@/components/TerminalPane.vue", () => ({
+  default: { template: "<div />" }
+}));
+vi.mock("@/components/ThreadSidebar.vue", () => ({
+  default: {
+    props: ["threads"],
+    computed: {
+      titles(): string {
+        return this.threads.map((t: { title: string }) => t.title).join("|");
+      }
+    },
+    template: '<div data-testid="thread-sidebar">{{ titles }}</div>'
+  }
+}));
 
 function makeSnapshot(title: string): WorkspaceSnapshot {
   return {
@@ -51,6 +83,7 @@ describe("WorkspaceLayout", () => {
   });
 
   it("refreshes the sidebar when Electron reports a background workspace change", async () => {
+    const { default: WorkspaceLayout } = await import("../WorkspaceLayout.vue");
     const getSnapshot = vi
       .fn<WorkspaceApi["getSnapshot"]>()
       .mockResolvedValueOnce(makeSnapshot("Codex CLI"))
@@ -89,20 +122,7 @@ describe("WorkspaceLayout", () => {
 
     const wrapper = mount(WorkspaceLayout, {
       global: {
-        plugins: [createPinia()],
-        stubs: {
-          ProjectTabs: { template: "<div />" },
-          ThemeToggle: { template: "<div />" },
-          AgentCommandsSettingsDialog: { template: "<div />" },
-          DiffReviewPanel: { template: "<div />" },
-          PillTabs: { template: "<div />" },
-          BaseButton: { template: "<button><slot /></button>" },
-          TerminalPane: { template: "<div />" },
-          ThreadSidebar: {
-            props: ["threads"],
-            template: '<div data-testid="thread-sidebar">{{ threads.map((t: any) => t.title).join("|") }}</div>'
-          }
-        }
+        plugins: [createPinia()]
       }
     });
 
