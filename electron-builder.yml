@@ -19,6 +19,12 @@ files:
 asarUnpack:
   - "**/*.node"
 
+publish:
+  provider: github
+  releaseType: release
+  publishAutoUpdate: true
+  concurrency: 1
+
 mac:
   category: public.app-category.developer-tools
   target:
