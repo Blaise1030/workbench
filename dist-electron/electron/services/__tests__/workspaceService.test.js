@@ -1,0 +1,99 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const vitest_1 = require("vitest");
+const workspaceService_1 = require("../workspaceService");
+function buildThread(overrides = {}) {
+    return {
+        id: "thread-1",
+        projectId: "project-1",
+        worktreeId: "worktree-1",
+        title: "Codex CLI",
+        agent: "codex",
+        createdAt: "2026-04-06T00:00:00.000Z",
+        updatedAt: "2026-04-06T00:00:00.000Z",
+        ...overrides
+    };
+}
+(0, vitest_1.describe)("deriveThreadTitleFromPrompt", () => {
+    (0, vitest_1.it)("uses the first non-empty line and trims whitespace", () => {
+        (0, vitest_1.expect)((0, workspaceService_1.deriveThreadTitleFromPrompt)("\n  Fix the failing test suite  \n\nthen commit")).toBe("Fix the failing test suite");
+    });
+    (0, vitest_1.it)("collapses repeated whitespace and trims long prompts", () => {
+        (0, vitest_1.expect)((0, workspaceService_1.deriveThreadTitleFromPrompt)("Implement     the   current   thread sidebar name behavior with enough extra text to exceed the trim limit")).toBe("Implement the current thread sidebar name behavior with enough...");
+    });
+    (0, vitest_1.it)("returns null for empty input", () => {
+        (0, vitest_1.expect)((0, workspaceService_1.deriveThreadTitleFromPrompt)(" \n\t\r ")).toBeNull();
+    });
+});
+(0, vitest_1.describe)("WorkspaceService.maybeRenameThreadFromPrompt", () => {
+    (0, vitest_1.it)("renames a default-titled thread from the first prompt", () => {
+        const renameThread = vitest_1.vi.fn();
+        const store = {
+            getSnapshot: vitest_1.vi.fn(),
+            upsertProject: vitest_1.vi.fn(),
+            setActiveState: vitest_1.vi.fn(),
+            upsertWorktree: vitest_1.vi.fn(),
+            upsertThread: vitest_1.vi.fn(),
+            deleteThread: vitest_1.vi.fn(),
+            renameThread,
+            getThread: vitest_1.vi.fn(() => buildThread())
+        };
+        const service = new workspaceService_1.WorkspaceService(store);
+        service.maybeRenameThreadFromPrompt("thread-1", "Refactor sidebar thread naming");
+        (0, vitest_1.expect)(renameThread).toHaveBeenCalledWith("thread-1", "Refactor sidebar thread naming");
+    });
+    (0, vitest_1.it)("does not rename when the prompt is empty", () => {
+        const renameThread = vitest_1.vi.fn();
+        const store = {
+            getSnapshot: vitest_1.vi.fn(),
+            upsertProject: vitest_1.vi.fn(),
+            setActiveState: vitest_1.vi.fn(),
+            upsertWorktree: vitest_1.vi.fn(),
+            upsertThread: vitest_1.vi.fn(),
+            deleteThread: vitest_1.vi.fn(),
+            renameThread,
+            getThread: vitest_1.vi.fn(() => buildThread())
+        };
+        const service = new workspaceService_1.WorkspaceService(store);
+        service.maybeRenameThreadFromPrompt("thread-1", "   \n ");
+        (0, vitest_1.expect)(renameThread).not.toHaveBeenCalled();
+    });
+    (0, vitest_1.it)("does not rename a manually titled thread", () => {
+        const renameThread = vitest_1.vi.fn();
+        const store = {
+            getSnapshot: vitest_1.vi.fn(),
+            upsertProject: vitest_1.vi.fn(),
+            setActiveState: vitest_1.vi.fn(),
+            upsertWorktree: vitest_1.vi.fn(),
+            upsertThread: vitest_1.vi.fn(),
+            deleteThread: vitest_1.vi.fn(),
+            renameThread,
+            getThread: vitest_1.vi.fn(() => buildThread({
+                title: "Investigate flaky auth flow",
+                updatedAt: "2026-04-06T00:02:00.000Z"
+            }))
+        };
+        const service = new workspaceService_1.WorkspaceService(store);
+        service.maybeRenameThreadFromPrompt("thread-1", "Refactor sidebar thread naming");
+        (0, vitest_1.expect)(renameThread).not.toHaveBeenCalled();
+    });
+    (0, vitest_1.it)("does not rename after the first prompt already changed the title", () => {
+        const renameThread = vitest_1.vi.fn();
+        const store = {
+            getSnapshot: vitest_1.vi.fn(),
+            upsertProject: vitest_1.vi.fn(),
+            setActiveState: vitest_1.vi.fn(),
+            upsertWorktree: vitest_1.vi.fn(),
+            upsertThread: vitest_1.vi.fn(),
+            deleteThread: vitest_1.vi.fn(),
+            renameThread,
+            getThread: vitest_1.vi.fn(() => buildThread({
+                title: "Refactor sidebar thread naming",
+                updatedAt: "2026-04-06T00:01:00.000Z"
+            }))
+        };
+        const service = new workspaceService_1.WorkspaceService(store);
+        service.maybeRenameThreadFromPrompt("thread-1", "A later follow-up prompt");
+        (0, vitest_1.expect)(renameThread).not.toHaveBeenCalled();
+    });
+});

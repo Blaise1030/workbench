@@ -1,7 +1,39 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.WorkspaceService = void 0;
+exports.deriveThreadTitleFromPrompt = deriveThreadTitleFromPrompt;
 const node_crypto_1 = require("node:crypto");
+const DEFAULT_THREAD_TITLES = {
+    claude: "Claude Code",
+    cursor: "Cursor Agent",
+    codex: "Codex CLI",
+    gemini: "Gemini CLI"
+};
+const MAX_DERIVED_TITLE_LENGTH = 68;
+function deriveThreadTitleFromPrompt(input) {
+    const firstLine = input
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .find((line) => line.length > 0);
+    if (!firstLine)
+        return null;
+    const normalized = firstLine
+        .replace(/\x1b\[[0-9;?]*[ -/]*[@-~]/g, "")
+        .replace(/\s+/g, " ")
+        .trim();
+    if (!normalized)
+        return null;
+    if (normalized.length <= MAX_DERIVED_TITLE_LENGTH)
+        return normalized;
+    const truncated = normalized.slice(0, MAX_DERIVED_TITLE_LENGTH - 3).trimEnd();
+    const lastSpace = truncated.lastIndexOf(" ");
+    const safe = lastSpace >= 24 ? truncated.slice(0, lastSpace) : truncated;
+    return `${safe}...`;
+}
+function hasDefaultGeneratedTitle(thread) {
+    const base = DEFAULT_THREAD_TITLES[thread.agent];
+    return thread.title === base || thread.title.startsWith(`${base} · `);
+}
 class WorkspaceService {
     store;
     constructor(store) {
@@ -60,6 +92,21 @@ class WorkspaceService {
     }
     renameThread(threadId, title) {
         this.store.renameThread(threadId, title);
+    }
+    maybeRenameThreadFromPrompt(threadId, input) {
+        const nextTitle = deriveThreadTitleFromPrompt(input);
+        if (!nextTitle)
+            return;
+        const thread = this.store.getThread(threadId);
+        if (!thread)
+            return;
+        if (thread.createdAt !== thread.updatedAt)
+            return;
+        if (!hasDefaultGeneratedTitle(thread))
+            return;
+        if (thread.title === nextTitle)
+            return;
+        this.store.renameThread(threadId, nextTitle);
     }
     setActive(projectId, worktreeId, threadId) {
         this.store.setActiveState(projectId, worktreeId, threadId);

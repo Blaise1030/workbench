@@ -116,6 +116,9 @@ void electron_1.app.whenReady().then(() => {
     const store = new store_js_1.WorkspaceStore(dataDir);
     store.migrate(schemaSql);
     const workspaceService = new workspaceService_js_1.WorkspaceService(store);
+    ptyService.setSubmittedInputListener((sessionId, input) => {
+        workspaceService.maybeRenameThreadFromPrompt(sessionId, input);
+    });
     registerIpc(workspaceService);
     createMainWindow();
     electron_1.app.on("activate", () => {

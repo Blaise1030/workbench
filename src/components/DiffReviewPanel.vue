@@ -176,7 +176,7 @@ onBeforeUnmount(() => {
     <!-- Single scrollport: toolbar + diff share one overflow (toolbar is sticky). -->
     <div ref="diffHostRef" class="diff-scroll-root min-h-0 flex-1 overflow-auto">
       <header
-        class="sticky top-0 z-10 flex flex-wrap items-center gap-2 border-b border-border bg-card p-3"
+        class="sticky top-0 z-10 flex flex-wrap items-center gap-2 border-b border-border bg-background p-3"
       >
         <span
           v-if="summaryLabel"
@@ -188,14 +188,14 @@ onBeforeUnmount(() => {
           <BaseButton
             size="sm"
             variant="secondary"
-            class="focus-visible:!border-transparent focus-visible:!outline-none focus-visible:!ring-0 focus-visible:!ring-offset-0"
+            class="border-0 shadow-none focus-visible:!border-transparent focus-visible:!outline-none focus-visible:!ring-0 focus-visible:!ring-offset-0"
             @click="emit('stageAll')"
             >Stage All</BaseButton
           >
           <BaseButton
             size="sm"
             variant="destructive"
-            class="focus-visible:!border-transparent focus-visible:!outline-none focus-visible:!ring-0 focus-visible:!ring-offset-0"
+            class="border-0 shadow-none focus-visible:!border-transparent focus-visible:!outline-none focus-visible:!ring-0 focus-visible:!ring-offset-0"
             @click="emit('discardAll')"
             >Discard All</BaseButton
           >

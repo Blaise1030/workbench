@@ -13,6 +13,12 @@ interface PtySession {
 
 export class PtyService {
   private sessions = new Map<string, PtySession>();
+  private pendingInputBySessionId = new Map<string, string>();
+  private submittedInputListener: ((sessionId: string, input: string) => void) | null = null;
+
+  setSubmittedInputListener(listener: ((sessionId: string, input: string) => void) | null): void {
+    this.submittedInputListener = listener;
+  }
 
   /**
    * @param sessionId Stable PTY key: thread id, or `__wt:${worktreeId}` when no thread is active.
@@ -54,6 +60,7 @@ export class PtyService {
   }
 
   write(sessionId: string, data: string): void {
+    this.captureSubmittedInput(sessionId, data);
     this.sessions.get(sessionId)?.pty.write(data);
   }
 
@@ -67,6 +74,7 @@ export class PtyService {
       session.pty.kill();
       this.sessions.delete(sessionId);
     }
+    this.pendingInputBySessionId.delete(sessionId);
   }
 
   /** Distinct worktree IDs that have at least one live integrated-terminal session. */
@@ -76,5 +84,33 @@ export class PtyService {
       set.add(s.worktreeId);
     }
     return [...set];
+  }
+
+  private captureSubmittedInput(sessionId: string, data: string): void {
+    if (!this.submittedInputListener) return;
+
+    let pending = this.pendingInputBySessionId.get(sessionId) ?? "";
+
+    for (const char of data) {
+      if (char === "\r" || char === "\n") {
+        const submitted = pending;
+        pending = "";
+        if (submitted.trim()) {
+          this.submittedInputListener(sessionId, submitted);
+        }
+        continue;
+      }
+
+      if (char === "\u007f" || char === "\b") {
+        pending = pending.slice(0, -1);
+        continue;
+      }
+
+      if (char === "\u001b") continue;
+      if (/[\u0000-\u001f]/.test(char)) continue;
+      pending += char;
+    }
+
+    this.pendingInputBySessionId.set(sessionId, pending);
   }
 }

@@ -86,6 +86,16 @@ export class WorkspaceStore {
       .run(title, updatedAt, id);
   }
 
+  getThread(id: string): Thread | null {
+    return (
+      (this.db
+        .prepare(
+          "SELECT id, project_id AS projectId, worktree_id AS worktreeId, title, agent, created_at AS createdAt, updated_at AS updatedAt FROM threads WHERE id = ?"
+        )
+        .get(id) as Thread | undefined) ?? null
+    );
+  }
+
   setActiveState(activeProjectId: string | null, activeWorktreeId: string | null, activeThreadId: string | null): void {
     this.db
       .prepare("UPDATE app_state SET active_project_id = ?, active_worktree_id = ?, active_thread_id = ? WHERE id = 1")

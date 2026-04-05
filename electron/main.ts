@@ -133,6 +133,9 @@ void app.whenReady().then(() => {
   const store = new WorkspaceStore(dataDir);
   store.migrate(schemaSql);
   const workspaceService = new WorkspaceService(store);
+  ptyService.setSubmittedInputListener((sessionId, input) => {
+    workspaceService.maybeRenameThreadFromPrompt(sessionId, input);
+  });
   registerIpc(workspaceService);
 
   createMainWindow();

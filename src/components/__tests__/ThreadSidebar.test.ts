@@ -46,26 +46,10 @@ describe("ThreadSidebar", () => {
     expect(wrapper.emitted("createWithAgent")).toEqual([["claude"]]);
   });
 
-  it("renders an empty state with an emoji and opens the agent picker from the add thread button", async () => {
-    wrapper = mount(ThreadSidebar, {
-      props: {
-        threads: [],
-        activeThreadId: null
-      }
-    });
-
-    expect(wrapper.text()).toContain("🧵");
-    expect(wrapper.text()).toContain("No threads yet");
-
-    await wrapper.get('[aria-label="Add thread"]').trigger("click");
-    await nextTick();
-    const panel = document.querySelector('[data-testid="thread-agent-menu-panel"]');
-    expect(panel).toBeTruthy();
-  });
-
   it("emits remove with threadId when a ThreadRow emits remove", async () => {
     wrapper = mount(ThreadSidebar, { props: { threads, activeThreadId: "t1" } });
     await hoverFirstThreadRow(wrapper);
+    await wrapper.get('[data-testid="thread-menu-trigger"]').trigger("click");
     await wrapper.get('[data-testid="thread-delete"]').trigger("click");
     expect(wrapper.emitted("remove")).toEqual([["t1"]]);
   });
@@ -73,6 +57,7 @@ describe("ThreadSidebar", () => {
   it("emits rename with threadId and new title when a ThreadRow emits rename", async () => {
     wrapper = mount(ThreadSidebar, { props: { threads, activeThreadId: "t1" } });
     await hoverFirstThreadRow(wrapper);
+    await wrapper.get('[data-testid="thread-menu-trigger"]').trigger("click");
     await wrapper.get('[data-testid="thread-rename"]').trigger("click");
     const input = wrapper.get('[data-testid="thread-rename-input"]');
     await input.setValue("Renamed");

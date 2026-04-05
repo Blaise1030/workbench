@@ -71,6 +71,11 @@ class WorkspaceStore {
             .prepare("UPDATE threads SET title = ?, updated_at = ? WHERE id = ?")
             .run(title, updatedAt, id);
     }
+    getThread(id) {
+        return (this.db
+            .prepare("SELECT id, project_id AS projectId, worktree_id AS worktreeId, title, agent, created_at AS createdAt, updated_at AS updatedAt FROM threads WHERE id = ?")
+            .get(id) ?? null);
+    }
     setActiveState(activeProjectId, activeWorktreeId, activeThreadId) {
         this.db
             .prepare("UPDATE app_state SET active_project_id = ?, active_worktree_id = ?, active_thread_id = ? WHERE id = 1")

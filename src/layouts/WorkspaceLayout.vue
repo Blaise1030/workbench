@@ -589,7 +589,7 @@ watch(shellSlotIds, (ids) => {
           @configure-commands="handleConfigureCommands"
         />
         <div
-          class="flex min-h-10 min-w-0 shrink-0 items-center justify-start gap-1 border-b border-border py-0.5 pr-1 pl-0.5"
+          class="flex min-h-10 min-w-0 shrink-0 items-center justify-start gap-1 py-0.5 pr-1 pl-0.5"
         >
           <PillTabs
             v-model="centerTabModel"

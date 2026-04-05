@@ -40,6 +40,11 @@ const ipc_js_1 = require("../../src/shared/ipc.js");
 const MAX_BUFFER_BYTES = 100 * 1024; // 100 KB
 class PtyService {
     sessions = new Map();
+    pendingInputBySessionId = new Map();
+    submittedInputListener = null;
+    setSubmittedInputListener(listener) {
+        this.submittedInputListener = listener;
+    }
     /**
      * @param sessionId Stable PTY key: thread id, or `__wt:${worktreeId}` when no thread is active.
      */
@@ -74,6 +79,7 @@ class PtyService {
         return { buffer: "" };
     }
     write(sessionId, data) {
+        this.captureSubmittedInput(sessionId, data);
         this.sessions.get(sessionId)?.pty.write(data);
     }
     resize(sessionId, cols, rows) {
@@ -85,6 +91,7 @@ class PtyService {
             session.pty.kill();
             this.sessions.delete(sessionId);
         }
+        this.pendingInputBySessionId.delete(sessionId);
     }
     /** Distinct worktree IDs that have at least one live integrated-terminal session. */
     listSessionWorktreeIds() {
@@ -93,6 +100,31 @@ class PtyService {
             set.add(s.worktreeId);
         }
         return [...set];
+    }
+    captureSubmittedInput(sessionId, data) {
+        if (!this.submittedInputListener)
+            return;
+        let pending = this.pendingInputBySessionId.get(sessionId) ?? "";
+        for (const char of data) {
+            if (char === "\r" || char === "\n") {
+                const submitted = pending;
+                pending = "";
+                if (submitted.trim()) {
+                    this.submittedInputListener(sessionId, submitted);
+                }
+                continue;
+            }
+            if (char === "\u007f" || char === "\b") {
+                pending = pending.slice(0, -1);
+                continue;
+            }
+            if (char === "\u001b")
+                continue;
+            if (/[\u0000-\u001f]/.test(char))
+                continue;
+            pending += char;
+        }
+        this.pendingInputBySessionId.set(sessionId, pending);
     }
 }
 exports.PtyService = PtyService;
