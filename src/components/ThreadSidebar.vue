@@ -1,35 +1,114 @@
 <script setup lang="ts">
-import type { Thread } from "@shared/domain";
+import type { RunStatus, Thread, ThreadAgent } from "@shared/domain";
+import { onBeforeUnmount, onMounted, ref } from "vue";
 import { PanelLeftClose, Plus } from "lucide-vue-next";
+import AgentIcon from "@/components/ui/AgentIcon.vue";
 import BaseButton from "@/components/ui/BaseButton.vue";
+import ThreadRow from "@/components/ThreadRow.vue";
 
 defineProps<{
   threads: Thread[];
   activeThreadId: string | null;
+  runStatusByThreadId?: Record<string, RunStatus>;
 }>();
 
 const emit = defineEmits<{
-  create: [];
+  createWithAgent: [agent: ThreadAgent];
   select: [threadId: string];
+  remove: [threadId: string];
+  rename: [threadId: string, newTitle: string];
   collapse: [];
 }>();
+
+const AGENT_OPTIONS: { agent: ThreadAgent; label: string }[] = [
+  { agent: "claude", label: "Claude Code" },
+  { agent: "cursor", label: "Cursor Agent" },
+  { agent: "codex", label: "Codex CLI" },
+  { agent: "gemini", label: "Gemini CLI" }
+];
+
+const popoverOpen = ref(false);
+const menuRootRef = ref<HTMLElement | null>(null);
+const menuId = "thread-agent-menu";
+
+function togglePopover(): void {
+  popoverOpen.value = !popoverOpen.value;
+}
+
+function closePopover(): void {
+  popoverOpen.value = false;
+}
+
+function pickAgent(agent: ThreadAgent): void {
+  emit("createWithAgent", agent);
+  closePopover();
+}
+
+function onDocumentPointerDown(event: MouseEvent): void {
+  if (!popoverOpen.value) return;
+  const root = menuRootRef.value;
+  if (root && !root.contains(event.target as Node)) {
+    closePopover();
+  }
+}
+
+function onDocumentKeydown(event: KeyboardEvent): void {
+  if (event.key === "Escape") closePopover();
+}
+
+onMounted(() => {
+  document.addEventListener("pointerdown", onDocumentPointerDown);
+  document.addEventListener("keydown", onDocumentKeydown);
+});
+
+onBeforeUnmount(() => {
+  document.removeEventListener("pointerdown", onDocumentPointerDown);
+  document.removeEventListener("keydown", onDocumentKeydown);
+});
 </script>
 
 <template>
-  <aside class="flex h-full flex-col border-r border-border pt-1 pb-3 pl-3 pr-1.5">
+  <aside class="flex h-full min-h-0 flex-col border-r border-border pt-1 pb-3 pl-3 pr-1.5">
     <header class="mb-3 flex min-w-0 items-center gap-2">
       <h2 class="min-w-0 flex-1 text-sm font-semibold">Threads</h2>
       <div class="flex shrink-0 items-center justify-end gap-1.5">
-        <BaseButton
-          type="button"
-          size="icon-xs"
-          variant="outline"
-          aria-label="New thread"
-          title="New thread"
-          @click="emit('create')"
-        >
-          <Plus class="h-3.5 w-3.5" />
-        </BaseButton>
+        <div ref="menuRootRef" class="relative">
+          <BaseButton
+            type="button"
+            size="icon-xs"
+            variant="outline"
+            aria-label="New thread"
+            title="New thread"
+            :aria-expanded="popoverOpen"
+            :aria-controls="menuId"
+            aria-haspopup="menu"
+            @click="togglePopover"
+          >
+            <Plus class="h-3.5 w-3.5" />
+          </BaseButton>
+          <div
+            v-show="popoverOpen"
+            :id="menuId"
+            class="absolute left-1/2 top-full z-50 mt-1 min-w-[22rem] -translate-x-1/2 rounded-md border border-border bg-popover p-2 text-popover-foreground shadow-md"
+            role="menu"
+            aria-label="Choose agent for new thread"
+          >
+            <div class="grid grid-cols-4 gap-1.5">
+              <button
+                v-for="opt in AGENT_OPTIONS"
+                :key="opt.agent"
+                type="button"
+                role="menuitem"
+                :title="opt.label"
+                class="flex aspect-square w-full min-w-0 flex-col items-center justify-center gap-2 rounded-md p-1.5 text-center hover:bg-accent"
+                @click="pickAgent(opt.agent)"
+              >
+                <AgentIcon :agent="opt.agent" :size="28" class="shrink-0" />
+                <span class="w-full min-w-0 truncate text-[10px] leading-tight">{{ opt.label }}</span>
+              </button>
+            </div>
+          </div>
+        </div>
         <BaseButton
           type="button"
           size="icon-xs"
@@ -42,17 +121,16 @@ const emit = defineEmits<{
         </BaseButton>
       </div>
     </header>
-    <ul class="space-y-2">
+    <ul class="min-h-0 flex-1 space-y-0.5 overflow-y-auto">
       <li v-for="thread in threads" :key="thread.id">
-        <BaseButton
-          variant="ghost"
-          size="md"
-          class="w-full justify-start text-left"
-          :class="thread.id === activeThreadId ? 'bg-accent' : ''"
-          @click="emit('select', thread.id)"
-        >
-          {{ thread.title }}
-        </BaseButton>
+        <ThreadRow
+          :thread="thread"
+          :is-active="thread.id === activeThreadId"
+          :run-status="runStatusByThreadId?.[thread.id] ?? null"
+          @select="emit('select', thread.id)"
+          @remove="emit('remove', thread.id)"
+          @rename="(title) => emit('rename', thread.id, title)"
+        />
       </li>
     </ul>
   </aside>

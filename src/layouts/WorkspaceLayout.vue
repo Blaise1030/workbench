@@ -10,9 +10,18 @@ import ThemeToggle from "@/components/ThemeToggle.vue";
 import ThreadSidebar from "@/components/ThreadSidebar.vue";
 import { useToast } from "@/composables/useToast";
 import { useWorkspaceStore } from "@/stores/workspaceStore";
-import type { AddProjectInput, CreateThreadInput, WorkspaceSnapshot } from "@shared/ipc";
+import { useRunStore } from "@/stores/runStore";
+import type { ThreadAgent } from "@shared/domain";
+import type {
+  AddProjectInput,
+  CreateThreadInput,
+  DeleteThreadInput,
+  RenameThreadInput,
+  WorkspaceSnapshot
+} from "@shared/ipc";
 
 const workspace = useWorkspaceStore();
+const runs = useRunStore();
 const toast = useToast();
 /** Sticky bar hint: single path or "N files" when multiple unstaged paths. */
 const diffSummaryLabel = ref<string | null>(null);
@@ -212,24 +221,68 @@ async function handleSelectProject(projectId: string): Promise<void> {
   await refreshChangedFiles();
 }
 
-async function handleCreateThread(): Promise<void> {
+const THREAD_AGENT_LABELS: Record<ThreadAgent, string> = {
+  claude: "Claude Code",
+  cursor: "Cursor Agent",
+  codex: "Codex CLI",
+  gemini: "Gemini CLI"
+};
+
+function defaultTitleForAgent(agent: ThreadAgent): string {
+  const label = THREAD_AGENT_LABELS[agent];
+  const stamp = new Date().toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit"
+  });
+  return `${label} · ${stamp}`;
+}
+
+async function handleCreateThreadWithAgent(agent: ThreadAgent): Promise<void> {
+  centerTab.value = "terminal";
   const api = getApi();
   if (!api || !workspace.activeProjectId || !workspace.activeWorktreeId) return;
-  const title = window.prompt("Thread title", "New thread");
-  if (!title) return;
-  const agentInput = (window.prompt("Agent: codex or claude", "codex") ?? "codex").toLowerCase();
-  const agent = agentInput === "claude" ? "claude" : "codex";
   const payload: CreateThreadInput = {
     projectId: workspace.activeProjectId,
     worktreeId: workspace.activeWorktreeId,
-    title,
+    title: defaultTitleForAgent(agent),
     agent
   };
   await api.createThread(payload);
   await refreshSnapshot();
 }
 
+async function handleRemoveThread(threadId: string): Promise<void> {
+  const api = getApi();
+  if (!api) return;
+  const wasActive = workspace.activeThreadId === threadId;
+  const nextThread = wasActive
+    ? workspace.activeThreads.find((t) => t.id !== threadId) ?? null
+    : null;
+  await api.ptyKill(threadId);
+  const payload: DeleteThreadInput = { threadId };
+  await api.deleteThread(payload);
+  if (wasActive) {
+    await api.setActive({
+      projectId: workspace.activeProjectId,
+      worktreeId: workspace.activeWorktreeId,
+      threadId: nextThread?.id ?? null
+    });
+  }
+  await refreshSnapshot();
+}
+
+async function handleRenameThread(threadId: string, newTitle: string): Promise<void> {
+  const api = getApi();
+  if (!api) return;
+  const payload: RenameThreadInput = { threadId, title: newTitle };
+  await api.renameThread(payload);
+  await refreshSnapshot();
+}
+
 async function handleSelectThread(threadId: string): Promise<void> {
+  centerTab.value = "terminal";
   const api = getApi();
   if (!api) return;
   const snapshot = (await api.setActiveThread(threadId)) as WorkspaceSnapshot;
@@ -298,6 +351,11 @@ watch(
       v-if="!hasActiveWorkspace"
       class="flex min-h-0 flex-1 flex-col items-center justify-center gap-4 px-6 py-12 text-center"
     >
+      <span
+        class="text-5xl leading-none"
+        aria-hidden="true"
+        >{{ workspace.projects.length === 0 ? "📂" : "👆" }}</span
+      >
       <div class="max-w-md space-y-2">
         <h1 class="text-lg font-semibold text-foreground">
           {{ workspace.projects.length === 0 ? "Add your first workspace" : "Select a workspace" }}
@@ -320,8 +378,11 @@ watch(
         v-if="threadsVisible"
         :threads="workspace.activeThreads"
         :active-thread-id="workspace.activeThreadId"
-        @create="handleCreateThread"
+        :run-status-by-thread-id="runs.statusByThreadId"
+        @create-with-agent="handleCreateThreadWithAgent"
         @select="handleSelectThread"
+        @remove="handleRemoveThread"
+        @rename="handleRenameThread"
         @collapse="threadsVisible = false"
       />
       <section v-else class="flex h-full items-start justify-center border-r border-border px-1 py-2">
@@ -342,6 +403,7 @@ watch(
           <div v-show="centerTab === 'terminal'" class="flex min-h-0 flex-1 flex-col overflow-hidden">
             <TerminalPane
               :worktree-id="workspace.activeWorktreeId ?? ''"
+              :thread-id="workspace.activeThreadId ?? ''"
               :cwd="workspace.activeWorktree?.path ?? ''"
             />
           </div>
