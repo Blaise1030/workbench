@@ -663,13 +663,13 @@ onBeforeUnmount(() => {
         </div>
       </div>
       <footer class="flex shrink-0 flex-col border-t border-border bg-muted/10">
-        <div class="flex items-center justify-between gap-2 px-2 py-1.5">
+        <div class="flex items-center justify-between gap-2 px-2 py-1">
           <p
             v-if="branchLine"
-            class="min-w-0 truncate font-mono text-[9px] text-muted-foreground"
+            class="min-w-0 truncate font-mono text-[8px] text-muted-foreground"
             :title="branchLine"
           >
-            {{ branchLine }}
+            {{ branchLine?.replace(' / ', '/') }}
           </p>
           <span v-else class="text-[9px] text-muted-foreground">—</span>
           <BaseButton
@@ -741,9 +741,12 @@ onBeforeUnmount(() => {
         </div>
         <div
           v-else-if="emptyMessage"
-          class="flex h-full items-center justify-center px-6 text-center text-[11px] text-muted-foreground"
+          class="flex h-full flex-col items-center justify-center gap-3 px-6 text-center"
+          role="status"
+          aria-live="polite"
         >
-          {{ emptyMessage }}
+          <span class="select-none text-4xl leading-none" aria-hidden="true">✨</span>
+          <p class="max-w-xs text-xs text-muted-foreground">{{ emptyMessage.replace('✨ ', '') }}</p>
         </div>
         <div
           v-else-if="richDiffHtml"

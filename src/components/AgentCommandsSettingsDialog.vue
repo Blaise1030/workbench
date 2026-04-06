@@ -355,41 +355,43 @@ function save(): void {
                 >
                 and merge variables into the app later.
               </p>
-              <div class="mt-2 space-y-2">
+              <div class="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-4">
                 <label
                   v-for="id in uiThemePresetIds"
                   :key="id"
-                  class="flex cursor-pointer gap-3 rounded-md border border-border p-2.5 transition-colors select-none hover:bg-muted/30"
+                  class="flex min-w-0 cursor-pointer flex-col gap-2 rounded-md border border-border p-2.5 transition-colors select-none hover:bg-muted/30"
                   :class="
                     uiThemePreset === id
                       ? 'bg-muted/25 ring-2 ring-ring/60 ring-offset-2 ring-offset-card'
                       : ''
                   "
                 >
-                  <input
-                    v-model="uiThemePreset"
-                    type="radio"
-                    name="settings-ui-theme-preset"
-                    class="mt-1 size-3.5 shrink-0 rounded-full border-border accent-primary"
-                    :value="id"
-                  />
-                  <div class="min-w-0 flex-1">
-                    <span class="text-sm font-medium text-foreground">{{ uiThemePresetLabel(id) }}</span>
-                    <div
-                      class="settings-theme-preview mt-2 h-[3.25rem] w-full rounded-md"
-                      :class="{ 'settings-theme-preview--dark': appearancePreviewIsDark }"
-                      :data-settings-theme-preview-preset="id"
-                      aria-hidden="true"
-                    >
-                      <div class="settings-theme-preview__rail">
-                        <div class="settings-theme-preview__rail-mark" />
-                      </div>
-                      <div class="settings-theme-preview__main">
-                        <div class="settings-theme-preview__bar" />
-                        <div class="settings-theme-preview__row">
-                          <span class="settings-theme-preview__pill" />
-                          <span class="settings-theme-preview__danger" />
-                        </div>
+                  <div class="flex items-center gap-2">
+                    <input
+                      v-model="uiThemePreset"
+                      type="radio"
+                      name="settings-ui-theme-preset"
+                      class="size-3.5 shrink-0 rounded-full border-border accent-primary"
+                      :value="id"
+                    />
+                    <span class="min-w-0 truncate text-sm font-medium text-foreground">{{
+                      uiThemePresetLabel(id)
+                    }}</span>
+                  </div>
+                  <div
+                    class="settings-theme-preview h-[3.25rem] w-full rounded-md"
+                    :class="{ 'settings-theme-preview--dark': appearancePreviewIsDark }"
+                    :data-settings-theme-preview-preset="id"
+                    aria-hidden="true"
+                  >
+                    <div class="settings-theme-preview__rail">
+                      <div class="settings-theme-preview__rail-mark" />
+                    </div>
+                    <div class="settings-theme-preview__main">
+                      <div class="settings-theme-preview__bar" />
+                      <div class="settings-theme-preview__row">
+                        <span class="settings-theme-preview__pill" />
+                        <span class="settings-theme-preview__danger" />
                       </div>
                     </div>
                   </div>
