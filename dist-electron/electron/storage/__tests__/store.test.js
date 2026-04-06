@@ -53,6 +53,7 @@ CREATE TABLE IF NOT EXISTS projects (
   name TEXT NOT NULL,
   repo_path TEXT NOT NULL,
   status TEXT NOT NULL,
+  last_active_worktree_id TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
@@ -64,6 +65,7 @@ CREATE TABLE IF NOT EXISTS worktrees (
   branch TEXT NOT NULL,
   path TEXT NOT NULL,
   is_active INTEGER NOT NULL DEFAULT 0,
+  last_active_thread_id TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
   FOREIGN KEY(project_id) REFERENCES projects(id)
@@ -94,6 +96,7 @@ CREATE TABLE IF NOT EXISTS projects (
   name TEXT NOT NULL,
   repo_path TEXT NOT NULL,
   status TEXT NOT NULL,
+  last_active_worktree_id TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
@@ -105,6 +108,7 @@ CREATE TABLE IF NOT EXISTS worktrees (
   branch TEXT NOT NULL,
   path TEXT NOT NULL,
   is_active INTEGER NOT NULL DEFAULT 0,
+  last_active_thread_id TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
   FOREIGN KEY(project_id) REFERENCES projects(id)
@@ -140,6 +144,7 @@ function makeProject(overrides = {}) {
         name: "instrument",
         repoPath: "/tmp/instrument",
         status: "idle",
+        lastActiveWorktreeId: null,
         createdAt: "2026-04-06T00:00:00.000Z",
         updatedAt: "2026-04-06T00:00:00.000Z",
         ...overrides
@@ -153,6 +158,7 @@ function makeWorktree(overrides = {}) {
         branch: "main",
         path: "/tmp/instrument",
         isActive: true,
+        lastActiveThreadId: null,
         createdAt: "2026-04-06T00:00:00.000Z",
         updatedAt: "2026-04-06T00:00:00.000Z",
         ...overrides
@@ -245,6 +251,53 @@ function createLegacyDatabase(dbPath) {
         (0, vitest_1.expect)(() => reorder.reorderThreads("worktree-1", ["thread-1", "thread-1", "thread-2"])).toThrow(/full permutation/i);
         (0, vitest_1.expect)(() => reorder.reorderThreads("worktree-1", ["thread-1", "thread-2", "thread-999"])).toThrow(/full permutation/i);
         (0, vitest_1.expect)(store.getSnapshot().threads.map((thread) => `${thread.id}:${thread.sortOrder}`)).toEqual(before);
+    });
+    (0, vitest_1.it)("restores the last selected thread when switching back to a worktree", () => {
+        const baseDir = makeTempDir();
+        const store = new store_1.WorkspaceStore(baseDir);
+        store.migrate(NEW_SCHEMA);
+        store.upsertProject(makeProject());
+        store.upsertWorktree(makeWorktree({ id: "worktree-1", name: "main", branch: "main" }));
+        store.upsertWorktree(makeWorktree({ id: "worktree-2", name: "feature", branch: "feature" }));
+        store.upsertThread(makeThread({ id: "thread-1", worktreeId: "worktree-1" }));
+        store.upsertThread(makeThread({ id: "thread-2", worktreeId: "worktree-2" }));
+        store.setActiveState("project-1", "worktree-1", "thread-1");
+        store.setActiveState("project-1", "worktree-2", "thread-2");
+        store.setActiveState("project-1", "worktree-1", null);
+        const snapshot = store.getSnapshot();
+        (0, vitest_1.expect)(snapshot.activeWorktreeId).toBe("worktree-1");
+        (0, vitest_1.expect)(snapshot.activeThreadId).toBe("thread-1");
+    });
+    (0, vitest_1.it)("restores the last selected worktree and thread when switching back to a project", () => {
+        const baseDir = makeTempDir();
+        const store = new store_1.WorkspaceStore(baseDir);
+        store.migrate(NEW_SCHEMA);
+        store.upsertProject(makeProject({ id: "project-1" }));
+        store.upsertProject(makeProject({ id: "project-2", repoPath: "/tmp/other", name: "other" }));
+        store.upsertWorktree(makeWorktree({ id: "worktree-1", projectId: "project-1", branch: "main", name: "main" }));
+        store.upsertWorktree(makeWorktree({ id: "worktree-2", projectId: "project-2", branch: "feature", name: "feature" }));
+        store.upsertThread(makeThread({ id: "thread-1", projectId: "project-1", worktreeId: "worktree-1" }));
+        store.upsertThread(makeThread({ id: "thread-2", projectId: "project-2", worktreeId: "worktree-2" }));
+        store.setActiveState("project-1", "worktree-1", "thread-1");
+        store.setActiveState("project-2", "worktree-2", "thread-2");
+        store.setActiveState("project-1", null, null);
+        const snapshot = store.getSnapshot();
+        (0, vitest_1.expect)(snapshot.activeProjectId).toBe("project-1");
+        (0, vitest_1.expect)(snapshot.activeWorktreeId).toBe("worktree-1");
+        (0, vitest_1.expect)(snapshot.activeThreadId).toBe("thread-1");
+    });
+    (0, vitest_1.it)("clears remembered worktree selection when the remembered thread is deleted", () => {
+        const baseDir = makeTempDir();
+        const store = new store_1.WorkspaceStore(baseDir);
+        store.migrate(NEW_SCHEMA);
+        seedBasicWorkspace(store);
+        store.upsertThread(makeThread({ id: "thread-1" }));
+        store.setActiveState("project-1", "worktree-1", "thread-1");
+        store.deleteThread("thread-1");
+        store.setActiveState("project-1", "worktree-1", null);
+        const snapshot = store.getSnapshot();
+        (0, vitest_1.expect)(snapshot.activeThreadId).toBeNull();
+        (0, vitest_1.expect)(snapshot.worktrees.find((worktree) => worktree.id === "worktree-1")?.lastActiveThreadId).toBeNull();
     });
     (0, vitest_1.it)("assigns deterministic sortOrder values for legacy rows during migration", () => {
         const baseDir = makeTempDir();

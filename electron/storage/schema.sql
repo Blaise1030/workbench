@@ -3,6 +3,7 @@ CREATE TABLE IF NOT EXISTS projects (
   name TEXT NOT NULL,
   repo_path TEXT NOT NULL,
   status TEXT NOT NULL,
+  last_active_worktree_id TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
@@ -14,6 +15,7 @@ CREATE TABLE IF NOT EXISTS worktrees (
   branch TEXT NOT NULL,
   path TEXT NOT NULL,
   is_active INTEGER NOT NULL DEFAULT 0,
+  last_active_thread_id TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
   FOREIGN KEY(project_id) REFERENCES projects(id)

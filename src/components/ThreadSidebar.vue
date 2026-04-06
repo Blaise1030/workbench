@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import type { RunStatus, Thread, ThreadAgent } from "@shared/domain";
-import { Plus } from "lucide-vue-next";
+import { PanelLeftClose, PanelLeftOpen } from "lucide-vue-next";
 import { nextTick, ref, watch } from "vue";
-import ThreadCreateButton from "@/components/ThreadCreateButton.vue";
 import ThreadRow from "@/components/ThreadRow.vue";
 import ThreadTopBar from "@/components/ThreadTopBar.vue";
+import BaseButton from "@/components/ui/BaseButton.vue";
 import { titleWithShortcut } from "@/keybindings/registry";
 
 const props = defineProps<{
@@ -189,33 +189,16 @@ defineExpose({ openNewThreadMenu });
       ref="topBarRef"
       :collapsed="collapsed"
       @create-with-agent="emit('createWithAgent', $event)"
-      @collapse="emit('collapse')"
-      @expand="emit('expand')"
     />
     <section
       v-if="threads.length === 0"
-      class="flex min-h-0 flex-1 flex-col items-center justify-center gap-4 py-10 text-center"
-      :class="collapsed ? 'px-1' : 'px-6'"
+      class="flex min-h-0 flex-1 flex-col pt-6 pb-3"
+      :class="collapsed ? 'px-1' : 'px-3'"
     >
       <template v-if="!collapsed">
-        <span class="text-4xl leading-none" aria-hidden="true">🧵</span>
-        <div class="space-y-1">
-          <h3 class="text-sm font-semibold text-foreground">No threads yet</h3>
-          <p class="max-w-[16rem] text-sm text-muted-foreground">
-            Start a thread to launch an agent session for this workspace.
-          </p>
-        </div>
-        <ThreadCreateButton
-          aria-label="Add thread"
-          :title="titleWithShortcut('Add thread', 'newThreadMenu')"
-          size="sm"
-          @create-with-agent="emit('createWithAgent', $event)"
-        >
-          <span class="inline-flex items-center gap-2">
-            <Plus class="h-4 w-4" />
-            <span>Add thread</span>
-          </span>
-        </ThreadCreateButton>
+        <h3 class="text-center text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">
+          No threads
+        </h3>
       </template>
     </section>
     <ul
@@ -247,5 +230,24 @@ defineExpose({ openNewThreadMenu });
         />
       </li>
     </ul>
+    <footer
+      class="shrink-0 border-t border-border p-2"
+      :class="collapsed ? 'flex justify-center' : 'flex justify-end'"
+    >
+      <BaseButton
+        type="button"
+        size="icon-xs"
+        variant="outline"
+        :aria-label="collapsed ? 'Expand threads sidebar' : 'Collapse threads sidebar'"
+        :title="collapsed
+          ? titleWithShortcut('Expand threads sidebar', 'toggleThreadSidebar')
+          : titleWithShortcut('Collapse threads sidebar', 'toggleThreadSidebar')"
+        data-testid="thread-sidebar-toggle"
+        @click="collapsed ? emit('expand') : emit('collapse')"
+      >
+        <PanelLeftOpen v-if="collapsed" class="h-3.5 w-3.5" />
+        <PanelLeftClose v-else class="h-3.5 w-3.5" />
+      </BaseButton>
+    </footer>
   </aside>
 </template>

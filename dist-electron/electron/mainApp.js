@@ -121,11 +121,14 @@ function registerIpc(workspaceService) {
     electron_1.ipcMain.handle(ipc_js_1.IPC_CHANNELS.runSendInput, (_, payload) => runService.sendInput(payload.runId, payload.input));
     electron_1.ipcMain.handle(ipc_js_1.IPC_CHANNELS.runInterrupt, (_, runId) => runService.interrupt(runId));
     electron_1.ipcMain.handle(ipc_js_1.IPC_CHANNELS.diffChangedFiles, (_, cwd) => diffService.changedFiles(cwd));
-    electron_1.ipcMain.handle(ipc_js_1.IPC_CHANNELS.diffFileDiff, (_, payload) => diffService.fileDiff(payload.cwd, payload.file));
+    electron_1.ipcMain.handle(ipc_js_1.IPC_CHANNELS.diffRepoStatus, (_, cwd) => diffService.repoStatus(cwd));
+    electron_1.ipcMain.handle(ipc_js_1.IPC_CHANNELS.diffFileDiff, (_, payload) => diffService.fileDiff(payload.cwd, payload.file, payload.scope));
     electron_1.ipcMain.handle(ipc_js_1.IPC_CHANNELS.diffWorkingTree, (_, cwd) => diffService.workingTreeDiff(cwd));
     electron_1.ipcMain.handle(ipc_js_1.IPC_CHANNELS.diffStageAll, (_, cwd) => diffService.stageAll(cwd));
+    electron_1.ipcMain.handle(ipc_js_1.IPC_CHANNELS.diffUnstageAll, (_, cwd) => diffService.unstageAll(cwd));
     electron_1.ipcMain.handle(ipc_js_1.IPC_CHANNELS.diffDiscardAll, (_, cwd) => diffService.discardAll(cwd));
     electron_1.ipcMain.handle(ipc_js_1.IPC_CHANNELS.diffStagePaths, (_, payload) => diffService.stagePaths(payload.cwd, payload.paths));
+    electron_1.ipcMain.handle(ipc_js_1.IPC_CHANNELS.diffUnstagePaths, (_, payload) => diffService.unstagePaths(payload.cwd, payload.paths));
     electron_1.ipcMain.handle(ipc_js_1.IPC_CHANNELS.diffDiscardPaths, (_, payload) => diffService.discardPaths(payload.cwd, payload.paths));
     electron_1.ipcMain.handle(ipc_js_1.IPC_CHANNELS.filesList, (_, cwd) => fileService.listFileSummaries(cwd));
     electron_1.ipcMain.handle(ipc_js_1.IPC_CHANNELS.filesSearch, (_, payload) => fileService.searchFiles(payload.cwd, payload.query));

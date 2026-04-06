@@ -68,6 +68,26 @@ describe("ProjectTabs", () => {
     expect(wrapper.emitted("configureCommands")).toEqual([[]]);
   });
 
+  it("keeps the tab strip and action cluster vertically centered", () => {
+    const wrapper = mount(ProjectTabs, {
+      props: {
+        projects,
+        worktrees: [],
+        activeProjectId: "proj-1"
+      }
+    });
+
+    const nav = wrapper.get('nav[aria-label="Projects"]');
+    const tabList = wrapper.get('[role="tablist"]');
+    const actionCluster = wrapper.get('[aria-label="Settings"]').element.parentElement;
+
+    expect(nav.classes()).toContain("items-center");
+    expect(nav.classes()).toContain("h-10");
+    expect(tabList.classes()).toContain("items-center");
+    expect(tabList.classes()).toContain("h-full");
+    expect(actionCluster?.className).toContain("self-center");
+  });
+
   it("shows attention ring on tabs whose project ids are in projectIdsNeedingAttention", () => {
     const wrapper = mount(ProjectTabs, {
       props: {

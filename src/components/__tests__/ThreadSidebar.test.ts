@@ -90,6 +90,46 @@ describe("ThreadSidebar", () => {
     expect(wrapper.findAll('[data-testid="thread-drag-handle"]')).toHaveLength(0);
   });
 
+  it("renders the expand toggle in the sidebar footer when collapsed", async () => {
+    wrapper = mount(ThreadSidebar, {
+      props: {
+        threads: reorderedThreads,
+        activeThreadId: "t1",
+        collapsed: true
+      }
+    });
+
+    await wrapper.get('[aria-label="Expand threads sidebar"]').trigger("click");
+
+    expect(wrapper.emitted("expand")).toEqual([[]]);
+  });
+
+  it("renders the collapse toggle in the sidebar footer when expanded", async () => {
+    wrapper = mount(ThreadSidebar, {
+      props: {
+        threads: reorderedThreads,
+        activeThreadId: "t1"
+      }
+    });
+
+    await wrapper.get('[aria-label="Collapse threads sidebar"]').trigger("click");
+
+    expect(wrapper.emitted("collapse")).toEqual([[]]);
+  });
+
+  it("shows a simple top-aligned no-threads label when empty", () => {
+    wrapper = mount(ThreadSidebar, {
+      props: {
+        threads: [],
+        activeThreadId: null
+      }
+    });
+
+    expect(wrapper.text()).toContain("No threads");
+    expect(wrapper.text()).not.toContain("No threads yet");
+    expect(wrapper.find('[aria-label="Add thread"]').exists()).toBe(false);
+  });
+
   it("emits createWithAgent when an agent row is chosen", async () => {
     wrapper = mount(ThreadSidebar, {
       props: {
@@ -159,7 +199,7 @@ describe("ThreadSidebar", () => {
     expect(dragRows[0]!.attributes("draggable")).toBeUndefined();
     expect(dragHandles[0]!.attributes("draggable")).toBe("true");
     expect(dragHandles[0]!.classes()).toContain("absolute");
-    expect(dragHandles[0]!.classes()).toContain("right-8");
+    expect(dragHandles[0]!.classes()).toContain("right-7");
     expect(dragRows[0]!.classes()).not.toContain("pl-9");
     expect(dragHandles[0]!.classes()).toContain("opacity-0");
     expect(dragHandles[0]!.classes()).toContain("pointer-events-none");

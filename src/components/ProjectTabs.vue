@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { Project, Thread, Worktree } from "@shared/domain";
-import { FolderGit2, Plus, Settings } from "lucide-vue-next";
+import { Plus, Settings } from "lucide-vue-next";
 import { computed, ref } from "vue";
 import ThemeToggle from "@/components/ThemeToggle.vue";
 import { titleWithShortcut } from "@/keybindings/registry";
@@ -32,19 +32,22 @@ const emit = defineEmits<{
 
 /** Browser-style tab strip: inactive = text on chrome; active = muted surface. */
 const tabChrome =
-  "flex min-h-9 w-full max-w-full items-stretch gap-px border-b border-zinc-300/80 bg-zinc-200/95 px-1 py-1 dark:border-zinc-800 dark:bg-zinc-950";
+  "flex h-10 w-full max-w-full items-center gap-px border-b border-zinc-300/80 bg-zinc-200/95 px-1 dark:border-zinc-800 dark:bg-zinc-950";
 
 const tabListClass =
-  "inline-flex min-h-8 min-w-0 max-w-full flex-1 items-stretch gap-0.5 overflow-x-auto [scrollbar-width:thin]";
+  "inline-flex h-full min-w-0 max-w-full flex-1 items-center gap-0.5 overflow-x-auto pr-0.5 [scrollbar-width:thin]";
 
 const tabInactive =
-  "inline-flex max-w-[14rem] shrink-0 items-center gap-1.5 rounded-lg border border-transparent px-2.5 py-1 text-left text-xs font-medium whitespace-nowrap text-zinc-600 transition-[color,background-color] hover:bg-zinc-300/50 hover:text-zinc-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-200 dark:text-zinc-400 dark:hover:bg-zinc-800/80 dark:hover:text-zinc-200 dark:focus-visible:ring-offset-zinc-950";
+  "inline-flex h-7 max-w-[14rem] shrink-0 items-center gap-1.5 rounded-lg border border-transparent px-2.5 py-0.5 text-left text-xs font-medium whitespace-nowrap text-zinc-600 transition-[color,background-color] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-200 dark:text-zinc-400 dark:focus-visible:ring-offset-zinc-950";
 
 const tabActive =
-  "bg-muted font-medium text-foreground shadow-none hover:bg-muted dark:hover:bg-muted";
+  "bg-card font-medium text-foreground shadow-sm";
+
+const tabInactiveInteractive =
+  "hover:bg-zinc-300/50 hover:text-zinc-900 dark:hover:bg-zinc-800/80 dark:hover:text-zinc-200";
 
 const newTabBtnClass =
-  "flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-transparent text-zinc-600 transition-colors hover:bg-zinc-300/60 hover:text-zinc-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-200 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100 dark:focus-visible:ring-offset-zinc-950";
+  "flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-transparent text-zinc-600 transition-colors hover:bg-zinc-300/60 hover:text-zinc-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-200 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100 dark:focus-visible:ring-offset-zinc-950";
 
 const hoverCardProjectId = ref<string | null>(null);
 const hoverCardStyle = ref<{ left: string; top: string }>({ left: "0px", top: "0px" });
@@ -127,7 +130,7 @@ function onTabLeave(): void {
         :aria-label="tabNeedsAttention(project.id) ? `${project.name}, thread needs attention` : undefined"
         :class="[
           tabInactive,
-          project.id === activeProjectId ? tabActive : '',
+          project.id === activeProjectId ? tabActive : tabInactiveInteractive,
           tabNeedsAttention(project.id)
             ? 'relative z-[1] ring-2 ring-inset ring-blue-600 dark:ring-blue-400'
             : ''
@@ -136,17 +139,11 @@ function onTabLeave(): void {
         @mouseenter="onTabEnter(project.id, $event)"
         @mouseleave="onTabLeave"
       >
-        <FolderGit2
-          class="h-3.5 w-3.5 shrink-0"
-          :class="[
-            tabNeedsAttention(project.id)
-              ? 'relative z-[1] text-blue-600 animate-pulse dark:text-blue-400'
-              : project.id === activeProjectId
-                ? 'text-zinc-600 dark:text-zinc-200'
-                : 'text-zinc-500 opacity-90 dark:text-zinc-500'
-          ]"
+        <span
+          class="shrink-0 text-sm leading-none"
+          :class="tabNeedsAttention(project.id) ? 'relative z-[1] animate-pulse' : ''"
           aria-hidden="true"
-        />
+        >📁</span>
         <span
           class="min-w-0 truncate"
           :class="tabNeedsAttention(project.id) ? 'relative z-[1]' : ''"
@@ -162,7 +159,7 @@ function onTabLeave(): void {
         <Plus class="h-4 w-4" :stroke-width="1.75" />
       </button>
     </div>
-    <div class="ml-1 flex shrink-0 items-center gap-0.5 border-l border-zinc-300/80 pl-1.5 dark:border-zinc-800">
+    <div class="ml-1 flex shrink-0 self-center items-center gap-0.5 border-l border-zinc-300/80 pl-1.5 dark:border-zinc-800">
       <button
         type="button"
         :class="newTabBtnClass"

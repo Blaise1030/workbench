@@ -1,5 +1,6 @@
 import { mount } from "@vue/test-utils";
-import { describe, expect, it } from "vitest";
+import { nextTick } from "vue";
+import { afterEach, describe, expect, it } from "vitest";
 import ThreadRow from "@/components/ThreadRow.vue";
 import type { Thread } from "@shared/domain";
 
@@ -19,19 +20,56 @@ const thread: Thread = {
 };
 
 describe("ThreadRow", () => {
+  afterEach(() => {
+    document.body.innerHTML = "";
+  });
+
   it("emits select when the title button is clicked", async () => {
     const wrapper = mount(ThreadRow, { props: { thread, isActive: false } });
-    await wrapper.get('[data-testid="thread-select"]').trigger("click");
+    const selectButton = wrapper.get('[data-testid="thread-select"]');
+    expect(selectButton.classes()).toContain("cursor-pointer");
+    await selectButton.trigger("click");
     expect(wrapper.emitted("select")).toHaveLength(1);
   });
 
   it("collapsed mode uses icon button with thread title as accessible name", async () => {
     const wrapper = mount(ThreadRow, { props: { thread, isActive: false, collapsed: true } });
     const btn = wrapper.get('[data-testid="thread-select"]');
+    expect(btn.classes()).toContain("cursor-pointer");
     expect(btn.attributes("aria-label")).toBe(thread.title);
     expect(wrapper.find('[data-testid="thread-menu-trigger"]').exists()).toBe(false);
     await btn.trigger("click");
     expect(wrapper.emitted("select")).toHaveLength(1);
+  });
+
+  it("shows a tooltip for collapsed rows on hover", async () => {
+    const wrapper = mount(ThreadRow, {
+      attachTo: document.body,
+      props: { thread, isActive: false, collapsed: true }
+    });
+
+    expect(document.querySelector('[data-testid="thread-collapsed-tooltip"]')).toBeNull();
+
+    await hoverThreadRow(wrapper);
+    await nextTick();
+
+    expect(document.querySelector('[data-testid="thread-collapsed-tooltip"]')?.textContent).toBe(thread.title);
+  });
+
+  it("links the collapsed row button to its tooltip while visible", async () => {
+    const wrapper = mount(ThreadRow, {
+      attachTo: document.body,
+      props: { thread, isActive: false, collapsed: true }
+    });
+
+    await hoverThreadRow(wrapper);
+    await nextTick();
+
+    const button = wrapper.get('[data-testid="thread-select"]');
+    const tooltip = document.querySelector('[data-testid="thread-collapsed-tooltip"]');
+
+    expect(tooltip).not.toBeNull();
+    expect(button.attributes("aria-describedby")).toBe(tooltip?.getAttribute("id") ?? undefined);
   });
 
   it("applies active styling when isActive is true", () => {
@@ -49,10 +87,10 @@ describe("ThreadRow", () => {
     );
   });
 
-  it("keeps thread row at 36px and does not mount the menu trigger until the row is hovered", async () => {
+  it("keeps thread row at 32px and does not mount the menu trigger until the row is hovered", async () => {
     const wrapper = mount(ThreadRow, { props: { thread, isActive: false } });
     const row = wrapper.get('[data-testid="thread-row"]');
-    expect(row.classes()).toContain("h-9");
+    expect(row.classes()).toContain("h-8");
     expect(wrapper.find('[data-testid="thread-menu-trigger"]').exists()).toBe(false);
     await hoverThreadRow(wrapper);
     expect(wrapper.find('[data-testid="thread-menu-trigger"]').exists()).toBe(true);

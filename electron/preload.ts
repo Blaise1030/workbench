@@ -32,12 +32,17 @@ contextBridge.exposeInMainWorld("workspaceApi", {
   sendRunInput: (runId: string, input: string) => ipcRenderer.invoke(IPC_CHANNELS.runSendInput, { runId, input }),
   interruptRun: (runId: string) => ipcRenderer.invoke(IPC_CHANNELS.runInterrupt, runId),
   changedFiles: (cwd: string) => ipcRenderer.invoke(IPC_CHANNELS.diffChangedFiles, cwd),
-  fileDiff: (cwd: string, file: string) => ipcRenderer.invoke(IPC_CHANNELS.diffFileDiff, { cwd, file }),
+  repoStatus: (cwd: string) => ipcRenderer.invoke(IPC_CHANNELS.diffRepoStatus, cwd),
+  fileDiff: (cwd: string, file: string, scope?: "staged" | "unstaged" | "combined") =>
+    ipcRenderer.invoke(IPC_CHANNELS.diffFileDiff, { cwd, file, scope }),
   workingTreeDiff: (cwd: string) => ipcRenderer.invoke(IPC_CHANNELS.diffWorkingTree, cwd),
   stageAll: (cwd: string) => ipcRenderer.invoke(IPC_CHANNELS.diffStageAll, cwd),
+  unstageAll: (cwd: string) => ipcRenderer.invoke(IPC_CHANNELS.diffUnstageAll, cwd),
   discardAll: (cwd: string) => ipcRenderer.invoke(IPC_CHANNELS.diffDiscardAll, cwd),
   stagePaths: (cwd: string, paths: string[]) =>
     ipcRenderer.invoke(IPC_CHANNELS.diffStagePaths, { cwd, paths }),
+  unstagePaths: (cwd: string, paths: string[]) =>
+    ipcRenderer.invoke(IPC_CHANNELS.diffUnstagePaths, { cwd, paths }),
   discardPaths: (cwd: string, paths: string[]) =>
     ipcRenderer.invoke(IPC_CHANNELS.diffDiscardPaths, { cwd, paths }),
   listFiles: (cwd: string) => ipcRenderer.invoke(IPC_CHANNELS.filesList, cwd),

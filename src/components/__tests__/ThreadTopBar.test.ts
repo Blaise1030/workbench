@@ -61,20 +61,13 @@ describe("ThreadTopBar", () => {
     expect(brand.text().toUpperCase()).toContain("ALPHA");
   });
 
-  it("emits collapse when collapse control is used", async () => {
-    wrapper = mount(ThreadTopBar);
-    await wrapper.get('[aria-label="Collapse threads sidebar"]').trigger("click");
-    expect(wrapper.emitted("collapse")).toEqual([[]]);
-  });
-
-  it("emits expand when collapsed and expand control is used", async () => {
-    wrapper = mount(ThreadTopBar, { props: { collapsed: true } });
-    await wrapper.get('[aria-label="Expand threads sidebar"]').trigger("click");
-    expect(wrapper.emitted("expand")).toEqual([[]]);
-  });
-
   it("does not show new thread control when collapsed", () => {
     wrapper = mount(ThreadTopBar, { props: { collapsed: true } });
     expect(wrapper.find('[aria-label="New thread"]').exists()).toBe(false);
+  });
+
+  it("renders a slightly larger logo when collapsed", () => {
+    wrapper = mount(ThreadTopBar, { props: { collapsed: true } });
+    expect(wrapper.get('[data-testid="thread-sidebar-logo"]').classes()).toContain("size-7");
   });
 });

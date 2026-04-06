@@ -18,11 +18,23 @@ class WorkspaceStore {
     migrate(schemaSql) {
         const schemaWithoutThreadSortOrderIndex = schemaSql.replace(/^\s*CREATE UNIQUE INDEX IF NOT EXISTS idx_threads_worktree_sort_order ON threads\(worktree_id, sort_order\);\s*$/m, "");
         this.db.exec(schemaWithoutThreadSortOrderIndex);
+        const hasLastActiveWorktreeId = this.db
+            .prepare("SELECT 1 FROM pragma_table_info('projects') WHERE name = 'last_active_worktree_id' LIMIT 1")
+            .get();
+        if (!hasLastActiveWorktreeId) {
+            this.db.prepare("ALTER TABLE projects ADD COLUMN last_active_worktree_id TEXT").run();
+        }
         const hasSortOrder = this.db
             .prepare("SELECT 1 FROM pragma_table_info('threads') WHERE name = 'sort_order' LIMIT 1")
             .get();
         if (!hasSortOrder) {
             this.db.prepare("ALTER TABLE threads ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0").run();
+        }
+        const hasLastActiveThreadId = this.db
+            .prepare("SELECT 1 FROM pragma_table_info('worktrees') WHERE name = 'last_active_thread_id' LIMIT 1")
+            .get();
+        if (!hasLastActiveThreadId) {
+            this.db.prepare("ALTER TABLE worktrees ADD COLUMN last_active_thread_id TEXT").run();
         }
         const hasThreadSortOrderIndex = this.db
             .prepare("SELECT 1 FROM pragma_index_list('threads') WHERE name = ? LIMIT 1")
@@ -45,27 +57,29 @@ class WorkspaceStore {
     }
     upsertProject(project) {
         this.db
-            .prepare(`INSERT INTO projects (id, name, repo_path, status, created_at, updated_at)
-         VALUES (@id, @name, @repoPath, @status, @createdAt, @updatedAt)
+            .prepare(`INSERT INTO projects (id, name, repo_path, status, last_active_worktree_id, created_at, updated_at)
+         VALUES (@id, @name, @repoPath, @status, @lastActiveWorktreeId, @createdAt, @updatedAt)
          ON CONFLICT(id) DO UPDATE SET
            name=excluded.name,
            repo_path=excluded.repo_path,
            status=excluded.status,
+           last_active_worktree_id=excluded.last_active_worktree_id,
            updated_at=excluded.updated_at`)
-            .run(project);
+            .run({ ...project, lastActiveWorktreeId: project.lastActiveWorktreeId ?? null });
     }
     upsertWorktree(worktree) {
         this.db
-            .prepare(`INSERT INTO worktrees (id, project_id, name, branch, path, is_active, created_at, updated_at)
-         VALUES (@id, @projectId, @name, @branch, @path, @isActive, @createdAt, @updatedAt)
+            .prepare(`INSERT INTO worktrees (id, project_id, name, branch, path, is_active, last_active_thread_id, created_at, updated_at)
+         VALUES (@id, @projectId, @name, @branch, @path, @isActive, @lastActiveThreadId, @createdAt, @updatedAt)
          ON CONFLICT(id) DO UPDATE SET
            project_id=excluded.project_id,
            name=excluded.name,
            branch=excluded.branch,
            path=excluded.path,
            is_active=excluded.is_active,
+           last_active_thread_id=excluded.last_active_thread_id,
            updated_at=excluded.updated_at`)
-            .run({ ...worktree, isActive: worktree.isActive ? 1 : 0 });
+            .run({ ...worktree, isActive: worktree.isActive ? 1 : 0, lastActiveThreadId: worktree.lastActiveThreadId ?? null });
     }
     upsertThread(thread) {
         const sortOrder = thread.sortOrder ?? 0;
@@ -108,6 +122,7 @@ class WorkspaceStore {
     }
     deleteThread(id) {
         this.db.prepare("DELETE FROM threads WHERE id = ?").run(id);
+        this.db.prepare("UPDATE worktrees SET last_active_thread_id = NULL WHERE last_active_thread_id = ?").run(id);
         this.db
             .prepare(`UPDATE app_state
          SET active_thread_id = CASE WHEN active_thread_id = ? THEN NULL ELSE active_thread_id END
@@ -126,16 +141,74 @@ class WorkspaceStore {
             .get(id) ?? null);
     }
     setActiveState(activeProjectId, activeWorktreeId, activeThreadId) {
+        let resolvedWorktreeId = activeWorktreeId;
+        let resolvedThreadId = activeThreadId;
+        if (activeProjectId && resolvedWorktreeId == null) {
+            const rememberedWorktree = this.db
+                .prepare(`SELECT p.last_active_worktree_id AS worktreeId
+           FROM projects p
+           WHERE p.id = ?
+             AND EXISTS (
+               SELECT 1
+               FROM worktrees w
+               WHERE w.id = p.last_active_worktree_id
+                 AND w.project_id = p.id
+             )`)
+                .get(activeProjectId);
+            resolvedWorktreeId = rememberedWorktree?.worktreeId ?? null;
+        }
+        if (resolvedWorktreeId) {
+            if (resolvedThreadId == null) {
+                const remembered = this.db
+                    .prepare(`SELECT w.last_active_thread_id AS threadId
+             FROM worktrees w
+             WHERE w.id = ?
+               AND EXISTS (
+                 SELECT 1
+                 FROM threads t
+                 WHERE t.id = w.last_active_thread_id
+                   AND t.worktree_id = w.id
+               )`)
+                    .get(resolvedWorktreeId);
+                resolvedThreadId = remembered?.threadId ?? null;
+            }
+            else {
+                const matchesWorktree = this.db
+                    .prepare("SELECT 1 FROM threads WHERE id = ? AND worktree_id = ? LIMIT 1")
+                    .get(resolvedThreadId, resolvedWorktreeId);
+                if (!matchesWorktree) {
+                    resolvedThreadId = null;
+                }
+                else {
+                    this.db.prepare("UPDATE worktrees SET last_active_thread_id = ? WHERE id = ?").run(resolvedThreadId, resolvedWorktreeId);
+                }
+            }
+            if (activeProjectId) {
+                const matchesProject = this.db
+                    .prepare("SELECT 1 FROM worktrees WHERE id = ? AND project_id = ? LIMIT 1")
+                    .get(resolvedWorktreeId, activeProjectId);
+                if (matchesProject) {
+                    this.db.prepare("UPDATE projects SET last_active_worktree_id = ? WHERE id = ?").run(resolvedWorktreeId, activeProjectId);
+                }
+                else {
+                    resolvedWorktreeId = null;
+                    resolvedThreadId = null;
+                }
+            }
+        }
+        else {
+            resolvedThreadId = null;
+        }
         this.db
             .prepare("UPDATE app_state SET active_project_id = ?, active_worktree_id = ?, active_thread_id = ? WHERE id = 1")
-            .run(activeProjectId, activeWorktreeId, activeThreadId);
+            .run(activeProjectId, resolvedWorktreeId, resolvedThreadId);
     }
     getSnapshot() {
         const projects = this.db
-            .prepare("SELECT id, name, repo_path AS repoPath, status, created_at AS createdAt, updated_at AS updatedAt FROM projects ORDER BY updated_at DESC")
+            .prepare("SELECT id, name, repo_path AS repoPath, status, last_active_worktree_id AS lastActiveWorktreeId, created_at AS createdAt, updated_at AS updatedAt FROM projects ORDER BY updated_at DESC")
             .all();
         const worktreeRows = this.db
-            .prepare("SELECT id, project_id AS projectId, name, branch, path, is_active AS isActive, created_at AS createdAt, updated_at AS updatedAt FROM worktrees ORDER BY updated_at DESC")
+            .prepare("SELECT id, project_id AS projectId, name, branch, path, is_active AS isActive, last_active_thread_id AS lastActiveThreadId, created_at AS createdAt, updated_at AS updatedAt FROM worktrees ORDER BY updated_at DESC")
             .all();
         const worktrees = worktreeRows.map((w) => ({ ...w, isActive: Boolean(w.isActive) }));
         const threads = this.db

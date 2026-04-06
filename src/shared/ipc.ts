@@ -17,11 +17,14 @@ export const IPC_CHANNELS = {
   runSendInput: "run:sendInput",
   runInterrupt: "run:interrupt",
   diffChangedFiles: "diff:changedFiles",
+  diffRepoStatus: "diff:repoStatus",
   diffFileDiff: "diff:fileDiff",
   diffWorkingTree: "diff:workingTree",
   diffStageAll: "diff:stageAll",
+  diffUnstageAll: "diff:unstageAll",
   diffDiscardAll: "diff:discardAll",
   diffStagePaths: "diff:stagePaths",
+  diffUnstagePaths: "diff:unstagePaths",
   diffDiscardPaths: "diff:discardPaths",
   filesList: "files:list",
   filesSearch: "files:search",
@@ -98,6 +101,25 @@ export interface FileSummary {
 export interface FileWriteInput extends FileReadInput {
   content: string;
 }
+
+export type RepoChangeKind =
+  | "modified"
+  | "added"
+  | "deleted"
+  | "renamed"
+  | "copied"
+  | "unmerged"
+  | "untracked";
+
+export interface RepoStatusEntry {
+  path: string;
+  originalPath: string | null;
+  stagedKind: RepoChangeKind | null;
+  unstagedKind: RepoChangeKind | null;
+  isUntracked: boolean;
+}
+
+export type FileDiffScope = "staged" | "unstaged" | "combined";
 
 /** Result of checking whether a preview URL responds (main process; no CORS). */
 export type PreviewProbeResult =

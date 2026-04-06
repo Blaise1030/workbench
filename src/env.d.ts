@@ -1,5 +1,6 @@
 /// <reference types="vite/client" />
 import type { FileSummary } from "@shared/ipc";
+import type { FileDiffScope, RepoStatusEntry } from "@shared/ipc";
 
 declare module "*.vue" {
   import type { DefineComponent } from "vue";
@@ -21,12 +22,15 @@ interface WorkspaceApi {
   sendRunInput: (runId: string, input: string) => Promise<void>;
   interruptRun: (runId: string) => Promise<void>;
   changedFiles: (cwd: string) => Promise<string[]>;
-  fileDiff: (cwd: string, file: string) => Promise<string>;
+  repoStatus?: (cwd: string) => Promise<RepoStatusEntry[]>;
+  fileDiff: (cwd: string, file: string, scope?: FileDiffScope) => Promise<string>;
   /** Full unstaged unified diff; omit on older preload builds (layout falls back per-file). */
   workingTreeDiff?: (cwd: string) => Promise<string>;
   stageAll: (cwd: string) => Promise<void>;
+  unstageAll?: (cwd: string) => Promise<void>;
   discardAll: (cwd: string) => Promise<void>;
   stagePaths?: (cwd: string, paths: string[]) => Promise<void>;
+  unstagePaths?: (cwd: string, paths: string[]) => Promise<void>;
   discardPaths?: (cwd: string, paths: string[]) => Promise<void>;
   listFiles: (cwd: string) => Promise<FileSummary[]>;
   searchFiles: (cwd: string, query: string) => Promise<string[]>;

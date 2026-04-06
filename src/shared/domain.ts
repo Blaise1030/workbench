@@ -8,6 +8,7 @@ export interface Project {
   name: string;
   repoPath: string;
   status: RunStatus | "idle";
+  lastActiveWorktreeId?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -19,6 +20,7 @@ export interface Worktree {
   branch: string;
   path: string;
   isActive: boolean;
+  lastActiveThreadId?: string | null;
   createdAt: string;
   updatedAt: string;
 }

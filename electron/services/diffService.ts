@@ -3,16 +3,71 @@ import { promisify } from "node:util";
 import { statSync } from "node:fs";
 import { resolve } from "node:path";
 import { simpleGit } from "simple-git";
+import type { FileDiffScope, RepoChangeKind, RepoStatusEntry } from "../../src/shared/ipc.js";
 import { pathsFromUnifiedDiffSet } from "../../src/shared/diffPaths.js";
 import { truncateUnifiedDiff } from "../../src/shared/diffTruncate.js";
 
 const execFileAsync = promisify(execFile);
 
+function decodeStatusKind(code: string): RepoChangeKind | null {
+  switch (code) {
+    case "M":
+      return "modified";
+    case "A":
+      return "added";
+    case "D":
+      return "deleted";
+    case "R":
+      return "renamed";
+    case "C":
+      return "copied";
+    case "U":
+      return "unmerged";
+    case "?":
+      return "untracked";
+    default:
+      return null;
+  }
+}
+
 export class DiffService {
+  async repoStatus(cwd: string): Promise<RepoStatusEntry[]> {
+    const { stdout } = await execFileAsync("git", ["-C", cwd, "status", "--porcelain=v1", "-z"], {
+      maxBuffer: 10 * 1024 * 1024,
+      encoding: "utf8"
+    });
+    const tokens = stdout.split("\0");
+    const entries: RepoStatusEntry[] = [];
+
+    for (let i = 0; i < tokens.length; i += 1) {
+      const token = tokens[i];
+      if (!token) continue;
+      const xy = token.slice(0, 2);
+      const path = token.slice(3);
+      const stagedCode = xy[0] ?? " ";
+      const unstagedCode = xy[1] ?? " ";
+      const stagedKind = decodeStatusKind(stagedCode);
+      const unstagedKind = decodeStatusKind(unstagedCode);
+      const isRename = stagedCode === "R" || stagedCode === "C";
+      const originalPath = isRename ? tokens[i + 1] || null : null;
+
+      if (isRename) i += 1;
+
+      entries.push({
+        path,
+        originalPath,
+        stagedKind,
+        unstagedKind,
+        isUntracked: xy === "??"
+      });
+    }
+
+    return entries.sort((a, b) => a.path.localeCompare(b.path));
+  }
+
   async changedFiles(cwd: string): Promise<string[]> {
-    const git = simpleGit(cwd);
-    const status = await git.status();
-    return [...status.modified, ...status.created, ...status.deleted, ...status.not_added];
+    const status = await this.repoStatus(cwd);
+    return status.map((entry) => entry.path);
   }
 
   /**
@@ -41,11 +96,19 @@ export class DiffService {
     }
   }
 
-  async fileDiff(cwd: string, file: string): Promise<string> {
+  async fileDiff(cwd: string, file: string, scope: FileDiffScope = "unstaged"): Promise<string> {
     const git = simpleGit(cwd);
-    const tracked = await git.diff(["-U3", "--no-ext-diff", "--", file]);
-    if (tracked.trim()) return truncateUnifiedDiff(tracked);
-    return truncateUnifiedDiff(await this.diffNewPathOnDisk(cwd, file));
+    if (scope === "staged") {
+      return truncateUnifiedDiff(await git.diff(["--cached", "-U3", "--no-ext-diff", "--", file]));
+    }
+
+    const unstagedTracked = await git.diff(["-U3", "--no-ext-diff", "--", file]);
+    const unstaged = unstagedTracked.trim() ? unstagedTracked : await this.diffNewPathOnDisk(cwd, file);
+    if (scope === "combined") {
+      const staged = await git.diff(["--cached", "-U3", "--no-ext-diff", "--", file]);
+      return truncateUnifiedDiff([staged, unstaged].filter((chunk) => chunk.trim()).join("\n"));
+    }
+    return truncateUnifiedDiff(unstaged);
   }
 
   /** Full unstaged diff (all changed paths) as one unified diff for multi-file review. */
@@ -64,10 +127,21 @@ export class DiffService {
     await git.add(".");
   }
 
+  async unstageAll(cwd: string): Promise<void> {
+    const git = simpleGit(cwd);
+    await git.raw(["restore", "--staged", "."]);
+  }
+
   async stagePaths(cwd: string, paths: string[]): Promise<void> {
     if (paths.length === 0) return;
     const git = simpleGit(cwd);
     await git.add(paths);
+  }
+
+  async unstagePaths(cwd: string, paths: string[]): Promise<void> {
+    if (paths.length === 0) return;
+    const git = simpleGit(cwd);
+    await git.raw(["restore", "--staged", "--", ...paths]);
   }
 
   /**

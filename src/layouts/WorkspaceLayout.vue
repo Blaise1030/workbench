@@ -2,13 +2,14 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { Plus, Settings } from "lucide-vue-next";
 import BaseButton from "@/components/ui/BaseButton.vue";
-import DiffReviewPanel from "@/components/DiffReviewPanel.vue";
+import SourceControlPanel from "@/components/SourceControlPanel.vue";
 import PillTabs, { type PillTabItem } from "@/components/ui/PillTabs.vue";
 import ProjectTabs from "@/components/ProjectTabs.vue";
 import TerminalPane from "@/components/TerminalPane.vue";
 import ThemeToggle from "@/components/ThemeToggle.vue";
 import AgentCommandsSettingsDialog from "@/components/AgentCommandsSettingsDialog.vue";
 import FileSearchEditor from "@/components/FileSearchEditor.vue";
+import ThreadCreateButton from "@/components/ThreadCreateButton.vue";
 import ThreadSidebar from "@/components/ThreadSidebar.vue";
 import { useAgentBootstrapCommands } from "@/composables/useAgentBootstrapCommands";
 import {
@@ -24,13 +25,14 @@ import { formatShortcut, shortcutForId, titleWithShortcut } from "@/keybindings/
 import { useWorkspaceStore } from "@/stores/workspaceStore";
 import { useRunStore } from "@/stores/runStore";
 import { visibleTerminalSessionId } from "@/terminal/attentionRules";
-import { truncateUnifiedDiff } from "@shared/diffTruncate";
 import type { Thread, ThreadAgent } from "@shared/domain";
 import type {
   AddProjectInput,
   CreateThreadInput,
   DeleteThreadInput,
+  FileDiffScope,
   ReorderThreadsInput,
+  RepoStatusEntry,
   RenameThreadInput,
   WorkspaceSnapshot
 } from "@shared/ipc";
@@ -41,11 +43,12 @@ const { commands, applySaved, bootstrapCommandFor } = useAgentBootstrapCommands(
 const agentCommandsSettingsOpen = ref(false);
 const runs = useRunStore();
 const toast = useToast();
-/** Sticky bar hint: single path or "N files" when multiple unstaged paths. */
-const diffSummaryLabel = ref<string | null>(null);
-const selectedDiff = ref("Diff preview will render here.");
-/** Same order as `git status`-style `changedFiles`; avoids parsing huge unified diffs for checklists. */
-const diffChangedFilePaths = ref<string[]>([]);
+const repoStatus = ref<RepoStatusEntry[]>([]);
+const selectedScmPath = ref<string | null>(null);
+const selectedScmScope = ref<"staged" | "unstaged" | null>(null);
+const selectedDiff = ref("");
+const selectedDiffLoading = ref(false);
+const diffCache = new Map<string, string>();
 
 /** When true, thread rail shows agent icons only (narrow column). */
 const threadsSidebarCollapsed = ref(false);
@@ -58,7 +61,6 @@ const SHELL_TAB_CODES = ["Digit4", "Digit5", "Digit6", "Digit7", "Digit8", "Digi
 
 const threadSidebarRef = ref<InstanceType<typeof ThreadSidebar> | null>(null);
 const fileSearchRef = ref<InstanceType<typeof FileSearchEditor> | null>(null);
-const diffReviewPanelRef = ref<InstanceType<typeof DiffReviewPanel> | null>(null);
 const keybindingsEnabled = ref(true);
 
 const centerPanelTabs = computed<PillTabItem[]>(() => {
@@ -68,7 +70,7 @@ const centerPanelTabs = computed<PillTabItem[]>(() => {
     { value: "diff", label: "🌿 Git Diff", shortcutHint: shortcutForId("centerTabDiff") },
     {
       value: "files",
-      label: "📁 Files",
+      label: "📄 Files",
       dividerAfter: true,
       shortcutHint: shortcutForId("centerTabFiles")
     },
@@ -182,6 +184,7 @@ let disposeWorkspaceChanged: (() => void) | null = null;
 let disposeWorkingTreeFilesChanged: (() => void) | null = null;
 /** Incremented per diff refresh; stale async results are ignored (rapid worktree switch / overlap). */
 let diffRefreshSeq = 0;
+let selectedDiffSeq = 0;
 
 const layoutColumns = computed(() => {
   const threadsWidth = threadsSidebarCollapsed.value ? "3.5rem" : "260px";
@@ -190,23 +193,10 @@ const layoutColumns = computed(() => {
 
 /** Main panels (threads, terminal, diff) require an active worktree path. */
 const hasActiveWorkspace = computed(() => Boolean(workspace.activeWorktree));
+const activeWorktreeHasThreads = computed(() => workspace.activeThreads.length > 0);
 
 function getApi(): WorkspaceApi | null {
   return window.workspaceApi ?? null;
-}
-
-/** Prefer one `git diff`; fall back per-file when main has no `diff:workingTree` handler or invoke fails. */
-async function loadWorkingTreeUnifiedDiff(api: WorkspaceApi, cwd: string, files: string[]): Promise<string> {
-  if (api.workingTreeDiff) {
-    try {
-      return await api.workingTreeDiff(cwd);
-    } catch {
-      /* older Electron main or IPC mismatch */
-    }
-  }
-  return (await Promise.all(files.map((f) => api.fileDiff(cwd, f))))
-    .filter((chunk) => chunk.trim())
-    .join("\n");
 }
 
 async function refreshSnapshot(snapshot?: WorkspaceSnapshot): Promise<void> {
@@ -216,39 +206,105 @@ async function refreshSnapshot(snapshot?: WorkspaceSnapshot): Promise<void> {
   workspace.hydrate(next);
 }
 
-async function refreshChangedFiles(): Promise<void> {
+function cacheKey(path: string, scope: FileDiffScope): string {
+  return `${scope}:${path}`;
+}
+
+function applyRepoStatusSelection(status: RepoStatusEntry[]): void {
+  const hasCurrentSelection =
+    selectedScmPath.value &&
+    selectedScmScope.value &&
+    status.some((entry) => {
+      if (entry.path !== selectedScmPath.value) return false;
+      return selectedScmScope.value === "staged" ? Boolean(entry.stagedKind) : Boolean(entry.unstagedKind || entry.isUntracked);
+    });
+  if (hasCurrentSelection) return;
+
+  const firstStaged = status.find((entry) => entry.stagedKind);
+  if (firstStaged) {
+    selectedScmPath.value = firstStaged.path;
+    selectedScmScope.value = "staged";
+    return;
+  }
+  const firstUnstaged = status.find((entry) => entry.unstagedKind || entry.isUntracked);
+  selectedScmPath.value = firstUnstaged?.path ?? null;
+  selectedScmScope.value = firstUnstaged ? "unstaged" : null;
+}
+
+async function loadSelectedDiff(): Promise<void> {
+  const api = getApi();
+  const path = selectedScmPath.value;
+  const scope = selectedScmScope.value;
+  if (!api || !workspace.activeWorktree || !path || !scope) {
+    selectedDiff.value = "";
+    selectedDiffLoading.value = false;
+    return;
+  }
+  const seq = ++selectedDiffSeq;
+  const cwd = workspace.activeWorktree.path;
+  const key = cacheKey(path, scope);
+  const cached = diffCache.get(key);
+  if (cached != null) {
+    selectedDiff.value = cached;
+    selectedDiffLoading.value = false;
+    return;
+  }
+  selectedDiffLoading.value = true;
+  try {
+    const diff = await api.fileDiff(cwd, path, scope);
+    if (seq !== selectedDiffSeq || workspace.activeWorktree?.path !== cwd) return;
+    selectedDiff.value = diff;
+    diffCache.set(key, diff);
+    while (diffCache.size > 24) {
+      const oldest = diffCache.keys().next().value;
+      if (!oldest) break;
+      diffCache.delete(oldest);
+    }
+  } catch (error) {
+    if (seq !== selectedDiffSeq || workspace.activeWorktree?.path !== cwd) return;
+    selectedDiff.value =
+      error instanceof Error
+        ? `Could not load diff: ${error.message}`
+        : "Could not load diff.";
+  } finally {
+    if (seq === selectedDiffSeq) selectedDiffLoading.value = false;
+  }
+}
+
+async function refreshRepoStatus(): Promise<void> {
   const api = getApi();
   if (!api || !workspace.activeWorktree) {
-    diffSummaryLabel.value = null;
-    diffChangedFilePaths.value = [];
-    selectedDiff.value = "Diff preview will render here.";
+    repoStatus.value = [];
+    selectedScmPath.value = null;
+    selectedScmScope.value = null;
+    selectedDiff.value = "";
+    selectedDiffLoading.value = false;
+    diffCache.clear();
     return;
   }
   const seq = ++diffRefreshSeq;
   const cwd = workspace.activeWorktree.path;
   try {
-    const files = await api.changedFiles(cwd);
+    const nextStatus = api.repoStatus
+      ? await api.repoStatus(cwd)
+      : (await api.changedFiles(cwd)).map((path) => ({
+          path,
+          originalPath: null,
+          stagedKind: null,
+          unstagedKind: "modified" as const,
+          isUntracked: false
+        }));
     if (seq !== diffRefreshSeq || workspace.activeWorktree?.path !== cwd) return;
-    if (!files.length) {
-      diffSummaryLabel.value = null;
-      diffChangedFilePaths.value = [];
-      selectedDiff.value = "No unstaged changes.";
-      return;
-    }
-    const unified = await loadWorkingTreeUnifiedDiff(api, cwd, files);
-    if (seq !== diffRefreshSeq || workspace.activeWorktree?.path !== cwd) return;
-    const body = unified.trim() ? unified : "No unstaged changes.";
-    diffChangedFilePaths.value = files;
-    diffSummaryLabel.value = files.length === 1 ? files[0]! : null;
-    selectedDiff.value = body === "No unstaged changes." ? body : truncateUnifiedDiff(body);
+    repoStatus.value = nextStatus;
+    applyRepoStatusSelection(nextStatus);
+    diffCache.clear();
+    await loadSelectedDiff();
   } catch (error) {
     if (seq !== diffRefreshSeq || workspace.activeWorktree?.path !== cwd) return;
-    diffSummaryLabel.value = null;
-    diffChangedFilePaths.value = [];
+    repoStatus.value = [];
     selectedDiff.value =
-      error instanceof Error
-        ? `Could not load diff: ${error.message}`
-        : "Could not load diff.";
+      error instanceof Error ? `Could not load source control status: ${error.message}` : "Could not load source control status.";
+    selectedDiffLoading.value = false;
   }
 }
 
@@ -333,16 +389,20 @@ async function handleCreateProject(): Promise<void> {
   const payload: AddProjectInput = { name, repoPath, defaultBranch };
   const snapshot = (await api.addProject(payload)) as WorkspaceSnapshot;
   await refreshSnapshot(snapshot);
-  await refreshChangedFiles();
+  await refreshRepoStatus();
 }
 
 async function handleSelectProject(projectId: string): Promise<void> {
   const api = getApi();
   if (!api) return;
-  const nextWorktree = workspace.worktrees.find((w) => w.projectId === projectId);
-  await api.setActive({ projectId, worktreeId: nextWorktree?.id ?? null, threadId: null });
+  const project = workspace.projects.find((entry) => entry.id === projectId);
+  const fallbackWorktreeId =
+    project?.lastActiveWorktreeId ??
+    workspace.worktrees.find((worktree) => worktree.projectId === projectId)?.id ??
+    null;
+  await api.setActive({ projectId, worktreeId: fallbackWorktreeId, threadId: null });
   await refreshSnapshot();
-  await refreshChangedFiles();
+  await refreshRepoStatus();
 }
 
 const THREAD_AGENT_LABELS: Record<ThreadAgent, string> = {
@@ -459,7 +519,18 @@ async function handleStageSelected(paths: string[]): Promise<void> {
   } else {
     await api.stageAll(workspace.activeWorktree.path);
   }
-  await refreshChangedFiles();
+  await refreshRepoStatus();
+}
+
+async function handleUnstageSelected(paths: string[]): Promise<void> {
+  const api = getApi();
+  if (!api || !workspace.activeWorktree || paths.length === 0) return;
+  if (!api.unstagePaths) {
+    toast.error("Cannot unstage selection", "Restart the desktop app so per-file unstage is available.");
+    return;
+  }
+  await api.unstagePaths(workspace.activeWorktree.path, paths);
+  await refreshRepoStatus();
 }
 
 async function handleDiscardSelected(paths: string[]): Promise<void> {
@@ -476,7 +547,40 @@ async function handleDiscardSelected(paths: string[]): Promise<void> {
   const confirmed = window.confirm(`Discard changes to ${label}?`);
   if (!confirmed) return;
   await api.discardPaths(workspace.activeWorktree.path, paths);
-  await refreshChangedFiles();
+  await refreshRepoStatus();
+}
+
+async function handleStageAll(): Promise<void> {
+  const api = getApi();
+  if (!api || !workspace.activeWorktree) return;
+  await api.stageAll(workspace.activeWorktree.path);
+  await refreshRepoStatus();
+}
+
+async function handleUnstageAll(): Promise<void> {
+  const api = getApi();
+  if (!api || !workspace.activeWorktree) return;
+  if (!api.unstageAll) {
+    toast.error("Cannot unstage all", "Restart the desktop app so unstage-all is available.");
+    return;
+  }
+  await api.unstageAll(workspace.activeWorktree.path);
+  await refreshRepoStatus();
+}
+
+async function handleDiscardAll(): Promise<void> {
+  const api = getApi();
+  if (!api || !workspace.activeWorktree) return;
+  const confirmed = window.confirm("Discard all working tree changes?");
+  if (!confirmed) return;
+  await api.discardAll(workspace.activeWorktree.path);
+  await refreshRepoStatus();
+}
+
+async function handleSelectScmEntry(payload: { path: string; scope: "staged" | "unstaged" }): Promise<void> {
+  selectedScmPath.value = payload.path;
+  selectedScmScope.value = payload.scope;
+  await loadSelectedDiff();
 }
 
 function handleConfigureCommands(): void {
@@ -543,7 +647,7 @@ useWorkspaceKeybindings(
 
 onMounted(async () => {
   await refreshSnapshot();
-  await refreshChangedFiles();
+  await refreshRepoStatus();
   const api = getApi();
   if (api?.onWorkspaceChanged) {
     disposeWorkspaceChanged = api.onWorkspaceChanged(() => {
@@ -552,7 +656,7 @@ onMounted(async () => {
   }
   if (api?.onWorkingTreeFilesChanged) {
     disposeWorkingTreeFilesChanged = api.onWorkingTreeFilesChanged(() => {
-      void refreshChangedFiles();
+      void refreshRepoStatus();
     });
   }
 });
@@ -590,7 +694,7 @@ watch(
         }
       }
     }
-    await refreshChangedFiles();
+    await refreshRepoStatus();
   },
   { immediate: true }
 );
@@ -618,7 +722,7 @@ watch(shellSlotIds, (ids) => {
 watch(
   () => centerTab.value,
   (tab) => {
-    if (tab === "diff") void refreshChangedFiles();
+    if (tab === "diff") void refreshRepoStatus();
   }
 );
 </script>
@@ -724,6 +828,7 @@ watch(
           @configure-commands="handleConfigureCommands"
         />
         <div
+          v-if="activeWorktreeHasThreads"
           class="flex min-h-10 min-w-0 shrink-0 items-center justify-start gap-1 py-0.5 pr-1 pl-0.5"
         >
           <PillTabs
@@ -758,7 +863,36 @@ watch(
           </BaseButton>
         </div>
         <div class="flex min-h-0 flex-1 flex-col overflow-hidden">
-          <div v-show="centerTab === 'agent'" class="flex min-h-0 flex-1 flex-col overflow-hidden">
+          <section
+            v-if="!activeWorktreeHasThreads"
+            class="flex min-h-0 flex-1 flex-col items-center justify-center gap-4 px-6 py-12 text-center"
+          >
+            <span class="text-5xl leading-none" aria-hidden="true">🧵</span>
+            <div class="max-w-md space-y-2">
+              <h1 class="text-lg font-semibold text-foreground">Create your first thread</h1>
+              <p class="text-sm text-muted-foreground">
+                Start a thread to launch an agent session for this workspace. The terminal will appear after you
+                create one.
+              </p>
+            </div>
+            <ThreadCreateButton
+              data-testid="workspace-create-thread-empty-state"
+              aria-label="Add thread"
+              :title="titleWithShortcut('Add thread', 'newThreadMenu')"
+              size="sm"
+              @create-with-agent="handleCreateThreadWithAgent"
+            >
+              <span class="inline-flex items-center gap-2">
+                <Plus class="h-4 w-4" />
+                <span>Add thread</span>
+              </span>
+            </ThreadCreateButton>
+          </section>
+          <div
+            v-else
+            v-show="centerTab === 'agent'"
+            class="flex min-h-0 flex-1 flex-col overflow-hidden"
+          >
             <TerminalPane
               pty-kind="agent"
               :worktree-id="workspace.activeWorktreeId ?? ''"
@@ -783,13 +917,19 @@ watch(
             />
           </div>
           <div v-show="centerTab === 'diff'" class="flex min-h-0 flex-1 flex-col overflow-hidden">
-            <DiffReviewPanel
-              ref="diffReviewPanelRef"
-              :summary-label="diffSummaryLabel"
+            <SourceControlPanel
+              :repo-status="repoStatus"
+              :selected-path="selectedScmPath"
+              :selected-scope="selectedScmScope"
               :selected-diff="selectedDiff"
-              :changed-file-paths="diffChangedFilePaths"
-              @stage-selected="handleStageSelected"
-              @discard-selected="handleDiscardSelected"
+              :diff-loading="selectedDiffLoading"
+              @select-entry="handleSelectScmEntry"
+              @stage-all="handleStageAll"
+              @unstage-all="handleUnstageAll"
+              @discard-all="handleDiscardAll"
+              @stage-paths="handleStageSelected"
+              @unstage-paths="handleUnstageSelected"
+              @discard-paths="handleDiscardSelected"
             />
           </div>
           <div

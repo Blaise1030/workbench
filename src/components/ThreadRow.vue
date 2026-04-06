@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { RunStatus, Thread } from "@shared/domain";
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, useId, watch } from "vue";
 import { ChevronDown, GripVertical, Pencil, Trash2 } from "lucide-vue-next";
 import AgentIcon from "@/components/ui/AgentIcon.vue";
 
@@ -31,13 +31,20 @@ const emit = defineEmits<{
 const menuOpen = ref(false);
 const rowHovered = ref(false);
 const handleFocused = ref(false);
+const collapsedButtonFocused = ref(false);
 const isEditing = ref(false);
 const editValue = ref("");
 const menuRootRef = ref<HTMLElement | null>(null);
 const editInputRef = ref<HTMLInputElement | null>(null);
+const collapsedButtonRef = ref<HTMLButtonElement | null>(null);
+const collapsedTooltipStyle = ref<Record<string, string>>({});
+const collapsedTooltipId = `thread-collapsed-tooltip-${useId().replace(/:/g, "_")}`;
 
 const showThreadMenu = computed(
   () => !props.collapsed && !isEditing.value && (rowHovered.value || menuOpen.value)
+);
+const showCollapsedTooltip = computed(
+  () => props.collapsed && !isEditing.value && (rowHovered.value || collapsedButtonFocused.value)
 );
 
 const iconClass = computed(() => {
@@ -112,21 +119,43 @@ function onDocumentKeydown(event: KeyboardEvent): void {
   if (event.key === "Escape") closeMenu();
 }
 
+function updateCollapsedTooltipPosition(): void {
+  const button = collapsedButtonRef.value;
+  if (!button) return;
+
+  const rect = button.getBoundingClientRect();
+  collapsedTooltipStyle.value = {
+    left: `${Math.round(rect.right + 8)}px`,
+    top: `${Math.round(rect.top + rect.height / 2)}px`
+  };
+}
+
+watch(showCollapsedTooltip, (visible) => {
+  if (!visible) return;
+  void nextTick(() => {
+    updateCollapsedTooltipPosition();
+  });
+});
+
 onMounted(() => {
   document.addEventListener("pointerdown", onDocumentPointerDown);
   document.addEventListener("keydown", onDocumentKeydown);
+  window.addEventListener("resize", updateCollapsedTooltipPosition);
+  window.addEventListener("scroll", updateCollapsedTooltipPosition, true);
 });
 
 onBeforeUnmount(() => {
   document.removeEventListener("pointerdown", onDocumentPointerDown);
   document.removeEventListener("keydown", onDocumentKeydown);
+  window.removeEventListener("resize", updateCollapsedTooltipPosition);
+  window.removeEventListener("scroll", updateCollapsedTooltipPosition, true);
 });
 </script>
 
 <template>
   <div
     data-testid="thread-row"
-    class="relative flex h-9 min-h-9 max-h-9 min-w-0 items-center gap-2.5 rounded-sm"
+    class="relative flex h-8 min-h-8 max-h-8 min-w-0 items-center gap-2 rounded-sm"
     :class="[
       props.collapsed ? 'justify-center px-1.5' : 'pl-3 pr-2',
       isActive ? 'bg-accent' : 'hover:bg-accent/50',
@@ -140,7 +169,7 @@ onBeforeUnmount(() => {
       v-if="!collapsed"
       type="button"
       data-testid="thread-drag-handle"
-      class="absolute right-8 top-1/2 z-10 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded text-muted-foreground transition-opacity hover:bg-accent hover:text-foreground active:cursor-grabbing focus:outline-none"
+      class="absolute right-7 top-1/2 z-10 flex h-5 w-5 -translate-y-1/2 items-center justify-center rounded text-muted-foreground transition-opacity hover:bg-accent hover:text-foreground active:cursor-grabbing focus:outline-none"
       :class="[
         props.isDragging ? 'cursor-grabbing opacity-100' : 'cursor-grab',
         rowHovered || props.isDragging || handleFocused ? 'opacity-100' : 'pointer-events-none opacity-0'
@@ -153,30 +182,33 @@ onBeforeUnmount(() => {
       @dragend="emit('dragend', $event)"
       @keydown="handleDragKeydown"
     >
-      <GripVertical class="h-3.5 w-3.5" />
+      <GripVertical class="h-3 w-3" />
     </button>
 
     <template v-if="collapsed && !isEditing">
       <button
+        ref="collapsedButtonRef"
         type="button"
         data-testid="thread-select"
-        class="flex h-8 w-8 shrink-0 items-center justify-center rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background"
+        class="flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background"
         :aria-current="isActive ? 'true' : undefined"
         :aria-label="thread.title"
-        :title="thread.title"
+        :aria-describedby="showCollapsedTooltip ? collapsedTooltipId : undefined"
         @click="emit('select')"
+        @focus="collapsedButtonFocused = true; updateCollapsedTooltipPosition()"
+        @blur="collapsedButtonFocused = false"
       >
-        <AgentIcon :agent="thread.agent" :size="14" class="shrink-0" :class="iconClass" />
+        <AgentIcon :agent="thread.agent" :size="13" class="shrink-0" :class="iconClass" />
       </button>
     </template>
     <template v-else>
-      <AgentIcon :agent="thread.agent" :size="14" class="shrink-0" :class="iconClass" />
+      <AgentIcon :agent="thread.agent" :size="13" class="shrink-0" :class="iconClass" />
 
       <button
         v-if="!isEditing"
         data-testid="thread-select"
         type="button"
-        class="min-w-0 flex-1 truncate text-left text-sm"
+        class="min-w-0 flex-1 cursor-pointer truncate text-left text-sm leading-none"
         @click="emit('select')"
       >
         {{ thread.title }}
@@ -187,7 +219,7 @@ onBeforeUnmount(() => {
         v-model="editValue"
         data-testid="thread-rename-input"
         type="text"
-        class="min-w-0 flex-1 rounded border border-border bg-background px-1 text-sm outline-none"
+        class="min-w-0 flex-1 rounded border border-border bg-background px-1 text-sm leading-none outline-none"
         @keydown="handleRenameKeydown"
         @blur="cancelRename"
       />
@@ -196,7 +228,7 @@ onBeforeUnmount(() => {
     <div
       v-if="showThreadMenu"
       ref="menuRootRef"
-      class="relative flex h-7 w-7 shrink-0 items-center justify-center"
+      class="relative flex h-6 w-6 shrink-0 items-center justify-center"
     >
       <button
         type="button"
@@ -237,4 +269,16 @@ onBeforeUnmount(() => {
       </div>
     </div>
   </div>
+  <Teleport to="body">
+    <div
+      v-if="showCollapsedTooltip"
+      :id="collapsedTooltipId"
+      data-testid="thread-collapsed-tooltip"
+      role="tooltip"
+      class="pointer-events-none fixed z-[200] -translate-y-1/2 whitespace-nowrap rounded-md border border-border bg-popover px-2 py-1 text-xs font-medium text-popover-foreground shadow-md"
+      :style="collapsedTooltipStyle"
+    >
+      {{ thread.title }}
+    </div>
+  </Teleport>
 </template>

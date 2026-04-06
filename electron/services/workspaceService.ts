@@ -50,6 +50,7 @@ export class WorkspaceService {
       name,
       repoPath,
       status: "idle",
+      lastActiveWorktreeId: null,
       createdAt: now,
       updatedAt: now
     };
@@ -67,6 +68,7 @@ export class WorkspaceService {
       branch,
       path: worktreePath,
       isActive: true,
+      lastActiveThreadId: null,
       createdAt: now,
       updatedAt: now
     };

@@ -138,12 +138,21 @@ function registerIpc(workspaceService: WorkspaceService): void {
   ipcMain.handle(IPC_CHANNELS.runInterrupt, (_, runId: string) => runService.interrupt(runId));
 
   ipcMain.handle(IPC_CHANNELS.diffChangedFiles, (_, cwd: string) => diffService.changedFiles(cwd));
-  ipcMain.handle(IPC_CHANNELS.diffFileDiff, (_, payload: { cwd: string; file: string }) => diffService.fileDiff(payload.cwd, payload.file));
+  ipcMain.handle(IPC_CHANNELS.diffRepoStatus, (_, cwd: string) => diffService.repoStatus(cwd));
+  ipcMain.handle(
+    IPC_CHANNELS.diffFileDiff,
+    (_, payload: { cwd: string; file: string; scope?: "staged" | "unstaged" | "combined" }) =>
+      diffService.fileDiff(payload.cwd, payload.file, payload.scope)
+  );
   ipcMain.handle(IPC_CHANNELS.diffWorkingTree, (_, cwd: string) => diffService.workingTreeDiff(cwd));
   ipcMain.handle(IPC_CHANNELS.diffStageAll, (_, cwd: string) => diffService.stageAll(cwd));
+  ipcMain.handle(IPC_CHANNELS.diffUnstageAll, (_, cwd: string) => diffService.unstageAll(cwd));
   ipcMain.handle(IPC_CHANNELS.diffDiscardAll, (_, cwd: string) => diffService.discardAll(cwd));
   ipcMain.handle(IPC_CHANNELS.diffStagePaths, (_, payload: { cwd: string; paths: string[] }) =>
     diffService.stagePaths(payload.cwd, payload.paths)
+  );
+  ipcMain.handle(IPC_CHANNELS.diffUnstagePaths, (_, payload: { cwd: string; paths: string[] }) =>
+    diffService.unstagePaths(payload.cwd, payload.paths)
   );
   ipcMain.handle(IPC_CHANNELS.diffDiscardPaths, (_, payload: { cwd: string; paths: string[] }) =>
     diffService.discardPaths(payload.cwd, payload.paths)
