@@ -9,6 +9,7 @@ import TerminalPane from "@/components/TerminalPane.vue";
 import ThemeToggle from "@/components/ThemeToggle.vue";
 import AgentCommandsSettingsDialog from "@/components/AgentCommandsSettingsDialog.vue";
 import FileSearchEditor from "@/components/FileSearchEditor.vue";
+import WorkspaceLauncherModal from "@/components/WorkspaceLauncherModal.vue";
 import ThreadCreateButton from "@/components/ThreadCreateButton.vue";
 import ThreadSidebar from "@/components/ThreadSidebar.vue";
 import { useAgentBootstrapCommands } from "@/composables/useAgentBootstrapCommands";
@@ -70,6 +71,7 @@ const shellSlotIds = ref<string[]>([]);
 
 const threadSidebarRef = ref<InstanceType<typeof ThreadSidebar> | null>(null);
 const fileSearchRef = ref<InstanceType<typeof FileSearchEditor> | null>(null);
+const workspaceLauncherOpen = ref(false);
 const keybindingsEnabled = ref(true);
 
 const projectDigitSlotCount = computed(() => Math.min(MOD_DIGIT_SLOT_CODES.length, workspace.projects.length));
@@ -827,6 +829,43 @@ function focusFileSearchShortcut(): void {
   });
 }
 
+function toggleWorkspaceLauncher(): void {
+  workspaceLauncherOpen.value = !workspaceLauncherOpen.value;
+}
+
+async function onLauncherPickThread(threadId: string): Promise<void> {
+  workspaceLauncherOpen.value = false;
+  await handleSelectThread(threadId);
+}
+
+async function onLauncherPickFile(payload: {
+  relativePath: string;
+  worktreeId: string | null;
+}): Promise<void> {
+  workspaceLauncherOpen.value = false;
+  const api = getApi();
+  if (!api) return;
+  const targetWt =
+    payload.worktreeId != null
+      ? workspace.worktrees.find((w) => w.id === payload.worktreeId)
+      : workspace.activeWorktree;
+  if (!targetWt) return;
+
+  if (workspace.activeWorktreeId !== targetWt.id) {
+    const firstThreadInWt = workspace.threads.find((t) => t.worktreeId === targetWt.id)?.id ?? null;
+    await api.setActive({
+      projectId: targetWt.projectId,
+      worktreeId: targetWt.id,
+      threadId: targetWt.lastActiveThreadId ?? firstThreadInWt
+    });
+    await refreshSnapshot();
+  }
+
+  centerTab.value = "files";
+  await nextTick();
+  await fileSearchRef.value?.openWorkspaceFile(payload.relativePath);
+}
+
 useWorkspaceKeybindings(
   {
     workspaceUiActive: () => hasActiveWorkspace.value,
@@ -835,6 +874,7 @@ useWorkspaceKeybindings(
     projectIds: () => workspace.projects.map((p) => p.id),
     shellSlotIds: () => shellSlotIds.value,
     scmActionsAvailable: () => hasGitRepository.value === true,
+    launcherConsumesNavShortcuts: () => workspaceLauncherOpen.value,
     onSelectProject: (projectId) => {
       void handleSelectProject(projectId);
     },
@@ -847,6 +887,7 @@ useWorkspaceKeybindings(
     onOpenNewThreadMenu: openNewThreadMenuFromShortcut,
     onAddTerminal: addShellTerminal,
     onFocusFileSearch: focusFileSearchShortcut,
+    onToggleWorkspaceLauncher: toggleWorkspaceLauncher,
     onStageAllDiff: () => {
       void handleStageAll();
     },
@@ -1213,6 +1254,12 @@ watch(
         </div>
       </section>
     </section>
+
+    <WorkspaceLauncherModal
+      v-model="workspaceLauncherOpen"
+      @pick-thread="onLauncherPickThread"
+      @pick-file="onLauncherPickFile"
+    />
 
     <AgentCommandsSettingsDialog v-model="agentCommandsSettingsOpen" :commands="commands" @save="onSaveAgentCommands" />
 

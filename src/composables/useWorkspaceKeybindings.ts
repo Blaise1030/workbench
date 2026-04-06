@@ -38,8 +38,12 @@ export type WorkspaceKeybindingContext = {
   onOpenNewThreadMenu: () => void;
   onAddTerminal: () => void;
   onFocusFileSearch: () => void;
+  /** Toggle Raycast-style workspace search; may fire while the launcher input is focused. */
+  onToggleWorkspaceLauncher: () => void;
   onStageAllDiff: () => void;
   onOpenSettings: () => void;
+  /** When true, suppress other workspace shortcuts (launcher open). Launcher toggle still works. */
+  launcherConsumesNavShortcuts?: () => boolean;
 };
 
 function findStaticBindingId(ev: KeyboardEvent): KeybindingId | null {
@@ -74,6 +78,17 @@ export function useWorkspaceKeybindings(ctx: WorkspaceKeybindingContext, enabled
 
     const digitSlot = workspaceUi ? modDigitSlotIndex(ev) : null;
     const id = findStaticBindingId(ev);
+
+    if (ctx.launcherConsumesNavShortcuts?.()) {
+      if (workspaceUi && id === "workspaceLauncher") {
+        const def = findDefinition("workspaceLauncher");
+        if (def && eventMatchesShortcut(ev, def.shortcut)) {
+          ev.preventDefault();
+          ctx.onToggleWorkspaceLauncher();
+        }
+      }
+      return;
+    }
 
     if (digitSlot != null && workspaceUi) {
       if (!inTerminal && !typing) {
@@ -112,6 +127,15 @@ export function useWorkspaceKeybindings(ctx: WorkspaceKeybindingContext, enabled
     if (id == null) return;
 
     if (!workspaceUi) return;
+
+    if (id === "workspaceLauncher") {
+      const def = findDefinition("workspaceLauncher");
+      if (def && eventMatchesShortcut(ev, def.shortcut)) {
+        ev.preventDefault();
+        ctx.onToggleWorkspaceLauncher();
+      }
+      return;
+    }
 
     const def = findDefinition(id);
 

@@ -12,6 +12,7 @@ export type KeybindingId =
   | "newThreadMenu"
   | "addTerminal"
   | "focusFileSearch"
+  | "workspaceLauncher"
   | "stageAllDiff"
   | "openSettings";
 
@@ -73,7 +74,8 @@ function codeToDisplayLabel(code: string): string {
     KeyB: "B",
     KeyT: "T",
     KeyS: "S",
-    KeyF: "F"
+    KeyF: "F",
+    KeyK: "K"
   };
   return map[code] ?? code.replace(/^Key/, "");
 }
@@ -122,6 +124,12 @@ export const KEYBINDING_DEFINITIONS: KeybindingDefinition[] = [
     label: "Focus file search",
     category: "Files",
     shortcut: mod("KeyF", { shift: true })
+  },
+  {
+    id: "workspaceLauncher",
+    label: "Workspace launcher (search threads and files)",
+    category: "Navigation",
+    shortcut: mod("KeyK")
   },
   {
     id: "stageAllDiff",
