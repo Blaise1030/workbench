@@ -5,7 +5,8 @@ import AgentIcon from "@/components/ui/AgentIcon.vue";
 import {
   parseLauncherQuery,
   searchLauncherRows,
-  type LauncherRow
+  type LauncherRow,
+  type LauncherSectionId
 } from "@/lib/workspaceLauncherSearch";
 import { findDefinition, formatShortcut } from "@/keybindings/registry";
 import { useWorkspaceStore } from "@/stores/workspaceStore";
@@ -175,6 +176,30 @@ const THREAD_AGENT_LABELS: Record<ThreadAgent, string> = {
   codex: "Codex CLI",
   gemini: "Gemini CLI"
 };
+
+const SECTION_LABELS: Record<LauncherSectionId, string> = {
+  agents: "Agents",
+  files: "Files",
+  workspace: "Workspace"
+};
+
+const SECTION_HINTS: Partial<Record<LauncherSectionId, string>> = {
+  agents: "Threads in this worktree",
+  files: "Paths in the active worktree",
+  workspace: "Files in linked worktrees (@wt)"
+};
+
+function showSectionHeaderAt(i: number): boolean {
+  const r = rows.value;
+  if (r.length === 0) return false;
+  if (i === 0) return true;
+  return r[i]!.section !== r[i - 1]!.section;
+}
+
+/** Visible rule between section types (not above the first block). */
+function showSectionDividerAbove(i: number): boolean {
+  return showSectionHeaderAt(i) && i > 0;
+}
 </script>
 
 <template>
@@ -188,12 +213,12 @@ const THREAD_AGENT_LABELS: Record<ThreadAgent, string> = {
     >
       <button
         type="button"
-        class="absolute inset-0 bg-black/50 backdrop-blur-[1px]"
+        class="absolute inset-0 workspace-launcher-scrim"
         aria-label="Close search"
         @click="close"
       />
       <div
-        class="relative z-[301] flex w-full max-w-lg flex-col overflow-hidden rounded-lg border border-border bg-popover text-popover-foreground shadow-lg"
+        class="ui-glass-panel relative z-[301] flex w-full max-w-lg flex-col overflow-hidden rounded-lg text-popover-foreground"
         @click.stop
       >
         <div class="flex items-center gap-2 border-b border-border px-3 py-2">
@@ -217,42 +242,63 @@ const THREAD_AGENT_LABELS: Record<ThreadAgent, string> = {
           to toggle.
         </p>
 
-        <div class="max-h-[min(50vh,320px)] overflow-y-auto py-1">
+        <div class="max-h-[min(50vh,320px)] overflow-y-auto py-1" role="listbox" aria-label="Search results">
           <template v-if="rows.length > 0">
-            <div
-              v-for="(row, i) in rows"
-              :key="row.kind === 'thread' ? `t-${row.id}` : `f-${row.worktreeId ?? 'main'}-${row.relativePath}`"
-              :data-testid="
-                row.kind === 'thread' ? `launcher-thread-${row.id}` : `launcher-file-${row.relativePath}`
-              "
-              role="option"
-              :aria-selected="i === selectedIndex"
-              class="flex cursor-pointer items-center gap-2 px-3 py-2 text-sm"
-              :class="i === selectedIndex ? 'bg-accent text-accent-foreground' : 'hover:bg-muted/60'"
-              @click="activateRow(row)"
-              @mouseenter="selectedIndex = i"
-            >
-              <template v-if="row.kind === 'thread'">
-                <span class="shrink-0">
-                  <AgentIcon :agent="row.agent" :size="16" />
-                </span>
-                <div class="min-w-0 flex-1">
-                  <div class="truncate font-medium">{{ row.title }}</div>
-                  <div class="truncate text-xs text-muted-foreground">
-                    {{ THREAD_AGENT_LABELS[row.agent] ?? row.agent }}
+            <template v-for="(row, i) in rows" :key="row.kind === 'thread' ? `t-${row.id}` : `f-${row.worktreeId ?? 'main'}-${row.relativePath}`">
+              <div
+                v-if="showSectionHeaderAt(i)"
+                class="border-t border-border first:border-t-0"
+                role="presentation"
+              >
+                <div
+                  class="px-3 pb-1"
+                  :class="i === 0 ? 'pt-1' : 'pt-2'"
+                  :aria-label="SECTION_LABELS[row.section]"
+                >
+                  <div class="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    {{ SECTION_LABELS[row.section] }}
+                  </div>
+                  <div
+                    v-if="SECTION_HINTS[row.section]"
+                    class="mt-0.5 text-[10px] leading-tight text-muted-foreground/80"
+                  >
+                    {{ SECTION_HINTS[row.section] }}
                   </div>
                 </div>
-              </template>
-              <template v-else>
-                <span class="shrink-0 text-muted-foreground" aria-hidden="true">📄</span>
-                <div class="min-w-0 flex-1">
-                  <div class="truncate font-mono text-xs">{{ row.relativePath }}</div>
-                  <div v-if="row.worktreeLabel" class="truncate text-xs text-muted-foreground">
-                    {{ row.worktreeLabel }}
+              </div>
+              <div
+                :data-testid="
+                  row.kind === 'thread' ? `launcher-thread-${row.id}` : `launcher-file-${row.relativePath}`
+                "
+                role="option"
+                :aria-selected="i === selectedIndex"
+                class="flex cursor-pointer items-center gap-2 px-3 py-2 text-sm"
+                :class="i === selectedIndex ? 'bg-accent text-accent-foreground' : 'hover:bg-muted/60'"
+                @click="activateRow(row)"
+                @mouseenter="selectedIndex = i"
+              >
+                <template v-if="row.kind === 'thread'">
+                  <span class="shrink-0">
+                    <AgentIcon :agent="row.agent" :size="16" />
+                  </span>
+                  <div class="min-w-0 flex-1">
+                    <div class="truncate font-medium">{{ row.title }}</div>
+                    <div class="truncate text-xs text-muted-foreground">
+                      {{ THREAD_AGENT_LABELS[row.agent] ?? row.agent }}
+                    </div>
                   </div>
-                </div>
-              </template>
-            </div>
+                </template>
+                <template v-else>
+                  <span class="shrink-0 text-muted-foreground" aria-hidden="true">📄</span>
+                  <div class="min-w-0 flex-1">
+                    <div class="truncate font-mono text-xs">{{ row.relativePath }}</div>
+                    <div v-if="row.worktreeLabel" class="truncate text-xs text-muted-foreground">
+                      {{ row.worktreeLabel }}
+                    </div>
+                  </div>
+                </template>
+              </div>
+            </template>
           </template>
           <div
             v-else

@@ -51,6 +51,8 @@ describe("searchLauncherRows", () => {
     const kinds = rows.map((r) => r.kind);
     expect(kinds).toContain("thread");
     expect(kinds).toContain("file");
+    expect(rows.find((r) => r.kind === "thread")).toMatchObject({ section: "agents" });
+    expect(rows.find((r) => r.kind === "file")).toMatchObject({ section: "files" });
   });
 
   it("worktree mode returns only other worktree files", () => {
@@ -69,6 +71,7 @@ describe("searchLauncherRows", () => {
     );
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({
+      section: "workspace",
       kind: "file",
       relativePath: "config/app.json",
       worktreeId: "wt2",

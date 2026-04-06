@@ -22,14 +22,25 @@ export function parseLauncherQuery(raw: string): ParsedLauncherQuery {
   return { mode: "default", query: raw };
 }
 
+/** Result grouping for the launcher UI (Agents = threads, Files = active worktree, Workspace = other worktrees). */
+export type LauncherSectionId = "agents" | "files" | "workspace";
+
 export type LauncherRow =
-  | { kind: "thread"; id: string; title: string; agent: ThreadAgent; score: number }
+  | { section: "agents"; kind: "thread"; id: string; title: string; agent: ThreadAgent; score: number }
   | {
+      section: "files";
       kind: "file";
       relativePath: string;
-      /** `null` when file is on the active worktree (default search). */
-      worktreeId: string | null;
-      worktreeLabel: string | null;
+      worktreeId: null;
+      worktreeLabel: null;
+      score: number;
+    }
+  | {
+      section: "workspace";
+      kind: "file";
+      relativePath: string;
+      worktreeId: string;
+      worktreeLabel: string;
       score: number;
     };
 
@@ -95,6 +106,7 @@ export function searchLauncherRows(
     if (flat.length === 0) return [];
     const fuse = new Fuse(flat, WT_FILE_FUSE);
     return fuse.search(q, { limit: MAX_WORKTREE_FILE_RESULTS }).map((hit) => ({
+      section: "workspace" as const,
       kind: "file" as const,
       relativePath: hit.item.relativePath,
       worktreeId: hit.item.worktreeId,
@@ -115,6 +127,7 @@ export function searchLauncherRows(
   const tf = new Fuse(threadDocs, THREAD_FUSE);
   for (const hit of tf.search(q, { limit: MAX_THREAD_RESULTS })) {
     rows.push({
+      section: "agents",
       kind: "thread",
       id: hit.item.id,
       title: hit.item.title,
@@ -126,6 +139,7 @@ export function searchLauncherRows(
   const ff = new Fuse(branchFiles, FILE_FUSE);
   for (const hit of ff.search(q, { limit: MAX_BRANCH_FILE_RESULTS })) {
     rows.push({
+      section: "files",
       kind: "file",
       relativePath: hit.item.relativePath,
       worktreeId: null,
