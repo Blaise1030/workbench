@@ -35,6 +35,8 @@ electron_1.contextBridge.exposeInMainWorld("workspaceApi", {
     sendRunInput: (runId, input) => electron_1.ipcRenderer.invoke(ipc_js_1.IPC_CHANNELS.runSendInput, { runId, input }),
     interruptRun: (runId) => electron_1.ipcRenderer.invoke(ipc_js_1.IPC_CHANNELS.runInterrupt, runId),
     changedFiles: (cwd) => electron_1.ipcRenderer.invoke(ipc_js_1.IPC_CHANNELS.diffChangedFiles, cwd),
+    isGitRepository: (cwd) => electron_1.ipcRenderer.invoke(ipc_js_1.IPC_CHANNELS.diffIsGitRepository, cwd),
+    initGitRepository: (cwd) => electron_1.ipcRenderer.invoke(ipc_js_1.IPC_CHANNELS.diffInitGitRepository, cwd),
     repoStatus: (cwd) => electron_1.ipcRenderer.invoke(ipc_js_1.IPC_CHANNELS.diffRepoStatus, cwd),
     fileDiff: (cwd, file, scope) => electron_1.ipcRenderer.invoke(ipc_js_1.IPC_CHANNELS.diffFileDiff, { cwd, file, scope }),
     workingTreeDiff: (cwd) => electron_1.ipcRenderer.invoke(ipc_js_1.IPC_CHANNELS.diffWorkingTree, cwd),
@@ -44,6 +46,8 @@ electron_1.contextBridge.exposeInMainWorld("workspaceApi", {
     stagePaths: (cwd, paths) => electron_1.ipcRenderer.invoke(ipc_js_1.IPC_CHANNELS.diffStagePaths, { cwd, paths }),
     unstagePaths: (cwd, paths) => electron_1.ipcRenderer.invoke(ipc_js_1.IPC_CHANNELS.diffUnstagePaths, { cwd, paths }),
     discardPaths: (cwd, paths) => electron_1.ipcRenderer.invoke(ipc_js_1.IPC_CHANNELS.diffDiscardPaths, { cwd, paths }),
+    gitFetch: (cwd) => electron_1.ipcRenderer.invoke(ipc_js_1.IPC_CHANNELS.diffGitFetch, cwd),
+    commitStaged: (cwd, message) => electron_1.ipcRenderer.invoke(ipc_js_1.IPC_CHANNELS.diffGitCommit, { cwd, message }),
     listFiles: (cwd) => electron_1.ipcRenderer.invoke(ipc_js_1.IPC_CHANNELS.filesList, cwd),
     searchFiles: (cwd, query) => electron_1.ipcRenderer.invoke(ipc_js_1.IPC_CHANNELS.filesSearch, { cwd, query }),
     readFile: (cwd, relativePath) => electron_1.ipcRenderer.invoke(ipc_js_1.IPC_CHANNELS.filesRead, { cwd, relativePath }),
@@ -73,6 +77,11 @@ electron_1.contextBridge.exposeInMainWorld("workspaceApi", {
         const handler = () => callback();
         electron_1.ipcRenderer.on(ipc_js_1.IPC_CHANNELS.workingTreeFilesDidChange, handler);
         return () => electron_1.ipcRenderer.off(ipc_js_1.IPC_CHANNELS.workingTreeFilesDidChange, handler);
+    },
+    onOpenWorkspaceSettings: (callback) => {
+        const handler = () => callback();
+        electron_1.ipcRenderer.on(ipc_js_1.IPC_CHANNELS.uiOpenWorkspaceSettings, handler);
+        return () => electron_1.ipcRenderer.off(ipc_js_1.IPC_CHANNELS.uiOpenWorkspaceSettings, handler);
     },
     pickRepoDirectory: () => electron_1.ipcRenderer.invoke(ipc_js_1.IPC_CHANNELS.dialogPickRepoDirectory),
     resolveRepoRootFromWebkitFile: (file) => resolveRepoRootFromWebkitFile(file),

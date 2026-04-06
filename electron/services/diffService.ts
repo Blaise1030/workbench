@@ -1,13 +1,37 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { statSync } from "node:fs";
-import { resolve } from "node:path";
+import { basename, resolve } from "node:path";
 import { simpleGit } from "simple-git";
-import type { FileDiffScope, RepoChangeKind, RepoStatusEntry } from "../../src/shared/ipc.js";
+import type { FileDiffScope, RepoChangeKind, RepoScmSnapshot, RepoStatusEntry } from "../../src/shared/ipc.js";
 import { pathsFromUnifiedDiffSet } from "../../src/shared/diffPaths.js";
 import { truncateUnifiedDiff } from "../../src/shared/diffTruncate.js";
 
 const execFileAsync = promisify(execFile);
+
+function parseNumstatCell(value: string): number | null {
+  if (value === "-") return null;
+  const n = Number.parseInt(value, 10);
+  return Number.isFinite(n) ? n : null;
+}
+
+/** Parse `git diff --numstat` lines into per-path insert/delete counts. */
+function parseNumstat(stdout: string): Map<string, { add: number | null; del: number | null }> {
+  const map = new Map<string, { add: number | null; del: number | null }>();
+  for (const line of stdout.split("\n")) {
+    if (!line.trim()) continue;
+    const parts = line.split("\t");
+    if (parts.length < 3) continue;
+    const add = parseNumstatCell(parts[0] ?? "");
+    const del = parseNumstatCell(parts[1] ?? "");
+    let pathField = parts.slice(2).join("\t").trim();
+    if (pathField.includes(" => ")) {
+      pathField = pathField.split(" => ").pop()?.trim() ?? pathField;
+    }
+    if (pathField) map.set(pathField, { add, del });
+  }
+  return map;
+}
 
 function decodeStatusKind(code: string): RepoChangeKind | null {
   switch (code) {
@@ -31,11 +55,74 @@ function decodeStatusKind(code: string): RepoChangeKind | null {
 }
 
 export class DiffService {
-  async repoStatus(cwd: string): Promise<RepoStatusEntry[]> {
-    const { stdout } = await execFileAsync("git", ["-C", cwd, "status", "--porcelain=v1", "-z"], {
-      maxBuffer: 10 * 1024 * 1024,
-      encoding: "utf8"
-    });
+  async isGitRepository(cwd: string): Promise<boolean> {
+    try {
+      await execFileAsync("git", ["-C", cwd, "rev-parse", "--is-inside-work-tree"], {
+        maxBuffer: 64 * 1024,
+        encoding: "utf8"
+      });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  async initGitRepository(cwd: string): Promise<void> {
+    const git = simpleGit(cwd);
+    await git.init();
+  }
+
+  async repoStatus(cwd: string): Promise<RepoScmSnapshot> {
+    const [
+      porcelainResult,
+      unstagedNumstatResult,
+      stagedNumstatResult,
+      branchResult,
+      lastCommitResult
+    ] = await Promise.allSettled([
+      execFileAsync("git", ["-C", cwd, "status", "--porcelain=v1", "-z"], {
+        maxBuffer: 10 * 1024 * 1024,
+        encoding: "utf8"
+      }),
+      execFileAsync("git", ["-C", cwd, "diff", "--numstat"], {
+        maxBuffer: 10 * 1024 * 1024,
+        encoding: "utf8"
+      }),
+      execFileAsync("git", ["-C", cwd, "diff", "--cached", "--numstat"], {
+        maxBuffer: 10 * 1024 * 1024,
+        encoding: "utf8"
+      }),
+      execFileAsync("git", ["-C", cwd, "rev-parse", "--abbrev-ref", "HEAD"], {
+        maxBuffer: 64 * 1024,
+        encoding: "utf8"
+      }),
+      execFileAsync("git", ["-C", cwd, "log", "-1", "--pretty=%s"], {
+        maxBuffer: 64 * 1024,
+        encoding: "utf8"
+      })
+    ]);
+
+    if (porcelainResult.status === "rejected") {
+      throw porcelainResult.reason;
+    }
+
+    const unstagedMap =
+      unstagedNumstatResult.status === "fulfilled" ? parseNumstat(unstagedNumstatResult.value.stdout) : new Map();
+    const stagedMap =
+      stagedNumstatResult.status === "fulfilled" ? parseNumstat(stagedNumstatResult.value.stdout) : new Map();
+
+    let branch = "main";
+    if (branchResult.status === "fulfilled") {
+      branch = branchResult.value.stdout.trim() || branch;
+    }
+
+    let lastCommitSubject: string | null = null;
+    if (lastCommitResult.status === "fulfilled") {
+      const s = lastCommitResult.value.stdout.trim();
+      lastCommitSubject = s || null;
+    }
+
+    const stdout = porcelainResult.value.stdout;
     const tokens = stdout.split("\0");
     const entries: RepoStatusEntry[] = [];
 
@@ -53,21 +140,45 @@ export class DiffService {
 
       if (isRename) i += 1;
 
+      const u = unstagedMap.get(path);
+      const s = stagedMap.get(path);
+
       entries.push({
         path,
         originalPath,
         stagedKind,
         unstagedKind,
-        isUntracked: xy === "??"
+        isUntracked: xy === "??",
+        stagedLinesAdded: s?.add ?? null,
+        stagedLinesRemoved: s?.del ?? null,
+        unstagedLinesAdded: u?.add ?? null,
+        unstagedLinesRemoved: u?.del ?? null
       });
     }
 
-    return entries.sort((a, b) => a.path.localeCompare(b.path));
+    entries.sort((a, b) => a.path.localeCompare(b.path));
+
+    return {
+      entries,
+      branch,
+      shortLabel: basename(cwd) || "repo",
+      lastCommitSubject
+    };
   }
 
   async changedFiles(cwd: string): Promise<string[]> {
-    const status = await this.repoStatus(cwd);
-    return status.map((entry) => entry.path);
+    const { entries } = await this.repoStatus(cwd);
+    return entries.map((entry) => entry.path);
+  }
+
+  async gitFetch(cwd: string): Promise<void> {
+    const git = simpleGit(cwd);
+    await git.fetch();
+  }
+
+  async commitStaged(cwd: string, message: string): Promise<void> {
+    const git = simpleGit(cwd);
+    await git.commit(message);
   }
 
   /**
@@ -135,7 +246,17 @@ export class DiffService {
   async stagePaths(cwd: string, paths: string[]): Promise<void> {
     if (paths.length === 0) return;
     const git = simpleGit(cwd);
-    await git.add(paths);
+    // Filter out paths that are ignored by .gitignore
+    let stageable = paths;
+    try {
+      const result = await git.raw(["check-ignore", "--", ...paths]);
+      const ignored = new Set(result.split("\n").map((p) => p.trim()).filter(Boolean));
+      stageable = paths.filter((p) => !ignored.has(p));
+    } catch {
+      // check-ignore exits non-zero when no paths are ignored — that's fine
+    }
+    if (stageable.length === 0) return;
+    await git.add(stageable);
   }
 
   async unstagePaths(cwd: string, paths: string[]): Promise<void> {

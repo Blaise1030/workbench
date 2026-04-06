@@ -1,0 +1,139 @@
+/**
+ * Mini chrome previews in Settings → Appearance. Scoped tokens so each row shows its preset
+ * independent of `html[data-instrument-preset]`. Mirrors `theme-presets.css` accent values.
+ */
+
+.settings-theme-preview {
+  display: flex;
+  flex-direction: row;
+  overflow: hidden;
+  border-width: 1px;
+  border-style: solid;
+  background: var(--stp-bg);
+  border-color: var(--stp-border);
+}
+
+.settings-theme-preview:not(.settings-theme-preview--dark) {
+  --stp-bg: oklch(1 0 0);
+  --stp-fg: oklch(0.145 0 0);
+  --stp-muted: oklch(0.97 0 0);
+  --stp-border: oklch(0.922 0 0);
+  --stp-card: oklch(1 0 0);
+  --stp-destructive: oklch(0.577 0.245 27.325);
+  --stp-primary: oklch(0.205 0 0);
+  --stp-primary-fg: oklch(0.985 0 0);
+  --stp-sidebar-p: oklch(0.205 0 0);
+  --stp-sidebar-p-fg: oklch(0.985 0 0);
+}
+
+.settings-theme-preview--dark {
+  --stp-bg: oklch(0.145 0 0);
+  --stp-fg: oklch(0.985 0 0);
+  --stp-muted: oklch(0.269 0 0);
+  --stp-border: oklch(1 0 0 / 12%);
+  --stp-card: oklch(0.205 0 0);
+  --stp-destructive: oklch(0.704 0.191 22.216);
+  --stp-primary: oklch(0.922 0 0);
+  --stp-primary-fg: oklch(0.205 0 0);
+  --stp-sidebar-p: oklch(0.488 0.243 264.376);
+  --stp-sidebar-p-fg: oklch(0.985 0 0);
+}
+
+.settings-theme-preview[data-settings-theme-preview-preset="ocean"]:not(.settings-theme-preview--dark) {
+  --stp-primary: oklch(0.45 0.15 252);
+  --stp-primary-fg: oklch(0.985 0 0);
+  --stp-sidebar-p: oklch(0.45 0.15 252);
+  --stp-sidebar-p-fg: oklch(0.985 0 0);
+}
+
+.settings-theme-preview--dark[data-settings-theme-preview-preset="ocean"] {
+  --stp-primary: oklch(0.72 0.12 252);
+  --stp-primary-fg: oklch(0.18 0.04 252);
+  --stp-sidebar-p: oklch(0.72 0.12 252);
+  --stp-sidebar-p-fg: oklch(0.18 0.04 252);
+}
+
+.settings-theme-preview[data-settings-theme-preview-preset="violet"]:not(.settings-theme-preview--dark) {
+  --stp-primary: oklch(0.46 0.2 298);
+  --stp-primary-fg: oklch(0.985 0 0);
+  --stp-sidebar-p: oklch(0.46 0.2 298);
+  --stp-sidebar-p-fg: oklch(0.985 0 0);
+}
+
+.settings-theme-preview--dark[data-settings-theme-preview-preset="violet"] {
+  --stp-primary: oklch(0.7 0.16 298);
+  --stp-primary-fg: oklch(0.18 0.05 298);
+  --stp-sidebar-p: oklch(0.7 0.16 298);
+  --stp-sidebar-p-fg: oklch(0.18 0.05 298);
+}
+
+.settings-theme-preview[data-settings-theme-preview-preset="amber"]:not(.settings-theme-preview--dark) {
+  --stp-primary: oklch(0.48 0.16 75);
+  --stp-primary-fg: oklch(0.985 0 0);
+  --stp-sidebar-p: oklch(0.48 0.16 75);
+  --stp-sidebar-p-fg: oklch(0.985 0 0);
+}
+
+.settings-theme-preview--dark[data-settings-theme-preview-preset="amber"] {
+  --stp-primary: oklch(0.78 0.14 75);
+  --stp-primary-fg: oklch(0.2 0.04 75);
+  --stp-sidebar-p: oklch(0.78 0.14 75);
+  --stp-sidebar-p-fg: oklch(0.2 0.04 75);
+}
+
+.settings-theme-preview__rail {
+  display: flex;
+  width: 24%;
+  min-width: 1.75rem;
+  flex-direction: column;
+  align-items: center;
+  padding-top: 0.25rem;
+  background: var(--stp-muted);
+  border-right: 1px solid var(--stp-border);
+}
+
+.settings-theme-preview__rail-mark {
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 0.125rem;
+  background: var(--stp-sidebar-p);
+  box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--stp-sidebar-p-fg) 12%, transparent);
+}
+
+.settings-theme-preview__main {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.3rem 0.4rem 0.35rem;
+}
+
+.settings-theme-preview__bar {
+  height: 0.4rem;
+  border-radius: 0.125rem;
+  background: var(--stp-primary);
+  box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--stp-primary-fg) 10%, transparent);
+}
+
+.settings-theme-preview__row {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.settings-theme-preview__pill {
+  height: 0.32rem;
+  flex: 1;
+  border-radius: 0.125rem;
+  border: 1px solid var(--stp-border);
+  background: var(--stp-card);
+}
+
+.settings-theme-preview__danger {
+  width: 0.35rem;
+  height: 0.35rem;
+  flex-shrink: 0;
+  border-radius: 9999px;
+  background: var(--stp-destructive);
+}

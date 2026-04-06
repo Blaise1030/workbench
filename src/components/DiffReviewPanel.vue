@@ -268,7 +268,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <section class="flex h-full min-h-0 flex-col bg-background text-xs">
+  <section class="flex h-full border-t min-h-0 flex-col bg-background text-xs">
     <!-- Single scrollport: toolbar + diff share one overflow (toolbar is sticky). -->
     <div
       ref="diffHostRef"
@@ -518,33 +518,40 @@ onBeforeUnmount(() => {
 }
 
 /*
- * diff2html uses position:absolute on line-number <td>s so the gutter stays fixed when the code
- * row scrolls horizontally. That reads as “sticky” line numbers — use normal table flow instead.
+ * Keep diff2html’s absolute line-number cells; widen gutter and mirror inset on .d2h-code-line
+ * (see SourceControlPanel.vue — position:relative on those <td>s breaks line-by-line layout).
  */
 .diff-rich-host :deep(td.d2h-code-linenumber),
 .diff-rich-host :deep(td.d2h-code-side-linenumber) {
-  position: relative !important;
-  vertical-align: top !important;
+  overflow: visible !important;
 }
 
 .diff-rich-host :deep(td.d2h-code-linenumber) {
-  width: 7.5em !important;
-  max-width: 7.5em !important;
+  width: 11rem !important;
+  max-width: 11rem !important;
 }
 
 .diff-rich-host :deep(td.d2h-code-side-linenumber) {
-  width: 4em !important;
-  max-width: 4em !important;
+  width: 5.5rem !important;
+  max-width: 5.5rem !important;
 }
 
-.diff-rich-host :deep(.d2h-code-line) {
-  padding: 0 0.5rem !important;
+.diff-rich-host :deep(.line-num1),
+.diff-rich-host :deep(.line-num2) {
   width: auto !important;
+  min-width: 5ch !important;
   max-width: none !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+  white-space: nowrap !important;
+  box-sizing: border-box !important;
+  padding: 0 0.35rem !important;
+  font-variant-numeric: tabular-nums !important;
 }
 
+.diff-rich-host :deep(.d2h-code-line),
 .diff-rich-host :deep(.d2h-code-side-line) {
-  padding: 0 0.5rem !important;
+  padding: 0 0.5rem 0 11.5rem !important;
   width: auto !important;
   max-width: none !important;
 }

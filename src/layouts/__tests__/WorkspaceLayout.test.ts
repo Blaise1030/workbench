@@ -157,6 +157,7 @@ describe("WorkspaceLayout", () => {
     window.workspaceApi = {
       getSnapshot,
       changedFiles,
+      isGitRepository: vi.fn().mockResolvedValue(true),
       addProject: vi.fn(),
       addWorktree: vi.fn(),
       setActive: vi.fn(),
@@ -216,6 +217,7 @@ describe("WorkspaceLayout", () => {
     window.workspaceApi = {
       getSnapshot,
       changedFiles,
+      isGitRepository: vi.fn().mockResolvedValue(true),
       addProject: vi.fn(),
       addWorktree: vi.fn(),
       setActive: vi.fn(),
@@ -271,6 +273,7 @@ describe("WorkspaceLayout", () => {
     window.workspaceApi = {
       getSnapshot,
       changedFiles,
+      isGitRepository: vi.fn().mockResolvedValue(true),
       addProject: vi.fn(),
       addWorktree: vi.fn(),
       setActive: vi.fn(),
@@ -335,6 +338,7 @@ describe("WorkspaceLayout", () => {
       getSnapshot,
       reorderThreads,
       changedFiles,
+      isGitRepository: vi.fn().mockResolvedValue(true),
       addProject: vi.fn(),
       addWorktree: vi.fn(),
       setActive: vi.fn(),
@@ -392,13 +396,82 @@ describe("WorkspaceLayout", () => {
 
   it("switches projects by asking the backend to restore the remembered worktree and thread", async () => {
     const { default: WorkspaceLayout } = await import("../WorkspaceLayout.vue");
-    const getSnapshot = vi.fn<WorkspaceApi["getSnapshot"]>().mockResolvedValue(makeSnapshot("Codex CLI"));
+    const snapshot = makeSnapshot("Codex CLI");
+    snapshot.worktrees[0] = {
+      ...snapshot.worktrees[0]!,
+      lastActiveThreadId: "thread-1"
+    };
+    const getSnapshot = vi.fn<WorkspaceApi["getSnapshot"]>().mockResolvedValue(snapshot);
     const changedFiles = vi.fn<WorkspaceApi["changedFiles"]>().mockResolvedValue([]);
     const setActive = vi.fn<WorkspaceApi["setActive"]>().mockResolvedValue(undefined);
 
     window.workspaceApi = {
       getSnapshot,
       changedFiles,
+      isGitRepository: vi.fn().mockResolvedValue(true),
+      setActive,
+      addProject: vi.fn(),
+      addWorktree: vi.fn(),
+      createThread: vi.fn(),
+      setActiveThread: vi.fn(),
+      deleteThread: vi.fn(),
+      renameThread: vi.fn(),
+      reorderThreads: vi.fn(),
+      startRun: vi.fn(),
+      sendRunInput: vi.fn(),
+      interruptRun: vi.fn(),
+      fileDiff: vi.fn(),
+      stageAll: vi.fn(),
+      discardAll: vi.fn(),
+      listFiles: vi.fn(),
+      searchFiles: vi.fn(),
+      readFile: vi.fn(),
+      writeFile: vi.fn(),
+      createFile: vi.fn(),
+      deleteFile: vi.fn(),
+      applyPatch: vi.fn(),
+      ptyCreate: vi.fn().mockResolvedValue({ buffer: "" }),
+      ptyWrite: vi.fn(),
+      ptyResize: vi.fn(),
+      ptyKill: vi.fn(),
+      onPtyData: vi.fn(() => () => {}),
+      pickRepoDirectory: vi.fn(),
+      onWorkspaceChanged: vi.fn(() => () => {}),
+      onWorkingTreeFilesChanged: vi.fn(() => () => {})
+    };
+
+    const wrapper = mount(WorkspaceLayout, {
+      global: {
+        plugins: [createPinia()]
+      }
+    });
+
+    await flushPromises();
+    await wrapper.find('[data-project-id="project-1"]').trigger("click");
+    await flushPromises();
+
+    expect(setActive).toHaveBeenCalledWith({
+      projectId: "project-1",
+      worktreeId: "worktree-1",
+      threadId: "thread-1"
+    });
+  });
+
+  it("falls back to the first known project worktree when no remembered worktree exists", async () => {
+    const { default: WorkspaceLayout } = await import("../WorkspaceLayout.vue");
+    const snapshot = makeSnapshot("Codex CLI");
+    snapshot.projects[0] = {
+      ...snapshot.projects[0]!,
+      lastActiveWorktreeId: null
+    };
+    const getSnapshot = vi.fn<WorkspaceApi["getSnapshot"]>().mockResolvedValue(snapshot);
+    const changedFiles = vi.fn<WorkspaceApi["changedFiles"]>().mockResolvedValue([]);
+    const setActive = vi.fn<WorkspaceApi["setActive"]>().mockResolvedValue(undefined);
+
+    window.workspaceApi = {
+      getSnapshot,
+      changedFiles,
+      isGitRepository: vi.fn().mockResolvedValue(true),
       setActive,
       addProject: vi.fn(),
       addWorktree: vi.fn(),
@@ -447,28 +520,23 @@ describe("WorkspaceLayout", () => {
     });
   });
 
-  it("falls back to the first known project worktree when no remembered worktree exists", async () => {
+  it("hides the Git Diff tab and shows a no-Git empty state when the worktree is not a repository", async () => {
     const { default: WorkspaceLayout } = await import("../WorkspaceLayout.vue");
-    const snapshot = makeSnapshot("Codex CLI");
-    snapshot.projects[0] = {
-      ...snapshot.projects[0]!,
-      lastActiveWorktreeId: null
-    };
-    const getSnapshot = vi.fn<WorkspaceApi["getSnapshot"]>().mockResolvedValue(snapshot);
+    const getSnapshot = vi.fn<WorkspaceApi["getSnapshot"]>().mockResolvedValue(makeSnapshot("Codex CLI"));
     const changedFiles = vi.fn<WorkspaceApi["changedFiles"]>().mockResolvedValue([]);
-    const setActive = vi.fn<WorkspaceApi["setActive"]>().mockResolvedValue(undefined);
+    const isGitRepository = vi.fn<NonNullable<WorkspaceApi["isGitRepository"]>>().mockResolvedValue(false);
 
     window.workspaceApi = {
       getSnapshot,
       changedFiles,
-      setActive,
+      isGitRepository,
       addProject: vi.fn(),
       addWorktree: vi.fn(),
+      setActive: vi.fn(),
       createThread: vi.fn(),
       setActiveThread: vi.fn(),
       deleteThread: vi.fn(),
       renameThread: vi.fn(),
-      reorderThreads: vi.fn(),
       startRun: vi.fn(),
       sendRunInput: vi.fn(),
       interruptRun: vi.fn(),
@@ -499,13 +567,10 @@ describe("WorkspaceLayout", () => {
     });
 
     await flushPromises();
-    await wrapper.find('[data-project-id="project-1"]').trigger("click");
-    await flushPromises();
 
-    expect(setActive).toHaveBeenCalledWith({
-      projectId: "project-1",
-      worktreeId: "worktree-1",
-      threadId: null
-    });
+    expect(isGitRepository).toHaveBeenCalledWith("/tmp/instrument");
+    expect(wrapper.find('[data-testid="workspace-no-git-empty-state"]').exists()).toBe(true);
+    const gitDiffTab = wrapper.findAll("button").find((b) => b.text().includes("Git Diff"));
+    expect(gitDiffTab).toBeUndefined();
   });
 });

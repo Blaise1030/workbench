@@ -9,6 +9,8 @@ export type PillTabItem = {
   dividerAfter?: boolean;
   /** Shown as native tooltip (keyboard shortcut). */
   shortcutHint?: string;
+  /** Extra classes when this tab is selected (e.g. accent border). */
+  activeClass?: string;
 };
 
 /** Matches `buttonSizeClassMap.xs` — shared tab trigger metrics with BaseButton `size="xs"`. */
@@ -71,7 +73,8 @@ function onTabKeydown(event: KeyboardEvent, index: number) {
           tabTriggerSizeClass,
           modelValue === tab.value
             ? 'bg-muted font-medium text-foreground'
-            : 'text-muted-foreground hover:bg-muted/50'
+            : 'text-muted-foreground hover:bg-muted/50',
+          modelValue === tab.value ? tab.activeClass : undefined
         ]"
         :title="tab.shortcutHint"
         @click="select(tab.value)"

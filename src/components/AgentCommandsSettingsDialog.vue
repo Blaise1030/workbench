@@ -5,20 +5,23 @@ import { computed, nextTick, onBeforeUnmount, ref, watch } from "vue";
 import BaseButton from "@/components/ui/BaseButton.vue";
 import AgentIcon from "@/components/ui/AgentIcon.vue";
 import { useTerminalSoundSettings } from "@/composables/useTerminalSoundSettings";
+import { useColorScheme, type ColorSchemePreference } from "@/composables/useColorScheme";
+import { uiThemePresetLabel, useUiThemePreset } from "@/composables/useUiThemePreset";
 import {
   formatShortcut,
   KEYBINDING_DEFINITIONS,
   type KeybindingCategory
 } from "@/keybindings/registry";
 
+/** `v-model` visibility; avoid prop name `open` (Vue 3.5 boolean-attribute merge quirks). */
+const modelValue = defineModel<boolean>({ default: false });
+
 const props = defineProps<{
-  open: boolean;
   /** Current saved commands (all four agents). */
   commands: Record<ThreadAgent, string>;
 }>();
 
 const emit = defineEmits<{
-  "update:open": [value: boolean];
   save: [commands: Record<ThreadAgent, string>];
 }>();
 
@@ -32,12 +35,22 @@ const AGENT_ROWS: { agent: ThreadAgent; label: string }[] = [
 const draft = ref<Record<ThreadAgent, string>>({ ...props.commands });
 const panelRef = ref<HTMLElement | null>(null);
 
-type SettingsSection = "agents" | "terminal" | "keyboard";
+type SettingsSection = "agents" | "terminal" | "appearance" | "keyboard";
 const activeSection = ref<SettingsSection>("agents");
 
 const settingsPanelAgentsId = "workspace-settings-panel-agents";
 const settingsPanelTerminalId = "workspace-settings-panel-terminal";
+const settingsPanelAppearanceId = "workspace-settings-panel-appearance";
 const settingsPanelKeyboardId = "workspace-settings-panel-keyboard";
+
+const { preference: colorSchemePreference, resolvedIsDark: appearancePreviewIsDark } = useColorScheme();
+const { preset: uiThemePreset, presets: uiThemePresetIds } = useUiThemePreset();
+
+const COLOR_SCHEME_OPTIONS: { value: ColorSchemePreference; label: string; hint: string }[] = [
+  { value: "light", label: "Light", hint: "Always use light chrome" },
+  { value: "dark", label: "Dark", hint: "Always use dark chrome" },
+  { value: "system", label: "System", hint: "Match macOS / Windows appearance" }
+];
 
 const KEYBIND_CATEGORY_ORDER: KeybindingCategory[] = [
   "Navigation",
@@ -80,25 +93,22 @@ function bindEscapeWhileOpen(): void {
   removeEscapeListener = () => document.removeEventListener("keydown", handler, true);
 }
 
-watch(
-  () => props.open,
-  async (isOpen) => {
-    removeEscapeListener?.();
-    removeEscapeListener = null;
-    if (isOpen) {
-      draft.value = { ...props.commands };
-      activeSection.value = "agents";
-      bindEscapeWhileOpen();
-      await nextTick();
-      panelRef.value?.focus();
-    }
+watch(modelValue, async (isOpen) => {
+  removeEscapeListener?.();
+  removeEscapeListener = null;
+  if (isOpen) {
+    draft.value = { ...props.commands };
+    activeSection.value = "agents";
+    bindEscapeWhileOpen();
+    await nextTick();
+    panelRef.value?.focus();
   }
-);
+});
 
 watch(
   () => props.commands,
   (c) => {
-    if (props.open) return;
+    if (modelValue.value) return;
     draft.value = { ...c };
   },
   { deep: true }
@@ -109,7 +119,7 @@ onBeforeUnmount(() => {
 });
 
 function close(): void {
-  emit("update:open", false);
+  modelValue.value = false;
 }
 
 function onBackdropPointerDown(event: MouseEvent): void {
@@ -122,15 +132,15 @@ function resetDraftToDefaults(): void {
 
 function save(): void {
   emit("save", { ...draft.value });
-  emit("update:open", false);
+  modelValue.value = false;
 }
 </script>
 
 <template>
   <Teleport to="body">
     <div
-      v-if="open"
-      class="fixed inset-0 z-[200] flex items-start justify-center overflow-y-auto bg-black/50 p-4 pt-[10vh] backdrop-blur-[1px]"
+      v-if="modelValue"
+      class="fixed inset-0 z-[300] flex items-start justify-center overflow-y-auto bg-black/50 p-4 pt-[10vh] backdrop-blur-[1px]"
       role="presentation"
       @pointerdown="onBackdropPointerDown"
     >
@@ -183,6 +193,23 @@ function save(): void {
             @click="activeSection = 'terminal'"
           >
             Terminal
+          </button>
+          <button
+            id="settings-tab-appearance"
+            type="button"
+            role="tab"
+            :aria-selected="activeSection === 'appearance'"
+            :tabindex="activeSection === 'appearance' ? 0 : -1"
+            :aria-controls="settingsPanelAppearanceId"
+            class="relative -mb-px border-b-2 px-3 pb-2.5 text-sm font-medium transition-colors focus-visible:z-10 focus-visible:rounded-t-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+            :class="
+              activeSection === 'appearance'
+                ? 'border-primary text-foreground'
+                : 'border-transparent text-muted-foreground hover:text-foreground'
+            "
+            @click="activeSection = 'appearance'"
+          >
+            Appearance
           </button>
           <button
             id="settings-tab-keyboard"
@@ -278,6 +305,97 @@ function save(): void {
               Turn off <span class="font-medium text-foreground/80">Enable notifications</span> to silence all
               terminal attention sounds.
             </p>
+          </div>
+
+          <div
+            v-show="activeSection === 'appearance'"
+            :id="settingsPanelAppearanceId"
+            role="tabpanel"
+            aria-labelledby="settings-tab-appearance"
+          >
+            <p class="text-sm text-muted-foreground">
+              Color mode and accent presets use the same design tokens as the rest of the app. Changes apply
+              immediately.
+            </p>
+
+            <fieldset class="mt-4 space-y-2">
+              <legend class="text-sm font-medium text-foreground">Color mode</legend>
+              <div class="mt-2 space-y-2">
+                <label
+                  v-for="opt in COLOR_SCHEME_OPTIONS"
+                  :key="opt.value"
+                  class="flex cursor-pointer items-start gap-2.5 select-none"
+                >
+                  <input
+                    v-model="colorSchemePreference"
+                    type="radio"
+                    name="settings-color-scheme"
+                    class="mt-1 size-3.5 shrink-0 rounded-full border-border accent-primary"
+                    :value="opt.value"
+                  />
+                  <span>
+                    <span class="text-sm">{{ opt.label }}</span>
+                    <span class="mt-0.5 block text-xs text-muted-foreground">{{ opt.hint }}</span>
+                  </span>
+                </label>
+              </div>
+            </fieldset>
+
+            <fieldset class="mt-5 space-y-2">
+              <legend class="text-sm font-medium text-foreground">Theme</legend>
+              <p class="text-xs text-muted-foreground">
+                Previews reflect the color mode chosen above. Accents apply to buttons, focus rings, and sidebar
+                highlights. You can still tune colors in
+                <a
+                  class="text-primary underline underline-offset-2 hover:opacity-90"
+                  href="https://tweakcn.com/editor/theme"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  >tweakcn</a
+                >
+                and merge variables into the app later.
+              </p>
+              <div class="mt-2 space-y-2">
+                <label
+                  v-for="id in uiThemePresetIds"
+                  :key="id"
+                  class="flex cursor-pointer gap-3 rounded-md border border-border p-2.5 transition-colors select-none hover:bg-muted/30"
+                  :class="
+                    uiThemePreset === id
+                      ? 'bg-muted/25 ring-2 ring-ring/60 ring-offset-2 ring-offset-card'
+                      : ''
+                  "
+                >
+                  <input
+                    v-model="uiThemePreset"
+                    type="radio"
+                    name="settings-ui-theme-preset"
+                    class="mt-1 size-3.5 shrink-0 rounded-full border-border accent-primary"
+                    :value="id"
+                  />
+                  <div class="min-w-0 flex-1">
+                    <span class="text-sm font-medium text-foreground">{{ uiThemePresetLabel(id) }}</span>
+                    <div
+                      class="settings-theme-preview mt-2 h-[3.25rem] w-full rounded-md"
+                      :class="{ 'settings-theme-preview--dark': appearancePreviewIsDark }"
+                      :data-settings-theme-preview-preset="id"
+                      aria-hidden="true"
+                    >
+                      <div class="settings-theme-preview__rail">
+                        <div class="settings-theme-preview__rail-mark" />
+                      </div>
+                      <div class="settings-theme-preview__main">
+                        <div class="settings-theme-preview__bar" />
+                        <div class="settings-theme-preview__row">
+                          <span class="settings-theme-preview__pill" />
+                          <span class="settings-theme-preview__danger" />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </label>
+              </div>
+            </fieldset>
           </div>
 
           <div

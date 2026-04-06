@@ -32,6 +32,8 @@ contextBridge.exposeInMainWorld("workspaceApi", {
   sendRunInput: (runId: string, input: string) => ipcRenderer.invoke(IPC_CHANNELS.runSendInput, { runId, input }),
   interruptRun: (runId: string) => ipcRenderer.invoke(IPC_CHANNELS.runInterrupt, runId),
   changedFiles: (cwd: string) => ipcRenderer.invoke(IPC_CHANNELS.diffChangedFiles, cwd),
+  isGitRepository: (cwd: string) => ipcRenderer.invoke(IPC_CHANNELS.diffIsGitRepository, cwd) as Promise<boolean>,
+  initGitRepository: (cwd: string) => ipcRenderer.invoke(IPC_CHANNELS.diffInitGitRepository, cwd) as Promise<void>,
   repoStatus: (cwd: string) => ipcRenderer.invoke(IPC_CHANNELS.diffRepoStatus, cwd),
   fileDiff: (cwd: string, file: string, scope?: "staged" | "unstaged" | "combined") =>
     ipcRenderer.invoke(IPC_CHANNELS.diffFileDiff, { cwd, file, scope }),
@@ -45,6 +47,9 @@ contextBridge.exposeInMainWorld("workspaceApi", {
     ipcRenderer.invoke(IPC_CHANNELS.diffUnstagePaths, { cwd, paths }),
   discardPaths: (cwd: string, paths: string[]) =>
     ipcRenderer.invoke(IPC_CHANNELS.diffDiscardPaths, { cwd, paths }),
+  gitFetch: (cwd: string) => ipcRenderer.invoke(IPC_CHANNELS.diffGitFetch, cwd),
+  commitStaged: (cwd: string, message: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.diffGitCommit, { cwd, message }),
   listFiles: (cwd: string) => ipcRenderer.invoke(IPC_CHANNELS.filesList, cwd),
   searchFiles: (cwd: string, query: string) => ipcRenderer.invoke(IPC_CHANNELS.filesSearch, { cwd, query }),
   readFile: (cwd: string, relativePath: string) =>
@@ -82,6 +87,11 @@ contextBridge.exposeInMainWorld("workspaceApi", {
     const handler = () => callback();
     ipcRenderer.on(IPC_CHANNELS.workingTreeFilesDidChange, handler);
     return () => ipcRenderer.off(IPC_CHANNELS.workingTreeFilesDidChange, handler);
+  },
+  onOpenWorkspaceSettings: (callback: () => void) => {
+    const handler = () => callback();
+    ipcRenderer.on(IPC_CHANNELS.uiOpenWorkspaceSettings, handler);
+    return () => ipcRenderer.off(IPC_CHANNELS.uiOpenWorkspaceSettings, handler);
   },
   pickRepoDirectory: () => ipcRenderer.invoke(IPC_CHANNELS.dialogPickRepoDirectory),
   resolveRepoRootFromWebkitFile: (file: File) => resolveRepoRootFromWebkitFile(file),

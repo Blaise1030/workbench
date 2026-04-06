@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, useId, watch } from "vue";
 import { Plus, Settings } from "lucide-vue-next";
 import BaseButton from "@/components/ui/BaseButton.vue";
 import SourceControlPanel from "@/components/SourceControlPanel.vue";
@@ -32,6 +32,7 @@ import type {
   DeleteThreadInput,
   FileDiffScope,
   ReorderThreadsInput,
+  RepoScmSnapshot,
   RepoStatusEntry,
   RenameThreadInput,
   WorkspaceSnapshot
@@ -43,9 +44,19 @@ const { commands, applySaved, bootstrapCommandFor } = useAgentBootstrapCommands(
 const agentCommandsSettingsOpen = ref(false);
 const runs = useRunStore();
 const toast = useToast();
+/** `null` while checking the active worktree; `false` when the folder is not a Git repository. */
+const hasGitRepository = ref<boolean | null>(null);
 const repoStatus = ref<RepoStatusEntry[]>([]);
+const scmMeta = ref<{ shortLabel: string; branch: string; lastCommitSubject: string | null }>({
+  shortLabel: "",
+  branch: "",
+  lastCommitSubject: null
+});
+const scmCommitMessage = ref("");
+const scmFetchBusy = ref(false);
+const scmCommitBusy = ref(false);
 const selectedScmPath = ref<string | null>(null);
-const selectedScmScope = ref<"staged" | "unstaged" | null>(null);
+const selectedScmScope = ref<FileDiffScope | null>(null);
 const selectedDiff = ref("");
 const selectedDiffLoading = ref(false);
 const diffCache = new Map<string, string>();
@@ -65,15 +76,19 @@ const keybindingsEnabled = ref(true);
 
 const centerPanelTabs = computed<PillTabItem[]>(() => {
   const slots = shellSlotIds.value;
-  return [
-    { value: "agent", label: "🤖 Agent", shortcutHint: shortcutForId("centerTabAgent") },
-    { value: "diff", label: "🌿 Git Diff", shortcutHint: shortcutForId("centerTabDiff") },
-    {
-      value: "files",
-      label: "📄 Files",
-      dividerAfter: true,
-      shortcutHint: shortcutForId("centerTabFiles")
-    },
+  const tabs: PillTabItem[] = [
+    { value: "agent", label: "🤖 Agent", shortcutHint: shortcutForId("centerTabAgent") }
+  ];
+  if (hasGitRepository.value === true) {
+    tabs.push({ value: "diff", label: "🌿 Git Diff", shortcutHint: shortcutForId("centerTabDiff") });
+  }
+  tabs.push({
+    value: "files",
+    label: "📄 Files",
+    dividerAfter: true,
+    shortcutHint: shortcutForId("centerTabFiles")
+  });
+  tabs.push(
     ...slots.map((id, i) => ({
       value: `shell:${id}`,
       label: `💻 Terminal ${i + 1}`,
@@ -81,7 +96,8 @@ const centerPanelTabs = computed<PillTabItem[]>(() => {
       shortcutHint:
         i < SHELL_TAB_CODES.length ? formatShortcut({ mod: true, code: SHELL_TAB_CODES[i] }) : undefined
     }))
-  ];
+  );
+  return tabs;
 });
 
 const centerTabModel = computed({
@@ -158,6 +174,58 @@ function addShellTerminal(): void {
   centerTab.value = `shell:${id}`;
 }
 
+const addTerminalWrapRef = ref<HTMLElement | null>(null);
+const addTerminalTooltipHover = ref(false);
+const addTerminalTooltipFocused = ref(false);
+const addTerminalTooltipStyle = ref<Record<string, string>>({});
+const addTerminalTooltipId = `add-terminal-tooltip-${useId().replace(/:/g, "_")}`;
+const addTerminalTooltipText = titleWithShortcut("Add terminal", "addTerminal");
+const showAddTerminalTooltip = computed(
+  () => addTerminalTooltipHover.value || addTerminalTooltipFocused.value
+);
+
+function updateAddTerminalTooltipPosition(): void {
+  const el = addTerminalWrapRef.value;
+  if (!el) return;
+  const rect = el.getBoundingClientRect();
+  addTerminalTooltipStyle.value = {
+    left: `${Math.round(rect.left + rect.width / 2)}px`,
+    top: `${Math.round(rect.bottom + 6)}px`,
+    transform: "translateX(-50%)"
+  };
+}
+
+let removeAddTerminalTooltipListeners: (() => void) | null = null;
+
+function bindAddTerminalTooltipListeners(): void {
+  removeAddTerminalTooltipListeners?.();
+  const handler = (): void => {
+    if (showAddTerminalTooltip.value) updateAddTerminalTooltipPosition();
+  };
+  window.addEventListener("resize", handler);
+  window.addEventListener("scroll", handler, true);
+  removeAddTerminalTooltipListeners = () => {
+    window.removeEventListener("resize", handler);
+    window.removeEventListener("scroll", handler, true);
+  };
+}
+
+function unbindAddTerminalTooltipListeners(): void {
+  removeAddTerminalTooltipListeners?.();
+  removeAddTerminalTooltipListeners = null;
+}
+
+watch(showAddTerminalTooltip, (show) => {
+  if (show) {
+    void nextTick(() => {
+      updateAddTerminalTooltipPosition();
+      bindAddTerminalTooltipListeners();
+    });
+  } else {
+    unbindAddTerminalTooltipListeners();
+  }
+});
+
 async function onCenterTabClose(tabValue: string): Promise<void> {
   if (!tabValue.startsWith("shell:")) return;
   const slotId = tabValue.slice("shell:".length);
@@ -182,6 +250,7 @@ const repoDirectoryInput = ref<HTMLInputElement | null>(null);
 let pendingRepoDirectoryResolve: ((value: string | null) => void) | null = null;
 let disposeWorkspaceChanged: (() => void) | null = null;
 let disposeWorkingTreeFilesChanged: (() => void) | null = null;
+let disposeOpenWorkspaceSettings: (() => void) | null = null;
 /** Incremented per diff refresh; stale async results are ignored (rapid worktree switch / overlap). */
 let diffRefreshSeq = 0;
 let selectedDiffSeq = 0;
@@ -189,6 +258,12 @@ let selectedDiffSeq = 0;
 const layoutColumns = computed(() => {
   const threadsWidth = threadsSidebarCollapsed.value ? "3.5rem" : "260px";
   return `${threadsWidth} minmax(0, 1fr)`;
+});
+
+const scmBranchLine = computed(() => {
+  const { shortLabel, branch } = scmMeta.value;
+  if (!branch) return null as string | null;
+  return shortLabel ? `${shortLabel} / ${branch}` : branch;
 });
 
 /** Main panels (threads, terminal, diff) require an active worktree path. */
@@ -199,6 +274,9 @@ function getApi(): WorkspaceApi | null {
   return window.workspaceApi ?? null;
 }
 
+const scmFetchAvailable = computed(() => Boolean(getApi()?.gitFetch));
+const scmCommitAvailable = computed(() => Boolean(getApi()?.commitStaged));
+
 async function refreshSnapshot(snapshot?: WorkspaceSnapshot): Promise<void> {
   const api = getApi();
   if (!api) return;
@@ -208,6 +286,15 @@ async function refreshSnapshot(snapshot?: WorkspaceSnapshot): Promise<void> {
 
 function cacheKey(path: string, scope: FileDiffScope): string {
   return `${scope}:${path}`;
+}
+
+function normalizeRepoStatusResult(
+  raw: RepoScmSnapshot | RepoStatusEntry[]
+): { entries: RepoStatusEntry[]; meta: RepoScmSnapshot | null } {
+  if (Array.isArray(raw)) {
+    return { entries: raw, meta: null };
+  }
+  return { entries: raw.entries, meta: raw };
 }
 
 function applyRepoStatusSelection(status: RepoStatusEntry[]): void {
@@ -274,7 +361,9 @@ async function loadSelectedDiff(): Promise<void> {
 async function refreshRepoStatus(): Promise<void> {
   const api = getApi();
   if (!api || !workspace.activeWorktree) {
+    hasGitRepository.value = null;
     repoStatus.value = [];
+    scmMeta.value = { shortLabel: "", branch: "", lastCommitSubject: null };
     selectedScmPath.value = null;
     selectedScmScope.value = null;
     selectedDiff.value = "";
@@ -284,8 +373,33 @@ async function refreshRepoStatus(): Promise<void> {
   }
   const seq = ++diffRefreshSeq;
   const cwd = workspace.activeWorktree.path;
+
+  if (api.isGitRepository) {
+    let insideGit = false;
+    try {
+      insideGit = await api.isGitRepository(cwd);
+    } catch {
+      insideGit = false;
+    }
+    if (seq !== diffRefreshSeq || workspace.activeWorktree?.path !== cwd) return;
+    hasGitRepository.value = insideGit;
+    if (!insideGit) {
+      repoStatus.value = [];
+      scmMeta.value = { shortLabel: "", branch: "", lastCommitSubject: null };
+      selectedScmPath.value = null;
+      selectedScmScope.value = null;
+      selectedDiff.value = "";
+      selectedDiffLoading.value = false;
+      diffCache.clear();
+      return;
+    }
+  } else {
+    if (seq !== diffRefreshSeq || workspace.activeWorktree?.path !== cwd) return;
+    hasGitRepository.value = true;
+  }
+
   try {
-    const nextStatus = api.repoStatus
+    const rawStatus = api.repoStatus
       ? await api.repoStatus(cwd)
       : (await api.changedFiles(cwd)).map((path) => ({
           path,
@@ -295,16 +409,57 @@ async function refreshRepoStatus(): Promise<void> {
           isUntracked: false
         }));
     if (seq !== diffRefreshSeq || workspace.activeWorktree?.path !== cwd) return;
-    repoStatus.value = nextStatus;
-    applyRepoStatusSelection(nextStatus);
+    const { entries: statusEntries, meta } = normalizeRepoStatusResult(rawStatus);
+    repoStatus.value = statusEntries;
+    if (meta) {
+      scmMeta.value = {
+        shortLabel: meta.shortLabel,
+        branch: meta.branch,
+        lastCommitSubject: meta.lastCommitSubject
+      };
+    } else {
+      scmMeta.value = { shortLabel: "", branch: "", lastCommitSubject: null };
+    }
+    applyRepoStatusSelection(statusEntries);
     diffCache.clear();
     await loadSelectedDiff();
   } catch (error) {
     if (seq !== diffRefreshSeq || workspace.activeWorktree?.path !== cwd) return;
     repoStatus.value = [];
-    selectedDiff.value =
-      error instanceof Error ? `Could not load source control status: ${error.message}` : "Could not load source control status.";
+    scmMeta.value = { shortLabel: "", branch: "", lastCommitSubject: null };
+    const message = error instanceof Error ? error.message : "";
+    if (/not a git repository/i.test(message)) {
+      hasGitRepository.value = false;
+      selectedScmPath.value = null;
+      selectedScmScope.value = null;
+      selectedDiff.value = "";
+    } else {
+      selectedDiff.value =
+        error instanceof Error ? `Could not load source control status: ${error.message}` : "Could not load source control status.";
+    }
     selectedDiffLoading.value = false;
+  }
+}
+
+async function handleInitializeGit(): Promise<void> {
+  const api = getApi();
+  const cwd = workspace.activeWorktree?.path;
+  if (!cwd) return;
+  if (!api?.initGitRepository) {
+    toast.error(
+      "Initialize Git in the terminal",
+      "Run git init in this folder from the integrated terminal, then refresh or switch workspace."
+    );
+    return;
+  }
+  try {
+    await api.initGitRepository(cwd);
+    await refreshRepoStatus();
+  } catch (e) {
+    toast.error(
+      "Could not initialize Git",
+      e instanceof Error ? e.message : "Something went wrong."
+    );
   }
 }
 
@@ -400,7 +555,9 @@ async function handleSelectProject(projectId: string): Promise<void> {
     project?.lastActiveWorktreeId ??
     workspace.worktrees.find((worktree) => worktree.projectId === projectId)?.id ??
     null;
-  await api.setActive({ projectId, worktreeId: fallbackWorktreeId, threadId: null });
+  const fallbackThreadId =
+    workspace.worktrees.find((worktree) => worktree.id === fallbackWorktreeId)?.lastActiveThreadId ?? null;
+  await api.setActive({ projectId, worktreeId: fallbackWorktreeId, threadId: fallbackThreadId });
   await refreshSnapshot();
   await refreshRepoStatus();
 }
@@ -577,6 +734,45 @@ async function handleDiscardAll(): Promise<void> {
   await refreshRepoStatus();
 }
 
+async function handleScmFetch(): Promise<void> {
+  const api = getApi();
+  const cwd = workspace.activeWorktree?.path;
+  if (!api?.gitFetch || !cwd) return;
+  scmFetchBusy.value = true;
+  try {
+    await api.gitFetch(cwd);
+    await refreshRepoStatus();
+  } catch (e) {
+    toast.error("Fetch failed", e instanceof Error ? e.message : "Something went wrong.");
+  } finally {
+    scmFetchBusy.value = false;
+  }
+}
+
+async function handleScmCommit(): Promise<void> {
+  const message = scmCommitMessage.value.trim();
+  if (!message) return;
+  const api = getApi();
+  const cwd = workspace.activeWorktree?.path;
+  if (!api?.commitStaged || !cwd) {
+    toast.error(
+      "Commit unavailable",
+      "Commit from the UI requires the desktop app with an up-to-date build, or use git commit in the terminal."
+    );
+    return;
+  }
+  scmCommitBusy.value = true;
+  try {
+    await api.commitStaged(cwd, message);
+    scmCommitMessage.value = "";
+    await refreshRepoStatus();
+  } catch (e) {
+    toast.error("Commit failed", e instanceof Error ? e.message : "Something went wrong.");
+  } finally {
+    scmCommitBusy.value = false;
+  }
+}
+
 async function handleSelectScmEntry(payload: { path: string; scope: "staged" | "unstaged" }): Promise<void> {
   selectedScmPath.value = payload.path;
   selectedScmScope.value = payload.scope;
@@ -628,6 +824,8 @@ useWorkspaceKeybindings(
     settingsOpen: () => agentCommandsSettingsOpen.value,
     centerTab: () => centerTab.value,
     shellSlotIds: () => shellSlotIds.value,
+    diffTabSelectable: () => hasGitRepository.value === true,
+    scmActionsAvailable: () => hasGitRepository.value === true,
     onSelectCenterTab: (tab) => {
       centerTab.value = tab;
     },
@@ -659,9 +857,17 @@ onMounted(async () => {
       void refreshRepoStatus();
     });
   }
+  if (api?.onOpenWorkspaceSettings) {
+    disposeOpenWorkspaceSettings = api.onOpenWorkspaceSettings(() => {
+      handleConfigureCommands();
+    });
+  }
 });
 
 onBeforeUnmount(() => {
+  unbindAddTerminalTooltipListeners();
+  disposeOpenWorkspaceSettings?.();
+  disposeOpenWorkspaceSettings = null;
   disposeWorkspaceChanged?.();
   disposeWorkspaceChanged = null;
   disposeWorkingTreeFilesChanged?.();
@@ -682,7 +888,9 @@ watch(
     if (!wt) {
       shellSlotIds.value = [];
       centerTab.value = "agent";
+      hasGitRepository.value = null;
     } else if (prev !== wt) {
+      hasGitRepository.value = null;
       const saved = loadTerminalLayout(wt);
       if (saved) {
         shellSlotIds.value = saved.shellSlotIds;
@@ -724,6 +932,16 @@ watch(
   (tab) => {
     if (tab === "diff") void refreshRepoStatus();
   }
+);
+
+watch(
+  () => [centerTab.value, hasGitRepository.value] as const,
+  ([tab, git]) => {
+    if (tab === "diff" && git !== true) {
+      centerTab.value = "agent";
+    }
+  },
+  { flush: "sync" }
 );
 </script>
 
@@ -837,30 +1055,56 @@ watch(
             aria-label="Center panel"
             @tab-close="onCenterTabClose"
           />
-          <BaseButton
-            v-if="shellSlotIds.length === 0"
-            type="button"
-            variant="outline"
-            size="xs"
-            class="shrink-0"
-            aria-label="Add terminal"
-            :title="titleWithShortcut('Add terminal', 'addTerminal')"
-            @click="addShellTerminal"
+          <div
+            ref="addTerminalWrapRef"
+            class="inline-flex shrink-0"
+            @mouseenter="
+              addTerminalTooltipHover = true;
+              updateAddTerminalTooltipPosition();
+            "
+            @mouseleave="addTerminalTooltipHover = false"
           >
-            Add terminal
-          </BaseButton>
-          <BaseButton
-            v-else
-            type="button"
-            variant="outline"
-            size="icon-xs"
-            class="shrink-0"
-            aria-label="Add terminal"
-            :title="titleWithShortcut('Add terminal', 'addTerminal')"
-            @click="addShellTerminal"
-          >
-            <Plus class="h-3.5 w-3.5" />
-          </BaseButton>
+            <BaseButton
+              type="button"
+              variant="outline"
+              size="xs"
+              class="shrink-0 border-border bg-transparent shadow-none hover:bg-muted/50 dark:border-input dark:bg-transparent dark:hover:bg-input/40"
+              aria-label="Add terminal"
+              :aria-describedby="showAddTerminalTooltip ? addTerminalTooltipId : undefined"
+              @focus="addTerminalTooltipFocused = true; updateAddTerminalTooltipPosition()"
+              @blur="addTerminalTooltipFocused = false"
+              @click="addShellTerminal"
+            >
+              <span class="inline-flex items-center gap-1.5">
+                <Plus class="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                <span>Add terminal</span>
+              </span>
+            </BaseButton>
+          </div>
+        </div>
+        <div
+          v-if="activeWorktreeHasThreads && hasGitRepository === false"
+          data-testid="workspace-no-git-empty-state"
+          class="flex shrink-0 flex-col gap-3 border-b border-border bg-muted/20 px-4 py-4"
+        >
+          <div class="flex items-start gap-3">
+            <span class="text-2xl leading-none" aria-hidden="true">🌿</span>
+            <div class="min-w-0 flex-1 space-y-1">
+              <p class="text-sm font-medium text-foreground">No Git repository</p>
+              <p class="text-sm text-muted-foreground">
+                Initialize Git in this folder to use source control and the Git Diff tab.
+              </p>
+            </div>
+          </div>
+          <div class="flex flex-wrap items-center gap-2 pl-9">
+            <BaseButton v-if="getApi()?.initGitRepository" type="button" size="sm" @click="handleInitializeGit">
+              Initialize Git
+            </BaseButton>
+            <p v-else class="text-xs text-muted-foreground">
+              Run <code class="rounded bg-muted px-1 py-0.5 font-mono text-[0.8rem]">git init</code> in the terminal
+              in this workspace.
+            </p>
+          </div>
         </div>
         <div class="flex min-h-0 flex-1 flex-col overflow-hidden">
           <section
@@ -918,7 +1162,15 @@ watch(
           </div>
           <div v-show="centerTab === 'diff'" class="flex min-h-0 flex-1 flex-col overflow-hidden">
             <SourceControlPanel
+              v-if="hasGitRepository"
+              v-model:commit-message="scmCommitMessage"
               :repo-status="repoStatus"
+              :branch-line="scmBranchLine"
+              :last-commit-subject="scmMeta.lastCommitSubject"
+              :scm-fetch-available="scmFetchAvailable"
+              :scm-commit-available="scmCommitAvailable"
+              :scm-fetch-busy="scmFetchBusy"
+              :scm-commit-busy="scmCommitBusy"
               :selected-path="selectedScmPath"
               :selected-scope="selectedScmScope"
               :selected-diff="selectedDiff"
@@ -930,6 +1182,8 @@ watch(
               @stage-paths="handleStageSelected"
               @unstage-paths="handleUnstageSelected"
               @discard-paths="handleDiscardSelected"
+              @fetch="handleScmFetch"
+              @commit="handleScmCommit"
             />
           </div>
           <div
@@ -946,11 +1200,19 @@ watch(
       </section>
     </section>
 
-    <AgentCommandsSettingsDialog
-      :open="agentCommandsSettingsOpen"
-      :commands="commands"
-      @update:open="agentCommandsSettingsOpen = $event"
-      @save="onSaveAgentCommands"
-    />
+    <AgentCommandsSettingsDialog v-model="agentCommandsSettingsOpen" :commands="commands" @save="onSaveAgentCommands" />
+
+    <Teleport to="body">
+      <div
+        v-if="showAddTerminalTooltip && activeWorktreeHasThreads"
+        :id="addTerminalTooltipId"
+        data-testid="add-terminal-tooltip"
+        role="tooltip"
+        class="pointer-events-none fixed z-[200] max-w-[min(20rem,calc(100vw-1.5rem))] rounded-md border border-border bg-popover px-2 py-1.5 text-center text-xs font-medium text-popover-foreground shadow-md"
+        :style="addTerminalTooltipStyle"
+      >
+        {{ addTerminalTooltipText }}
+      </div>
+    </Teleport>
   </main>
 </template>

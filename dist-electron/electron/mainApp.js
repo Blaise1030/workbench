@@ -55,6 +55,17 @@ function createMainWindow() {
     win.webContents.on("preload-error", (_event, failedPreloadPath, error) => {
         console.error("[electron] Preload failed to execute:", failedPreloadPath, error);
     });
+    /** ⌘, / Ctrl+, is often eaten by the OS or default app menu before the renderer sees it. */
+    win.webContents.on("before-input-event", (event, input) => {
+        if (input.type !== "keyDown")
+            return;
+        const mac = process.platform === "darwin";
+        const mod = mac ? input.meta : input.control;
+        if (mod && !input.alt && !input.shift && input.key === ",") {
+            event.preventDefault();
+            win.webContents.send(ipc_js_1.IPC_CHANNELS.uiOpenWorkspaceSettings);
+        }
+    });
     const rendererUrl = process.env.VITE_DEV_SERVER_URL;
     if (rendererUrl) {
         void win.loadURL(rendererUrl);
@@ -121,6 +132,8 @@ function registerIpc(workspaceService) {
     electron_1.ipcMain.handle(ipc_js_1.IPC_CHANNELS.runSendInput, (_, payload) => runService.sendInput(payload.runId, payload.input));
     electron_1.ipcMain.handle(ipc_js_1.IPC_CHANNELS.runInterrupt, (_, runId) => runService.interrupt(runId));
     electron_1.ipcMain.handle(ipc_js_1.IPC_CHANNELS.diffChangedFiles, (_, cwd) => diffService.changedFiles(cwd));
+    electron_1.ipcMain.handle(ipc_js_1.IPC_CHANNELS.diffIsGitRepository, (_, cwd) => diffService.isGitRepository(cwd));
+    electron_1.ipcMain.handle(ipc_js_1.IPC_CHANNELS.diffInitGitRepository, (_, cwd) => diffService.initGitRepository(cwd));
     electron_1.ipcMain.handle(ipc_js_1.IPC_CHANNELS.diffRepoStatus, (_, cwd) => diffService.repoStatus(cwd));
     electron_1.ipcMain.handle(ipc_js_1.IPC_CHANNELS.diffFileDiff, (_, payload) => diffService.fileDiff(payload.cwd, payload.file, payload.scope));
     electron_1.ipcMain.handle(ipc_js_1.IPC_CHANNELS.diffWorkingTree, (_, cwd) => diffService.workingTreeDiff(cwd));
@@ -130,6 +143,8 @@ function registerIpc(workspaceService) {
     electron_1.ipcMain.handle(ipc_js_1.IPC_CHANNELS.diffStagePaths, (_, payload) => diffService.stagePaths(payload.cwd, payload.paths));
     electron_1.ipcMain.handle(ipc_js_1.IPC_CHANNELS.diffUnstagePaths, (_, payload) => diffService.unstagePaths(payload.cwd, payload.paths));
     electron_1.ipcMain.handle(ipc_js_1.IPC_CHANNELS.diffDiscardPaths, (_, payload) => diffService.discardPaths(payload.cwd, payload.paths));
+    electron_1.ipcMain.handle(ipc_js_1.IPC_CHANNELS.diffGitFetch, (_, cwd) => diffService.gitFetch(cwd));
+    electron_1.ipcMain.handle(ipc_js_1.IPC_CHANNELS.diffGitCommit, (_, payload) => diffService.commitStaged(payload.cwd, payload.message));
     electron_1.ipcMain.handle(ipc_js_1.IPC_CHANNELS.filesList, (_, cwd) => fileService.listFileSummaries(cwd));
     electron_1.ipcMain.handle(ipc_js_1.IPC_CHANNELS.filesSearch, (_, payload) => fileService.searchFiles(payload.cwd, payload.query));
     electron_1.ipcMain.handle(ipc_js_1.IPC_CHANNELS.filesRead, (_, payload) => fileService.readFile(payload.cwd, payload.relativePath));

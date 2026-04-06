@@ -18,7 +18,7 @@ function readStoredPreference(): ColorSchemePreference {
   return "system";
 }
 
-function resolveIsDark(preference: ColorSchemePreference): boolean {
+export function resolveColorSchemeIsDark(preference: ColorSchemePreference): boolean {
   if (preference === "dark") return true;
   if (preference === "light") return false;
   if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
@@ -29,7 +29,7 @@ function resolveIsDark(preference: ColorSchemePreference): boolean {
 
 /** Apply `.dark` on `<html>`; call before first paint and whenever preference changes. */
 export function applyColorSchemeDocumentClass(preference: ColorSchemePreference): void {
-  document.documentElement.classList.toggle("dark", resolveIsDark(preference));
+  document.documentElement.classList.toggle("dark", resolveColorSchemeIsDark(preference));
 }
 
 /** Synchronous init for `main.ts` / inline boot script. */
@@ -40,6 +40,8 @@ export function initColorSchemeFromStorage(): ColorSchemePreference {
 }
 
 const preference = ref<ColorSchemePreference>(readStoredPreference());
+
+const resolvedIsDark = ref(resolveColorSchemeIsDark(readStoredPreference()));
 
 /** App-lifetime scope so this watch survives ThemeToggle unmount/remount (e.g. empty state → tabs). */
 const colorSchemePersistenceScope = effectScope();
@@ -53,6 +55,7 @@ colorSchemePersistenceScope.run(() => {
         /* ignore */
       }
       applyColorSchemeDocumentClass(next);
+      resolvedIsDark.value = resolveColorSchemeIsDark(next);
     },
     { flush: "sync" }
   );
@@ -67,7 +70,9 @@ function attachSystemPreferenceListener(): void {
   systemListenerAttached = true;
   const mq = window.matchMedia("(prefers-color-scheme: dark)");
   mq.addEventListener("change", () => {
-    if (preference.value === "system") applyColorSchemeDocumentClass("system");
+    if (preference.value !== "system") return;
+    applyColorSchemeDocumentClass("system");
+    resolvedIsDark.value = resolveColorSchemeIsDark("system");
   });
 }
 
@@ -75,6 +80,7 @@ export function useColorScheme() {
   onMounted(() => {
     preference.value = readStoredPreference();
     applyColorSchemeDocumentClass(preference.value);
+    resolvedIsDark.value = resolveColorSchemeIsDark(preference.value);
     attachSystemPreferenceListener();
   });
 
@@ -88,5 +94,5 @@ export function useColorScheme() {
     preference.value = order[(i + 1) % order.length]!;
   }
 
-  return { preference, setPreference, cycle };
+  return { preference, resolvedIsDark, setPreference, cycle };
 }

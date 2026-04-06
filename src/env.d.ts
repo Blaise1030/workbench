@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 import type { FileSummary } from "@shared/ipc";
-import type { FileDiffScope, RepoStatusEntry } from "@shared/ipc";
+import type { FileDiffScope, RepoScmSnapshot, RepoStatusEntry } from "@shared/ipc";
 
 declare module "*.vue" {
   import type { DefineComponent } from "vue";
@@ -22,7 +22,11 @@ interface WorkspaceApi {
   sendRunInput: (runId: string, input: string) => Promise<void>;
   interruptRun: (runId: string) => Promise<void>;
   changedFiles: (cwd: string) => Promise<string[]>;
-  repoStatus?: (cwd: string) => Promise<RepoStatusEntry[]>;
+  isGitRepository?: (cwd: string) => Promise<boolean>;
+  initGitRepository?: (cwd: string) => Promise<void>;
+  repoStatus?: (cwd: string) => Promise<RepoScmSnapshot | RepoStatusEntry[]>;
+  gitFetch?: (cwd: string) => Promise<void>;
+  commitStaged?: (cwd: string, message: string) => Promise<void>;
   fileDiff: (cwd: string, file: string, scope?: FileDiffScope) => Promise<string>;
   /** Full unstaged unified diff; omit on older preload builds (layout falls back per-file). */
   workingTreeDiff?: (cwd: string) => Promise<string>;
@@ -52,6 +56,8 @@ interface WorkspaceApi {
   onWorkspaceChanged?: (callback: () => void) => () => void;
   /** After save/create/delete/applyPatch in the active repo (Electron); refresh git diff. */
   onWorkingTreeFilesChanged?: (callback: () => void) => () => void;
+  /** Main process fired after ⌘, / Ctrl+, (see `before-input-event` in Electron main). */
+  onOpenWorkspaceSettings?: (callback: () => void) => () => void;
   pickRepoDirectory: () => Promise<string | null>;
   /** Present when running under Electron preload; maps a webkitdirectory file to the chosen folder path. */
   resolveRepoRootFromWebkitFile?: (file: File) => string;

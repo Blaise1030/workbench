@@ -67,6 +67,17 @@ function createMainWindow(): BrowserWindow {
     console.error("[electron] Preload failed to execute:", failedPreloadPath, error);
   });
 
+  /** ⌘, / Ctrl+, is often eaten by the OS or default app menu before the renderer sees it. */
+  win.webContents.on("before-input-event", (event, input) => {
+    if (input.type !== "keyDown") return;
+    const mac = process.platform === "darwin";
+    const mod = mac ? input.meta : input.control;
+    if (mod && !input.alt && !input.shift && input.key === ",") {
+      event.preventDefault();
+      win.webContents.send(IPC_CHANNELS.uiOpenWorkspaceSettings);
+    }
+  });
+
   const rendererUrl = process.env.VITE_DEV_SERVER_URL;
   if (rendererUrl) {
     void win.loadURL(rendererUrl);
@@ -138,6 +149,8 @@ function registerIpc(workspaceService: WorkspaceService): void {
   ipcMain.handle(IPC_CHANNELS.runInterrupt, (_, runId: string) => runService.interrupt(runId));
 
   ipcMain.handle(IPC_CHANNELS.diffChangedFiles, (_, cwd: string) => diffService.changedFiles(cwd));
+  ipcMain.handle(IPC_CHANNELS.diffIsGitRepository, (_, cwd: string) => diffService.isGitRepository(cwd));
+  ipcMain.handle(IPC_CHANNELS.diffInitGitRepository, (_, cwd: string) => diffService.initGitRepository(cwd));
   ipcMain.handle(IPC_CHANNELS.diffRepoStatus, (_, cwd: string) => diffService.repoStatus(cwd));
   ipcMain.handle(
     IPC_CHANNELS.diffFileDiff,
@@ -156,6 +169,10 @@ function registerIpc(workspaceService: WorkspaceService): void {
   );
   ipcMain.handle(IPC_CHANNELS.diffDiscardPaths, (_, payload: { cwd: string; paths: string[] }) =>
     diffService.discardPaths(payload.cwd, payload.paths)
+  );
+  ipcMain.handle(IPC_CHANNELS.diffGitFetch, (_, cwd: string) => diffService.gitFetch(cwd));
+  ipcMain.handle(IPC_CHANNELS.diffGitCommit, (_, payload: { cwd: string; message: string }) =>
+    diffService.commitStaged(payload.cwd, payload.message)
   );
   ipcMain.handle(IPC_CHANNELS.filesList, (_, cwd: string) => fileService.listFileSummaries(cwd));
   ipcMain.handle(IPC_CHANNELS.filesSearch, (_, payload: { cwd: string; query: string }) =>

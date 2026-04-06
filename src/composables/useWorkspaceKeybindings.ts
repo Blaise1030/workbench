@@ -30,6 +30,10 @@ export type WorkspaceKeybindingContext = {
   settingsOpen: () => boolean;
   centerTab: () => string;
   shellSlotIds: () => readonly string[];
+  /** When false, ⌘2 / diff shortcut is ignored (e.g. folder is not a Git work tree). */
+  diffTabSelectable: () => boolean;
+  /** When false, stage-all shortcut on diff tab is ignored. */
+  scmActionsAvailable: () => boolean;
   onSelectCenterTab: (tab: string) => void;
   onPrevThread: () => void;
   onNextThread: () => void;
@@ -113,6 +117,7 @@ export function useWorkspaceKeybindings(ctx: WorkspaceKeybindingContext, enabled
       return;
     }
     if (id === "centerTabDiff") {
+      if (!ctx.diffTabSelectable()) return;
       ev.preventDefault();
       ctx.onSelectCenterTab("diff");
       return;
@@ -153,7 +158,7 @@ export function useWorkspaceKeybindings(ctx: WorkspaceKeybindingContext, enabled
       return;
     }
     if (id === "stageAllDiff") {
-      if (ctx.centerTab() !== "diff") return;
+      if (ctx.centerTab() !== "diff" || !ctx.scmActionsAvailable()) return;
       ev.preventDefault();
       ctx.onStageAllDiff();
       return;

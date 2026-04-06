@@ -1,0 +1,58 @@
+/**
+ * Optional color presets (shadcn-style tokens). Default palette lives in `globals.css`.
+ * Applied via `data-instrument-preset` on `<html>`; dark pairings use `.dark` on `<html>`.
+ */
+
+html[data-instrument-preset="ocean"] {
+  --primary: oklch(0.45 0.15 252);
+  --primary-foreground: oklch(0.985 0 0);
+  --ring: oklch(0.52 0.13 252);
+  --sidebar-primary: oklch(0.45 0.15 252);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-ring: oklch(0.52 0.13 252);
+}
+
+html.dark[data-instrument-preset="ocean"] {
+  --primary: oklch(0.72 0.12 252);
+  --primary-foreground: oklch(0.18 0.04 252);
+  --ring: oklch(0.58 0.1 252);
+  --sidebar-primary: oklch(0.72 0.12 252);
+  --sidebar-primary-foreground: oklch(0.18 0.04 252);
+  --sidebar-ring: oklch(0.58 0.1 252);
+}
+
+html[data-instrument-preset="violet"] {
+  --primary: oklch(0.46 0.2 298);
+  --primary-foreground: oklch(0.985 0 0);
+  --ring: oklch(0.53 0.17 298);
+  --sidebar-primary: oklch(0.46 0.2 298);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-ring: oklch(0.53 0.17 298);
+}
+
+html.dark[data-instrument-preset="violet"] {
+  --primary: oklch(0.7 0.16 298);
+  --primary-foreground: oklch(0.18 0.05 298);
+  --ring: oklch(0.58 0.14 298);
+  --sidebar-primary: oklch(0.7 0.16 298);
+  --sidebar-primary-foreground: oklch(0.18 0.05 298);
+  --sidebar-ring: oklch(0.58 0.14 298);
+}
+
+html[data-instrument-preset="amber"] {
+  --primary: oklch(0.48 0.16 75);
+  --primary-foreground: oklch(0.985 0 0);
+  --ring: oklch(0.55 0.14 75);
+  --sidebar-primary: oklch(0.48 0.16 75);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-ring: oklch(0.55 0.14 75);
+}
+
+html.dark[data-instrument-preset="amber"] {
+  --primary: oklch(0.78 0.14 75);
+  --primary-foreground: oklch(0.2 0.04 75);
+  --ring: oklch(0.62 0.12 75);
+  --sidebar-primary: oklch(0.78 0.14 75);
+  --sidebar-primary-foreground: oklch(0.2 0.04 75);
+  --sidebar-ring: oklch(0.62 0.12 75);
+}

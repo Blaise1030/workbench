@@ -26,6 +26,10 @@ export const IPC_CHANNELS = {
   diffStagePaths: "diff:stagePaths",
   diffUnstagePaths: "diff:unstagePaths",
   diffDiscardPaths: "diff:discardPaths",
+  diffGitFetch: "diff:gitFetch",
+  diffGitCommit: "diff:gitCommit",
+  diffIsGitRepository: "diff:isGitRepository",
+  diffInitGitRepository: "diff:initGitRepository",
   filesList: "files:list",
   filesSearch: "files:search",
   filesRead: "files:read",
@@ -42,7 +46,9 @@ export const IPC_CHANNELS = {
   terminalPtyListSessions: "terminal:ptyListSessions",
   terminalPtyGetBuffer: "terminal:ptyGetBuffer",
   terminalPtyData: "terminal:ptyData",
-  dialogPickRepoDirectory: "dialog:pickRepoDirectory"
+  dialogPickRepoDirectory: "dialog:pickRepoDirectory",
+  /** macOS often captures ⌘, for the app menu; main sends this so the renderer can open settings. */
+  uiOpenWorkspaceSettings: "ui:openWorkspaceSettings"
 } as const;
 
 export interface WorkspaceSnapshot {
@@ -117,6 +123,22 @@ export interface RepoStatusEntry {
   stagedKind: RepoChangeKind | null;
   unstagedKind: RepoChangeKind | null;
   isUntracked: boolean;
+  /** From `git diff --cached --numstat`; null when absent or binary (`-`). */
+  stagedLinesAdded: number | null;
+  stagedLinesRemoved: number | null;
+  /** From `git diff --numstat`; null when absent or binary (`-`). */
+  unstagedLinesAdded: number | null;
+  unstagedLinesRemoved: number | null;
+}
+
+/** Full source-control snapshot for the Git Diff sidebar (Electron). */
+export interface RepoScmSnapshot {
+  entries: RepoStatusEntry[];
+  /** Current branch or `HEAD` when detached. */
+  branch: string;
+  /** Short folder label (worktree directory basename) for `short / branch` display. */
+  shortLabel: string;
+  lastCommitSubject: string | null;
 }
 
 export type FileDiffScope = "staged" | "unstaged" | "combined";

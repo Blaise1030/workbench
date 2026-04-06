@@ -10,7 +10,7 @@ function mergeWithDefaults(stored: Partial<Record<ThreadAgent, string>> | null):
     codex: stored?.codex ?? THREAD_AGENT_BOOTSTRAP_COMMAND.codex,
     gemini: stored?.gemini ?? THREAD_AGENT_BOOTSTRAP_COMMAND.gemini,
     cursor: stored?.cursor ?? THREAD_AGENT_BOOTSTRAP_COMMAND.cursor
-  };
+  }; 
 }
 
 export function readStoredAgentCommands(): Record<ThreadAgent, string> {

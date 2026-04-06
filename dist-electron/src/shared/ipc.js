@@ -27,6 +27,10 @@ exports.IPC_CHANNELS = {
     diffStagePaths: "diff:stagePaths",
     diffUnstagePaths: "diff:unstagePaths",
     diffDiscardPaths: "diff:discardPaths",
+    diffGitFetch: "diff:gitFetch",
+    diffGitCommit: "diff:gitCommit",
+    diffIsGitRepository: "diff:isGitRepository",
+    diffInitGitRepository: "diff:initGitRepository",
     filesList: "files:list",
     filesSearch: "files:search",
     filesRead: "files:read",
@@ -43,5 +47,7 @@ exports.IPC_CHANNELS = {
     terminalPtyListSessions: "terminal:ptyListSessions",
     terminalPtyGetBuffer: "terminal:ptyGetBuffer",
     terminalPtyData: "terminal:ptyData",
-    dialogPickRepoDirectory: "dialog:pickRepoDirectory"
+    dialogPickRepoDirectory: "dialog:pickRepoDirectory",
+    /** macOS often captures ⌘, for the app menu; main sends this so the renderer can open settings. */
+    uiOpenWorkspaceSettings: "ui:openWorkspaceSettings"
 };
