@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { CircleAlert, X } from "lucide-vue-next";
+import { CircleAlert, CircleCheck, X } from "lucide-vue-next";
 import type { ToastRecord } from "@/stores/toastStore";
 import { useToastStore } from "@/stores/toastStore";
 
@@ -27,6 +27,8 @@ function splitInlineCode(text: string): Segment[] {
 }
 
 const descriptionSegments = computed(() => splitInlineCode(props.toast.description));
+
+const isSuccess = computed(() => props.toast.variant === "success");
 </script>
 
 <template>
@@ -46,20 +48,42 @@ const descriptionSegments = computed(() => splitInlineCode(props.toast.descripti
     </button>
     <div class="flex gap-3">
       <div
+        v-if="isSuccess"
+        class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-700 dark:text-emerald-400"
+        aria-hidden="true"
+      >
+        <CircleCheck class="h-4 w-4 stroke-[2]" />
+      </div>
+      <div
+        v-else
         class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-destructive/15 text-destructive"
         aria-hidden="true"
       >
         <CircleAlert class="h-4 w-4 stroke-[2]" />
       </div>
       <div class="min-w-0 flex-1 pt-0.5">
-        <p :id="`toast-title-${toast.id}`" class="font-semibold text-destructive">
+        <p
+          :id="`toast-title-${toast.id}`"
+          class="font-semibold"
+          :class="isSuccess ? 'text-emerald-800 dark:text-emerald-300' : 'text-destructive'"
+        >
           {{ toast.title }}
         </p>
-        <p class="mt-1 text-destructive/95 leading-relaxed">
+        <p
+          class="mt-1 leading-relaxed"
+          :class="
+            isSuccess ? 'text-emerald-900/90 dark:text-emerald-200/95' : 'text-destructive/95'
+          "
+        >
           <template v-for="(seg, idx) in descriptionSegments" :key="idx">
             <code
               v-if="seg.kind === 'code'"
-              class="rounded bg-destructive/10 px-1 py-0.5 font-mono text-[0.8125rem] text-destructive"
+              class="rounded px-1 py-0.5 font-mono text-[0.8125rem]"
+              :class="
+                isSuccess
+                  ? 'bg-emerald-500/15 text-emerald-800 dark:text-emerald-300'
+                  : 'bg-destructive/10 text-destructive'
+              "
             >{{ seg.value }}</code>
             <span v-else>{{ seg.value }}</span>
           </template>

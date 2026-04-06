@@ -27,6 +27,7 @@ const workspace = useWorkspaceStore();
 
 const query = ref("");
 const inputRef = ref<HTMLInputElement | null>(null);
+const listRef = ref<HTMLElement | null>(null);
 const selectedIndex = ref(0);
 const loading = ref(false);
 const loadError = ref<string | null>(null);
@@ -140,6 +141,14 @@ watch(rows, (r) => {
 
 watch(query, () => {
   selectedIndex.value = 0;
+});
+
+watch(selectedIndex, async () => {
+  await nextTick();
+  const list = listRef.value;
+  if (!list) return;
+  const opt = list.querySelector<HTMLElement>('[role="option"][aria-selected="true"]');
+  opt?.scrollIntoView({ block: "nearest", inline: "nearest" });
 });
 
 function close(): void {
@@ -259,7 +268,12 @@ function showSectionDividerAbove(i: number): boolean {
           to toggle.
         </p>
 
-        <div class="max-h-[min(50vh,320px)] overflow-y-auto py-1" role="listbox" aria-label="Search results">
+        <div
+          ref="listRef"
+          class="max-h-[min(50vh,320px)] overflow-y-auto py-1"
+          role="listbox"
+          aria-label="Search results"
+        >
           <template v-if="rows.length > 0">
             <template
               v-for="(row, i) in rows"

@@ -785,6 +785,7 @@ async function handleScmPush(): Promise<void> {
   try {
     await api.gitPush(cwd);
     await refreshRepoStatus();
+    toast.success("Push succeeded", `Branch \`${scmMeta.value.branch}\` was pushed to the remote.`);
   } catch (e) {
     toast.error("Push failed", e instanceof Error ? e.message : "Something went wrong.");
   } finally {

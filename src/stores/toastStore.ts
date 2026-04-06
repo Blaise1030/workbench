@@ -1,6 +1,6 @@
 import { defineStore } from "pinia";
 
-export type ToastVariant = "error";
+export type ToastVariant = "error" | "success";
 
 export type ToastRecord = {
   id: string;
