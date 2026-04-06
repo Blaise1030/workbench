@@ -3,6 +3,12 @@
 @import "shadcn/tailwind.css";
 @import "./geist-font.css";
 
+/* Loaded via index.html (Google Fonts). Sidebar product wordmark. */
+.font-app-brand-title {
+  font-family: "Bungee Shade", cursive;
+  font-synthesis: none;
+}
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
@@ -336,12 +342,26 @@
   /** Workspace launcher: lighter tint and less blur than full `ui-glass-scrim`. */
   .workspace-launcher-scrim {
     @apply backdrop-blur-sm backdrop-saturate-125;
-    background-color: color-mix(in oklch, var(--background) 32%, transparent);
+    background-color: color-mix(in oklch, var(--background) 46%, transparent);
   }
 
   @supports (backdrop-filter: blur(1px)) {
     .workspace-launcher-scrim {
-      background-color: color-mix(in oklch, var(--background) 14%, transparent);
+      background-color: color-mix(in oklch, var(--background) 26%, transparent);
+    }
+  }
+
+  /**
+   * Workspace launcher palette: same glass treatment as `ui-glass-panel`, with a more opaque fill.
+   */
+  .workspace-launcher-panel {
+    @apply border border-border/80 shadow-2xl backdrop-blur-xl backdrop-saturate-125;
+    background-color: color-mix(in oklch, var(--card) 96%, transparent);
+  }
+
+  @supports (backdrop-filter: blur(1px)) {
+    .workspace-launcher-panel {
+      background-color: color-mix(in oklch, var(--card) 64%, transparent);
     }
   }
 

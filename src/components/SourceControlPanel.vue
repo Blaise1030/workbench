@@ -541,7 +541,7 @@ onBeforeUnmount(() => {
               <!-- Selection actions -->
               <button
                 type="button"
-                class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[10px] text-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
+                class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
                 :disabled="!canStageFromSelection"
                 @click="actionStageSelected(); actionsOpen = false"
               >
@@ -550,7 +550,7 @@ onBeforeUnmount(() => {
               </button>
               <button
                 type="button"
-                class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[10px] text-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
+                class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
                 :disabled="!canUnstageFromSelection"
                 @click="actionUnstageSelected(); actionsOpen = false"
               >
@@ -559,7 +559,7 @@ onBeforeUnmount(() => {
               </button>
               <button
                 type="button"
-                class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[10px] text-destructive transition-colors hover:bg-destructive/10 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
+                class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-destructive transition-colors hover:bg-destructive/10 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
                 :disabled="!canDiscardFromSelection"
                 @click="actionDiscardSelected(); actionsOpen = false"
               >
@@ -571,7 +571,7 @@ onBeforeUnmount(() => {
               <!-- Bulk actions -->
               <button
                 type="button"
-                class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[10px] text-foreground transition-colors hover:bg-muted"
+                class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-foreground transition-colors hover:bg-muted"
                 @click="emit('stageAll'); actionsOpen = false"
               >
                 <ChevronsUp class="h-3 w-3 shrink-0" />
@@ -579,7 +579,7 @@ onBeforeUnmount(() => {
               </button>
               <button
                 type="button"
-                class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[10px] text-foreground transition-colors hover:bg-muted"
+                class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-foreground transition-colors hover:bg-muted"
                 @click="emit('unstageAll'); actionsOpen = false"
               >
                 <ChevronsDown class="h-3 w-3 shrink-0" />
@@ -587,7 +587,7 @@ onBeforeUnmount(() => {
               </button>
               <button
                 type="button"
-                class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[10px] text-destructive transition-colors hover:bg-destructive/10"
+                class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-destructive transition-colors hover:bg-destructive/10"
                 @click="emit('discardAll'); actionsOpen = false"
               >
                 <Trash2 class="h-3 w-3 shrink-0" />

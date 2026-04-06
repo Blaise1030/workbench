@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { PanelLeft, Search } from "lucide-vue-next";
+import { Folder, GitBranch, PanelLeft, Search } from "lucide-vue-next";
 import { computed, nextTick, ref, watch } from "vue";
 import AgentIcon from "@/components/ui/AgentIcon.vue";
 import {
   parseLauncherQuery,
   searchLauncherCommands,
   searchLauncherRows,
+  searchLauncherWorkspaceSwitch,
   type LauncherCommandId,
   type LauncherRow,
   type LauncherSectionId
@@ -21,6 +22,8 @@ const emit = defineEmits<{
   pickThread: [threadId: string];
   pickFile: [payload: { relativePath: string; worktreeId: string | null }];
   pickCommand: [id: LauncherCommandId];
+  pickProject: [projectId: string];
+  pickWorktree: [worktreeId: string];
 }>();
 
 const workspace = useWorkspaceStore();
@@ -58,13 +61,21 @@ const commandShortcutHints = computed(() => ({
 
 const rows = computed<LauncherRow[]>(() => {
   const cmds = searchLauncherCommands(commandSearchText.value, commandShortcutHints.value);
+  const switchRows = searchLauncherWorkspaceSwitch(
+    parsed.value,
+    commandSearchText.value,
+    workspace.projects,
+    workspace.activeProjectId,
+    workspace.worktrees,
+    workspace.activeWorktreeId
+  );
   const rest = searchLauncherRows(
     parsed.value,
     workspace.activeThreads,
     branchFiles.value,
     otherWorktreeFiles.value
   );
-  return [...cmds, ...rest];
+  return [...cmds, ...switchRows, ...rest];
 });
 
 const emptyHint = computed(() => {
@@ -79,7 +90,7 @@ const emptyHint = computed(() => {
     }
   }
   if (!query.value.trim()) {
-    return "Search threads and files in this worktree. Use @wt for other worktrees.";
+    return "Search commands, other workspaces and worktrees, threads, and files. Use @wt for files in linked worktrees.";
   }
   return "No results.";
 });
@@ -135,13 +146,27 @@ watch(open, async (isOpen) => {
   inputRef.value?.focus();
 });
 
-watch(rows, (r) => {
-  if (selectedIndex.value >= r.length) selectedIndex.value = Math.max(0, r.length - 1);
-});
-
-watch(query, () => {
-  selectedIndex.value = 0;
-});
+watch(
+  () => ({ q: query.value, len: rows.value.length }),
+  (cur, prev) => {
+    if (!prev) return;
+    if (cur.q !== prev.q) {
+      const oldLen = prev.len;
+      const newLen = cur.len;
+      const idx = selectedIndex.value;
+      const wasAtEnd = oldLen > 0 && idx === oldLen - 1;
+      if (wasAtEnd) {
+        selectedIndex.value = 0;
+      } else if (idx >= newLen) {
+        selectedIndex.value = Math.max(0, newLen - 1);
+      }
+    } else if (cur.len !== prev.len) {
+      if (selectedIndex.value >= cur.len) {
+        selectedIndex.value = Math.max(0, cur.len - 1);
+      }
+    }
+  }
+);
 
 watch(selectedIndex, async () => {
   await nextTick();
@@ -158,6 +183,10 @@ function close(): void {
 function activateRow(row: LauncherRow): void {
   if (row.kind === "command") {
     emit("pickCommand", row.id);
+  } else if (row.kind === "project") {
+    emit("pickProject", row.projectId);
+  } else if (row.kind === "worktree") {
+    emit("pickWorktree", row.worktreeId);
   } else if (row.kind === "thread") {
     emit("pickThread", row.id);
   } else {
@@ -203,16 +232,20 @@ const THREAD_AGENT_LABELS: Record<ThreadAgent, string> = {
 
 const SECTION_LABELS: Record<LauncherSectionId, string> = {
   commands: "Commands",
+  workspace: "Workspace",
+  worktrees: "Worktrees",
   agents: "Agents",
   files: "Files",
-  workspace: "Workspace"
+  linkedWorktrees: "Linked worktrees"
 };
 
 const SECTION_HINTS: Partial<Record<LauncherSectionId, string>> = {
   commands: "Quick actions",
+  workspace: "Switch to another open workspace",
+  worktrees: "Switch branch checkout in this project",
   agents: "Threads in this worktree",
   files: "Paths in the active worktree",
-  workspace: "Files in linked worktrees (@wt)"
+  linkedWorktrees: "Files in linked worktrees (@wt)"
 };
 
 function showSectionHeaderAt(i: number): boolean {
@@ -244,7 +277,7 @@ function showSectionDividerAbove(i: number): boolean {
         @click="close"
       />
       <div
-        class="ui-glass-panel relative z-[301] flex w-full max-w-lg flex-col overflow-hidden rounded-lg text-popover-foreground"
+        class="workspace-launcher-panel relative z-[301] flex w-full max-w-lg flex-col overflow-hidden rounded-lg text-popover-foreground"
         @click.stop
       >
         <div class="flex items-center gap-2 border-b border-border px-3 py-2">
@@ -254,7 +287,7 @@ function showSectionDividerAbove(i: number): boolean {
             v-model="query"
             type="text"
             class="min-w-0 flex-1 bg-transparent py-1 text-sm outline-none placeholder:text-muted-foreground"
-            placeholder="Search commands, threads, files…"
+            placeholder="Search commands, workspaces, threads, files…"
             autocomplete="off"
             spellcheck="false"
             data-testid="workspace-launcher-input"
@@ -270,7 +303,7 @@ function showSectionDividerAbove(i: number): boolean {
 
         <div
           ref="listRef"
-          class="max-h-[min(50vh,320px)] overflow-y-auto py-1"
+          class="flex max-h-[min(50vh,320px)] flex-col gap-1 overflow-y-auto px-2 py-1"
           role="listbox"
           aria-label="Search results"
         >
@@ -282,13 +315,17 @@ function showSectionDividerAbove(i: number): boolean {
                   ? `t-${row.id}`
                   : row.kind === 'command'
                     ? `c-${row.id}`
-                    : `f-${row.worktreeId ?? 'main'}-${row.relativePath}`
+                    : row.kind === 'project'
+                      ? `p-${row.projectId}`
+                      : row.kind === 'worktree'
+                        ? `w-${row.worktreeId}`
+                        : `f-${row.worktreeId ?? 'main'}-${row.relativePath}`
               "
             >
               <template v-if="showSectionHeaderAt(i)">
                 <div
                   v-if="showSectionDividerAbove(i)"
-                  class="mx-3 my-2 h-px shrink-0 bg-border"
+                  class="h-px shrink-0 bg-border"
                   role="presentation"
                 />
                 <div
@@ -314,12 +351,20 @@ function showSectionDividerAbove(i: number): boolean {
                     ? `launcher-thread-${row.id}`
                     : row.kind === 'command'
                       ? `launcher-command-${row.id}`
-                      : `launcher-file-${row.relativePath}`
+                      : row.kind === 'project'
+                        ? `launcher-project-${row.projectId}`
+                        : row.kind === 'worktree'
+                          ? `launcher-worktree-${row.worktreeId}`
+                          : `launcher-file-${row.relativePath}`
                 "
                 role="option"
                 :aria-selected="i === selectedIndex"
-                class="flex cursor-pointer items-center gap-2 px-3 py-2 text-sm"
-                :class="i === selectedIndex ? 'bg-accent text-accent-foreground' : 'hover:bg-muted/60'"
+                class="flex cursor-pointer items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors"
+                :class="
+                  i === selectedIndex
+                    ? 'bg-muted/70 text-foreground'
+                    : 'hover:bg-muted/70'
+                "
                 @click="activateRow(row)"
                 @mouseenter="selectedIndex = i"
               >
@@ -343,6 +388,20 @@ function showSectionDividerAbove(i: number): boolean {
                     </div>
                   </div>
                 </template>
+                <template v-else-if="row.kind === 'project'">
+                  <Folder class="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                  <div class="min-w-0 flex-1">
+                    <div class="truncate font-medium">{{ row.name }}</div>
+                    <div class="truncate font-mono text-xs text-muted-foreground">{{ row.repoPath }}</div>
+                  </div>
+                </template>
+                <template v-else-if="row.kind === 'worktree'">
+                  <GitBranch class="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                  <div class="min-w-0 flex-1">
+                    <div class="truncate font-medium">{{ row.branch }}</div>
+                    <div class="truncate text-xs text-muted-foreground">{{ row.name }}</div>
+                  </div>
+                </template>
                 <template v-else>
                   <span class="shrink-0 text-muted-foreground" aria-hidden="true">📄</span>
                   <div class="min-w-0 flex-1">
@@ -357,7 +416,7 @@ function showSectionDividerAbove(i: number): boolean {
           </template>
           <div
             v-else
-            class="px-3 py-8 text-center text-sm text-muted-foreground"
+            class="py-8 text-center text-sm text-muted-foreground"
             data-testid="workspace-launcher-empty"
           >
             {{ emptyHint }}

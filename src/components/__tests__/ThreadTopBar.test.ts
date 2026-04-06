@@ -57,7 +57,7 @@ describe("ThreadTopBar", () => {
   it("shows product title and Alpha badge in header", () => {
     wrapper = mount(ThreadTopBar);
     const brand = wrapper.get('[data-testid="thread-sidebar-brand"]');
-    expect(brand.text()).toContain("workbench.");
+    expect(brand.text()).toContain("workbench");
     expect(brand.text().toUpperCase()).toContain("ALPHA");
   });
 

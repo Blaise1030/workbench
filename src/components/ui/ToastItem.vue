@@ -2,7 +2,7 @@
 import { computed } from "vue";
 import { CircleAlert, CircleCheck, X } from "lucide-vue-next";
 import type { ToastRecord } from "@/stores/toastStore";
-import { useToastStore } from "@/stores/toastStore";
+import { normalizeToastVariant, useToastStore } from "@/stores/toastStore";
 
 const props = defineProps<{
   toast: ToastRecord;
@@ -28,13 +28,14 @@ function splitInlineCode(text: string): Segment[] {
 
 const descriptionSegments = computed(() => splitInlineCode(props.toast.description));
 
-const isSuccess = computed(() => props.toast.variant === "success");
+const isSuccess = computed(() => normalizeToastVariant(props.toast.variant) === "success");
+const toastRole = computed(() => (isSuccess.value ? "status" : "alert"));
 </script>
 
 <template>
   <div
     class="pointer-events-auto relative w-full max-w-sm rounded-xl border border-border bg-card py-3 pl-4 pr-10 text-sm shadow-md"
-    role="alert"
+    :role="toastRole"
     :aria-labelledby="`toast-title-${toast.id}`"
   >
     <button
@@ -49,7 +50,7 @@ const isSuccess = computed(() => props.toast.variant === "success");
     <div class="flex gap-3">
       <div
         v-if="isSuccess"
-        class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-700 dark:text-emerald-400"
+        class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-chart-2/15 text-chart-2"
         aria-hidden="true"
       >
         <CircleCheck class="h-4 w-4 stroke-[2]" />
@@ -65,24 +66,20 @@ const isSuccess = computed(() => props.toast.variant === "success");
         <p
           :id="`toast-title-${toast.id}`"
           class="font-semibold"
-          :class="isSuccess ? 'text-emerald-800 dark:text-emerald-300' : 'text-destructive'"
+          :class="isSuccess ? 'text-chart-2' : 'text-destructive'"
         >
           {{ toast.title }}
         </p>
         <p
           class="mt-1 leading-relaxed"
-          :class="
-            isSuccess ? 'text-emerald-900/90 dark:text-emerald-200/95' : 'text-destructive/95'
-          "
+          :class="isSuccess ? 'text-foreground/90' : 'text-destructive/95'"
         >
           <template v-for="(seg, idx) in descriptionSegments" :key="idx">
             <code
               v-if="seg.kind === 'code'"
               class="rounded px-1 py-0.5 font-mono text-[0.8125rem]"
               :class="
-                isSuccess
-                  ? 'bg-emerald-500/15 text-emerald-800 dark:text-emerald-300'
-                  : 'bg-destructive/10 text-destructive'
+                isSuccess ? 'bg-chart-2/15 text-chart-2' : 'bg-destructive/10 text-destructive'
               "
             >{{ seg.value }}</code>
             <span v-else>{{ seg.value }}</span>

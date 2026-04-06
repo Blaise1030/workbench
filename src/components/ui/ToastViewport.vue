@@ -1,10 +1,22 @@
 <script setup lang="ts">
+import { toRaw } from "vue";
 import { storeToRefs } from "pinia";
 import ToastItem from "@/components/ui/ToastItem.vue";
-import { useToastStore } from "@/stores/toastStore";
+import { normalizeToastVariant, useToastStore, type ToastRecord } from "@/stores/toastStore";
 
 const toastStore = useToastStore();
 const { items } = storeToRefs(toastStore);
+
+/** Plain snapshot so ToastItem always sees a real `variant` (Pinia proxies can confuse prop reads). */
+function snapshotToast(t: ToastRecord): ToastRecord {
+  const raw = toRaw(t);
+  return {
+    id: raw.id,
+    title: raw.title,
+    description: raw.description,
+    variant: normalizeToastVariant(raw.variant)
+  };
+}
 </script>
 
 <template>
@@ -14,7 +26,7 @@ const { items } = storeToRefs(toastStore);
       aria-live="assertive"
       aria-relevant="additions"
     >
-      <ToastItem v-for="t in items" :key="t.id" :toast="t" />
+      <ToastItem v-for="t in items" :key="t.id" :toast="snapshotToast(t)" />
     </div>
   </Teleport>
 </template>

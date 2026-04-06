@@ -40,20 +40,21 @@ defineExpose({ openNewThreadMenu });
   </header>
   <header v-else class="flex shrink-0 items-center gap-1 px-3 py-2">
     <h2
-      class="m-0 flex min-w-0 flex-1 flex-nowrap items-center gap-1 overflow-hidden p-0 text-foreground"
+      class="relative m-0 flex min-w-0 flex-1 flex-nowrap items-center gap-1 overflow-hidden p-0 text-foreground"
       data-testid="thread-sidebar-brand"
     >
-      <WorkbenchLogoMark variant="md" />
-      <span
-        class="min-w-0 truncate text-sm font-semibold leading-none tracking-tight text-sidebar-foreground"
-        data-testid="app-title-a11y"
-      >{{ title }}</span>
-      <Badge
-        variant="secondary"
-        class="h-5 shrink-0 px-1.5 py-0 text-[10px] font-semibold uppercase tracking-wider"
-      >
-        Alpha
-      </Badge>
+      <WorkbenchLogoMark variant="md" />      
+        <span
+          class="font-app-brand-title block min-w-0 truncate text-base uppercase leading-none text-sidebar-foreground"
+          data-testid="app-title-a11y"
+        >{{ title }}</span>             
+         <Badge
+           variant="outline"
+          data-testid="thread-sidebar-alpha-badge"
+          class="shadow-xs ms-0.5 h-3.5 mt-0.5 min-h-0 rounded-sm !px-1 !py-0 text-[8px] font-semibold uppercase leading-none tracking-wide"
+        >
+          Alpha
+        </Badge>
     </h2>
     <div class="flex shrink-0 items-center justify-end">
       <ThreadCreateButton ref="createButtonRef" @create-with-agent="emit('createWithAgent', $event)">

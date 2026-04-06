@@ -250,20 +250,20 @@ onBeforeUnmount(() => {
           type="button"
           role="menuitem"
           data-testid="thread-rename"
-          class="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-accent"
+          class="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs hover:bg-accent"
           @click="startRename"
         >
-          <Pencil class="h-3.5 w-3.5" />
+          <Pencil class="h-3 w-3 shrink-0" />
           Rename
         </button>
         <button
           type="button"
           role="menuitem"
           data-testid="thread-delete"
-          class="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm text-destructive hover:bg-accent"
+          class="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs text-destructive hover:bg-accent"
           @click="handleDelete"
         >
-          <Trash2 class="h-3.5 w-3.5" />
+          <Trash2 class="h-3 w-3 shrink-0" />
           Delete
         </button>
       </div>

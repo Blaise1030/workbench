@@ -11,9 +11,25 @@ import CodeMirrorEditor from "@/components/CodeMirrorEditor.vue";
 import PillTabs, { type PillTabItem } from "@/components/ui/PillTabs.vue";
 import { renderMarkdownToHtml } from "@/lib/markdown";
 
-const props = defineProps<{
-  worktreePath: string | null;
-}>();
+const props = withDefaults(
+  defineProps<{
+    worktreePath: string | null;
+    /** Shown beside the file path in the editor header (active worktree name). */
+    worktreeLabel?: string | null;
+  }>(),
+  { worktreeLabel: null }
+);
+
+function basenameFromPath(absPath: string): string {
+  const parts = absPath.split(/[/\\]/).filter(Boolean);
+  return parts[parts.length - 1] ?? absPath;
+}
+
+const workspaceHeaderLine = computed(() => {
+  if (!props.worktreePath) return null;
+  const label = props.worktreeLabel?.trim();
+  return label || basenameFromPath(props.worktreePath);
+});
 
 const searchInput = ref<HTMLInputElement | null>(null);
 const query = ref("");
@@ -725,7 +741,20 @@ defineExpose({
         class="flex items-center justify-between gap-3 border-b border-border px-4 py-1.5"
       >
         <div class="flex min-w-0 flex-1 flex-wrap items-center gap-2">
-          <p class="min-w-0 truncate text-xs font-medium">
+          <div
+            v-if="workspaceHeaderLine"
+            data-testid="file-editor-workspace-context"
+            class="flex min-w-0 max-w-[min(14rem,32vw)] shrink-0 items-center gap-2 border-r border-border pr-3"
+          >
+            <span class="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+              Workspace
+            </span>
+            <span
+              class="min-w-0 truncate font-mono text-[11px] text-foreground"
+              :title="props.worktreePath ?? undefined"
+            >{{ workspaceHeaderLine }}</span>
+          </div>
+          <p class="min-w-0 flex-1 truncate text-xs font-medium">
             {{ selectedPath ?? "No file selected" }}
           </p>
           <template v-if="dirty">

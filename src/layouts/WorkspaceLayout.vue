@@ -590,6 +590,21 @@ async function handleSelectProject(projectId: string): Promise<void> {
   await refreshRepoStatus();
 }
 
+async function handleSelectWorktree(worktreeId: string): Promise<void> {
+  const api = getApi();
+  if (!api) return;
+  const targetWt = workspace.worktrees.find((w) => w.id === worktreeId);
+  if (!targetWt || workspace.activeWorktreeId === targetWt.id) return;
+  const firstThreadInWt = workspace.threads.find((t) => t.worktreeId === targetWt.id)?.id ?? null;
+  await api.setActive({
+    projectId: targetWt.projectId,
+    worktreeId: targetWt.id,
+    threadId: targetWt.lastActiveThreadId ?? firstThreadInWt
+  });
+  await refreshSnapshot();
+  await refreshRepoStatus();
+}
+
 const THREAD_AGENT_LABELS: Record<ThreadAgent, string> = {
   claude: "Claude Code",
   cursor: "Cursor Agent",
@@ -898,18 +913,22 @@ async function onLauncherPickFile(payload: {
   if (!targetWt) return;
 
   if (workspace.activeWorktreeId !== targetWt.id) {
-    const firstThreadInWt = workspace.threads.find((t) => t.worktreeId === targetWt.id)?.id ?? null;
-    await api.setActive({
-      projectId: targetWt.projectId,
-      worktreeId: targetWt.id,
-      threadId: targetWt.lastActiveThreadId ?? firstThreadInWt
-    });
-    await refreshSnapshot();
+    await handleSelectWorktree(targetWt.id);
   }
 
   centerTab.value = "files";
   await nextTick();
   await fileSearchRef.value?.openWorkspaceFile(payload.relativePath);
+}
+
+async function onLauncherPickProject(projectId: string): Promise<void> {
+  workspaceLauncherOpen.value = false;
+  await handleSelectProject(projectId);
+}
+
+async function onLauncherPickWorktree(worktreeId: string): Promise<void> {
+  workspaceLauncherOpen.value = false;
+  await handleSelectWorktree(worktreeId);
 }
 
 useWorkspaceKeybindings(
@@ -1304,6 +1323,7 @@ watch(
             <FileSearchEditor
               ref="fileSearchRef"
               :worktree-path="workspace.activeWorktree?.path ?? null"
+              :worktree-label="workspace.activeWorktree?.name ?? null"
             />
           </div>
         </div>
@@ -1315,6 +1335,8 @@ watch(
       @pick-thread="onLauncherPickThread"
       @pick-file="onLauncherPickFile"
       @pick-command="onLauncherPickCommand"
+      @pick-project="onLauncherPickProject"
+      @pick-worktree="onLauncherPickWorktree"
     />
 
     <AgentCommandsSettingsDialog v-model="agentCommandsSettingsOpen" :commands="commands" @save="onSaveAgentCommands" />

@@ -1,5 +1,5 @@
 import Fuse from "fuse.js";
-import type { Thread, ThreadAgent } from "@shared/domain";
+import type { Project, Thread, ThreadAgent, Worktree } from "@shared/domain";
 
 export type LauncherSearchMode = "default" | "worktree";
 
@@ -22,8 +22,14 @@ export function parseLauncherQuery(raw: string): ParsedLauncherQuery {
   return { mode: "default", query: raw };
 }
 
-/** Result grouping for the launcher UI (Agents = threads, Files = active worktree, Workspace = other worktrees). */
-export type LauncherSectionId = "commands" | "agents" | "files" | "workspace";
+/** Result grouping for the launcher UI (Agents = threads, Files = active worktree, Linked worktrees = @wt files). */
+export type LauncherSectionId =
+  | "commands"
+  | "workspace"
+  | "worktrees"
+  | "agents"
+  | "files"
+  | "linkedWorktrees";
 
 export const LAUNCHER_COMMAND_IDS = ["toggle-thread-sidebar"] as const;
 export type LauncherCommandId = (typeof LAUNCHER_COMMAND_IDS)[number];
@@ -57,6 +63,22 @@ export type LauncherRow =
       shortcutHint: string;
       score: number;
     }
+  | {
+      section: "workspace";
+      kind: "project";
+      projectId: string;
+      name: string;
+      repoPath: string;
+      score: number;
+    }
+  | {
+      section: "worktrees";
+      kind: "worktree";
+      worktreeId: string;
+      name: string;
+      branch: string;
+      score: number;
+    }
   | { section: "agents"; kind: "thread"; id: string; title: string; agent: ThreadAgent; score: number }
   | {
       section: "files";
@@ -67,7 +89,7 @@ export type LauncherRow =
       score: number;
     }
   | {
-      section: "workspace";
+      section: "linkedWorktrees";
       kind: "file";
       relativePath: string;
       worktreeId: string;
@@ -108,6 +130,43 @@ const WT_FILE_FUSE: Fuse.IFuseOptions<{
 const MAX_THREAD_RESULTS = 10;
 const MAX_BRANCH_FILE_RESULTS = 15;
 const MAX_WORKTREE_FILE_RESULTS = 25;
+const MAX_PROJECT_RESULTS = 12;
+const MAX_WORKTREE_SWITCH_RESULTS = 12;
+
+function pathBasename(p: string): string {
+  const parts = p.split(/[/\\]/).filter(Boolean);
+  return parts[parts.length - 1] ?? p;
+}
+
+const PROJECT_SWITCH_FUSE: Fuse.IFuseOptions<{
+  projectId: string;
+  name: string;
+  repoPath: string;
+  pathTail: string;
+}> = {
+  keys: [
+    { name: "name", weight: 0.45 },
+    { name: "repoPath", weight: 0.25 },
+    { name: "pathTail", weight: 0.3 }
+  ],
+  threshold: 0.42,
+  includeScore: true,
+  ignoreLocation: true
+};
+
+const WORKTREE_SWITCH_FUSE: Fuse.IFuseOptions<{
+  worktreeId: string;
+  name: string;
+  branch: string;
+}> = {
+  keys: [
+    { name: "name", weight: 0.35 },
+    { name: "branch", weight: 0.65 }
+  ],
+  threshold: 0.42,
+  includeScore: true,
+  ignoreLocation: true
+};
 
 function fuseScore(r: { score?: number }): number {
   return r.score ?? 1;
@@ -141,6 +200,97 @@ export function searchLauncherCommands(
 }
 
 /**
+ * Other open workspaces (tabs) and other worktrees in the active project. Omitted in `@wt` file mode.
+ */
+export function searchLauncherWorkspaceSwitch(
+  parsed: ParsedLauncherQuery,
+  commandSearchText: string,
+  projects: readonly Project[],
+  activeProjectId: string | null,
+  worktrees: readonly Worktree[],
+  activeWorktreeId: string | null
+): LauncherRow[] {
+  if (parsed.mode === "worktree") return [];
+
+  const q = commandSearchText.trim();
+
+  const projectDocs = projects
+    .filter((p) => p.id !== activeProjectId)
+    .map((p) => ({
+      projectId: p.id,
+      name: p.name,
+      repoPath: p.repoPath,
+      pathTail: pathBasename(p.repoPath)
+    }));
+
+  const worktreeDocs = worktrees
+    .filter((w) => w.projectId === activeProjectId && w.id !== activeWorktreeId)
+    .map((w) => ({
+      worktreeId: w.id,
+      name: w.name,
+      branch: w.branch
+    }));
+
+  const out: LauncherRow[] = [];
+
+  if (!q) {
+    for (const p of projectDocs) {
+      out.push({
+        section: "workspace",
+        kind: "project",
+        projectId: p.projectId,
+        name: p.name,
+        repoPath: p.repoPath,
+        score: 0
+      });
+    }
+    for (const w of worktreeDocs) {
+      out.push({
+        section: "worktrees",
+        kind: "worktree",
+        worktreeId: w.worktreeId,
+        name: w.name,
+        branch: w.branch,
+        score: 0
+      });
+    }
+    return out;
+  }
+
+  if (projectDocs.length > 0) {
+    const fuse = new Fuse(projectDocs, PROJECT_SWITCH_FUSE);
+    for (const hit of fuse.search(q, { limit: MAX_PROJECT_RESULTS })) {
+      const p = hit.item;
+      out.push({
+        section: "workspace",
+        kind: "project",
+        projectId: p.projectId,
+        name: p.name,
+        repoPath: p.repoPath,
+        score: fuseScore(hit)
+      });
+    }
+  }
+
+  if (worktreeDocs.length > 0) {
+    const fuse = new Fuse(worktreeDocs, WORKTREE_SWITCH_FUSE);
+    for (const hit of fuse.search(q, { limit: MAX_WORKTREE_SWITCH_RESULTS })) {
+      const w = hit.item;
+      out.push({
+        section: "worktrees",
+        kind: "worktree",
+        worktreeId: w.worktreeId,
+        name: w.name,
+        branch: w.branch,
+        score: fuseScore(hit)
+      });
+    }
+  }
+
+  return out;
+}
+
+/**
  * Fuzzy search for the workspace launcher. Callers load file lists via IPC beforehand.
  */
 export function searchLauncherRows(
@@ -164,7 +314,7 @@ export function searchLauncherRows(
     if (flat.length === 0) return [];
     const fuse = new Fuse(flat, WT_FILE_FUSE);
     return fuse.search(q, { limit: MAX_WORKTREE_FILE_RESULTS }).map((hit) => ({
-      section: "workspace" as const,
+      section: "linkedWorktrees" as const,
       kind: "file" as const,
       relativePath: hit.item.relativePath,
       worktreeId: hit.item.worktreeId,

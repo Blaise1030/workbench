@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, nextTick, onMounted, ref } from "vue";
 import type { EditorView, ViewUpdate } from "@codemirror/view";
 import {
   SearchQuery,
@@ -17,6 +17,7 @@ const props = defineProps<{
   editorView: EditorView;
 }>();
 
+const findInputRef = ref<HTMLInputElement | null>(null);
 const findText = ref("");
 const replaceText = ref("");
 const matchCase = ref(false);
@@ -54,6 +55,16 @@ function onClose(): void {
   closeSearchPanel(props.editorView);
 }
 
+function handleFindEnter(e: KeyboardEvent): void {
+  e.preventDefault();
+  commit();
+  if (e.shiftKey) {
+    findPrevious(props.editorView);
+  } else {
+    findNext(props.editorView);
+  }
+}
+
 function syncFromView(u: ViewUpdate): void {
   const prev = getSearchQuery(u.startState);
   const next = getSearchQuery(u.state);
@@ -65,6 +76,9 @@ function syncFromView(u: ViewUpdate): void {
 
 onMounted(() => {
   pullFromState();
+  void nextTick(() => {
+    findInputRef.value?.focus({ preventScroll: true });
+  });
 });
 
 defineExpose({ syncFromView });
@@ -74,6 +88,7 @@ defineExpose({ syncFromView });
   <div class="cm-find-replace-bar rounded-lg border border-border bg-transparent p-2.5 text-xs text-foreground shadow-none">
     <div class="flex flex-wrap items-center gap-x-2 gap-y-1.5">
       <input
+        ref="findInputRef"
         v-model="findText"
         type="search"
         name="search"
@@ -84,6 +99,7 @@ defineExpose({ syncFromView });
         class="h-7 min-w-[10rem] flex-1 rounded-md border border-input bg-background px-2.5 text-xs text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         @input="commit"
         @change="commit"
+        @keydown.enter="handleFindEnter"
       />
       <button
         type="button"
