@@ -2,9 +2,8 @@
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "xterm";
 import "xterm/css/xterm.css";
-import { Loader2, RotateCcw } from "lucide-vue-next";
+import { Loader2 } from "lucide-vue-next";
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
-import BaseButton from "@/components/ui/BaseButton.vue";
 
 const props = withDefaults(
   defineProps<{
@@ -46,9 +45,6 @@ let attachGeneration = 0;
 /** After first mount attach, focus terminal when session props change (e.g. thread switch). */
 let didCompleteInitialAttach = false;
 let dropHandlersCleanup: (() => void) | null = null;
-
-const restoreTitle =
-  "Restore display from session buffer (replays scrollback; Ctrl+Shift+R or ⌘⇧R)";
 
 /** Safe for POSIX shells (zsh/bash): single-quote and escape embedded quotes. */
 function shellQuotePathForPty(absPath: string): string {
@@ -288,22 +284,11 @@ watch(
 <template>
   <section
     data-instrument-terminal
-    class="relative flex bg-muted h-full min-h-0 min-w-0 flex-col overflow-hidden bg-card px-3 py-0 text-card-foreground text-xs border-t border-border"
+    class="relative flex bg-muted h-full min-h-0 min-w-0 flex-col overflow-hidden bg-card px-3 pt-1 pb-0 text-card-foreground text-xs border-t border-border"
     role="document"
     :aria-label="paneAriaLabel"
   >
     <div class="relative min-h-0 min-w-0 flex-1 overflow-hidden">
-      <BaseButton
-        type="button"
-        variant="ghost"
-        size="icon-xs"
-        class="absolute top-1 right-1 z-[5] shrink-0 text-muted-foreground hover:bg-card/80 hover:text-foreground"
-        :title="restoreTitle"
-        aria-label="Restore terminal display from session buffer"
-        @click="restoreDisplayFromBuffer"
-      >
-        <RotateCcw class="h-3.5 w-3.5" aria-hidden="true" />
-      </BaseButton>
       <div ref="containerRef" class="terminal-pane h-full min-h-0 w-full overflow-hidden" />
     </div>
     <div
