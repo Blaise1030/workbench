@@ -58,6 +58,12 @@ vi.mock("@/components/TerminalPane.vue", () => ({
 vi.mock("@/components/FileSearchEditor.vue", () => ({
   default: {
     props: ["worktreePath"],
+    methods: {
+      focusSearch() {},
+      openWorkspaceFile() {
+        return Promise.resolve();
+      }
+    },
     template: '<div data-testid="file-search-editor">{{ worktreePath }}</div>'
   }
 }));

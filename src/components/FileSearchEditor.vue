@@ -399,6 +399,15 @@ async function focusSearchInput(): Promise<void> {
   searchInput.value?.focus();
 }
 
+/** Ensures the search field exists (expands sidebar if needed) then focuses it. */
+async function focusSearchAfterReveal(): Promise<void> {
+  if (sidebarCollapsed.value) {
+    sidebarCollapsed.value = false;
+    await nextTick();
+  }
+  await focusSearchInput();
+}
+
 function collapseSidebar(): void {
   sidebarCollapsed.value = true;
 }
@@ -591,7 +600,7 @@ onUnmounted(() => {
 
 defineExpose({
   focusSearch: (): void => {
-    void focusSearchInput();
+    void focusSearchAfterReveal();
   },
   /** Open a worktree-relative path in the editor (same as picking the file in the tree). */
   openWorkspaceFile: handleSelectFile
@@ -863,7 +872,7 @@ defineExpose({
       <div
         v-if="newFileDialogOpen"
         data-testid="new-file-dialog"
-        class="fixed inset-0 z-[210] flex items-start justify-center overflow-y-auto bg-black/50 p-4 pt-[15vh] backdrop-blur-[1px]"
+        class="fixed inset-0 z-[210] flex items-start justify-center overflow-y-auto p-4 pt-[15vh] ui-glass-scrim"
         role="presentation"
         @pointerdown="onNewFileBackdropPointerDown"
       >
@@ -871,7 +880,7 @@ defineExpose({
           role="dialog"
           aria-modal="true"
           aria-labelledby="new-file-dialog-title"
-          class="relative w-full max-w-md rounded-lg border border-border bg-card p-4 text-card-foreground shadow-lg outline-none"
+          class="ui-glass-panel relative w-full max-w-md rounded-lg p-4 text-card-foreground outline-none"
           tabindex="-1"
           @pointerdown.stop
         >

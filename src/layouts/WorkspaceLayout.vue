@@ -982,9 +982,15 @@ watch(shellSlotIds, (ids) => {
 
 watch(
   () => centerTab.value,
-  (tab) => {
+  (tab, prevTab) => {
     if (tab === "diff") void refreshRepoStatus();
-  }
+    if (tab === "files" && prevTab !== "files") {
+      void nextTick(() => {
+        fileSearchRef.value?.focusSearch?.();
+      });
+    }
+  },
+  { flush: "post" }
 );
 
 watch(
