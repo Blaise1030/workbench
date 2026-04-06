@@ -55,6 +55,7 @@ const scmMeta = ref<{ shortLabel: string; branch: string; lastCommitSubject: str
 });
 const scmCommitMessage = ref("");
 const scmFetchBusy = ref(false);
+const scmPushBusy = ref(false);
 const scmCommitBusy = ref(false);
 const selectedScmPath = ref<string | null>(null);
 const selectedScmScope = ref<FileDiffScope | null>(null);
@@ -301,6 +302,7 @@ function getApi(): WorkspaceApi | null {
 }
 
 const scmFetchAvailable = computed(() => Boolean(getApi()?.gitFetch));
+const scmPushAvailable = computed(() => Boolean(getApi()?.gitPush));
 const scmCommitAvailable = computed(() => Boolean(getApi()?.commitStaged));
 
 async function refreshSnapshot(snapshot?: WorkspaceSnapshot): Promise<void> {
@@ -772,6 +774,21 @@ async function handleScmFetch(): Promise<void> {
     toast.error("Fetch failed", e instanceof Error ? e.message : "Something went wrong.");
   } finally {
     scmFetchBusy.value = false;
+  }
+}
+
+async function handleScmPush(): Promise<void> {
+  const api = getApi();
+  const cwd = workspace.activeWorktree?.path;
+  if (!api?.gitPush || !cwd) return;
+  scmPushBusy.value = true;
+  try {
+    await api.gitPush(cwd);
+    await refreshRepoStatus();
+  } catch (e) {
+    toast.error("Push failed", e instanceof Error ? e.message : "Something went wrong.");
+  } finally {
+    scmPushBusy.value = false;
   }
 }
 
@@ -1249,8 +1266,10 @@ watch(
               :branch-line="scmBranchLine"
               :last-commit-subject="scmMeta.lastCommitSubject"
               :scm-fetch-available="scmFetchAvailable"
+              :scm-push-available="scmPushAvailable"
               :scm-commit-available="scmCommitAvailable"
               :scm-fetch-busy="scmFetchBusy"
+              :scm-push-busy="scmPushBusy"
               :scm-commit-busy="scmCommitBusy"
               :selected-path="selectedScmPath"
               :selected-scope="selectedScmScope"
@@ -1264,6 +1283,7 @@ watch(
               @unstage-paths="handleUnstageSelected"
               @discard-paths="handleDiscardSelected"
               @fetch="handleScmFetch"
+              @push="handleScmPush"
               @commit="handleScmCommit"
               @open-file-in-editor="handleScmOpenFileInEditor"
             />

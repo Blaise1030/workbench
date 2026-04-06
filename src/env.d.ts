@@ -26,6 +26,7 @@ interface WorkspaceApi {
   initGitRepository?: (cwd: string) => Promise<void>;
   repoStatus?: (cwd: string) => Promise<RepoScmSnapshot | RepoStatusEntry[]>;
   gitFetch?: (cwd: string) => Promise<void>;
+  gitPush?: (cwd: string) => Promise<void>;
   commitStaged?: (cwd: string, message: string) => Promise<void>;
   fileDiff: (cwd: string, file: string, scope?: FileDiffScope) => Promise<string>;
   /** Full unstaged unified diff; omit on older preload builds (layout falls back per-file). */

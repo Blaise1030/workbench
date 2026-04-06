@@ -48,6 +48,7 @@ contextBridge.exposeInMainWorld("workspaceApi", {
   discardPaths: (cwd: string, paths: string[]) =>
     ipcRenderer.invoke(IPC_CHANNELS.diffDiscardPaths, { cwd, paths }),
   gitFetch: (cwd: string) => ipcRenderer.invoke(IPC_CHANNELS.diffGitFetch, cwd),
+  gitPush: (cwd: string) => ipcRenderer.invoke(IPC_CHANNELS.diffGitPush, cwd),
   commitStaged: (cwd: string, message: string) =>
     ipcRenderer.invoke(IPC_CHANNELS.diffGitCommit, { cwd, message }),
   listFiles: (cwd: string) => ipcRenderer.invoke(IPC_CHANNELS.filesList, cwd),

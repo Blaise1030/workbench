@@ -176,6 +176,12 @@ export class DiffService {
     await git.fetch();
   }
 
+  /** Pushes the current branch to its configured upstream (`git push`). */
+  async gitPush(cwd: string): Promise<void> {
+    const git = simpleGit(cwd);
+    await git.push();
+  }
+
   async commitStaged(cwd: string, message: string): Promise<void> {
     const git = simpleGit(cwd);
     await git.commit(message);

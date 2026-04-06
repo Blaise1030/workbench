@@ -171,6 +171,7 @@ function registerIpc(workspaceService: WorkspaceService): void {
     diffService.discardPaths(payload.cwd, payload.paths)
   );
   ipcMain.handle(IPC_CHANNELS.diffGitFetch, (_, cwd: string) => diffService.gitFetch(cwd));
+  ipcMain.handle(IPC_CHANNELS.diffGitPush, (_, cwd: string) => diffService.gitPush(cwd));
   ipcMain.handle(IPC_CHANNELS.diffGitCommit, (_, payload: { cwd: string; message: string }) =>
     diffService.commitStaged(payload.cwd, payload.message)
   );

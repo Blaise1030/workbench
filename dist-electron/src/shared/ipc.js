@@ -28,6 +28,7 @@ exports.IPC_CHANNELS = {
     diffUnstagePaths: "diff:unstagePaths",
     diffDiscardPaths: "diff:discardPaths",
     diffGitFetch: "diff:gitFetch",
+    diffGitPush: "diff:gitPush",
     diffGitCommit: "diff:gitCommit",
     diffIsGitRepository: "diff:isGitRepository",
     diffInitGitRepository: "diff:initGitRepository",

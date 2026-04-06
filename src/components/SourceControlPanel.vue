@@ -3,16 +3,21 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue"
 import { html as diffToHtml } from "diff2html";
 import { ColorSchemeType } from "diff2html/lib/types";
 import {
+  ArrowDownToLine,
+  ArrowUpFromLine,
   ChevronDown,
   ChevronsDown,
   ChevronsUp,
   FileText,
+  Loader2,
+  Maximize2,
+  Minimize2,
   Minus,
   Plus,
   RotateCcw,
-  Trash2
+  Trash2,
+  Undo2
 } from "lucide-vue-next";
-import { Loader2, Maximize2, Minimize2, Undo2 } from "lucide-vue-next";
 import BaseButton from "@/components/ui/BaseButton.vue";
 import type { RepoStatusEntry } from "@shared/ipc";
 import { looksLikeUnifiedDiff } from "@shared/diffPaths";
@@ -43,8 +48,11 @@ const props = withDefaults(
     lastCommitSubject?: string | null;
     /** Desktop preload exposes `gitFetch`. */
     scmFetchAvailable?: boolean;
+    /** Desktop preload exposes `gitPush`. */
+    scmPushAvailable?: boolean;
     scmCommitAvailable?: boolean;
     scmFetchBusy?: boolean;
+    scmPushBusy?: boolean;
     scmCommitBusy?: boolean;
     selectedPath: string | null;
     selectedScope: EntryScope | null;
@@ -55,8 +63,10 @@ const props = withDefaults(
     branchLine: null,
     lastCommitSubject: null,
     scmFetchAvailable: false,
+    scmPushAvailable: false,
     scmCommitAvailable: false,
     scmFetchBusy: false,
+    scmPushBusy: false,
     scmCommitBusy: false
   }
 );
@@ -70,6 +80,7 @@ const emit = defineEmits<{
   unstagePaths: [paths: string[]];
   discardPaths: [paths: string[]];
   fetch: [];
+  push: [];
   commit: [];
   openFileInEditor: [path: string];
 }>();
@@ -525,11 +536,12 @@ onBeforeUnmount(() => {
             <div v-if="actionsOpen" class="fixed inset-0 z-40" @click="actionsOpen = false" />
             <div
               v-if="actionsOpen"
-              class="absolute right-0 top-full z-50 mt-1 min-w-[180px] rounded-md border border-border bg-popover py-1 shadow-md"
+              class="absolute right-0 top-full z-50 mt-1 min-w-[180px] rounded-md border border-border bg-popover p-1 shadow-md"
             >
               <!-- Selection actions -->
               <button
-                class="flex w-full items-center gap-2 px-3 py-1.5 text-[10px] text-foreground hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed"
+                type="button"
+                class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[10px] text-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
                 :disabled="!canStageFromSelection"
                 @click="actionStageSelected(); actionsOpen = false"
               >
@@ -537,7 +549,8 @@ onBeforeUnmount(() => {
                 Stage Selected
               </button>
               <button
-                class="flex w-full items-center gap-2 px-3 py-1.5 text-[10px] text-foreground hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed"
+                type="button"
+                class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[10px] text-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
                 :disabled="!canUnstageFromSelection"
                 @click="actionUnstageSelected(); actionsOpen = false"
               >
@@ -545,7 +558,8 @@ onBeforeUnmount(() => {
                 Unstage Selected
               </button>
               <button
-                class="flex w-full items-center gap-2 px-3 py-1.5 text-[10px] text-destructive hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed"
+                type="button"
+                class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[10px] text-destructive transition-colors hover:bg-destructive/10 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
                 :disabled="!canDiscardFromSelection"
                 @click="actionDiscardSelected(); actionsOpen = false"
               >
@@ -553,24 +567,27 @@ onBeforeUnmount(() => {
                 Discard Selected
               </button>
               <!-- Divider -->
-              <div class="my-1 border-t border-border" />
+              <div class="my-1 h-px shrink-0 bg-border" role="separator" />
               <!-- Bulk actions -->
               <button
-                class="flex w-full items-center gap-2 px-3 py-1.5 text-[10px] text-foreground hover:bg-muted"
+                type="button"
+                class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[10px] text-foreground transition-colors hover:bg-muted"
                 @click="emit('stageAll'); actionsOpen = false"
               >
                 <ChevronsUp class="h-3 w-3 shrink-0" />
                 Stage All
               </button>
               <button
-                class="flex w-full items-center gap-2 px-3 py-1.5 text-[10px] text-foreground hover:bg-muted"
+                type="button"
+                class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[10px] text-foreground transition-colors hover:bg-muted"
                 @click="emit('unstageAll'); actionsOpen = false"
               >
                 <ChevronsDown class="h-3 w-3 shrink-0" />
                 Unstage All
               </button>
               <button
-                class="flex w-full items-center gap-2 px-3 py-1.5 text-[10px] text-destructive hover:bg-muted"
+                type="button"
+                class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[10px] text-destructive transition-colors hover:bg-destructive/10"
                 @click="emit('discardAll'); actionsOpen = false"
               >
                 <Trash2 class="h-3 w-3 shrink-0" />
@@ -682,19 +699,50 @@ onBeforeUnmount(() => {
             {{ branchLine?.replace(' / ', '/') }}
           </p>
           <span v-else class="text-[9px] text-muted-foreground">—</span>
-          <BaseButton
-            v-if="scmFetchAvailable"
-            type="button"
-            size="xs"
-            variant="outline"
-            class="h-6 shrink-0 gap-1 px-2 text-[10px]"
-            :disabled="scmFetchBusy"
-            aria-label="Fetch from remote"
-            @click="emit('fetch')"
+          <div
+            v-if="scmFetchAvailable || scmPushAvailable"
+            class="flex shrink-0 items-center gap-1"
           >
-            <Loader2 v-if="scmFetchBusy" class="h-3 w-3 shrink-0 animate-spin" aria-hidden="true" />
-            Fetch
-          </BaseButton>
+            <BaseButton
+              v-if="scmFetchAvailable"
+              type="button"
+              size="xs"
+              variant="outline"
+              class="h-6 shrink-0 gap-1 px-2 text-[10px]"
+              :disabled="scmFetchBusy || scmPushBusy"
+              aria-label="Fetch from remote"
+              @click="emit('fetch')"
+            >
+              <Loader2 v-if="scmFetchBusy" class="h-2.5 w-2.5 shrink-0 animate-spin" aria-hidden="true" />
+              <ArrowDownToLine
+                v-else
+                class="h-2.5 w-2.5 shrink-0 opacity-80"
+                :stroke-width="2"
+                aria-hidden="true"
+              />
+              Fetch
+            </BaseButton>
+            <BaseButton
+              v-if="scmPushAvailable"
+              type="button"
+              size="xs"
+              variant="outline"
+              class="h-6 shrink-0 gap-1 px-2 text-[10px]"
+              :disabled="scmPushBusy || scmFetchBusy"
+              aria-label="Push current branch to remote"
+              title="Push current branch (upstream must be set)"
+              @click="emit('push')"
+            >
+              <Loader2 v-if="scmPushBusy" class="h-2.5 w-2.5 shrink-0 animate-spin" aria-hidden="true" />
+              <ArrowUpFromLine
+                v-else
+                class="h-2.5 w-2.5 shrink-0 opacity-80"
+                :stroke-width="2"
+                aria-hidden="true"
+              />
+              Push
+            </BaseButton>
+          </div>
         </div>
 
         <div class="relative">

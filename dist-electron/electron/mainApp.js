@@ -144,6 +144,7 @@ function registerIpc(workspaceService) {
     electron_1.ipcMain.handle(ipc_js_1.IPC_CHANNELS.diffUnstagePaths, (_, payload) => diffService.unstagePaths(payload.cwd, payload.paths));
     electron_1.ipcMain.handle(ipc_js_1.IPC_CHANNELS.diffDiscardPaths, (_, payload) => diffService.discardPaths(payload.cwd, payload.paths));
     electron_1.ipcMain.handle(ipc_js_1.IPC_CHANNELS.diffGitFetch, (_, cwd) => diffService.gitFetch(cwd));
+    electron_1.ipcMain.handle(ipc_js_1.IPC_CHANNELS.diffGitPush, (_, cwd) => diffService.gitPush(cwd));
     electron_1.ipcMain.handle(ipc_js_1.IPC_CHANNELS.diffGitCommit, (_, payload) => diffService.commitStaged(payload.cwd, payload.message));
     electron_1.ipcMain.handle(ipc_js_1.IPC_CHANNELS.filesList, (_, cwd) => fileService.listFileSummaries(cwd));
     electron_1.ipcMain.handle(ipc_js_1.IPC_CHANNELS.filesSearch, (_, payload) => fileService.searchFiles(payload.cwd, payload.query));

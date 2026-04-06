@@ -47,6 +47,7 @@ electron_1.contextBridge.exposeInMainWorld("workspaceApi", {
     unstagePaths: (cwd, paths) => electron_1.ipcRenderer.invoke(ipc_js_1.IPC_CHANNELS.diffUnstagePaths, { cwd, paths }),
     discardPaths: (cwd, paths) => electron_1.ipcRenderer.invoke(ipc_js_1.IPC_CHANNELS.diffDiscardPaths, { cwd, paths }),
     gitFetch: (cwd) => electron_1.ipcRenderer.invoke(ipc_js_1.IPC_CHANNELS.diffGitFetch, cwd),
+    gitPush: (cwd) => electron_1.ipcRenderer.invoke(ipc_js_1.IPC_CHANNELS.diffGitPush, cwd),
     commitStaged: (cwd, message) => electron_1.ipcRenderer.invoke(ipc_js_1.IPC_CHANNELS.diffGitCommit, { cwd, message }),
     listFiles: (cwd) => electron_1.ipcRenderer.invoke(ipc_js_1.IPC_CHANNELS.filesList, cwd),
     searchFiles: (cwd, query) => electron_1.ipcRenderer.invoke(ipc_js_1.IPC_CHANNELS.filesSearch, { cwd, query }),
