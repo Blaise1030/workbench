@@ -21,7 +21,7 @@ import { useTerminalAttentionSounds } from "@/composables/useTerminalAttentionSo
 import { useTerminalSoundSettings } from "@/composables/useTerminalSoundSettings";
 import { useToast } from "@/composables/useToast";
 import { useWorkspaceKeybindings } from "@/composables/useWorkspaceKeybindings";
-import { formatShortcut, shortcutForId, titleWithShortcut } from "@/keybindings/registry";
+import { formatShortcut, MOD_DIGIT_SLOT_CODES, titleWithShortcut } from "@/keybindings/registry";
 import { useWorkspaceStore } from "@/stores/workspaceStore";
 import { useRunStore } from "@/stores/runStore";
 import { visibleTerminalSessionId } from "@/terminal/attentionRules";
@@ -68,34 +68,37 @@ const centerTab = ref<string>("agent");
 /** One UUID per integrated terminal tab (after Agent + Git Diff). */
 const shellSlotIds = ref<string[]>([]);
 
-const SHELL_TAB_CODES = ["Digit4", "Digit5", "Digit6", "Digit7", "Digit8", "Digit9"] as const;
-
 const threadSidebarRef = ref<InstanceType<typeof ThreadSidebar> | null>(null);
 const fileSearchRef = ref<InstanceType<typeof FileSearchEditor> | null>(null);
 const keybindingsEnabled = ref(true);
 
+const projectDigitSlotCount = computed(() => Math.min(MOD_DIGIT_SLOT_CODES.length, workspace.projects.length));
+
 const centerPanelTabs = computed<PillTabItem[]>(() => {
   const slots = shellSlotIds.value;
-  const tabs: PillTabItem[] = [
-    { value: "agent", label: "🤖 Agent", shortcutHint: shortcutForId("centerTabAgent") }
-  ];
+  const projectSlots = projectDigitSlotCount.value;
+  const tabs: PillTabItem[] = [{ value: "agent", label: "🤖 Agent" }];
   if (hasGitRepository.value === true) {
-    tabs.push({ value: "diff", label: "🌿 Git Diff", shortcutHint: shortcutForId("centerTabDiff") });
+    tabs.push({ value: "diff", label: "🌿 Git Diff" });
   }
   tabs.push({
     value: "files",
     label: "📄 Files",
-    dividerAfter: true,
-    shortcutHint: shortcutForId("centerTabFiles")
+    dividerAfter: true
   });
   tabs.push(
-    ...slots.map((id, i) => ({
-      value: `shell:${id}`,
-      label: `💻 Terminal ${i + 1}`,
-      closable: true,
-      shortcutHint:
-        i < SHELL_TAB_CODES.length ? formatShortcut({ mod: true, code: SHELL_TAB_CODES[i] }) : undefined
-    }))
+    ...slots.map((id, i) => {
+      const slotIndex = projectSlots + i;
+      return {
+        value: `shell:${id}`,
+        label: `💻 Terminal ${i + 1}`,
+        closable: true,
+        shortcutHint:
+          slotIndex < MOD_DIGIT_SLOT_CODES.length
+            ? formatShortcut({ mod: true, code: MOD_DIGIT_SLOT_CODES[slotIndex] })
+            : undefined
+      };
+    })
   );
   return tabs;
 });
@@ -829,9 +832,12 @@ useWorkspaceKeybindings(
     workspaceUiActive: () => hasActiveWorkspace.value,
     settingsOpen: () => agentCommandsSettingsOpen.value,
     centerTab: () => centerTab.value,
+    projectIds: () => workspace.projects.map((p) => p.id),
     shellSlotIds: () => shellSlotIds.value,
-    diffTabSelectable: () => hasGitRepository.value === true,
     scmActionsAvailable: () => hasGitRepository.value === true,
+    onSelectProject: (projectId) => {
+      void handleSelectProject(projectId);
+    },
     onSelectCenterTab: (tab) => {
       centerTab.value = tab;
     },

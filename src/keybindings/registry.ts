@@ -5,10 +5,7 @@
 export type KeybindingCategory = "Navigation" | "Threads" | "Git diff" | "Files" | "General";
 
 export type KeybindingId =
-  | "centerTabAgent"
-  | "centerTabDiff"
-  | "centerTabFiles"
-  | "centerTabShellSlot"
+  | "switchProjectOrTerminalDigit"
   | "prevThread"
   | "nextThread"
   | "toggleThreadSidebar"
@@ -43,6 +40,19 @@ const mod = (code: string, opts?: { shift?: boolean; alt?: boolean }): PhysicalS
   ...opts
 });
 
+/** ⌘1 … ⌘9 slot indices 0–8 (layout-stable `KeyboardEvent.code` values). */
+export const MOD_DIGIT_SLOT_CODES = [
+  "Digit1",
+  "Digit2",
+  "Digit3",
+  "Digit4",
+  "Digit5",
+  "Digit6",
+  "Digit7",
+  "Digit8",
+  "Digit9"
+] as const;
+
 /** Label fragment for one key (for tooltips / settings) */
 function codeToDisplayLabel(code: string): string {
   const map: Record<string, string> = {
@@ -68,32 +78,14 @@ function codeToDisplayLabel(code: string): string {
   return map[code] ?? code.replace(/^Key/, "");
 }
 
-/** Fixed shortcuts only; center-tab digits 4+ documented separately */
 export const KEYBINDING_DEFINITIONS: KeybindingDefinition[] = [
   {
-    id: "centerTabAgent",
-    label: "Open Agent tab",
+    id: "switchProjectOrTerminalDigit",
+    label: "Switch project or terminal (number key)",
     category: "Navigation",
-    shortcut: mod("Digit1")
-  },
-  {
-    id: "centerTabDiff",
-    label: "Open Git Diff tab",
-    category: "Navigation",
-    shortcut: mod("Digit2")
-  },
-  {
-    id: "centerTabFiles",
-    label: "Open Files tab",
-    category: "Navigation",
-    shortcut: mod("Digit3")
-  },
-  {
-    id: "centerTabShellSlot",
-    label: "Open terminal tab",
-    category: "Navigation",
-    shortcut: mod("Digit4"),
-    notes: "⌘4 / Ctrl+4 first extra terminal; ⌘5, ⌘6, … for additional terminals when present."
+    shortcut: mod("Digit1"),
+    notes:
+      "⌘1–⌘9 / Ctrl+1–9: first select open projects in order, then terminal tabs. Agent, Git Diff, and Files have no ⌘-number shortcut."
   },
   {
     id: "prevThread",
@@ -169,6 +161,12 @@ export function formatShortcut(s: PhysicalShortcut): string {
   if (s.alt) parts.push("Alt");
   parts.push(sym);
   return parts.join("+");
+}
+
+/** Tooltip / tab hint for the n-th ⌘-digit slot (0 = ⌘1). Empty if out of range. */
+export function shortcutForModDigitSlot(zeroBasedSlot: number): string {
+  if (zeroBasedSlot < 0 || zeroBasedSlot >= MOD_DIGIT_SLOT_CODES.length) return "";
+  return formatShortcut({ mod: true, code: MOD_DIGIT_SLOT_CODES[zeroBasedSlot] });
 }
 
 export function shortcutForId(id: KeybindingId): string {

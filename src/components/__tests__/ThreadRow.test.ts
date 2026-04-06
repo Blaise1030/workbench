@@ -90,7 +90,7 @@ describe("ThreadRow", () => {
   it("keeps thread row at 32px and does not mount the menu trigger until the row is hovered", async () => {
     const wrapper = mount(ThreadRow, { props: { thread, isActive: false } });
     const row = wrapper.get('[data-testid="thread-row"]');
-    expect(row.classes()).toContain("h-8");
+    expect(row.classes()).toContain("h-7");
     expect(wrapper.find('[data-testid="thread-menu-trigger"]').exists()).toBe(false);
     await hoverThreadRow(wrapper);
     expect(wrapper.find('[data-testid="thread-menu-trigger"]').exists()).toBe(true);

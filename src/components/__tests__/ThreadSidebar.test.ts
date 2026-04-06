@@ -199,7 +199,7 @@ describe("ThreadSidebar", () => {
     expect(dragRows[0]!.attributes("draggable")).toBeUndefined();
     expect(dragHandles[0]!.attributes("draggable")).toBe("true");
     expect(dragHandles[0]!.classes()).toContain("absolute");
-    expect(dragHandles[0]!.classes()).toContain("right-7");
+    expect(dragHandles[0]!.classes()).toContain("right-6");
     expect(dragRows[0]!.classes()).not.toContain("pl-9");
     expect(dragHandles[0]!.classes()).toContain("opacity-0");
     expect(dragHandles[0]!.classes()).toContain("pointer-events-none");

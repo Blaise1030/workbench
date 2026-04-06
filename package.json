@@ -1,10 +1,10 @@
 {
-  "name": "cli-agent-workspace-poc",
+  "name": "workbench",
   "version": "0.1.0",
   "private": true,
   "type": "commonjs",
-  "description": "Desktop workspace POC for local coding agents",
-  "author": "Instrument contributors",
+  "description": "Desktop workspace for local coding agents",
+  "author": "workbench contributors",
   "main": "dist-electron/electron/main.js",
   "scripts": {
     "dev": "vite --strictPort --port 5180",
@@ -45,6 +45,7 @@
     "codemirror": "^6.0.2",
     "diff2html": "^3.4.56",
     "dompurify": "^3.3.3",
+    "geist": "^1.7.0",
     "lucide-vue-next": "^1.0.0",
     "marked": "^17.0.6",
     "node-pty": "^1.0.0",

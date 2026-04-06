@@ -1,7 +1,7 @@
 # https://www.electron.build/configuration
-appId: com.instrument.desktop
-productName: Instrumental
-copyright: Copyright © Instrument contributors
+appId: com.workbench.desktop
+productName: workbench.
+copyright: Copyright © workbench contributors
 
 directories:
   output: release

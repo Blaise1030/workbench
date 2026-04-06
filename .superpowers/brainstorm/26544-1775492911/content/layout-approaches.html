@@ -1,0 +1,115 @@
+<h2>Worktree-First Workflow — Layout Approaches</h2>
+<p class="subtitle">Three ways to make worktrees first-class in the UI</p>
+
+<div class="cards">
+
+  <!-- Option A -->
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding: 12px; background: var(--bg-secondary); border-radius: 6px; font-family: monospace; font-size: 11px;">
+      <!-- Project tabs -->
+      <div style="display:flex; gap:4px; padding:4px 6px; background:#1a1a1a; border-radius:4px 4px 0 0; border-bottom:1px solid #333;">
+        <span style="background:#2a2a2a; border:1px solid #444; border-radius:3px; padding:2px 8px; color:#ccc; font-size:10px;">📁 my-app</span>
+        <span style="background:#1a1a1a; border:1px solid #333; border-radius:3px; padding:2px 8px; color:#666; font-size:10px;">📁 api</span>
+      </div>
+      <!-- Worktree tabs -->
+      <div style="display:flex; gap:4px; padding:4px 6px; background:#111; border-bottom:1px solid #333; align-items:center;">
+        <span style="background:#1e3a2a; border:1px solid #2a5a3a; border-radius:3px; padding:2px 8px; color:#4ade80; font-size:10px;">🌿 main</span>
+        <span style="background:#111; border:1px solid #333; border-radius:3px; padding:2px 8px; color:#666; font-size:10px;">🌿 feat/auth</span>
+        <span style="background:#111; border:1px solid #333; border-radius:3px; padding:2px 8px; color:#666; font-size:10px;">🌿 fix/login</span>
+        <span style="margin-left:auto; color:#666; font-size:10px; padding:2px 6px; border:1px dashed #333; border-radius:3px;">+ New</span>
+      </div>
+      <!-- Center panel tabs -->
+      <div style="display:flex; gap:4px; padding:4px 6px; background:#161616; border-bottom:1px solid #333;">
+        <span style="padding:2px 8px; color:#666; font-size:10px;">🤖 Agent</span>
+        <span style="padding:2px 8px; color:#666; font-size:10px;">🌿 Git Diff</span>
+        <span style="padding:2px 8px; color:#666; font-size:10px;">📄 Files</span>
+        <span style="background:#1c2a1c; border-radius:3px; padding:2px 8px; color:#4ade80; font-size:10px;">💻 Terminal 1</span>
+        <span style="padding:2px 8px; color:#666; font-size:10px;">💻 Terminal 2</span>
+      </div>
+      <!-- Content area -->
+      <div style="background:#0d0d0d; height:60px; border-radius:0 0 4px 4px; display:flex; align-items:center; justify-content:center; color:#333; font-size:10px;">Terminal content — scoped to feat/auth</div>
+    </div>
+    <div class="card-body">
+      <h3>A — Worktree Tab Row</h3>
+      <p>A second tab strip beneath the project tabs. Each worktree is a tab (branch name). Switching tabs switches the active worktree — terminals, threads, and git context all update. A "+ New" button creates a worktree inline.</p>
+    </div>
+  </div>
+
+  <!-- Option B -->
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding: 12px; background: var(--bg-secondary); border-radius: 6px; font-family: monospace; font-size: 11px;">
+      <!-- Project tabs -->
+      <div style="display:flex; gap:4px; padding:4px 6px; background:#1a1a1a; border-radius:4px 4px 0 0; border-bottom:1px solid #333;">
+        <span style="background:#2a2a2a; border:1px solid #444; border-radius:3px; padding:2px 8px; color:#ccc; font-size:10px;">📁 my-app</span>
+      </div>
+      <!-- Main body: sidebar + content -->
+      <div style="display:flex; height:130px;">
+        <!-- Left: Thread sidebar (existing) -->
+        <div style="width:44px; background:#111; border-right:1px solid #222; display:flex; flex-direction:column; align-items:center; padding:6px 4px; gap:6px;">
+          <div style="width:28px; height:28px; background:#1e3a2a; border-radius:4px; border:1px solid #2a5a3a;"></div>
+          <div style="width:28px; height:28px; background:#1a1a1a; border-radius:4px; border:1px solid #333;"></div>
+          <div style="width:28px; height:28px; background:#1a1a1a; border-radius:4px; border:1px solid #333;"></div>
+        </div>
+        <!-- Worktree panel -->
+        <div style="width:110px; background:#0f1a13; border-right:1px solid #1e3a2a; padding:6px; display:flex; flex-direction:column; gap:4px;">
+          <div style="color:#4ade80; font-size:9px; letter-spacing:0.5px; text-transform:uppercase; margin-bottom:2px;">Worktrees</div>
+          <div style="background:#1e3a2a; border:1px solid #2a5a3a; border-radius:3px; padding:3px 6px; color:#4ade80; font-size:10px;">🌿 main ●</div>
+          <div style="padding:3px 6px; color:#888; font-size:10px;">🌿 feat/auth</div>
+          <div style="padding:3px 6px; color:#888; font-size:10px;">🌿 fix/login</div>
+          <div style="margin-top:auto; padding:2px 4px; color:#666; font-size:9px; border:1px dashed #333; border-radius:3px; text-align:center;">+ New worktree</div>
+        </div>
+        <!-- Center -->
+        <div style="flex:1; background:#0d0d0d; display:flex; flex-direction:column;">
+          <div style="display:flex; gap:4px; padding:3px 6px; background:#161616; border-bottom:1px solid #333;">
+            <span style="padding:2px 6px; color:#666; font-size:10px;">🤖 Agent</span>
+            <span style="background:#1c2a1c; border-radius:3px; padding:2px 6px; color:#4ade80; font-size:10px;">💻 Terminal 1</span>
+          </div>
+          <div style="flex:1; display:flex; align-items:center; justify-content:center; color:#333; font-size:10px;">main terminal</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B — Worktree Sidebar Panel</h3>
+      <p>A dedicated panel (between thread sidebar and center content) listing all worktrees with branch name and terminal status indicator. Clicking switches context. Compact — doesn't push the center panel.</p>
+    </div>
+  </div>
+
+  <!-- Option C -->
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding: 12px; background: var(--bg-secondary); border-radius: 6px; font-family: monospace; font-size: 11px;">
+      <!-- Project tabs -->
+      <div style="display:flex; gap:4px; padding:4px 6px; background:#1a1a1a; border-radius:4px 4px 0 0; border-bottom:1px solid #333;">
+        <span style="background:#2a2a2a; border:1px solid #444; border-radius:3px; padding:2px 8px; color:#ccc; font-size:10px;">📁 my-app</span>
+      </div>
+      <!-- Main body -->
+      <div style="display:flex; height:130px;">
+        <!-- Thread sidebar -->
+        <div style="width:44px; background:#111; border-right:1px solid #222;"></div>
+        <!-- Center -->
+        <div style="flex:1; background:#0d0d0d; display:flex; flex-direction:column;">
+          <!-- Tab row with grouped terminals -->
+          <div style="display:flex; gap:0; padding:0 6px; background:#161616; border-bottom:1px solid #333; align-items:center; height:28px;">
+            <span style="padding:2px 8px; color:#666; font-size:10px;">🤖 Agent</span>
+            <span style="padding:2px 8px; color:#666; font-size:10px;">🌿 Diff</span>
+            <span style="padding:2px 8px; color:#666; font-size:10px; border-right:1px solid #333; margin-right:4px;">📄 Files</span>
+            <!-- Worktree group header -->
+            <span style="color:#4ade80; font-size:9px; padding:1px 4px; background:#0f1a13; border:1px solid #1e3a2a; border-radius:3px; margin-right:2px;">main</span>
+            <span style="background:#1c2a1c; border-radius:3px; padding:2px 6px; color:#4ade80; font-size:10px; margin-right:4px;">💻 T1 ×</span>
+            <span style="padding:2px 6px; color:#666; font-size:10px; margin-right:4px;">💻 T2 ×</span>
+            <!-- Second worktree group -->
+            <span style="color:#60a5fa; font-size:9px; padding:1px 4px; background:#0d1526; border:1px solid #1e3a5a; border-radius:3px; margin-right:2px;">feat/auth</span>
+            <span style="padding:2px 6px; color:#666; font-size:10px;">💻 T1 ×</span>
+          </div>
+          <div style="flex:1; display:flex; align-items:center; justify-content:center; color:#333; font-size:10px;">main → T1 active</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C — Grouped Terminal Tabs</h3>
+      <p>Terminals in the center panel tab bar are grouped under inline worktree labels. All worktrees' terminals are visible at once; click any to jump directly. No worktree switcher — the tab bar IS the worktree manager.</p>
+    </div>
+  </div>
+
+</div>
+
+<p class="subtitle" style="margin-top: 16px;">Click to select your preferred approach, or respond in the terminal with thoughts.</p>

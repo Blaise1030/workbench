@@ -5,16 +5,12 @@ import {
   isFocusInsideInstrumentTerminal,
   isTypingSurface,
   KEYBINDING_DEFINITIONS,
+  MOD_DIGIT_SLOT_CODES,
   type KeybindingId,
   type PhysicalShortcut
 } from "@/keybindings/registry";
 
-const SHELL_TAB_CODES = ["Digit4", "Digit5", "Digit6", "Digit7", "Digit8", "Digit9"] as const;
-
 const NAV_IDS: KeybindingId[] = [
-  "centerTabAgent",
-  "centerTabDiff",
-  "centerTabFiles",
   "prevThread",
   "nextThread",
   "toggleThreadSidebar",
@@ -29,11 +25,12 @@ export type WorkspaceKeybindingContext = {
   workspaceUiActive: () => boolean;
   settingsOpen: () => boolean;
   centerTab: () => string;
+  /** Project ids in tab order; first nine get ⌘1–⌘9. */
+  projectIds: () => readonly string[];
   shellSlotIds: () => readonly string[];
-  /** When false, ⌘2 / diff shortcut is ignored (e.g. folder is not a Git work tree). */
-  diffTabSelectable: () => boolean;
   /** When false, stage-all shortcut on diff tab is ignored. */
   scmActionsAvailable: () => boolean;
+  onSelectProject: (projectId: string) => void;
   onSelectCenterTab: (tab: string) => void;
   onPrevThread: () => void;
   onNextThread: () => void;
@@ -47,18 +44,18 @@ export type WorkspaceKeybindingContext = {
 
 function findStaticBindingId(ev: KeyboardEvent): KeybindingId | null {
   for (const d of KEYBINDING_DEFINITIONS) {
-    if (d.id === "centerTabShellSlot") continue;
+    if (d.id === "switchProjectOrTerminalDigit") continue;
     if (eventMatchesShortcut(ev, d.shortcut)) return d.id;
   }
   return null;
 }
 
-function shellSlotIndexFromEvent(ev: KeyboardEvent, shellCount: number): number | null {
-  if (ev.repeat || shellCount === 0) return null;
-  const idx = SHELL_TAB_CODES.findIndex((c) => c === ev.code);
-  if (idx < 0 || idx >= shellCount) return null;
-  const shellShortcut: PhysicalShortcut = { mod: true, code: SHELL_TAB_CODES[idx] };
-  if (!eventMatchesShortcut(ev, shellShortcut)) return null;
+/** 0–8 for ⌘1…⌘9 when Mod+digit (no shift/alt); else null. */
+function modDigitSlotIndex(ev: KeyboardEvent): number | null {
+  const idx = MOD_DIGIT_SLOT_CODES.findIndex((c) => c === ev.code);
+  if (idx < 0) return null;
+  const s: PhysicalShortcut = { mod: true, code: MOD_DIGIT_SLOT_CODES[idx] };
+  if (!eventMatchesShortcut(ev, s)) return null;
   return idx;
 }
 
@@ -75,8 +72,31 @@ export function useWorkspaceKeybindings(ctx: WorkspaceKeybindingContext, enabled
     const typing = isTypingSurface(ev.target);
     const workspaceUi = ctx.workspaceUiActive();
 
+    const digitSlot = workspaceUi ? modDigitSlotIndex(ev) : null;
     const id = findStaticBindingId(ev);
-    const shellIdx = workspaceUi ? shellSlotIndexFromEvent(ev, ctx.shellSlotIds().length) : null;
+
+    if (digitSlot != null && workspaceUi) {
+      if (!inTerminal && !typing) {
+        const projects = ctx.projectIds();
+        const projectSlots = Math.min(MOD_DIGIT_SLOT_CODES.length, projects.length);
+        if (digitSlot < projectSlots) {
+          const pid = projects[digitSlot];
+          if (pid) {
+            ev.preventDefault();
+            ctx.onSelectProject(pid);
+          }
+          return;
+        }
+        const shellIdx = digitSlot - projectSlots;
+        const shells = ctx.shellSlotIds();
+        if (shellIdx >= 0 && shellIdx < shells.length) {
+          ev.preventDefault();
+          const slotId = shells[shellIdx];
+          if (slotId) ctx.onSelectCenterTab(`shell:${slotId}`);
+          return;
+        }
+      }
+    }
 
     if (id === "openSettings") {
       const def = findDefinition("openSettings");
@@ -89,44 +109,19 @@ export function useWorkspaceKeybindings(ctx: WorkspaceKeybindingContext, enabled
       return;
     }
 
-    if (id == null && shellIdx == null) return;
+    if (id == null) return;
 
     if (!workspaceUi) return;
 
-    const def = id ? findDefinition(id) : null;
+    const def = findDefinition(id);
 
     if (def && NAV_IDS.includes(def.id) && inTerminal) return;
 
     if (def && NAV_IDS.includes(def.id) && typing) return;
 
-    if (shellIdx != null) {
-      if (inTerminal) return;
-      if (typing) return;
-      ev.preventDefault();
-      const slotId = ctx.shellSlotIds()[shellIdx];
-      if (slotId) ctx.onSelectCenterTab(`shell:${slotId}`);
-      return;
-    }
-
-    if (!id || !def) return;
+    if (!def) return;
     if (!eventMatchesShortcut(ev, def.shortcut)) return;
 
-    if (id === "centerTabAgent") {
-      ev.preventDefault();
-      ctx.onSelectCenterTab("agent");
-      return;
-    }
-    if (id === "centerTabDiff") {
-      if (!ctx.diffTabSelectable()) return;
-      ev.preventDefault();
-      ctx.onSelectCenterTab("diff");
-      return;
-    }
-    if (id === "centerTabFiles") {
-      ev.preventDefault();
-      ctx.onSelectCenterTab("files");
-      return;
-    }
     if (id === "prevThread") {
       ev.preventDefault();
       ctx.onPrevThread();

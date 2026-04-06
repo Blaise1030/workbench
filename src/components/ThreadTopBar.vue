@@ -3,13 +3,13 @@ import type { ThreadAgent } from "@shared/domain";
 import { Plus } from "lucide-vue-next";
 import { ref } from "vue";
 import Badge from "@/components/ui/Badge.vue";
-import InstrumentalLogoMark from "@/components/InstrumentalLogoMark.vue";
+import WorkbenchLogoMark from "@/components/WorkbenchLogoMark.vue";
 import ThreadCreateButton from "@/components/ThreadCreateButton.vue";
 import { APP_DISPLAY_NAME } from "@/constants/appMeta";
 
 withDefaults(
   defineProps<{
-    /** Product name (serif) beside the Alpha badge. */
+    /** Product name beside the Alpha badge. */
     title?: string;
     /** Icon-only header strip (narrow sidebar). */
     collapsed?: boolean;
@@ -36,16 +36,16 @@ defineExpose({ openNewThreadMenu });
     class="flex shrink-0 justify-center px-1 py-3"
   >
     <span class="sr-only">{{ title }} Alpha</span>
-    <InstrumentalLogoMark variant="md" />
+    <WorkbenchLogoMark variant="md" />
   </header>
-  <header v-else class="flex shrink-0 items-center gap-2 px-3 py-2">
+  <header v-else class="flex shrink-0 items-center gap-1 px-3 py-2">
     <h2
-      class="m-0 flex min-w-0 flex-1 flex-nowrap items-center gap-2 overflow-hidden p-0 text-foreground"
+      class="m-0 flex min-w-0 flex-1 flex-nowrap items-center gap-1 overflow-hidden p-0 text-foreground"
       data-testid="thread-sidebar-brand"
     >
-      <InstrumentalLogoMark variant="md" />
+      <WorkbenchLogoMark variant="md" />
       <span
-        class="min-w-0 truncate font-instrument text-lg leading-none tracking-tight"
+        class="min-w-0 truncate text-sm font-semibold leading-none tracking-tight text-sidebar-foreground"
         data-testid="app-title-a11y"
       >{{ title }}</span>
       <Badge

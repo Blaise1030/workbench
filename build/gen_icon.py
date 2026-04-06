@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Generate a square 1024x1024 icon-source.png with metallic 'In' letters."""
+"""Legacy: generated the old text mark. App icons now ship from ``icon-source.png``
+(workbench toolbox). Regenerate platform icons with:
+``npx electron-icon-builder --input=build/icon-source.png --output=build --flatten``
+then copy ``build/icons/icon.{icns,ico}`` and ``build/icons/512x512.png`` → ``build/``."""
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
 import numpy as np
 import os

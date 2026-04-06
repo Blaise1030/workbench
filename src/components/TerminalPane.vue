@@ -78,6 +78,14 @@ function getApi(): WorkspaceApi | null {
   return window.workspaceApi ?? null;
 }
 
+function terminalMonoFontStack(): string {
+  if (typeof document === "undefined") {
+    return "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
+  }
+  const stack = getComputedStyle(document.documentElement).getPropertyValue("--font-app-mono").trim();
+  return stack || "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
+}
+
 function ptySessionId(): string {
   if (props.ptyKind === "shell") {
     return `__shell:${props.worktreeId}:${props.shellSlotId}`;
@@ -167,7 +175,7 @@ onMounted(async () => {
   if (!el) return;
 
   terminal = new Terminal({
-    fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+    fontFamily: terminalMonoFontStack(),
     fontSize: 12,
     lineHeight: 1.35,
     cursorBlink: true,

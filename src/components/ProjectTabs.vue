@@ -3,7 +3,7 @@ import type { Project, Thread, Worktree } from "@shared/domain";
 import { Plus, Settings } from "lucide-vue-next";
 import { computed, ref } from "vue";
 import ThemeToggle from "@/components/ThemeToggle.vue";
-import { titleWithShortcut } from "@/keybindings/registry";
+import { shortcutForModDigitSlot, titleWithShortcut } from "@/keybindings/registry";
 
 const props = withDefaults(
   defineProps<{
@@ -112,6 +112,11 @@ function onTabEnter(projectId: string, event: MouseEvent): void {
 function onTabLeave(): void {
   hoverCardProjectId.value = null;
 }
+
+function projectTabTitle(projectName: string, index: number): string {
+  const hint = shortcutForModDigitSlot(index);
+  return hint ? `${projectName} (${hint})` : projectName;
+}
 </script>
 
 <template>
@@ -121,13 +126,20 @@ function onTabLeave(): void {
       :class="tabListClass"
     >
       <button
-        v-for="project in projects"
+        v-for="(project, projectIndex) in projects"
         :key="project.id"
         type="button"
         role="tab"
         :data-project-id="project.id"
         :aria-selected="project.id === activeProjectId"
-        :aria-label="tabNeedsAttention(project.id) ? `${project.name}, thread needs attention` : undefined"
+        :title="projectTabTitle(project.name, projectIndex)"
+        :aria-label="
+          tabNeedsAttention(project.id)
+            ? `${project.name}, thread needs attention`
+            : projectIndex < 9
+              ? `${project.name}, ${shortcutForModDigitSlot(projectIndex)}`
+              : undefined
+        "
         :class="[
           tabInactive,
           project.id === activeProjectId ? tabActive : tabInactiveInteractive,

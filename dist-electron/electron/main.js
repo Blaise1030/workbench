@@ -49,7 +49,7 @@ void electron_1.app.whenReady().then(async () => {
             /\.node\b/i.test(message)
             ? "\n\nRun: npm run rebuild:natives"
             : "";
-        electron_1.dialog.showErrorBox("Instrument could not start", `${message}${hint}`);
+        electron_1.dialog.showErrorBox("workbench. could not start", `${message}${hint}`);
         electron_1.app.quit();
     }
 });

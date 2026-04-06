@@ -57,7 +57,7 @@ describe("ThreadTopBar", () => {
   it("shows product title and Alpha badge in header", () => {
     wrapper = mount(ThreadTopBar);
     const brand = wrapper.get('[data-testid="thread-sidebar-brand"]');
-    expect(brand.text()).toContain("Instrumental");
+    expect(brand.text()).toContain("workbench.");
     expect(brand.text().toUpperCase()).toContain("ALPHA");
   });
 
@@ -68,6 +68,6 @@ describe("ThreadTopBar", () => {
 
   it("renders a slightly larger logo when collapsed", () => {
     wrapper = mount(ThreadTopBar, { props: { collapsed: true } });
-    expect(wrapper.get('[data-testid="thread-sidebar-logo"]').classes()).toContain("size-7");
+    expect(wrapper.get('[data-testid="thread-sidebar-logo"]').classes()).toContain("size-8");
   });
 });

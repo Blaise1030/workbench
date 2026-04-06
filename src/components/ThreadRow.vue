@@ -155,7 +155,7 @@ onBeforeUnmount(() => {
 <template>
   <div
     data-testid="thread-row"
-    class="relative flex h-8 min-h-8 max-h-8 min-w-0 items-center gap-2 rounded-sm"
+    class="relative flex h-7 min-h-7 max-h-7 min-w-0 items-center gap-1.5 rounded-sm"
     :class="[
       props.collapsed ? 'justify-center px-1.5' : 'pl-3 pr-2',
       isActive ? 'bg-accent' : 'hover:bg-accent/50',
@@ -169,7 +169,7 @@ onBeforeUnmount(() => {
       v-if="!collapsed"
       type="button"
       data-testid="thread-drag-handle"
-      class="absolute right-7 top-1/2 z-10 flex h-5 w-5 -translate-y-1/2 items-center justify-center rounded text-muted-foreground transition-opacity hover:bg-accent hover:text-foreground active:cursor-grabbing focus:outline-none"
+      class="absolute right-6 top-1/2 z-10 flex h-4 w-4 -translate-y-1/2 items-center justify-center rounded text-muted-foreground transition-opacity hover:bg-accent hover:text-foreground active:cursor-grabbing focus:outline-none"
       :class="[
         props.isDragging ? 'cursor-grabbing opacity-100' : 'cursor-grab',
         rowHovered || props.isDragging || handleFocused ? 'opacity-100' : 'pointer-events-none opacity-0'
@@ -182,7 +182,7 @@ onBeforeUnmount(() => {
       @dragend="emit('dragend', $event)"
       @keydown="handleDragKeydown"
     >
-      <GripVertical class="h-3 w-3" />
+      <GripVertical class="h-2.5 w-2.5" />
     </button>
 
     <template v-if="collapsed && !isEditing">
@@ -190,7 +190,7 @@ onBeforeUnmount(() => {
         ref="collapsedButtonRef"
         type="button"
         data-testid="thread-select"
-        class="flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background"
+        class="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background"
         :aria-current="isActive ? 'true' : undefined"
         :aria-label="thread.title"
         :aria-describedby="showCollapsedTooltip ? collapsedTooltipId : undefined"
@@ -198,17 +198,17 @@ onBeforeUnmount(() => {
         @focus="collapsedButtonFocused = true; updateCollapsedTooltipPosition()"
         @blur="collapsedButtonFocused = false"
       >
-        <AgentIcon :agent="thread.agent" :size="13" class="shrink-0" :class="iconClass" />
+        <AgentIcon :agent="thread.agent" :size="12" class="shrink-0" :class="iconClass" />
       </button>
     </template>
     <template v-else>
-      <AgentIcon :agent="thread.agent" :size="13" class="shrink-0" :class="iconClass" />
+      <AgentIcon :agent="thread.agent" :size="12" class="shrink-0" :class="iconClass" />
 
       <button
         v-if="!isEditing"
         data-testid="thread-select"
         type="button"
-        class="min-w-0 flex-1 cursor-pointer truncate text-left text-sm leading-none"
+        class="min-w-0 flex-1 cursor-pointer truncate text-left text-xs leading-none"
         @click="emit('select')"
       >
         {{ thread.title }}
@@ -219,7 +219,7 @@ onBeforeUnmount(() => {
         v-model="editValue"
         data-testid="thread-rename-input"
         type="text"
-        class="min-w-0 flex-1 rounded border border-border bg-background px-1 text-sm leading-none outline-none"
+        class="min-w-0 flex-1 rounded border border-border bg-background px-1 text-xs leading-none outline-none"
         @keydown="handleRenameKeydown"
         @blur="cancelRename"
       />
@@ -228,7 +228,7 @@ onBeforeUnmount(() => {
     <div
       v-if="showThreadMenu"
       ref="menuRootRef"
-      class="relative flex h-6 w-6 shrink-0 items-center justify-center"
+      class="relative flex h-5 w-5 shrink-0 items-center justify-center"
     >
       <button
         type="button"
@@ -239,7 +239,7 @@ onBeforeUnmount(() => {
         :aria-expanded="menuOpen"
         @click.stop="toggleMenu"
       >
-        <ChevronDown class="h-2.5 w-2.5" stroke-width="2.5" />
+        <ChevronDown class="h-2 w-2" stroke-width="2.5" />
       </button>
       <div
         v-if="menuOpen"

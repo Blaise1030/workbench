@@ -76,7 +76,7 @@ const extensions = computed((): Extension[] => {
         outline: "none"
       },
       ".cm-scroller": {
-        fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+        fontFamily: "var(--font-app-mono)",
         lineHeight: "1.25rem",
         overflow: "auto",
         minHeight: 0,

@@ -15,7 +15,7 @@ void app.whenReady().then(async () => {
       /\.node\b/i.test(message)
         ? "\n\nRun: npm run rebuild:natives"
         : "";
-    dialog.showErrorBox("Instrument could not start", `${message}${hint}`);
+    dialog.showErrorBox("workbench. could not start", `${message}${hint}`);
     app.quit();
   }
 });
