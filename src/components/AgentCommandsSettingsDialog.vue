@@ -320,23 +320,28 @@ function save(): void {
 
             <fieldset class="mt-4 space-y-2">
               <legend class="text-sm font-medium text-foreground">Color mode</legend>
-              <div class="mt-2 space-y-2">
+              <div class="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-3">
                 <label
                   v-for="opt in COLOR_SCHEME_OPTIONS"
                   :key="opt.value"
-                  class="flex cursor-pointer items-start gap-2.5 select-none"
+                  class="flex min-w-0 cursor-pointer flex-col gap-2 rounded-md border border-border p-2.5 transition-colors select-none hover:bg-muted/30"
+                  :class="
+                    colorSchemePreference === opt.value
+                      ? 'bg-muted/25 ring-2 ring-ring/60 ring-offset-2 ring-offset-card'
+                      : ''
+                  "
                 >
-                  <input
-                    v-model="colorSchemePreference"
-                    type="radio"
-                    name="settings-color-scheme"
-                    class="mt-1 size-3.5 shrink-0 rounded-full border-border accent-primary"
-                    :value="opt.value"
-                  />
-                  <span>
-                    <span class="text-sm">{{ opt.label }}</span>
-                    <span class="mt-0.5 block text-xs text-muted-foreground">{{ opt.hint }}</span>
-                  </span>
+                  <div class="flex items-center gap-2">
+                    <input
+                      v-model="colorSchemePreference"
+                      type="radio"
+                      name="settings-color-scheme"
+                      class="size-3.5 shrink-0 rounded-full border-border accent-primary"
+                      :value="opt.value"
+                    />
+                    <span class="text-sm font-medium text-foreground">{{ opt.label }}</span>
+                  </div>
+                  <p class="text-xs leading-snug text-muted-foreground">{{ opt.hint }}</p>
                 </label>
               </div>
             </fieldset>
@@ -355,7 +360,7 @@ function save(): void {
                 >
                 and merge variables into the app later.
               </p>
-              <div class="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <div class="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
                 <label
                   v-for="id in uiThemePresetIds"
                   :key="id"

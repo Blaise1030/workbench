@@ -2,8 +2,17 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { html as diffToHtml } from "diff2html";
 import { ColorSchemeType } from "diff2html/lib/types";
-import { ChevronDown, ChevronsDown, ChevronsUp, Minus, Plus, RotateCcw, Trash2 } from "lucide-vue-next";
-import { Loader2, Maximize2, Minimize2, RefreshCw, Undo2 } from "lucide-vue-next";
+import {
+  ChevronDown,
+  ChevronsDown,
+  ChevronsUp,
+  FileText,
+  Minus,
+  Plus,
+  RotateCcw,
+  Trash2
+} from "lucide-vue-next";
+import { Loader2, Maximize2, Minimize2, Undo2 } from "lucide-vue-next";
 import BaseButton from "@/components/ui/BaseButton.vue";
 import type { RepoStatusEntry } from "@shared/ipc";
 import { looksLikeUnifiedDiff } from "@shared/diffPaths";
@@ -62,6 +71,7 @@ const emit = defineEmits<{
   discardPaths: [paths: string[]];
   fetch: [];
   commit: [];
+  openFileInEditor: [path: string];
 }>();
 
 const richDiffMaxBytes = 300_000;
@@ -491,13 +501,13 @@ onBeforeUnmount(() => {
 <template>
   <section class="flex h-full min-h-0 border-t border-border bg-background text-[11px] text-foreground">
     <aside class="flex min-h-0 w-[272px] shrink-0 flex-col border-r border-border bg-muted/20">
-      <header class="flex h-[52px] items-center border-b border-border px-2">
+      <header
+        class="flex h-9 items-center border-b border-border px-2"
+        aria-label="Source control"
+      >
         <div class="flex w-full items-center justify-between gap-1.5">
           <div class="min-w-0">
-            <p class="text-[9px] font-semibold tracking-[0.12em] text-muted-foreground uppercase">
-              Source Control
-            </p>
-            <p class="mt-0.5 text-[11px] font-medium leading-tight text-foreground">
+            <p class="text-[10px] font-medium leading-none text-foreground">
               {{ totalChanges.toLocaleString() }} changes
             </p>
           </div>
@@ -683,7 +693,6 @@ onBeforeUnmount(() => {
             @click="emit('fetch')"
           >
             <Loader2 v-if="scmFetchBusy" class="h-3 w-3 shrink-0 animate-spin" aria-hidden="true" />
-            <RefreshCw v-else class="h-3 w-3 shrink-0" aria-hidden="true" />
             Fetch
           </BaseButton>
         </div>
@@ -694,7 +703,7 @@ onBeforeUnmount(() => {
             rows="4"
             placeholder="Enter commit message"
             aria-label="Commit message draft"
-            class="w-full resize-y rounded-none border-0 border-t border-border bg-background py-1.5 pb-10 pl-2 pr-7 font-mono text-[10px] leading-snug text-foreground placeholder:text-muted-foreground focus:outline-none"
+            class="w-full resize-none rounded-none border-0 border-t border-border bg-background py-1.5 pb-10 pl-2 pr-7 font-mono text-[10px] leading-snug text-foreground placeholder:text-muted-foreground focus:outline-none"
             :class="commitExpanded ? 'min-h-[11rem]' : 'min-h-[4.5rem]'"
           />
           <button
@@ -724,15 +733,34 @@ onBeforeUnmount(() => {
     </aside>
 
     <div class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-      <header class="flex h-[52px] items-center gap-2 border-b border-border px-3">
+      <header class="flex h-9 items-center gap-2 border-b border-border px-2">
         <div class="min-w-0 flex-1">
-          <p class="truncate font-mono text-[11px] text-foreground">
+          <p class="truncate font-mono text-[10px] leading-none text-foreground">
             {{ selectedEntry?.path ?? "No file selected" }}
           </p>
-          <p class="text-[9px] tracking-[0.12em] text-muted-foreground uppercase">
-            {{ selectedEntry?.scope === "staged" ? "Staged changes" : selectedEntry?.scope === "unstaged" ? "Working tree changes" : "Diff" }}
+          <p class="sr-only">
+            {{
+              selectedEntry?.scope === "staged"
+                ? "Staged changes"
+                : selectedEntry?.scope === "unstaged"
+                  ? "Working tree changes"
+                  : "Diff"
+            }}
           </p>
         </div>
+        <BaseButton
+          v-if="selectedEntry"
+          type="button"
+          size="xs"
+          variant="outline"
+          class="h-6 shrink-0 gap-1 px-2 text-[10px]"
+          title="Open this file in the Files tab (current worktree)"
+          aria-label="Go to file in editor"
+          @click="emit('openFileInEditor', selectedEntry.path)"
+        >
+          <FileText class="h-3 w-3 shrink-0" aria-hidden="true" />
+          Go to file
+        </BaseButton>
       </header>
 
       <div ref="diffHostRef" class="min-h-0 flex-1 overflow-auto">
@@ -773,13 +801,9 @@ onBeforeUnmount(() => {
   overflow: hidden !important;
 }
 
+/* Path + status badge already appear in the panel header above. */
 .diff-rich-host :deep(.d2h-file-header) {
-  background-color: var(--background) !important;
-  border-color: var(--border) !important;
-}
-
-.diff-rich-host :deep(.d2h-file-name) {
-  color: var(--foreground) !important;
+  display: none !important;
 }
 
 .diff-rich-host :deep(.d2h-del) {

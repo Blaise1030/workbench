@@ -592,7 +592,9 @@ onUnmounted(() => {
 defineExpose({
   focusSearch: (): void => {
     void focusSearchInput();
-  }
+  },
+  /** Open a worktree-relative path in the editor (same as picking the file in the tree). */
+  openWorkspaceFile: handleSelectFile
 });
 </script>
 

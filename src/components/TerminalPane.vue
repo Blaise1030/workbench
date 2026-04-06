@@ -288,7 +288,7 @@ watch(
 <template>
   <section
     data-instrument-terminal
-    class="relative flex bg-muted h-full min-h-0 min-w-0 flex-col overflow-hidden bg-card p-3 text-card-foreground text-xs border-t border-border"
+    class="relative flex bg-muted h-full min-h-0 min-w-0 flex-col overflow-hidden bg-card px-3 py-0 text-card-foreground text-xs border-t border-border"
     role="document"
     :aria-label="paneAriaLabel"
   >

@@ -779,6 +779,12 @@ async function handleSelectScmEntry(payload: { path: string; scope: "staged" | "
   await loadSelectedDiff();
 }
 
+async function handleScmOpenFileInEditor(path: string): Promise<void> {
+  centerTab.value = "files";
+  await nextTick();
+  await fileSearchRef.value?.openWorkspaceFile(path);
+}
+
 function handleConfigureCommands(): void {
   agentCommandsSettingsOpen.value = true;
 }
@@ -1047,17 +1053,18 @@ watch(
         />
         <div
           v-if="activeWorktreeHasThreads"
-          class="flex min-h-10 min-w-0 shrink-0 items-center justify-start gap-1 py-0.5 pr-1 pl-0.5"
+          class="flex min-h-10 min-w-0 shrink-0 items-center justify-start gap-1 overflow-hidden py-0.5 pr-1 pl-0.5"
         >
           <PillTabs
             v-model="centerTabModel"
+            class="min-w-0 flex-1"
             :tabs="centerPanelTabs"
             aria-label="Center panel"
             @tab-close="onCenterTabClose"
           />
           <div
             ref="addTerminalWrapRef"
-            class="inline-flex shrink-0"
+            class="inline-flex shrink-0 items-center"
             @mouseenter="
               addTerminalTooltipHover = true;
               updateAddTerminalTooltipPosition();
@@ -1184,6 +1191,7 @@ watch(
               @discard-paths="handleDiscardSelected"
               @fetch="handleScmFetch"
               @commit="handleScmCommit"
+              @open-file-in-editor="handleScmOpenFileInEditor"
             />
           </div>
           <div
