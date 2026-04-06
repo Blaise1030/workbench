@@ -245,14 +245,16 @@ function showSectionDividerAbove(i: number): boolean {
         <div class="max-h-[min(50vh,320px)] overflow-y-auto py-1" role="listbox" aria-label="Search results">
           <template v-if="rows.length > 0">
             <template v-for="(row, i) in rows" :key="row.kind === 'thread' ? `t-${row.id}` : `f-${row.worktreeId ?? 'main'}-${row.relativePath}`">
-              <div
-                v-if="showSectionHeaderAt(i)"
-                class="border-t border-border first:border-t-0"
-                role="presentation"
-              >
+              <template v-if="showSectionHeaderAt(i)">
+                <div
+                  v-if="showSectionDividerAbove(i)"
+                  class="mx-3 my-2 h-px shrink-0 bg-border"
+                  role="presentation"
+                />
                 <div
                   class="px-3 pb-1"
-                  :class="i === 0 ? 'pt-1' : 'pt-2'"
+                  :class="i === 0 ? 'pt-1' : 'pt-0.5'"
+                  role="group"
                   :aria-label="SECTION_LABELS[row.section]"
                 >
                   <div class="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
@@ -265,7 +267,7 @@ function showSectionDividerAbove(i: number): boolean {
                     {{ SECTION_HINTS[row.section] }}
                   </div>
                 </div>
-              </div>
+              </template>
               <div
                 :data-testid="
                   row.kind === 'thread' ? `launcher-thread-${row.id}` : `launcher-file-${row.relativePath}`

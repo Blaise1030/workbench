@@ -301,7 +301,7 @@ watch(
     </div>
     <div
       v-show="ptyBusy"
-      class="pointer-events-auto absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 bg-card/85 backdrop-blur-[1px]"
+      class="ui-glass-local pointer-events-auto absolute inset-0 z-10 flex flex-col items-center justify-center gap-2"
       aria-live="polite"
       aria-busy="true"
     >

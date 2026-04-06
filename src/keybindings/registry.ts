@@ -31,6 +31,8 @@ export type KeybindingDefinition = {
   category: KeybindingCategory;
   /** Static shortcut; shell slots use suffix in UI only */
   shortcut: PhysicalShortcut;
+  /** Additional chords that trigger the same action (shown in Settings and tooltips). */
+  aliases?: PhysicalShortcut[];
   /** Shown in Settings when shortcut is dynamic (e.g. terminal tab index) */
   notes?: string;
 };
@@ -70,6 +72,7 @@ function codeToDisplayLabel(code: string): string {
     BracketLeft: "[",
     BracketRight: "]",
     Comma: ",",
+    Backslash: "\\",
     Backquote: "`",
     KeyB: "B",
     KeyT: "T",
@@ -105,7 +108,8 @@ export const KEYBINDING_DEFINITIONS: KeybindingDefinition[] = [
     id: "toggleThreadSidebar",
     label: "Collapse or expand threads sidebar",
     category: "Threads",
-    shortcut: mod("KeyB")
+    shortcut: mod("KeyB"),
+    aliases: [mod("Backslash")]
   },
   {
     id: "newThreadMenu",
@@ -177,9 +181,15 @@ export function shortcutForModDigitSlot(zeroBasedSlot: number): string {
   return formatShortcut({ mod: true, code: MOD_DIGIT_SLOT_CODES[zeroBasedSlot] });
 }
 
+/** Primary shortcut plus any aliases, for tooltips and the keyboard settings table. */
+export function formatBindingDisplay(def: KeybindingDefinition): string {
+  const parts = [formatShortcut(def.shortcut), ...(def.aliases ?? []).map((a) => formatShortcut(a))];
+  return parts.join(" · ");
+}
+
 export function shortcutForId(id: KeybindingId): string {
   const def = KEYBINDING_DEFINITIONS.find((d) => d.id === id);
-  return def ? formatShortcut(def.shortcut) : "";
+  return def ? formatBindingDisplay(def) : "";
 }
 
 export function titleWithShortcut(label: string, id: KeybindingId): string {
@@ -189,6 +199,12 @@ export function titleWithShortcut(label: string, id: KeybindingId): string {
 
 export function findDefinition(id: KeybindingId): (typeof KEYBINDING_DEFINITIONS)[number] | undefined {
   return KEYBINDING_DEFINITIONS.find((d) => d.id === id);
+}
+
+/** True if the event matches the binding’s primary shortcut or any alias. */
+export function eventMatchesBinding(ev: KeyboardEvent, def: KeybindingDefinition): boolean {
+  if (eventMatchesShortcut(ev, def.shortcut)) return true;
+  return Boolean(def.aliases?.some((a) => eventMatchesShortcut(ev, a)));
 }
 
 /** Match event against a physical shortcut (Mod = meta on Mac else ctrl) */

@@ -316,3 +316,60 @@
     background-color: color-mix(in oklch, var(--primary) 42%, transparent);
   }
 }
+
+@layer utilities {
+  /**
+   * Full-screen modal scrim: frosted blur over content behind the overlay.
+   * Without backdrop-filter support, the tint stays more opaque for readability.
+   */
+  .ui-glass-scrim {
+    @apply backdrop-blur-xl backdrop-saturate-150;
+    background-color: color-mix(in oklch, var(--background) 52%, transparent);
+  }
+
+  @supports (backdrop-filter: blur(1px)) {
+    .ui-glass-scrim {
+      background-color: color-mix(in oklch, var(--background) 26%, transparent);
+    }
+  }
+
+  /** Workspace launcher: lighter tint and less blur than full `ui-glass-scrim`. */
+  .workspace-launcher-scrim {
+    @apply backdrop-blur-sm backdrop-saturate-125;
+    background-color: color-mix(in oklch, var(--background) 32%, transparent);
+  }
+
+  @supports (backdrop-filter: blur(1px)) {
+    .workspace-launcher-scrim {
+      background-color: color-mix(in oklch, var(--background) 14%, transparent);
+    }
+  }
+
+  /**
+   * Dialog / command-palette surface: glass panel on top of the scrim.
+   */
+  .ui-glass-panel {
+    @apply border border-border/80 shadow-2xl backdrop-blur-xl backdrop-saturate-125;
+    background-color: color-mix(in oklch, var(--card) 90%, transparent);
+  }
+
+  @supports (backdrop-filter: blur(1px)) {
+    .ui-glass-panel {
+      background-color: color-mix(in oklch, var(--card) 48%, transparent);
+    }
+  }
+
+  /**
+   * Local in-pane overlay (e.g. terminal starting state).
+   */
+  .ui-glass-local {
+    @apply backdrop-blur-lg backdrop-saturate-150;
+    background-color: color-mix(in oklch, var(--card) 85%, transparent);
+  }
+
+  @supports (backdrop-filter: blur(1px)) {
+    .ui-glass-local {
+      background-color: color-mix(in oklch, var(--card) 42%, transparent);
+    }
+  }
+}

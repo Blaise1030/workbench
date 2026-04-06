@@ -1,5 +1,6 @@
 import { onBeforeUnmount, onMounted, type Ref } from "vue";
 import {
+  eventMatchesBinding,
   eventMatchesShortcut,
   findDefinition,
   isFocusInsideInstrumentTerminal,
@@ -49,7 +50,7 @@ export type WorkspaceKeybindingContext = {
 function findStaticBindingId(ev: KeyboardEvent): KeybindingId | null {
   for (const d of KEYBINDING_DEFINITIONS) {
     if (d.id === "switchProjectOrTerminalDigit") continue;
-    if (eventMatchesShortcut(ev, d.shortcut)) return d.id;
+    if (eventMatchesBinding(ev, d)) return d.id;
   }
   return null;
 }
@@ -144,7 +145,7 @@ export function useWorkspaceKeybindings(ctx: WorkspaceKeybindingContext, enabled
     if (def && NAV_IDS.includes(def.id) && typing) return;
 
     if (!def) return;
-    if (!eventMatchesShortcut(ev, def.shortcut)) return;
+    if (!eventMatchesBinding(ev, def)) return;
 
     if (id === "prevThread") {
       ev.preventDefault();

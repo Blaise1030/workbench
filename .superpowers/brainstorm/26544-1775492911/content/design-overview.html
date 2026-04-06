@@ -1,0 +1,128 @@
+<h2>Thread Groups — Design Overview</h2>
+<p class="subtitle">Worktree-backed thread groups in the sidebar</p>
+
+<div class="section">
+  <h3>Sidebar Layout</h3>
+  <div class="split">
+    <!-- Current -->
+    <div class="mockup">
+      <div class="mockup-header">Current Sidebar</div>
+      <div class="mockup-body" style="font-family: monospace; font-size: 11px; background: #0d0d0d; padding: 0;">
+        <div style="padding: 8px 10px; border-bottom: 1px solid #222; display:flex; justify-content:space-between; align-items:center;">
+          <span style="color:#aaa; font-size:10px; text-transform:uppercase; letter-spacing:0.5px;">Threads</span>
+          <span style="color:#666; font-size:14px;">+</span>
+        </div>
+        <div style="padding: 6px 10px; background:#1a1a1a; border-left:2px solid #4ade80; color:#ccc;">🧵 Fix auth bug</div>
+        <div style="padding: 6px 10px; color:#888;">🧵 Add logging</div>
+        <div style="padding: 6px 10px; color:#888;">🧵 Refactor API</div>
+        <div style="padding: 6px 10px; color:#888;">🧵 Update docs</div>
+        <div style="height:80px;"></div>
+      </div>
+    </div>
+    <!-- Proposed -->
+    <div class="mockup">
+      <div class="mockup-header">Proposed Sidebar</div>
+      <div class="mockup-body" style="font-family: monospace; font-size: 11px; background: #0d0d0d; padding: 0;">
+        <div style="padding: 8px 10px; border-bottom: 1px solid #222; display:flex; justify-content:space-between; align-items:center;">
+          <span style="color:#aaa; font-size:10px; text-transform:uppercase; letter-spacing:0.5px;">Threads</span>
+          <span style="color:#666; font-size:14px;">▾ +</span>
+        </div>
+        <!-- Ungrouped threads -->
+        <div style="padding: 6px 10px; background:#1a1a1a; border-left:2px solid #4ade80; color:#ccc;">🧵 Quick fix typo</div>
+        <div style="padding: 6px 10px; color:#888;">🧵 Update docs</div>
+        <!-- Thread Group 1 -->
+        <div style="padding: 6px 10px; margin-top:4px; border-top:1px solid #222; display:flex; align-items:center; gap:6px; cursor:pointer;">
+          <span style="color:#666; font-size:9px;">▼</span>
+          <span style="color:#4ade80; font-size:10px; background:#0f1a13; border:1px solid #1e3a2a; border-radius:3px; padding:1px 6px;">🌿 feat/auth</span>
+          <span style="color:#555; font-size:9px; margin-left:auto;">from main</span>
+        </div>
+        <div style="padding: 5px 10px 5px 26px; color:#888; border-left:2px solid transparent;">🧵 Implement login</div>
+        <div style="padding: 5px 10px 5px 26px; color:#888; border-left:2px solid transparent;">🧵 Add OAuth</div>
+        <!-- Thread Group 2 -->
+        <div style="padding: 6px 10px; margin-top:4px; border-top:1px solid #222; display:flex; align-items:center; gap:6px; cursor:pointer;">
+          <span style="color:#666; font-size:9px;">▼</span>
+          <span style="color:#60a5fa; font-size:10px; background:#0d1526; border:1px solid #1e3a5a; border-radius:3px; padding:1px 6px;">🌿 fix/perf</span>
+          <span style="color:#555; font-size:9px; margin-left:auto;">from develop</span>
+        </div>
+        <div style="padding: 5px 10px 5px 26px; color:#888; border-left:2px solid transparent;">🧵 Profile queries</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Create Thread Dropdown</h3>
+  <div class="mockup" style="max-width: 400px;">
+    <div class="mockup-header">Thread Create Button — Expanded</div>
+    <div class="mockup-body" style="font-family: monospace; font-size: 11px; background: #0d0d0d; padding: 12px;">
+      <div style="display:inline-flex; align-items:center; gap:4px;">
+        <div style="background:#1e3a2a; border:1px solid #2a5a3a; border-radius:4px; padding:4px 10px; color:#4ade80; font-size:11px;">+ New Thread</div>
+        <div style="background:#1a1a1a; border:1px solid #333; border-radius:4px; padding:4px 4px; color:#888; font-size:11px; cursor:pointer;">▾</div>
+      </div>
+      <div style="margin-top:6px; background:#1a1a1a; border:1px solid #333; border-radius:6px; padding:4px 0; width:200px; box-shadow: 0 4px 12px rgba(0,0,0,0.4);">
+        <div style="padding:6px 12px; color:#ccc; font-size:11px; cursor:pointer;">🧵 New Thread</div>
+        <div style="padding:6px 12px; color:#ccc; font-size:11px; cursor:pointer; background:#222;">🌿 New Thread Group</div>
+        <div style="border-top:1px solid #333; margin:2px 0;"></div>
+        <div style="padding:4px 12px; color:#666; font-size:9px;">Thread groups use git worktrees for isolation</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Branch Picker (inline in sidebar)</h3>
+  <div class="mockup" style="max-width: 350px;">
+    <div class="mockup-header">Creating a Thread Group</div>
+    <div class="mockup-body" style="font-family: monospace; font-size: 11px; background: #0d0d0d; padding: 12px;">
+      <div style="background:#1a1a1a; border:1px solid #333; border-radius:6px; padding:10px; display:flex; flex-direction:column; gap:8px;">
+        <div style="color:#ccc; font-size:11px; font-weight:600;">New Thread Group</div>
+        <!-- Branch input -->
+        <div>
+          <div style="color:#888; font-size:9px; margin-bottom:3px;">Branch</div>
+          <div style="background:#111; border:1px solid #444; border-radius:4px; padding:5px 8px; color:#ccc; font-size:11px; display:flex; justify-content:space-between;">
+            <span>feat/my-feature</span>
+            <span style="color:#666;">⌄</span>
+          </div>
+          <div style="background:#1a1a1a; border:1px solid #333; border-radius:4px; margin-top:2px; padding:2px 0; box-shadow: 0 4px 8px rgba(0,0,0,0.3);">
+            <div style="padding:4px 8px; color:#4ade80; font-size:10px; background:#1e3a2a;">✨ Create new branch...</div>
+            <div style="padding:4px 8px; color:#aaa; font-size:10px;">main</div>
+            <div style="padding:4px 8px; color:#aaa; font-size:10px;">develop</div>
+            <div style="padding:4px 8px; color:#aaa; font-size:10px;">feat/auth</div>
+          </div>
+        </div>
+        <!-- Base (shown when "create new") -->
+        <div>
+          <div style="color:#888; font-size:9px; margin-bottom:3px;">Base branch (for new branches)</div>
+          <div style="background:#111; border:1px solid #444; border-radius:4px; padding:5px 8px; color:#888; font-size:11px;">main</div>
+        </div>
+        <!-- Actions -->
+        <div style="display:flex; gap:6px; justify-content:flex-end; margin-top:4px;">
+          <div style="padding:4px 10px; color:#888; font-size:10px; border:1px solid #333; border-radius:4px;">Cancel</div>
+          <div style="padding:4px 10px; color:#fff; font-size:10px; background:#2a5a3a; border:1px solid #3a7a4a; border-radius:4px;">Create</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Stale Worktree Warning</h3>
+  <div class="mockup" style="max-width: 380px;">
+    <div class="mockup-header">When worktree is removed externally</div>
+    <div class="mockup-body" style="font-family: monospace; font-size: 11px; background: #0d0d0d; padding: 12px;">
+      <div style="background:#2a1a0d; border:1px solid #5a3a1a; border-radius:6px; padding:10px; display:flex; flex-direction:column; gap:6px;">
+        <div style="display:flex; align-items:center; gap:6px;">
+          <span style="font-size:14px;">⚠️</span>
+          <span style="color:#fbbf24; font-size:11px; font-weight:600;">Worktree Missing</span>
+        </div>
+        <div style="color:#ccc; font-size:10px; line-height:1.4;">The worktree for <span style="color:#4ade80;">feat/auth</span> was removed outside the app. Threads in this group can no longer access their terminal or files.</div>
+        <div style="display:flex; gap:6px; margin-top:4px;">
+          <div style="padding:4px 10px; color:#fbbf24; font-size:10px; border:1px solid #5a3a1a; border-radius:4px;">Keep group</div>
+          <div style="padding:4px 10px; color:#f87171; font-size:10px; border:1px solid #5a1a1a; border-radius:4px;">Delete group &amp; threads</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<p class="subtitle" style="margin-top:16px;">Review the sidebar layout, create flow, branch picker, and stale warning. Let me know what looks right and what needs changes.</p>

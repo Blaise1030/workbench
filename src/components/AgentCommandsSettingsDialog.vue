@@ -8,7 +8,7 @@ import { useTerminalSoundSettings } from "@/composables/useTerminalSoundSettings
 import { useColorScheme, type ColorSchemePreference } from "@/composables/useColorScheme";
 import { uiThemePresetLabel, useUiThemePreset } from "@/composables/useUiThemePreset";
 import {
-  formatShortcut,
+  formatBindingDisplay,
   KEYBINDING_DEFINITIONS,
   type KeybindingCategory
 } from "@/keybindings/registry";
@@ -140,7 +140,7 @@ function save(): void {
   <Teleport to="body">
     <div
       v-if="modelValue"
-      class="fixed inset-0 z-[300] flex items-start justify-center overflow-y-auto bg-black/50 p-4 pt-[10vh] backdrop-blur-[1px]"
+      class="fixed inset-0 z-[300] flex items-start justify-center overflow-y-auto p-4 pt-[10vh] ui-glass-scrim"
       role="presentation"
       @pointerdown="onBackdropPointerDown"
     >
@@ -149,7 +149,7 @@ function save(): void {
         role="dialog"
         aria-modal="true"
         aria-labelledby="workspace-settings-dialog-title"
-        class="relative w-full max-w-xl rounded-lg border border-border bg-card p-4 text-card-foreground shadow-lg outline-none"
+        class="ui-glass-panel relative w-full max-w-xl rounded-lg p-4 text-card-foreground outline-none"
         tabindex="-1"
         @pointerdown.stop
       >
@@ -437,7 +437,7 @@ function save(): void {
                       <td class="py-2">
                         <kbd
                           class="rounded border border-border bg-muted/50 px-1.5 py-0.5 font-mono text-xs text-foreground"
-                          >{{ formatShortcut(row.shortcut) }}</kbd
+                          >{{ formatBindingDisplay(row) }}</kbd
                         >
                         <p v-if="row.notes" class="mt-1 max-w-sm text-xs text-muted-foreground">
                           {{ row.notes }}

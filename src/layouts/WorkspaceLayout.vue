@@ -62,8 +62,29 @@ const selectedDiff = ref("");
 const selectedDiffLoading = ref(false);
 const diffCache = new Map<string, string>();
 
+const THREADS_SIDEBAR_COLLAPSED_KEY = "instrument.threadsSidebarCollapsed";
+
+function readThreadsSidebarCollapsed(): boolean {
+  try {
+    return (
+      typeof localStorage !== "undefined" &&
+      localStorage.getItem(THREADS_SIDEBAR_COLLAPSED_KEY) === "1"
+    );
+  } catch {
+    return false;
+  }
+}
+
 /** When true, thread rail shows agent icons only (narrow column). */
-const threadsSidebarCollapsed = ref(false);
+const threadsSidebarCollapsed = ref(readThreadsSidebarCollapsed());
+
+watch(threadsSidebarCollapsed, (collapsed) => {
+  try {
+    localStorage.setItem(THREADS_SIDEBAR_COLLAPSED_KEY, collapsed ? "1" : "0");
+  } catch {
+    /* ignore quota / private mode */
+  }
+});
 /** `agent` | `diff` | `shell:${uuid}` for each extra terminal. */
 const centerTab = ref<string>("agent");
 /** One UUID per integrated terminal tab (after Agent + Git Diff). */
