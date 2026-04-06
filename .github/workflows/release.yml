@@ -41,7 +41,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: installers-mac
-          path: release/*
+          path: release/*.dmg
           if-no-files-found: error
 
   publish:
@@ -63,6 +63,8 @@ jobs:
           draft: false
           prerelease: ${{ contains(github.ref_name, '-') }}
           generate_release_notes: true
-          files: artifacts/**
+          files: |
+            artifacts/*.dmg
+            artifacts/**/*.dmg
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
