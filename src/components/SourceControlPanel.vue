@@ -2,7 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { html as diffToHtml } from "diff2html";
 import { ColorSchemeType } from "diff2html/lib/types";
-import { ChevronDown } from "lucide-vue-next";
+import { ChevronDown, ChevronsDown, ChevronsUp, Minus, Plus, RotateCcw, Trash2 } from "lucide-vue-next";
 import { Loader2, Maximize2, Minimize2, RefreshCw, Undo2 } from "lucide-vue-next";
 import BaseButton from "@/components/ui/BaseButton.vue";
 import type { RepoStatusEntry } from "@shared/ipc";
@@ -379,7 +379,7 @@ const richDiffHtml = computed(() => {
 });
 
 const emptyMessage = computed(() => {
-  if (totalChanges.value === 0) return "Working tree is clean.";
+  if (totalChanges.value === 0) return "✨ Working tree is clean.";
   if (!selectedEntry.value) return "Select a changed file to inspect it.";
   if (!props.selectedDiff.trim() && !props.diffLoading) return "No diff to show for this selection.";
   return null;
@@ -489,10 +489,10 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <section class="flex h-full min-h-0 bg-background text-[11px] text-foreground">
+  <section class="flex h-full min-h-0 border-t border-border bg-background text-[11px] text-foreground">
     <aside class="flex min-h-0 w-[272px] shrink-0 flex-col border-r border-border bg-muted/20">
-      <header class="border-b border-border px-2 py-2">
-        <div class="flex items-start justify-between gap-1.5">
+      <header class="flex h-[52px] items-center border-b border-border px-2">
+        <div class="flex w-full items-center justify-between gap-1.5">
           <div class="min-w-0">
             <p class="text-[9px] font-semibold tracking-[0.12em] text-muted-foreground uppercase">
               Source Control
@@ -515,49 +515,55 @@ onBeforeUnmount(() => {
             <div v-if="actionsOpen" class="fixed inset-0 z-40" @click="actionsOpen = false" />
             <div
               v-if="actionsOpen"
-              class="absolute right-0 top-full z-50 mt-1 min-w-[130px] rounded-md border border-border bg-popover py-1 shadow-md"
+              class="absolute right-0 top-full z-50 mt-1 min-w-[180px] rounded-md border border-border bg-popover py-1 shadow-md"
             >
               <!-- Selection actions -->
               <button
-                class="flex w-full items-center px-3 py-1.5 text-[10px] text-foreground hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed"
+                class="flex w-full items-center gap-2 px-3 py-1.5 text-[10px] text-foreground hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed"
                 :disabled="!canStageFromSelection"
                 @click="actionStageSelected(); actionsOpen = false"
               >
+                <Plus class="h-3 w-3 shrink-0" />
                 Stage Selected
               </button>
               <button
-                class="flex w-full items-center px-3 py-1.5 text-[10px] text-foreground hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed"
+                class="flex w-full items-center gap-2 px-3 py-1.5 text-[10px] text-foreground hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed"
                 :disabled="!canUnstageFromSelection"
                 @click="actionUnstageSelected(); actionsOpen = false"
               >
+                <Minus class="h-3 w-3 shrink-0" />
                 Unstage Selected
               </button>
               <button
-                class="flex w-full items-center px-3 py-1.5 text-[10px] text-destructive hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed"
+                class="flex w-full items-center gap-2 px-3 py-1.5 text-[10px] text-destructive hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed"
                 :disabled="!canDiscardFromSelection"
                 @click="actionDiscardSelected(); actionsOpen = false"
               >
+                <RotateCcw class="h-3 w-3 shrink-0" />
                 Discard Selected
               </button>
               <!-- Divider -->
               <div class="my-1 border-t border-border" />
               <!-- Bulk actions -->
               <button
-                class="flex w-full items-center px-3 py-1.5 text-[10px] text-foreground hover:bg-muted"
+                class="flex w-full items-center gap-2 px-3 py-1.5 text-[10px] text-foreground hover:bg-muted"
                 @click="emit('stageAll'); actionsOpen = false"
               >
+                <ChevronsUp class="h-3 w-3 shrink-0" />
                 Stage All
               </button>
               <button
-                class="flex w-full items-center px-3 py-1.5 text-[10px] text-foreground hover:bg-muted"
+                class="flex w-full items-center gap-2 px-3 py-1.5 text-[10px] text-foreground hover:bg-muted"
                 @click="emit('unstageAll'); actionsOpen = false"
               >
+                <ChevronsDown class="h-3 w-3 shrink-0" />
                 Unstage All
               </button>
               <button
-                class="flex w-full items-center px-3 py-1.5 text-[10px] text-destructive hover:bg-muted"
+                class="flex w-full items-center gap-2 px-3 py-1.5 text-[10px] text-destructive hover:bg-muted"
                 @click="emit('discardAll'); actionsOpen = false"
               >
+                <Trash2 class="h-3 w-3 shrink-0" />
                 Discard All
               </button>
             </div>
@@ -717,8 +723,8 @@ onBeforeUnmount(() => {
       </footer>
     </aside>
 
-    <div class="flex min-h-0 min-w-0 flex-1 flex-col">
-      <header class="flex min-h-9 items-center gap-2 border-b border-border px-3 py-1.5">
+    <div class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+      <header class="flex h-[52px] items-center gap-2 border-b border-border px-3">
         <div class="min-w-0 flex-1">
           <p class="truncate font-mono text-[11px] text-foreground">
             {{ selectedEntry?.path ?? "No file selected" }}
@@ -788,23 +794,24 @@ onBeforeUnmount(() => {
  */
 .diff-rich-host :deep(td.d2h-code-linenumber),
 .diff-rich-host :deep(td.d2h-code-side-linenumber) {
-  overflow: visible !important;
+  overflow: hidden !important;
+  position: relative !important;
 }
 
 .diff-rich-host :deep(td.d2h-code-linenumber) {
-  width: 11rem !important;
-  max-width: 11rem !important;
+  width: 5rem !important;
+  max-width: 5rem !important;
 }
 
 .diff-rich-host :deep(td.d2h-code-side-linenumber) {
-  width: 5.5rem !important;
-  max-width: 5.5rem !important;
+  width: 2.75rem !important;
+  max-width: 2.75rem !important;
 }
 
 .diff-rich-host :deep(.line-num1),
 .diff-rich-host :deep(.line-num2) {
   width: auto !important;
-  min-width: 5ch !important;
+  min-width: 3ch !important;
   max-width: none !important;
   overflow: visible !important;
   text-overflow: clip !important;
@@ -816,7 +823,7 @@ onBeforeUnmount(() => {
 
 .diff-rich-host :deep(.d2h-code-line),
 .diff-rich-host :deep(.d2h-code-side-line) {
-  padding: 0 0.5rem 0 11.5rem !important;
+  padding: 0 0.5rem 0 5.5rem !important;
   width: auto !important;
   max-width: none !important;
 }
