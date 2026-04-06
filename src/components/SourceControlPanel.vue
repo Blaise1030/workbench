@@ -656,8 +656,8 @@ onBeforeUnmount(() => {
           </template>
         </div>
       </div>
-      <footer class="flex shrink-0 flex-col gap-1.5 border-t border-border bg-muted/10 px-2 py-2">
-        <div class="flex items-center justify-between gap-2">
+      <footer class="flex shrink-0 flex-col border-t border-border bg-muted/10">
+        <div class="flex items-center justify-between gap-2 px-2 py-1.5">
           <p
             v-if="branchLine"
             class="min-w-0 truncate font-mono text-[9px] text-muted-foreground"
@@ -688,7 +688,7 @@ onBeforeUnmount(() => {
             rows="4"
             placeholder="Enter commit message"
             aria-label="Commit message draft"
-            class="w-full resize-y rounded-md border border-border bg-background py-1.5 pr-7 pl-2 font-mono text-[10px] leading-snug text-foreground placeholder:text-muted-foreground focus:border-ring focus:outline-none focus:ring-1 focus:ring-ring/30"
+            class="w-full resize-y rounded-none border-0 border-t border-border bg-background py-1.5 pb-10 pl-2 pr-7 font-mono text-[10px] leading-snug text-foreground placeholder:text-muted-foreground focus:outline-none"
             :class="commitExpanded ? 'min-h-[11rem]' : 'min-h-[4.5rem]'"
           />
           <button
@@ -701,25 +701,11 @@ onBeforeUnmount(() => {
             <Minimize2 v-if="commitExpanded" class="h-3 w-3" aria-hidden="true" />
             <Maximize2 v-else class="h-3 w-3" aria-hidden="true" />
           </button>
-        </div>
-
-        <div class="flex items-center justify-between gap-2">
-          <button
-            v-if="lastCommitSubject"
-            type="button"
-            class="flex min-w-0 flex-1 items-center justify-between gap-2 rounded-md border border-border/60 bg-muted/25 px-2 py-1 text-left text-[9px] text-muted-foreground hover:bg-muted/45"
-            :title="`Use message from last commit: ${lastCommitSubject}`"
-            @click="applyLastCommitSubject"
-          >
-            <span class="truncate font-mono">{{ lastCommitSubject }}</span>
-            <Undo2 class="h-3 w-3 shrink-0 opacity-80" aria-hidden="true" />
-          </button>
-          <span v-else class="min-w-0 flex-1" />
           <BaseButton
             type="button"
             size="xs"
             variant="default"
-            class="h-7 shrink-0 px-3 text-[10px]"
+            class="absolute bottom-2 right-2 h-7 shrink-0 px-3 text-[10px]"
             :disabled="!canCommit"
             aria-label="Commit staged changes"
             @click="emit('commit')"
@@ -728,7 +714,6 @@ onBeforeUnmount(() => {
             Commit
           </BaseButton>
         </div>
-
       </footer>
     </aside>
 
