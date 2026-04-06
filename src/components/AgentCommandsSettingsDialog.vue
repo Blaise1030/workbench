@@ -149,17 +149,18 @@ function save(): void {
         role="dialog"
         aria-modal="true"
         aria-labelledby="workspace-settings-dialog-title"
-        class="ui-glass-panel relative w-full max-w-xl rounded-lg p-4 text-card-foreground outline-none"
+        class="ui-glass-panel relative flex max-h-[min(85vh,calc(100dvh-2rem))] w-full max-w-xl flex-col overflow-hidden rounded-lg text-card-foreground outline-none"
         tabindex="-1"
         @pointerdown.stop
       >
-        <h2 id="workspace-settings-dialog-title" class="text-base font-semibold">Settings</h2>
+        <div class="shrink-0 px-4 pt-4">
+          <h2 id="workspace-settings-dialog-title" class="text-base font-semibold">Settings</h2>
 
-        <div
-          role="tablist"
-          aria-label="Settings sections"
-          class="mt-4 flex gap-1 border-b border-border"
-        >
+          <div
+            role="tablist"
+            aria-label="Settings sections"
+            class="mt-4 flex gap-1 border-b border-border"
+          >
           <button
             id="settings-tab-agents"
             type="button"
@@ -228,9 +229,13 @@ function save(): void {
           >
             Keyboard
           </button>
+          </div>
         </div>
 
-        <div class="mt-4 min-h-[12rem]">
+        <div
+          class="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4"
+          data-testid="workspace-settings-scroll-body"
+        >
           <div
             v-show="activeSection === 'agents'"
             :id="settingsPanelAgentsId"
@@ -452,7 +457,7 @@ function save(): void {
         </div>
 
         <div
-          class="mt-6 flex flex-wrap items-center gap-2 border-t border-border pt-4"
+          class="flex shrink-0 flex-wrap items-center gap-2 border-t border-border px-4 py-4"
           :class="activeSection === 'agents' ? 'justify-between' : 'justify-end'"
         >
           <BaseButton
