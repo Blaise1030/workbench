@@ -23,9 +23,40 @@ export function parseLauncherQuery(raw: string): ParsedLauncherQuery {
 }
 
 /** Result grouping for the launcher UI (Agents = threads, Files = active worktree, Workspace = other worktrees). */
-export type LauncherSectionId = "agents" | "files" | "workspace";
+export type LauncherSectionId = "commands" | "agents" | "files" | "workspace";
+
+export const LAUNCHER_COMMAND_IDS = ["toggle-thread-sidebar"] as const;
+export type LauncherCommandId = (typeof LAUNCHER_COMMAND_IDS)[number];
+
+type CommandDoc = { id: LauncherCommandId; label: string; keywords: string };
+
+const COMMAND_DOCS: readonly CommandDoc[] = [
+  {
+    id: "toggle-thread-sidebar",
+    label: "Toggle threads sidebar",
+    keywords: "sidebar threads collapse expand panel rail narrow strip icons hide show"
+  }
+];
+
+const COMMAND_FUSE: Fuse.IFuseOptions<CommandDoc> = {
+  keys: [
+    { name: "label", weight: 0.65 },
+    { name: "keywords", weight: 0.35 }
+  ],
+  threshold: 0.45,
+  includeScore: true,
+  ignoreLocation: true
+};
 
 export type LauncherRow =
+  | {
+      section: "commands";
+      kind: "command";
+      id: LauncherCommandId;
+      label: string;
+      shortcutHint: string;
+      score: number;
+    }
   | { section: "agents"; kind: "thread"; id: string; title: string; agent: ThreadAgent; score: number }
   | {
       section: "files";
@@ -80,6 +111,33 @@ const MAX_WORKTREE_FILE_RESULTS = 25;
 
 function fuseScore(r: { score?: number }): number {
   return r.score ?? 1;
+}
+
+/**
+ * Palette commands (sidebar, etc.). `commandSearchText` is the substring used for matching
+ * (full query in default mode; text after `@wt` in worktree mode).
+ */
+export function searchLauncherCommands(
+  commandSearchText: string,
+  shortcutHints: Partial<Record<LauncherCommandId, string>>
+): LauncherRow[] {
+  const q = commandSearchText.trim();
+
+  const mapHit = (doc: CommandDoc, score: number): LauncherRow => ({
+    section: "commands",
+    kind: "command",
+    id: doc.id,
+    label: doc.label,
+    shortcutHint: shortcutHints[doc.id] ?? "",
+    score
+  });
+
+  if (!q) {
+    return COMMAND_DOCS.map((d) => mapHit(d, 0));
+  }
+
+  const fuse = new Fuse([...COMMAND_DOCS], COMMAND_FUSE);
+  return fuse.search(q, { limit: 8 }).map((hit) => mapHit(hit.item, fuseScore(hit)));
 }
 
 /**

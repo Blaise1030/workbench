@@ -876,6 +876,13 @@ async function onLauncherPickThread(threadId: string): Promise<void> {
   await handleSelectThread(threadId);
 }
 
+function onLauncherPickCommand(id: string): void {
+  workspaceLauncherOpen.value = false;
+  if (id === "toggle-thread-sidebar") {
+    toggleThreadsSidebar();
+  }
+}
+
 async function onLauncherPickFile(payload: {
   relativePath: string;
   worktreeId: string | null;
@@ -1306,6 +1313,7 @@ watch(
       v-model="workspaceLauncherOpen"
       @pick-thread="onLauncherPickThread"
       @pick-file="onLauncherPickFile"
+      @pick-command="onLauncherPickCommand"
     />
 
     <AgentCommandsSettingsDialog v-model="agentCommandsSettingsOpen" :commands="commands" @save="onSaveAgentCommands" />

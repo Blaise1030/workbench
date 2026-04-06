@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { Thread } from "@shared/domain";
-import { parseLauncherQuery, searchLauncherRows } from "../workspaceLauncherSearch";
+import {
+  parseLauncherQuery,
+  searchLauncherCommands,
+  searchLauncherRows
+} from "../workspaceLauncherSearch";
 
 const baseThread = (partial: Partial<Thread> & Pick<Thread, "id" | "title" | "agent">): Thread => ({
   projectId: "p1",
@@ -34,6 +38,24 @@ describe("parseLauncherQuery", () => {
 
   it("@WT is not a token (case-sensitive)", () => {
     expect(parseLauncherQuery("@WT x")).toEqual({ mode: "default", query: "@WT x" });
+  });
+});
+
+describe("searchLauncherCommands", () => {
+  it("lists toggle sidebar when search is empty", () => {
+    const rows = searchLauncherCommands("", { "toggle-thread-sidebar": "⌘B" });
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      section: "commands",
+      kind: "command",
+      id: "toggle-thread-sidebar",
+      shortcutHint: "⌘B"
+    });
+  });
+
+  it("matches sidebar keyword", () => {
+    const rows = searchLauncherCommands("collapse rail", {});
+    expect(rows.some((r) => r.kind === "command" && r.id === "toggle-thread-sidebar")).toBe(true);
   });
 });
 

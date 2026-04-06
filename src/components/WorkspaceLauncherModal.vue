@@ -1,14 +1,16 @@
 <script setup lang="ts">
-import { Search } from "lucide-vue-next";
+import { PanelLeft, Search } from "lucide-vue-next";
 import { computed, nextTick, ref, watch } from "vue";
 import AgentIcon from "@/components/ui/AgentIcon.vue";
 import {
   parseLauncherQuery,
+  searchLauncherCommands,
   searchLauncherRows,
+  type LauncherCommandId,
   type LauncherRow,
   type LauncherSectionId
 } from "@/lib/workspaceLauncherSearch";
-import { findDefinition, formatShortcut } from "@/keybindings/registry";
+import { findDefinition, formatShortcut, shortcutForId } from "@/keybindings/registry";
 import { useWorkspaceStore } from "@/stores/workspaceStore";
 import type { FileSummary } from "@shared/ipc";
 import type { ThreadAgent } from "@shared/domain";
@@ -18,6 +20,7 @@ const open = defineModel<boolean>({ default: false });
 const emit = defineEmits<{
   pickThread: [threadId: string];
   pickFile: [payload: { relativePath: string; worktreeId: string | null }];
+  pickCommand: [id: LauncherCommandId];
 }>();
 
 const workspace = useWorkspaceStore();
@@ -44,14 +47,24 @@ const launcherToggleShortcutLabel = computed(() => {
   return def ? formatShortcut(def.shortcut) : "⌘K";
 });
 
-const rows = computed<LauncherRow[]>(() =>
-  searchLauncherRows(
+const commandSearchText = computed(() =>
+  parsed.value.mode === "worktree" ? parsed.value.query : query.value
+);
+
+const commandShortcutHints = computed(() => ({
+  "toggle-thread-sidebar": shortcutForId("toggleThreadSidebar")
+}));
+
+const rows = computed<LauncherRow[]>(() => {
+  const cmds = searchLauncherCommands(commandSearchText.value, commandShortcutHints.value);
+  const rest = searchLauncherRows(
     parsed.value,
     workspace.activeThreads,
     branchFiles.value,
     otherWorktreeFiles.value
-  )
-);
+  );
+  return [...cmds, ...rest];
+});
 
 const emptyHint = computed(() => {
   if (loading.value) return "Loading…";
@@ -134,7 +147,9 @@ function close(): void {
 }
 
 function activateRow(row: LauncherRow): void {
-  if (row.kind === "thread") {
+  if (row.kind === "command") {
+    emit("pickCommand", row.id);
+  } else if (row.kind === "thread") {
     emit("pickThread", row.id);
   } else {
     emit("pickFile", { relativePath: row.relativePath, worktreeId: row.worktreeId });
@@ -178,12 +193,14 @@ const THREAD_AGENT_LABELS: Record<ThreadAgent, string> = {
 };
 
 const SECTION_LABELS: Record<LauncherSectionId, string> = {
+  commands: "Commands",
   agents: "Agents",
   files: "Files",
   workspace: "Workspace"
 };
 
 const SECTION_HINTS: Partial<Record<LauncherSectionId, string>> = {
+  commands: "Quick actions",
   agents: "Threads in this worktree",
   files: "Paths in the active worktree",
   workspace: "Files in linked worktrees (@wt)"
@@ -228,7 +245,7 @@ function showSectionDividerAbove(i: number): boolean {
             v-model="query"
             type="text"
             class="min-w-0 flex-1 bg-transparent py-1 text-sm outline-none placeholder:text-muted-foreground"
-            placeholder="Search threads and files…"
+            placeholder="Search commands, threads, files…"
             autocomplete="off"
             spellcheck="false"
             data-testid="workspace-launcher-input"
@@ -244,7 +261,16 @@ function showSectionDividerAbove(i: number): boolean {
 
         <div class="max-h-[min(50vh,320px)] overflow-y-auto py-1" role="listbox" aria-label="Search results">
           <template v-if="rows.length > 0">
-            <template v-for="(row, i) in rows" :key="row.kind === 'thread' ? `t-${row.id}` : `f-${row.worktreeId ?? 'main'}-${row.relativePath}`">
+            <template
+              v-for="(row, i) in rows"
+              :key="
+                row.kind === 'thread'
+                  ? `t-${row.id}`
+                  : row.kind === 'command'
+                    ? `c-${row.id}`
+                    : `f-${row.worktreeId ?? 'main'}-${row.relativePath}`
+              "
+            >
               <template v-if="showSectionHeaderAt(i)">
                 <div
                   v-if="showSectionDividerAbove(i)"
@@ -270,7 +296,11 @@ function showSectionDividerAbove(i: number): boolean {
               </template>
               <div
                 :data-testid="
-                  row.kind === 'thread' ? `launcher-thread-${row.id}` : `launcher-file-${row.relativePath}`
+                  row.kind === 'thread'
+                    ? `launcher-thread-${row.id}`
+                    : row.kind === 'command'
+                      ? `launcher-command-${row.id}`
+                      : `launcher-file-${row.relativePath}`
                 "
                 role="option"
                 :aria-selected="i === selectedIndex"
@@ -287,6 +317,15 @@ function showSectionDividerAbove(i: number): boolean {
                     <div class="truncate font-medium">{{ row.title }}</div>
                     <div class="truncate text-xs text-muted-foreground">
                       {{ THREAD_AGENT_LABELS[row.agent] ?? row.agent }}
+                    </div>
+                  </div>
+                </template>
+                <template v-else-if="row.kind === 'command'">
+                  <PanelLeft class="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                  <div class="min-w-0 flex-1">
+                    <div class="truncate font-medium">{{ row.label }}</div>
+                    <div v-if="row.shortcutHint" class="truncate font-mono text-xs text-muted-foreground">
+                      {{ row.shortcutHint }}
                     </div>
                   </div>
                 </template>
