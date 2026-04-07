@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
-import { FilePlus, PanelLeftClose, PanelLeftOpen, Search, Trash2 } from "lucide-vue-next";
+import { FilePlus, PanelLeftClose, PanelLeftOpen, RefreshCw, Search, Trash2 } from "lucide-vue-next";
 import type { FileSummary } from "@shared/ipc";
 import BaseButton from "@/components/ui/BaseButton.vue";
 import FileTreeNode, {
@@ -73,6 +73,8 @@ type TreeContextMenuState =
 
 const treeContextMenu = ref<TreeContextMenuState | null>(null);
 const ctxMenuRoot = ref<HTMLElement | null>(null);
+let disposeWorkspaceChanged: (() => void) | null = null;
+let disposeWorkingTreeFilesChanged: (() => void) | null = null;
 
 const newFileDialogOpen = ref(false);
 const newFilePathDraft = ref("");
@@ -605,11 +607,26 @@ watch(
 
 onMounted(() => {
   void focusSearchInput();
+  const api = getApi();
+  if (api?.onWorkspaceChanged) {
+    disposeWorkspaceChanged = api.onWorkspaceChanged(() => {
+      void loadFileSummaries();
+    });
+  }
+  if (api?.onWorkingTreeFilesChanged) {
+    disposeWorkingTreeFilesChanged = api.onWorkingTreeFilesChanged(() => {
+      void loadFileSummaries();
+    });
+  }
   document.addEventListener("pointerdown", onGlobalPointerDown, true);
   document.addEventListener("keydown", onGlobalKeydown);
 });
 
 onUnmounted(() => {
+  disposeWorkspaceChanged?.();
+  disposeWorkspaceChanged = null;
+  disposeWorkingTreeFilesChanged?.();
+  disposeWorkingTreeFilesChanged = null;
   document.removeEventListener("pointerdown", onGlobalPointerDown, true);
   document.removeEventListener("keydown", onGlobalKeydown);
 });
@@ -683,6 +700,18 @@ defineExpose({
               :disabled="!hasWorkspace"
             />
           </div>
+          <BaseButton
+            data-testid="refresh-file-explorer"
+            variant="outline"
+            size="icon-xs"
+            class="shrink-0 px-1.5"
+            :disabled="!hasWorkspace || isSearching"
+            :title="'Refresh file explorer'"
+            @click="loadFileSummaries"
+          >
+            <RefreshCw class="h-3.5 w-3.5" aria-hidden="true" />
+            <span class="sr-only">Refresh file explorer</span>
+          </BaseButton>
           <BaseButton
             data-testid="add-file"
             variant="outline"

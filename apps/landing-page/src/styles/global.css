@@ -1,0 +1,40 @@
+@import "./geist-font.css";
+@import "tailwindcss";
+
+@theme {
+	--font-sans: "Geist", ui-sans-serif, system-ui, sans-serif;
+	--font-mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+
+	--color-canvas: #f8f8fc;
+	--color-surface: #ffffff;
+	--color-border: color-mix(in oklab, #000 8%, transparent);
+	--color-muted: #71717a;
+	--color-fg: #18181b;
+}
+
+@layer base {
+	html {
+		@apply scroll-smooth antialiased;
+		color-scheme: light;
+	}
+	body {
+		@apply min-h-dvh bg-[var(--color-canvas)] text-[var(--color-fg)];
+		font-family: var(--font-sans);
+	}
+}
+
+/* Loaded via index.html (Google Fonts). Sidebar product wordmark — same as apps/desktop/src/styles/globals.css */
+.font-app-brand-title {
+	font-family: "Bungee Shade", cursive;
+	font-synthesis: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	*,
+	*::before,
+	*::after {
+		animation-duration: 0.01ms !important;
+		animation-iteration-count: 1 !important;
+		transition-duration: 0.01ms !important;
+	}
+}
