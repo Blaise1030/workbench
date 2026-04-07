@@ -19,6 +19,44 @@ export const useWorkspaceStore = defineStore("workspace", {
     },
     activeThreads(state): Thread[] {
       return state.threads.filter((t) => t.worktreeId === state.activeWorktreeId);
+    },
+
+    /** The default worktree for the active project (main checkout). */
+    defaultWorktree(state): Worktree | undefined {
+      return state.worktrees.find(
+        (w) => w.projectId === state.activeProjectId && w.isDefault
+      );
+    },
+
+    /** Non-default worktrees for the active project (thread groups). */
+    threadGroups(state): Worktree[] {
+      return state.worktrees.filter(
+        (w) => w.projectId === state.activeProjectId && !w.isDefault
+      );
+    },
+
+    /** Threads in the default worktree (ungrouped). */
+    ungroupedThreads(state): Thread[] {
+      const defaultWt = state.worktrees.find(
+        (w) => w.projectId === state.activeProjectId && w.isDefault
+      );
+      if (!defaultWt) return [];
+      return state.threads.filter((t) => t.worktreeId === defaultWt.id);
+    },
+
+    /** Threads grouped by non-default worktree id. */
+    groupedThreadsByWorktree(state): Map<string, Thread[]> {
+      const groups = new Map<string, Thread[]>();
+      const nonDefault = state.worktrees.filter(
+        (w) => w.projectId === state.activeProjectId && !w.isDefault
+      );
+      for (const wt of nonDefault) {
+        groups.set(
+          wt.id,
+          state.threads.filter((t) => t.worktreeId === wt.id)
+        );
+      }
+      return groups;
     }
   },
   actions: {

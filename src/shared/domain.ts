@@ -20,6 +20,8 @@ export interface Worktree {
   branch: string;
   path: string;
   isActive: boolean;
+  isDefault: boolean;
+  baseBranch: string | null;
   lastActiveThreadId?: string | null;
   createdAt: string;
   updatedAt: string;
