@@ -81,7 +81,7 @@ it("persists and reloads a thread session record", () => {
 
 - [ ] **Step 2: Run the storage tests to verify they fail**
 
-Run: `pnpm --filter workbench test -- apps/desktop/electron/storage/__tests__/store.test.ts`
+Run: `pnpm --filter workbench test -- electron/storage/__tests__/store.test.ts`
 Expected: FAIL with missing `thread_sessions` table or undefined `upsertThreadSession`
 
 - [ ] **Step 3: Add shared types and storage helpers**
@@ -133,7 +133,7 @@ listThreadSessions(): ThreadSession[] { /* SELECT ... ORDER BY updated_at DESC *
 
 - [ ] **Step 5: Re-run the storage tests**
 
-Run: `pnpm --filter workbench test -- apps/desktop/electron/storage/__tests__/store.test.ts`
+Run: `pnpm --filter workbench test -- electron/storage/__tests__/store.test.ts`
 Expected: PASS
 
 - [ ] **Step 6: Commit the persistence slice**

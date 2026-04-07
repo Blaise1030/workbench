@@ -157,7 +157,7 @@ function makeThread(overrides: Partial<StoreThread> = {}): StoreThread {
 function makeThreadSession(overrides: Partial<StoreThreadSession> = {}): StoreThreadSession {
   return {
     threadId: "thread-1",
-    provider: "agent",
+    provider: "codex",
     resumeId: "resume-123",
     initialPrompt: "Fix the flaky sidebar test",
     titleCapturedAt: "2026-04-07T10:00:05.000Z",
@@ -442,6 +442,18 @@ describe("WorkspaceStore", () => {
     expect(reopenedStore.getSnapshot().threadSessions).toEqual([makeThreadSession()]);
   });
 
+  it("rejects thread sessions whose provider does not match the owning thread agent", () => {
+    const baseDir = makeTempDir();
+    const store = new WorkspaceStore(baseDir);
+    store.migrate(NEW_SCHEMA);
+    seedBasicWorkspace(store);
+    store.upsertThread(makeThread({ agent: "codex" }));
+
+    expect(() =>
+      store.upsertThreadSession(makeThreadSession({ provider: "claude" }))
+    ).toThrow(/must match thread agent/i);
+  });
+
   it("removes orphaned thread sessions during migration", () => {
     const baseDir = makeTempDir();
     const store = new WorkspaceStore(baseDir);
@@ -461,7 +473,7 @@ describe("WorkspaceStore", () => {
        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     ).run(
       "ghost-thread",
-      "agent",
+      "codex",
       "ghost-resume",
       "stale prompt",
       "2026-04-07T10:00:05.000Z",
@@ -479,6 +491,32 @@ describe("WorkspaceStore", () => {
 
     expect(reopenedStore.getThreadSession("ghost-thread")).toBeNull();
     expect(reopenedStore.getSnapshot().threadSessions).toEqual([]);
+  });
+
+  it("clears orphaned remembered selections during migration", () => {
+    const baseDir = makeTempDir();
+    const dbPath = path.join(baseDir, "workspace.db");
+    const db = new Database(dbPath);
+    db.exec(NEW_SCHEMA);
+    db.prepare(
+      "INSERT INTO projects (id, name, repo_path, status, last_active_worktree_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)"
+    ).run("project-1", "instrument", "/tmp/instrument", "idle", "ghost-worktree", "2026-04-06T00:00:00.000Z", "2026-04-06T00:00:00.000Z");
+    db.prepare(
+      "INSERT INTO worktrees (id, project_id, name, branch, path, is_active, is_default, base_branch, last_active_thread_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+    ).run("worktree-1", "project-1", "main", "main", "/tmp/instrument", 1, 1, null, "ghost-thread", "2026-04-06T00:00:00.000Z", "2026-04-06T00:00:00.000Z");
+    db.prepare(
+      "INSERT INTO app_state (id, active_project_id, active_worktree_id, active_thread_id) VALUES (1, ?, ?, ?)"
+    ).run("project-1", "ghost-worktree", "ghost-thread");
+    db.close();
+
+    const store = new WorkspaceStore(baseDir);
+    store.migrate(NEW_SCHEMA);
+
+    const snapshot = store.getSnapshot();
+    expect(snapshot.projects[0]?.lastActiveWorktreeId).toBeNull();
+    expect(snapshot.worktrees[0]?.lastActiveThreadId).toBeNull();
+    expect(snapshot.activeWorktreeId).toBeNull();
+    expect(snapshot.activeThreadId).toBeNull();
   });
 
   it("removes thread sessions when the owning thread is deleted", () => {
@@ -520,6 +558,7 @@ describe("WorkspaceStore", () => {
     store.upsertThreadSession(makeThreadSession({ threadId: "t1" }));
     store.upsertThreadSession(makeThreadSession({ threadId: "t2", resumeId: "resume-456" }));
     store.upsertThreadSession(makeThreadSession({ threadId: "t3", resumeId: "resume-789" }));
+    store.setActiveState("project-1", "wt-feat", "t1");
 
     const db = new Database(path.join(baseDir, "workspace.db"));
     insertRunWithEvent(db, "run-t1", "t1");
@@ -533,6 +572,9 @@ describe("WorkspaceStore", () => {
     expect(snapshot.worktrees.map((w) => w.id)).toEqual(["wt-default"]);
     expect(snapshot.threads.map((t) => t.id)).toEqual(["t3"]);
     expect(snapshot.threadSessions.map((session) => session.threadId)).toEqual(["t3"]);
+    expect(snapshot.activeWorktreeId).toBeNull();
+    expect(snapshot.activeThreadId).toBeNull();
+    expect(snapshot.projects.find((project) => project.id === "project-1")?.lastActiveWorktreeId).toBeNull();
     expect(store.getThreadSession("t1")).toBeNull();
     expect(store.getThreadSession("t2")).toBeNull();
     const verifyDb = new Database(path.join(baseDir, "workspace.db"));

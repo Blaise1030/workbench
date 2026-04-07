@@ -75,8 +75,42 @@ export class WorkspaceStore {
     }
     this.db
       .prepare(
+        `UPDATE projects
+         SET last_active_worktree_id = NULL
+         WHERE last_active_worktree_id IS NOT NULL
+           AND last_active_worktree_id NOT IN (SELECT id FROM worktrees)`
+      )
+      .run();
+    this.db
+      .prepare(
+        `UPDATE worktrees
+         SET last_active_thread_id = NULL
+         WHERE last_active_thread_id IS NOT NULL
+           AND last_active_thread_id NOT IN (SELECT id FROM threads)`
+      )
+      .run();
+    this.db
+      .prepare(
         `DELETE FROM thread_sessions
          WHERE thread_id NOT IN (SELECT id FROM threads)`
+      )
+      .run();
+    this.db
+      .prepare(
+        `UPDATE app_state
+         SET active_worktree_id = CASE
+             WHEN active_worktree_id IS NOT NULL
+              AND active_worktree_id NOT IN (SELECT id FROM worktrees)
+             THEN NULL
+             ELSE active_worktree_id
+           END,
+           active_thread_id = CASE
+             WHEN active_thread_id IS NOT NULL
+              AND active_thread_id NOT IN (SELECT id FROM threads)
+             THEN NULL
+             ELSE active_thread_id
+           END
+         WHERE id = 1`
       )
       .run();
     this.db
@@ -143,6 +177,15 @@ export class WorkspaceStore {
   }
 
   upsertThreadSession(threadSession: ThreadSession): void {
+    const thread = this.getThread(threadSession.threadId);
+    if (!thread) {
+      throw new Error(`Cannot persist thread session for missing thread ${threadSession.threadId}`);
+    }
+    if (thread.agent !== threadSession.provider) {
+      throw new Error(
+        `Thread session provider ${threadSession.provider} must match thread agent ${thread.agent} for ${threadSession.threadId}`
+      );
+    }
     this.db
       .prepare(
         `INSERT INTO thread_sessions (
@@ -251,6 +294,19 @@ export class WorkspaceStore {
 
   deleteWorktreeGroup(worktreeId: string): void {
     const tx = this.db.transaction(() => {
+      this.db
+        .prepare("UPDATE projects SET last_active_worktree_id = NULL WHERE last_active_worktree_id = ?")
+        .run(worktreeId);
+      this.db
+        .prepare("UPDATE app_state SET active_worktree_id = NULL WHERE active_worktree_id = ?")
+        .run(worktreeId);
+      this.db
+        .prepare(
+          `UPDATE app_state
+           SET active_thread_id = NULL
+           WHERE active_thread_id IN (SELECT id FROM threads WHERE worktree_id = ?)`
+        )
+        .run(worktreeId);
       this.db
         .prepare(
           `DELETE FROM run_events
