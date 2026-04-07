@@ -31,3 +31,5 @@ coverage/
 
 # Local git worktrees
 .worktrees/
+.worktrees
+worktrees
