@@ -11,6 +11,7 @@ import AgentCommandsSettingsDialog from "@/components/AgentCommandsSettingsDialo
 import FileSearchEditor from "@/components/FileSearchEditor.vue";
 import WorkspaceLauncherModal from "@/components/WorkspaceLauncherModal.vue";
 import ThreadCreateButton from "@/components/ThreadCreateButton.vue";
+import BranchPicker from "@/components/BranchPicker.vue";
 import ThreadSidebar from "@/components/ThreadSidebar.vue";
 import { useAgentBootstrapCommands } from "@/composables/useAgentBootstrapCommands";
 import {
@@ -95,6 +96,8 @@ const threadSidebarRef = ref<InstanceType<typeof ThreadSidebar> | null>(null);
 const fileSearchRef = ref<InstanceType<typeof FileSearchEditor> | null>(null);
 const workspaceLauncherOpen = ref(false);
 const keybindingsEnabled = ref(true);
+const showBranchPicker = ref(false);
+const staleWorktreeIds = ref<Set<string>>(new Set());
 
 const projectDigitSlotCount = computed(() => Math.min(MOD_DIGIT_SLOT_CODES.length, workspace.projects.length));
 
@@ -703,6 +706,50 @@ async function handleReorderThreads(orderedThreadIds: string[]): Promise<void> {
   }
 }
 
+async function handleCreateWorktreeGroup(branch: string, baseBranch: string | null): Promise<void> {
+  const api = getApi();
+  const projectId = workspace.activeProjectId;
+  if (!api?.createWorktreeGroup || !projectId) return;
+
+  try {
+    await api.createWorktreeGroup({ projectId, branch, baseBranch });
+    showBranchPicker.value = false;
+    await refreshSnapshot();
+  } catch (e) {
+    toast.error(
+      "Could not create thread group",
+      e instanceof Error ? e.message : "Something went wrong."
+    );
+  }
+}
+
+async function handleDeleteWorktreeGroup(worktreeId: string): Promise<void> {
+  const api = getApi();
+  if (!api?.deleteWorktreeGroup) return;
+
+  try {
+    await api.deleteWorktreeGroup({ worktreeId });
+    await refreshSnapshot();
+  } catch (e) {
+    toast.error(
+      "Could not delete thread group",
+      e instanceof Error ? e.message : "Something went wrong."
+    );
+  }
+}
+
+async function checkWorktreeHealth(): Promise<void> {
+  const api = getApi();
+  if (!api?.worktreeHealth) return;
+
+  const nextStale = new Set<string>();
+  for (const wt of workspace.threadGroups) {
+    const { exists } = await api.worktreeHealth(wt.id);
+    if (!exists) nextStale.add(wt.id);
+  }
+  staleWorktreeIds.value = nextStale;
+}
+
 async function handleSelectThread(threadId: string): Promise<void> {
   centerTab.value = "agent";
   const api = getApi();
@@ -980,9 +1027,14 @@ onMounted(async () => {
       handleConfigureCommands();
     });
   }
+  worktreeHealthInterval = setInterval(() => void checkWorktreeHealth(), 60_000);
+  void checkWorktreeHealth();
 });
 
+let worktreeHealthInterval: ReturnType<typeof setInterval> | null = null;
+
 onBeforeUnmount(() => {
+  if (worktreeHealthInterval) clearInterval(worktreeHealthInterval);
   unbindAddTerminalTooltipListeners();
   disposeOpenWorkspaceSettings?.();
   disposeOpenWorkspaceSettings = null;
@@ -1147,13 +1199,24 @@ watch(
           :active-thread-id="workspace.activeThreadId"
           :run-status-by-thread-id="runs.statusByThreadId"
           :threads-needing-attention="threadsNeedingAttention"
+          :thread-groups="workspace.threadGroups"
+          :default-worktree-id="workspace.defaultWorktree?.id ?? null"
+          :stale-worktree-ids="staleWorktreeIds"
           @create-with-agent="handleCreateThreadWithAgent"
+          @create-worktree-group="showBranchPicker = true"
+          @delete-worktree-group="handleDeleteWorktreeGroup"
           @select="handleSelectThread"
           @remove="handleRemoveThread"
           @rename="handleRenameThread"
           @reorder="handleReorderThreads"
           @collapse="threadsSidebarCollapsed = true"
           @expand="threadsSidebarCollapsed = false"
+        />
+        <BranchPicker
+          v-if="showBranchPicker && workspace.activeProjectId"
+          :project-id="workspace.activeProjectId"
+          @create="handleCreateWorktreeGroup"
+          @cancel="showBranchPicker = false"
         />
       </section>
       <section class="flex min-h-0 min-w-0 flex-col border-r border-border">
@@ -1201,7 +1264,7 @@ watch(
               @click="addShellTerminal"
             >
               <span class="inline-flex items-center gap-1.5">
-                <Plus class="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                <span class="text-sm leading-none shrink-0" aria-hidden="true">💻</span>
                 <span>Add terminal</span>
               </span>
             </BaseButton>
