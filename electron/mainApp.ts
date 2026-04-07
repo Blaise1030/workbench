@@ -127,7 +127,9 @@ function registerIpc(workspaceService: WorkspaceService): void {
   });
   ipcMain.handle(IPC_CHANNELS.workspaceSetActiveThread, (_, threadId: string) => {
     const snapshot = workspaceService.getSnapshot();
-    workspaceService.setActive(snapshot.activeProjectId, snapshot.activeWorktreeId, threadId);
+    const thread = snapshot.threads.find((t) => t.id === threadId);
+    const worktreeId = thread?.worktreeId ?? snapshot.activeWorktreeId;
+    workspaceService.setActive(snapshot.activeProjectId, worktreeId, threadId);
     emitWorkspaceDidChange();
     return workspaceService.getSnapshot();
   });

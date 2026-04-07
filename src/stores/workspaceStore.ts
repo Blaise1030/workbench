@@ -21,6 +21,16 @@ export const useWorkspaceStore = defineStore("workspace", {
       return state.threads.filter((t) => t.worktreeId === state.activeWorktreeId);
     },
 
+    /** All threads belonging to any worktree in the active project. */
+    activeProjectThreads(state): Thread[] {
+      const projectWorktreeIds = new Set(
+        state.worktrees
+          .filter((w) => w.projectId === state.activeProjectId)
+          .map((w) => w.id)
+      );
+      return state.threads.filter((t) => projectWorktreeIds.has(t.worktreeId));
+    },
+
     /** The default worktree for the active project (main checkout). */
     defaultWorktree(state): Worktree | undefined {
       return state.worktrees.find(

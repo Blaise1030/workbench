@@ -32,7 +32,7 @@ const emit = defineEmits<{
 
 /** Browser-style tab strip: inactive = text on chrome; active = muted surface. */
 const tabChrome =
-  "flex h-10 w-full max-w-full items-center gap-px border-b border-zinc-300/80 bg-zinc-200/95 px-1 dark:border-zinc-800 dark:bg-zinc-950";
+  "flex h-10 w-full max-w-full select-none items-center gap-px border-b border-zinc-300/80 bg-zinc-200/95 px-1 dark:border-zinc-800 dark:bg-zinc-950";
 
 const tabListClass =
   "inline-flex h-full min-w-0 max-w-full flex-1 items-center gap-0.5 overflow-x-auto pr-0.5 [scrollbar-width:thin]";

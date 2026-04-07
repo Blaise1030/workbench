@@ -12,6 +12,7 @@ const editService_js_1 = require("./services/editService.js");
 const fileService_js_1 = require("./services/fileService.js");
 const runService_js_1 = require("./services/runService.js");
 const ptyService_js_1 = require("./services/ptyService.js");
+const gitAdapter_js_1 = require("./services/gitAdapter.js");
 const workspaceService_js_1 = require("./services/workspaceService.js");
 const store_js_1 = require("./storage/store.js");
 const runService = new runService_js_1.RunService();
@@ -92,7 +93,7 @@ function registerIpc(workspaceService) {
     electron_1.ipcMain.handle(ipc_js_1.IPC_CHANNELS.workspaceAddProject, (_, payload) => {
         const project = workspaceService.addProject(payload.name, payload.repoPath);
         const branch = payload.defaultBranch ?? "main";
-        workspaceService.addWorktree(project.id, branch, payload.repoPath);
+        workspaceService.addWorktree(project.id, branch, payload.repoPath, true);
         emitWorkspaceDidChange();
         return workspaceService.getSnapshot();
     });
@@ -112,7 +113,9 @@ function registerIpc(workspaceService) {
     });
     electron_1.ipcMain.handle(ipc_js_1.IPC_CHANNELS.workspaceSetActiveThread, (_, threadId) => {
         const snapshot = workspaceService.getSnapshot();
-        workspaceService.setActive(snapshot.activeProjectId, snapshot.activeWorktreeId, threadId);
+        const thread = snapshot.threads.find((t) => t.id === threadId);
+        const worktreeId = thread?.worktreeId ?? snapshot.activeWorktreeId;
+        workspaceService.setActive(snapshot.activeProjectId, worktreeId, threadId);
         emitWorkspaceDidChange();
         return workspaceService.getSnapshot();
     });
@@ -127,6 +130,21 @@ function registerIpc(workspaceService) {
     electron_1.ipcMain.handle(ipc_js_1.IPC_CHANNELS.workspaceReorderThreads, (_, payload) => {
         workspaceService.reorderThreads(payload.worktreeId, payload.orderedThreadIds);
         emitWorkspaceDidChange();
+    });
+    electron_1.ipcMain.handle(ipc_js_1.IPC_CHANNELS.workspaceCreateWorktreeGroup, async (_, payload) => {
+        const worktree = await workspaceService.createWorktreeGroup(payload);
+        emitWorkspaceDidChange();
+        return worktree;
+    });
+    electron_1.ipcMain.handle(ipc_js_1.IPC_CHANNELS.workspaceDeleteWorktreeGroup, async (_, payload) => {
+        await workspaceService.deleteWorktreeGroup(payload.worktreeId);
+        emitWorkspaceDidChange();
+    });
+    electron_1.ipcMain.handle(ipc_js_1.IPC_CHANNELS.workspaceListBranches, async (_, payload) => {
+        return workspaceService.listBranches(payload.projectId);
+    });
+    electron_1.ipcMain.handle(ipc_js_1.IPC_CHANNELS.workspaceWorktreeHealth, async (_, payload) => {
+        return workspaceService.checkWorktreeHealth(payload.worktreeId);
     });
     electron_1.ipcMain.handle(ipc_js_1.IPC_CHANNELS.runStart, (_, payload) => runService.start(payload.agent, payload.cwd, payload.prompt, () => { }, () => { }));
     electron_1.ipcMain.handle(ipc_js_1.IPC_CHANNELS.runSendInput, (_, payload) => runService.sendInput(payload.runId, payload.input));
@@ -197,7 +215,8 @@ const dataDir = electron_1.app.getPath("userData");
 const schemaSql = readWorkspaceSchemaSql();
 const store = new store_js_1.WorkspaceStore(dataDir);
 store.migrate(schemaSql);
-const workspaceService = new workspaceService_js_1.WorkspaceService(store);
+const gitAdapter = (0, gitAdapter_js_1.createGitAdapter)();
+const workspaceService = new workspaceService_js_1.WorkspaceService(store, gitAdapter);
 ptyService.setSubmittedInputListener((sessionId, input) => {
     if (workspaceService.maybeRenameThreadFromPrompt(sessionId, input)) {
         emitWorkspaceDidChange();

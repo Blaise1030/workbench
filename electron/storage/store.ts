@@ -48,6 +48,15 @@ export class WorkspaceStore {
     if (!hasBaseBranch) {
       this.db.exec("ALTER TABLE worktrees ADD COLUMN base_branch TEXT");
     }
+    // Repair: ensure every project has exactly one default worktree
+    this.db.exec(`
+      UPDATE worktrees SET is_default = 1
+      WHERE id IN (
+        SELECT MIN(id) FROM worktrees
+        WHERE project_id NOT IN (SELECT project_id FROM worktrees WHERE is_default = 1)
+        GROUP BY project_id
+      )
+    `);
     const hasLastActiveThreadId = this.db
       .prepare("SELECT 1 FROM pragma_table_info('worktrees') WHERE name = 'last_active_thread_id' LIMIT 1")
       .get();

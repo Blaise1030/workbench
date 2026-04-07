@@ -631,10 +631,11 @@ function defaultTitleForAgent(agent: ThreadAgent): string {
 async function handleCreateThreadWithAgent(agent: ThreadAgent): Promise<void> {
   centerTab.value = "agent";
   const api = getApi();
-  if (!api || !workspace.activeProjectId || !workspace.activeWorktreeId) return;
+  const defaultWorktreeId = workspace.defaultWorktree?.id;
+  if (!api || !workspace.activeProjectId || !defaultWorktreeId) return;
   const payload: CreateThreadInput = {
     projectId: workspace.activeProjectId,
-    worktreeId: workspace.activeWorktreeId,
+    worktreeId: defaultWorktreeId,
     title: defaultTitleForAgent(agent),
     agent
   };
@@ -704,6 +705,26 @@ async function handleReorderThreads(orderedThreadIds: string[]): Promise<void> {
   } catch {
     await refreshSnapshot();
   }
+}
+
+async function handleAddThreadToGroup(worktreeId: string): Promise<void> {
+  centerTab.value = "agent";
+  const api = getApi();
+  if (!api || !workspace.activeProjectId) return;
+  const payload: CreateThreadInput = {
+    projectId: workspace.activeProjectId,
+    worktreeId,
+    title: defaultTitleForAgent("claude"),
+    agent: "claude"
+  };
+  const created = (await api.createThread(payload)) as Thread;
+  if (created.id) {
+    pendingAgentBootstrap.value = {
+      threadId: created.id,
+      command: bootstrapCommandFor("claude")
+    };
+  }
+  await refreshSnapshot();
 }
 
 async function handleCreateWorktreeGroup(branch: string, baseBranch: string | null): Promise<void> {
@@ -1195,28 +1216,27 @@ watch(
           ref="threadSidebarRef"
           class="min-h-0 min-w-0 flex-1"
           :collapsed="threadsSidebarCollapsed"
-          :threads="workspace.activeThreads"
+          :threads="workspace.activeProjectThreads"
           :active-thread-id="workspace.activeThreadId"
           :run-status-by-thread-id="runs.statusByThreadId"
           :threads-needing-attention="threadsNeedingAttention"
           :thread-groups="workspace.threadGroups"
           :default-worktree-id="workspace.defaultWorktree?.id ?? null"
           :stale-worktree-ids="staleWorktreeIds"
+          :show-branch-picker="showBranchPicker"
+          :project-id="workspace.activeProjectId"
           @create-with-agent="handleCreateThreadWithAgent"
-          @create-worktree-group="showBranchPicker = true"
+          @show-branch-picker="showBranchPicker = true"
+          @cancel-branch-picker="showBranchPicker = false"
+          @create-worktree-group="handleCreateWorktreeGroup"
           @delete-worktree-group="handleDeleteWorktreeGroup"
+          @add-thread-to-group="handleAddThreadToGroup"
           @select="handleSelectThread"
           @remove="handleRemoveThread"
           @rename="handleRenameThread"
           @reorder="handleReorderThreads"
           @collapse="threadsSidebarCollapsed = true"
           @expand="threadsSidebarCollapsed = false"
-        />
-        <BranchPicker
-          v-if="showBranchPicker && workspace.activeProjectId"
-          :project-id="workspace.activeProjectId"
-          @create="handleCreateWorktreeGroup"
-          @cancel="showBranchPicker = false"
         />
       </section>
       <section class="flex min-h-0 min-w-0 flex-col border-r border-border">
@@ -1234,7 +1254,7 @@ watch(
         />
         <div
           v-if="activeWorktreeHasThreads"
-          class="flex min-h-10 min-w-0 shrink-0 items-center justify-start gap-1 overflow-hidden py-0.5 pr-1 pl-0.5"
+          class="flex min-h-0 min-w-0 shrink-0 items-center justify-start gap-1 overflow-hidden py-1 pr-1 pl-0.5"
         >
           <PillTabs
             v-model="centerTabModel"
@@ -1294,7 +1314,10 @@ watch(
             </p>
           </div>
         </div>
-        <div class="flex min-h-0 flex-1 flex-col overflow-hidden">
+        <div
+          class="flex min-h-0 flex-1 flex-col overflow-hidden"
+          :class="activeWorktreeHasThreads ? '' : 'pt-2'"
+        >
           <section
             v-if="!activeWorktreeHasThreads"
             class="flex min-h-0 flex-1 flex-col items-center justify-center gap-4 px-6 py-12 text-center"
@@ -1311,6 +1334,7 @@ watch(
               data-testid="workspace-create-thread-empty-state"
               aria-label="Add thread"
               :title="titleWithShortcut('Add thread', 'newThreadMenu')"
+              variant="outline"
               size="sm"
               @create-with-agent="handleCreateThreadWithAgent"
             >

@@ -34,12 +34,12 @@ defineExpose({ openNewThreadMenu });
 <template>
   <header
     v-if="collapsed"
-    class="flex shrink-0 justify-center px-1 py-3"
+    class="flex shrink-0 select-none justify-center px-1 py-3"
   >
     <span class="sr-only">{{ title }} Alpha</span>
     <WorkbenchLogoMark variant="md" />
   </header>
-  <header v-else class="flex shrink-0 items-center gap-1 px-3 py-2">
+  <header v-else class="flex shrink-0 select-none items-center gap-1 px-3 py-2.5">
     <h2
       class="relative m-0 flex min-w-0 flex-1 flex-nowrap items-center gap-1 overflow-hidden p-0 text-foreground"
       data-testid="thread-sidebar-brand"
@@ -58,7 +58,12 @@ defineExpose({ openNewThreadMenu });
         </Badge>
     </h2>
     <div class="flex shrink-0 items-center justify-end">
-      <ThreadCreateButton ref="createButtonRef" @create-with-agent="emit('createWithAgent', $event)" @create-worktree-group="emit('createWorktreeGroup')">
+      <ThreadCreateButton
+        ref="createButtonRef"
+        variant="outline"
+        @create-with-agent="emit('createWithAgent', $event)"
+        @create-worktree-group="emit('createWorktreeGroup')"
+      >
         <Plus class="h-3.5 w-3.5" />
       </ThreadCreateButton>
     </div>

@@ -49,6 +49,10 @@ exports.IPC_CHANNELS = {
     terminalPtyGetBuffer: "terminal:ptyGetBuffer",
     terminalPtyData: "terminal:ptyData",
     dialogPickRepoDirectory: "dialog:pickRepoDirectory",
+    workspaceCreateWorktreeGroup: "workspace:createWorktreeGroup",
+    workspaceDeleteWorktreeGroup: "workspace:deleteWorktreeGroup",
+    workspaceListBranches: "workspace:listBranches",
+    workspaceWorktreeHealth: "workspace:worktreeHealth",
     /** macOS often captures ⌘, for the app menu; main sends this so the renderer can open settings. */
     uiOpenWorkspaceSettings: "ui:openWorkspaceSettings"
 };

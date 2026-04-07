@@ -45,6 +45,7 @@ const popoverOpen = ref(false);
 const triggerWrapRef = ref<HTMLElement | null>(null);
 const menuPanelRef = ref<HTMLElement | null>(null);
 const menuId = `thread-agent-menu-${useId()}`;
+const menuTitleId = `thread-agent-menu-title-${useId().replace(/:/g, "_")}`;
 
 /** Teleport the picker because the sidebar is narrower than the menu. */
 const floatingMenuStyle = ref<Record<string, string>>({});
@@ -57,9 +58,9 @@ function updateFloatingPosition(): void {
   const rect = el.getBoundingClientRect();
   const sidebarRect = el.closest("aside")?.getBoundingClientRect();
   const gap = 4;
-  const minMenuWidthPx = 152;
+  const minMenuWidthPx = 136;
   const widthPx = sidebarRect
-    ? Math.max(minMenuWidthPx, Math.min(216, sidebarRect.width * 0.82))
+    ? Math.max(minMenuWidthPx, Math.min(188, sidebarRect.width * 0.78))
     : undefined;
   floatingMenuStyle.value = {
     top: `${rect.bottom + gap}px`,
@@ -161,38 +162,46 @@ onBeforeUnmount(() => {
         :id="menuId"
         ref="menuPanelRef"
         data-testid="thread-agent-menu-panel"
-        class="fixed z-[200] rounded-md border border-border bg-popover p-2 text-popover-foreground shadow-md"
+        class="fixed z-[200] rounded-md border border-border bg-popover p-1.5 text-popover-foreground shadow-md"
         :style="floatingMenuStyle"
-        role="menu"
-        aria-label="Choose agent for new thread"
       >
-        <div class="grid grid-cols-2 gap-1.5">
-          <button
-            v-for="opt in AGENT_OPTIONS"
-            :key="opt.agent"
-            type="button"
-            role="menuitem"
-            :title="opt.label"
-            class="flex aspect-square w-full min-w-0 flex-col items-center justify-center gap-3 rounded-lg border border-border/70 bg-card/60 p-1.5 text-center shadow-sm transition-[border-color,box-shadow,background-color] duration-150 hover:border-border hover:bg-accent/40 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-popover"
-            @click="pickAgent(opt.agent)"
-          >
-            <AgentIcon :agent="opt.agent" :size="28" class="shrink-0" />
-            <span class="w-full min-w-0 truncate text-[10px] leading-tight">{{ opt.label }}</span>
-          </button>
-        </div>
-        <div class="mt-1.5 border-t border-border pt-1.5">
-          <button
-            type="button"
-            role="menuitem"
-            class="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs hover:bg-accent"
-            @click="emit('createWorktreeGroup'); popoverOpen = false"
-          >
-            <span class="text-sm">&#127807;</span>
-            <span>New Thread Group</span>
-          </button>
-          <p class="px-2 pt-0.5 text-[9px] text-muted-foreground">
-            Uses git worktrees for isolation
-          </p>
+        <h2
+          :id="menuTitleId"
+          class="mb-1.5 px-0.5 text-xs font-semibold leading-tight text-foreground"
+        >
+          Create thread
+        </h2>
+        <div role="menu" :aria-labelledby="menuTitleId" class="flex flex-col">
+          <div class="border-b border-border pb-1.5">
+            <BaseButton
+              type="button"
+              variant="outline"
+              size="lg"
+              class="w-full font-medium"
+              role="menuitem"
+              @click="emit('createWorktreeGroup'); popoverOpen = false"
+            >
+              <span class="text-base leading-none">🌳</span>
+              <span>New Thread Group</span>
+            </BaseButton>            
+            <p class="px-1.5 mt-1 text-center text-[9px] leading-snug text-muted-foreground">
+              Uses git worktrees for isolation
+            </p>
+          </div>
+          <div class="mt-1.5 grid grid-cols-2 gap-1">
+            <button
+              v-for="opt in AGENT_OPTIONS"
+              :key="opt.agent"
+              type="button"
+              role="menuitem"
+              :title="opt.label"
+              class="flex aspect-square w-full min-w-0 flex-col items-center justify-center gap-1.5 rounded-md border border-border/70 bg-card/60 p-1 text-center shadow-sm transition-[border-color,box-shadow,background-color] duration-150 hover:border-border hover:bg-accent/40 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-popover"
+              @click="pickAgent(opt.agent)"
+            >
+              <AgentIcon :agent="opt.agent" :size="22" class="shrink-0" />
+              <span class="w-full min-w-0 truncate text-[9px] leading-tight">{{ opt.label }}</span>
+            </button>
+          </div>
         </div>
       </div>
     </Teleport>

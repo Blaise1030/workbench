@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from "vue";
+import { ref, computed, onMounted, onBeforeUnmount } from "vue";
 import BaseButton from "@/components/ui/BaseButton.vue";
 
 const props = defineProps<{
@@ -15,8 +15,9 @@ const branches = ref<string[]>([]);
 const loading = ref(true);
 const branchInput = ref("");
 const isNewBranch = ref(true);
-const baseBranch = ref("main");
+const baseBranch = ref("");
 const showBranchDropdown = ref(false);
+const rootRef = ref<HTMLElement | null>(null);
 
 const filteredBranches = computed(() => {
   const q = branchInput.value.toLowerCase();
@@ -36,14 +37,25 @@ onMounted(async () => {
     try {
       branches.value = await api.listBranches(props.projectId);
       if (branches.value.length > 0) {
-        baseBranch.value = branches.value[0];
+        baseBranch.value = branches.value[0]!;
       }
     } catch {
       branches.value = [];
     }
   }
   loading.value = false;
+  document.addEventListener("mousedown", handleClickOutside);
 });
+
+onBeforeUnmount(() => {
+  document.removeEventListener("mousedown", handleClickOutside);
+});
+
+function handleClickOutside(e: MouseEvent): void {
+  if (rootRef.value && !rootRef.value.contains(e.target as Node)) {
+    showBranchDropdown.value = false;
+  }
+}
 
 function selectExistingBranch(branch: string): void {
   branchInput.value = branch;
@@ -53,7 +65,6 @@ function selectExistingBranch(branch: string): void {
 
 function selectCreateNew(): void {
   isNewBranch.value = true;
-  branchInput.value = "";
   showBranchDropdown.value = false;
 }
 
@@ -65,7 +76,7 @@ function handleCreate(): void {
 </script>
 
 <template>
-  <div class="mx-2 my-1.5 rounded-md border border-border bg-card p-2.5 shadow-sm">
+  <div ref="rootRef" class="mx-2 my-1.5 rounded-md border border-border bg-card p-2.5 shadow-sm">
     <p class="mb-2 text-xs font-semibold text-foreground">New Thread Group</p>
 
     <!-- Branch input -->
@@ -75,13 +86,13 @@ function handleCreate(): void {
         <input
           v-model="branchInput"
           type="text"
-          class="w-full rounded-sm border border-border bg-background px-2 py-1 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+          class="w-full rounded border border-border bg-background px-2 py-1 text-xs text-foreground outline-none placeholder:text-muted-foreground"
           :placeholder="loading ? 'Loading branches...' : 'Branch name'"
           @focus="showBranchDropdown = true"
         />
         <div
           v-if="showBranchDropdown && !loading"
-          class="absolute left-0 right-0 top-full z-50 mt-0.5 max-h-32 overflow-y-auto rounded-sm border border-border bg-popover shadow-md"
+          class="absolute left-0 right-0 top-full z-50 mt-0.5 max-h-32 overflow-y-auto rounded border border-border bg-popover shadow-md"
         >
           <button
             type="button"
@@ -108,7 +119,7 @@ function handleCreate(): void {
       <label class="mb-1 block text-[10px] text-muted-foreground">Base branch</label>
       <select
         v-model="baseBranch"
-        class="w-full rounded-sm border border-border bg-background px-2 py-1 text-xs text-foreground"
+        class="w-full appearance-none rounded border border-border bg-background px-2 py-1 text-xs text-foreground outline-none"
       >
         <option v-for="branch in branches" :key="branch" :value="branch">{{ branch }}</option>
       </select>

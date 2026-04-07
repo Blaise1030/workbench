@@ -1,8 +1,12 @@
 "use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.WorkspaceService = void 0;
 exports.deriveThreadTitleFromPrompt = deriveThreadTitleFromPrompt;
 const node_crypto_1 = require("node:crypto");
+const node_path_1 = __importDefault(require("node:path"));
 const DEFAULT_THREAD_TITLES = {
     claude: "Claude Code",
     cursor: "Cursor Agent",
@@ -36,8 +40,10 @@ function hasDefaultGeneratedTitle(thread) {
 }
 class WorkspaceService {
     store;
-    constructor(store) {
+    git;
+    constructor(store, git) {
         this.store = store;
+        this.git = git;
     }
     getSnapshot() {
         return this.store.getSnapshot();
@@ -57,7 +63,7 @@ class WorkspaceService {
         this.store.setActiveState(project.id, null, null);
         return project;
     }
-    addWorktree(projectId, branch, worktreePath) {
+    addWorktree(projectId, branch, worktreePath, isDefault = false) {
         const now = new Date().toISOString();
         const worktree = {
             id: (0, node_crypto_1.randomUUID)(),
@@ -66,6 +72,8 @@ class WorkspaceService {
             branch,
             path: worktreePath,
             isActive: true,
+            isDefault,
+            baseBranch: null,
             lastActiveThreadId: null,
             createdAt: now,
             updatedAt: now
@@ -117,6 +125,73 @@ class WorkspaceService {
     }
     reorderThreads(worktreeId, orderedThreadIds) {
         this.store.reorderThreads(worktreeId, orderedThreadIds);
+    }
+    async createWorktreeGroup(input) {
+        if (!this.git)
+            throw new Error("Git adapter required for worktree operations");
+        const snapshot = this.store.getSnapshot();
+        const project = snapshot.projects.find((p) => p.id === input.projectId);
+        if (!project)
+            throw new Error(`Project ${input.projectId} not found`);
+        const sanitized = input.branch.replace(/\//g, "-");
+        const worktreePath = node_path_1.default.join(project.repoPath, ".worktrees", sanitized);
+        await this.git.worktreeAdd(project.repoPath, worktreePath, input.branch, input.baseBranch);
+        const now = new Date().toISOString();
+        const worktree = {
+            id: (0, node_crypto_1.randomUUID)(),
+            projectId: input.projectId,
+            name: input.branch,
+            branch: input.branch,
+            path: worktreePath,
+            isActive: true,
+            isDefault: false,
+            baseBranch: input.baseBranch,
+            lastActiveThreadId: null,
+            createdAt: now,
+            updatedAt: now
+        };
+        this.store.upsertWorktree(worktree);
+        return worktree;
+    }
+    async deleteWorktreeGroup(worktreeId) {
+        if (!this.git)
+            throw new Error("Git adapter required for worktree operations");
+        const snapshot = this.store.getSnapshot();
+        const worktree = snapshot.worktrees.find((w) => w.id === worktreeId);
+        if (!worktree)
+            throw new Error(`Worktree ${worktreeId} not found`);
+        if (worktree.isDefault)
+            throw new Error("Cannot delete the default worktree");
+        const exists = await this.git.pathExists(worktree.path);
+        if (exists) {
+            await this.git.worktreeRemove(worktree.path);
+        }
+        this.store.deleteWorktreeGroup(worktreeId);
+        if (snapshot.activeWorktreeId === worktreeId) {
+            const defaultWt = snapshot.worktrees.find((w) => w.projectId === worktree.projectId && w.isDefault);
+            if (defaultWt) {
+                this.store.setActiveState(worktree.projectId, defaultWt.id, null);
+            }
+        }
+    }
+    async listBranches(projectId) {
+        if (!this.git)
+            throw new Error("Git adapter required for worktree operations");
+        const snapshot = this.store.getSnapshot();
+        const project = snapshot.projects.find((p) => p.id === projectId);
+        if (!project)
+            throw new Error(`Project ${projectId} not found`);
+        return this.git.branchList(project.repoPath);
+    }
+    async checkWorktreeHealth(worktreeId) {
+        if (!this.git)
+            throw new Error("Git adapter required");
+        const snapshot = this.store.getSnapshot();
+        const worktree = snapshot.worktrees.find((w) => w.id === worktreeId);
+        if (!worktree)
+            return { exists: false };
+        const exists = await this.git.pathExists(worktree.path);
+        return { exists };
     }
 }
 exports.WorkspaceService = WorkspaceService;

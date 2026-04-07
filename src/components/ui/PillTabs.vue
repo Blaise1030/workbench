@@ -60,7 +60,7 @@ function onTabKeydown(event: KeyboardEvent, index: number) {
     role="tablist"
     data-slot="button-group"
     :aria-label="ariaLabel"
-    class="flex min-w-0 max-w-full flex-nowrap items-center gap-1 overflow-x-auto overflow-y-hidden px-1.5 py-1 [scrollbar-width:thin]"
+    class="flex min-w-0 max-w-full flex-nowrap select-none items-center gap-1 overflow-x-auto overflow-y-hidden px-1.5 py-0.5 [scrollbar-width:thin]"
   >
     <template v-for="(tab, index) in tabs" :key="tab.value">
       <button

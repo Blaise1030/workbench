@@ -142,9 +142,10 @@ describe("ThreadSidebar", () => {
     await nextTick();
     const panel = document.querySelector('[data-testid="thread-agent-menu-panel"]');
     expect(panel).toBeTruthy();
-    const first = panel!.querySelector('[role="menuitem"]');
-    expect(first).toBeTruthy();
-    await first!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    const items = panel!.querySelectorAll('[role="menuitem"]');
+    const claude = Array.from(items).find((el) => el.textContent?.includes("Claude Code"));
+    expect(claude).toBeTruthy();
+    await claude!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
 
     expect(wrapper.emitted("createWithAgent")).toEqual([["claude"]]);
   });

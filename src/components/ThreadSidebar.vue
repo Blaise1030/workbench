@@ -2,6 +2,7 @@
 import type { RunStatus, Thread, ThreadAgent, Worktree } from "@shared/domain";
 import { PanelLeftClose, PanelLeftOpen } from "lucide-vue-next";
 import { computed, nextTick, ref, watch } from "vue";
+import BranchPicker from "@/components/BranchPicker.vue";
 import ThreadGroupHeader from "@/components/ThreadGroupHeader.vue";
 import ThreadRow from "@/components/ThreadRow.vue";
 import ThreadTopBar from "@/components/ThreadTopBar.vue";
@@ -24,6 +25,10 @@ const props = withDefaults(
     defaultWorktreeId?: string | null;
     /** Worktree IDs whose path no longer exists on disk. */
     staleWorktreeIds?: ReadonlySet<string>;
+    /** Whether the branch picker is visible. */
+    showBranchPicker?: boolean;
+    /** Active project ID for the branch picker. */
+    projectId?: string | null;
   }>(),
   {
     collapsed: false,
@@ -31,7 +36,9 @@ const props = withDefaults(
     threadsNeedingAttention: undefined,
     threadGroups: () => [],
     defaultWorktreeId: null,
-    staleWorktreeIds: () => new Set()
+    staleWorktreeIds: () => new Set(),
+    showBranchPicker: false,
+    projectId: null
   }
 );
 
@@ -41,7 +48,10 @@ const emit = defineEmits<{
   remove: [threadId: string];
   rename: [threadId: string, newTitle: string];
   reorder: [threadIds: string[]];
-  createWorktreeGroup: [];
+  createWorktreeGroup: [branch: string, baseBranch: string | null];
+  addThreadToGroup: [worktreeId: string];
+  cancelBranchPicker: [];
+  showBranchPicker: [];
   deleteWorktreeGroup: [worktreeId: string];
   collapse: [];
   expand: [];
@@ -239,7 +249,13 @@ defineExpose({ openNewThreadMenu });
       ref="topBarRef"
       :collapsed="collapsed"
       @create-with-agent="emit('createWithAgent', $event)"
-      @create-worktree-group="emit('createWorktreeGroup')"
+      @create-worktree-group="emit('showBranchPicker')"
+    />
+    <BranchPicker
+      v-if="showBranchPicker && projectId"
+      :project-id="projectId"
+      @create="(branch, baseBranch) => emit('createWorktreeGroup', branch, baseBranch)"
+      @cancel="emit('cancelBranchPicker')"
     />
     <section
       v-if="threads.length === 0"
@@ -252,7 +268,7 @@ defineExpose({ openNewThreadMenu });
         </h3>
       </template>
     </section>
-    <div v-else class="min-h-0 flex-1 overflow-y-auto pb-3 pt-2">
+    <div v-else class="min-h-0 flex-1 overflow-y-auto pb-3 pt-3">
       <!-- Ungrouped threads -->
       <ul class="space-y-0.5 px-2">
         <li
@@ -283,15 +299,20 @@ defineExpose({ openNewThreadMenu });
       </ul>
 
       <!-- Thread groups -->
-      <div v-for="group in groupData" :key="group.worktree.id">
+      <div
+        v-for="(group, groupIndex) in groupData"
+        :key="group.worktree.id"
+        :class="groupIndex > 0 || ungroupedRenderedThreads.length > 0 ? 'mt-2' : ''"
+      >
         <ThreadGroupHeader
           data-testid="thread-group-header"
-          :branch="group.worktree.branch"
-          :base-branch="group.worktree.baseBranch"
+          :title="group.worktree.name"
           :thread-count="group.threads.length"
           :is-stale="group.isStale"
+          :is-active="group.threads.some((t) => t.id === activeThreadId)"
           :collapsed="collapsedGroups.has(group.worktree.id)"
           @toggle="toggleGroup(group.worktree.id)"
+          @add-thread="emit('addThreadToGroup', group.worktree.id)"
           @delete="emit('deleteWorktreeGroup', group.worktree.id)"
         />
 
@@ -304,8 +325,8 @@ defineExpose({ openNewThreadMenu });
 
         <ul
           v-show="!collapsedGroups.has(group.worktree.id)"
-          class="space-y-0.5 px-2"
-          :class="collapsed ? '' : 'pl-5'"
+          class="space-y-0.5 px-2 pt-2"
+          :class="collapsed ? '' : 'pl-3'"
         >
           <li
             v-for="thread in group.threads"

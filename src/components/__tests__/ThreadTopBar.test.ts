@@ -21,9 +21,10 @@ describe("ThreadTopBar", () => {
 
     await wrapper.get('[aria-label="New thread"]').trigger("click");
     await nextTick();
-    const first = getAgentMenuPanel().querySelector('[role="menuitem"]');
-    expect(first).toBeTruthy();
-    await first!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    const items = getAgentMenuPanel().querySelectorAll('[role="menuitem"]');
+    const claude = Array.from(items).find((el) => el.textContent?.includes("Claude Code"));
+    expect(claude).toBeTruthy();
+    await claude!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
 
     expect(wrapper.emitted("createWithAgent")).toEqual([["claude"]]);
   });
@@ -48,8 +49,8 @@ describe("ThreadTopBar", () => {
     await nextTick();
     const items = getAgentMenuPanel().querySelectorAll('[role="menuitem"]');
     expect(items).toHaveLength(5);
-    // First 4 are agent tiles with border and shadow styling
-    for (let i = 0; i < 4; i++) {
+    // First row is "New Thread Group"; next four are agent tiles with border and shadow styling
+    for (let i = 1; i < 5; i++) {
       expect(items[i]!.className).toContain("border");
       expect(items[i]!.className).toContain("shadow-");
     }
