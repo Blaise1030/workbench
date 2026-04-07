@@ -124,6 +124,137 @@ describe("WorkspaceService.maybeRenameThreadFromPrompt", () => {
   });
 });
 
+describe("WorkspaceService.createWorktreeGroup", () => {
+  it("creates a worktree with isDefault false and baseBranch", async () => {
+    const upsertWorktree = vi.fn();
+    const setActiveState = vi.fn();
+    const store = {
+      getSnapshot: vi.fn(() => ({
+        projects: [{ id: "p1", repoPath: "/tmp/repo" }],
+        worktrees: [],
+        threads: [],
+        activeProjectId: "p1",
+        activeWorktreeId: null,
+        activeThreadId: null
+      })),
+      upsertProject: vi.fn(),
+      setActiveState,
+      upsertWorktree,
+      upsertThread: vi.fn(),
+      deleteThread: vi.fn(),
+      renameThread: vi.fn(),
+      getThread: vi.fn(),
+      nextThreadSortOrder: vi.fn(),
+      reorderThreads: vi.fn(),
+      deleteWorktreeGroup: vi.fn()
+    };
+    const mockGit = {
+      worktreeAdd: vi.fn(async () => {}),
+      branchList: vi.fn(async () => ["main", "develop"]),
+      worktreeList: vi.fn(async () => []),
+      worktreeRemove: vi.fn(),
+      pathExists: vi.fn()
+    };
+    const service = new WorkspaceService(store as never, mockGit as never);
+
+    const result = await service.createWorktreeGroup({
+      projectId: "p1",
+      branch: "feat/auth",
+      baseBranch: "main"
+    });
+
+    expect(result.isDefault).toBe(false);
+    expect(result.baseBranch).toBe("main");
+    expect(result.branch).toBe("feat/auth");
+    expect(mockGit.worktreeAdd).toHaveBeenCalled();
+    expect(upsertWorktree).toHaveBeenCalledWith(expect.objectContaining({
+      isDefault: false,
+      baseBranch: "main"
+    }));
+  });
+});
+
+describe("WorkspaceService.deleteWorktreeGroup", () => {
+  it("removes git worktree and deletes store data", async () => {
+    const deleteWorktreeGroupStore = vi.fn();
+    const store = {
+      getSnapshot: vi.fn(() => ({
+        projects: [{ id: "p1", repoPath: "/tmp/repo" }],
+        worktrees: [
+          { id: "wt-default", projectId: "p1", path: "/tmp/repo", isDefault: true },
+          { id: "wt-feat", projectId: "p1", path: "/tmp/repo/.worktrees/feat-auth", isDefault: false }
+        ],
+        threads: [],
+        activeProjectId: "p1",
+        activeWorktreeId: "wt-feat",
+        activeThreadId: null
+      })),
+      upsertProject: vi.fn(),
+      setActiveState: vi.fn(),
+      upsertWorktree: vi.fn(),
+      upsertThread: vi.fn(),
+      deleteThread: vi.fn(),
+      renameThread: vi.fn(),
+      getThread: vi.fn(),
+      nextThreadSortOrder: vi.fn(),
+      reorderThreads: vi.fn(),
+      deleteWorktreeGroup: deleteWorktreeGroupStore
+    };
+    const mockGit = {
+      worktreeAdd: vi.fn(),
+      worktreeRemove: vi.fn(async () => {}),
+      branchList: vi.fn(),
+      worktreeList: vi.fn(async () => []),
+      pathExists: vi.fn(async () => true)
+    };
+    const service = new WorkspaceService(store as never, mockGit as never);
+
+    await service.deleteWorktreeGroup("wt-feat");
+
+    expect(mockGit.worktreeRemove).toHaveBeenCalledWith("/tmp/repo/.worktrees/feat-auth");
+    expect(deleteWorktreeGroupStore).toHaveBeenCalledWith("wt-feat");
+    expect(store.setActiveState).toHaveBeenCalledWith("p1", "wt-default", null);
+  });
+});
+
+describe("WorkspaceService.listBranches", () => {
+  it("returns branches from the git adapter", async () => {
+    const mockGit = {
+      worktreeAdd: vi.fn(),
+      worktreeRemove: vi.fn(),
+      branchList: vi.fn(async () => ["main", "develop", "feat/auth"]),
+      worktreeList: vi.fn(async () => []),
+      pathExists: vi.fn()
+    };
+    const store = {
+      getSnapshot: vi.fn(() => ({
+        projects: [{ id: "p1", repoPath: "/tmp/repo" }],
+        worktrees: [],
+        threads: [],
+        activeProjectId: null,
+        activeWorktreeId: null,
+        activeThreadId: null
+      })),
+      upsertProject: vi.fn(),
+      setActiveState: vi.fn(),
+      upsertWorktree: vi.fn(),
+      upsertThread: vi.fn(),
+      deleteThread: vi.fn(),
+      renameThread: vi.fn(),
+      getThread: vi.fn(),
+      nextThreadSortOrder: vi.fn(),
+      reorderThreads: vi.fn(),
+      deleteWorktreeGroup: vi.fn()
+    };
+    const service = new WorkspaceService(store as never, mockGit as never);
+
+    const branches = await service.listBranches("p1");
+
+    expect(branches).toEqual(["main", "develop", "feat/auth"]);
+    expect(mockGit.branchList).toHaveBeenCalledWith("/tmp/repo");
+  });
+});
+
 describe("WorkspaceService thread ordering", () => {
   it("assigns the next sort order when creating a thread", () => {
     const upsertThread = vi.fn();

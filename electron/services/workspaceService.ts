@@ -1,7 +1,16 @@
 import { randomUUID } from "node:crypto";
+import path from "node:path";
 import type { Project, Thread, Worktree } from "../../src/shared/domain.js";
-import type { CreateThreadInput, WorkspaceSnapshot } from "../../src/shared/ipc.js";
+import type { CreateThreadInput, CreateWorktreeGroupInput, WorkspaceSnapshot } from "../../src/shared/ipc.js";
 import { WorkspaceStore } from "../storage/store.js";
+
+export interface GitAdapter {
+  worktreeAdd(repoPath: string, worktreePath: string, branch: string, baseBranch: string | null): Promise<void>;
+  worktreeRemove(worktreePath: string): Promise<void>;
+  worktreeList(repoPath: string): Promise<Array<{ path: string; branch: string }>>;
+  branchList(repoPath: string): Promise<string[]>;
+  pathExists(fsPath: string): Promise<boolean>;
+}
 
 const DEFAULT_THREAD_TITLES: Record<Thread["agent"], string> = {
   claude: "Claude Code",
@@ -37,7 +46,10 @@ function hasDefaultGeneratedTitle(thread: Thread): boolean {
 }
 
 export class WorkspaceService {
-  constructor(private store: WorkspaceStore) {}
+  constructor(
+    private store: WorkspaceStore,
+    private git?: GitAdapter
+  ) {}
 
   getSnapshot(): WorkspaceSnapshot {
     return this.store.getSnapshot();
@@ -124,5 +136,77 @@ export class WorkspaceService {
 
   reorderThreads(worktreeId: string, orderedThreadIds: string[]): void {
     this.store.reorderThreads(worktreeId, orderedThreadIds);
+  }
+
+  async createWorktreeGroup(input: CreateWorktreeGroupInput): Promise<Worktree> {
+    if (!this.git) throw new Error("Git adapter required for worktree operations");
+
+    const snapshot = this.store.getSnapshot();
+    const project = snapshot.projects.find((p) => p.id === input.projectId);
+    if (!project) throw new Error(`Project ${input.projectId} not found`);
+
+    const sanitized = input.branch.replace(/\//g, "-");
+    const worktreePath = path.join(project.repoPath, ".worktrees", sanitized);
+
+    await this.git.worktreeAdd(project.repoPath, worktreePath, input.branch, input.baseBranch);
+
+    const now = new Date().toISOString();
+    const worktree: Worktree = {
+      id: randomUUID(),
+      projectId: input.projectId,
+      name: input.branch,
+      branch: input.branch,
+      path: worktreePath,
+      isActive: true,
+      isDefault: false,
+      baseBranch: input.baseBranch,
+      lastActiveThreadId: null,
+      createdAt: now,
+      updatedAt: now
+    };
+    this.store.upsertWorktree(worktree);
+    return worktree;
+  }
+
+  async deleteWorktreeGroup(worktreeId: string): Promise<void> {
+    if (!this.git) throw new Error("Git adapter required for worktree operations");
+
+    const snapshot = this.store.getSnapshot();
+    const worktree = snapshot.worktrees.find((w) => w.id === worktreeId);
+    if (!worktree) throw new Error(`Worktree ${worktreeId} not found`);
+    if (worktree.isDefault) throw new Error("Cannot delete the default worktree");
+
+    const exists = await this.git.pathExists(worktree.path);
+    if (exists) {
+      await this.git.worktreeRemove(worktree.path);
+    }
+
+    this.store.deleteWorktreeGroup(worktreeId);
+
+    if (snapshot.activeWorktreeId === worktreeId) {
+      const defaultWt = snapshot.worktrees.find((w) => w.projectId === worktree.projectId && w.isDefault);
+      if (defaultWt) {
+        this.store.setActiveState(worktree.projectId, defaultWt.id, null);
+      }
+    }
+  }
+
+  async listBranches(projectId: string): Promise<string[]> {
+    if (!this.git) throw new Error("Git adapter required for worktree operations");
+
+    const snapshot = this.store.getSnapshot();
+    const project = snapshot.projects.find((p) => p.id === projectId);
+    if (!project) throw new Error(`Project ${projectId} not found`);
+
+    return this.git.branchList(project.repoPath);
+  }
+
+  async checkWorktreeHealth(worktreeId: string): Promise<{ exists: boolean }> {
+    if (!this.git) throw new Error("Git adapter required");
+    const snapshot = this.store.getSnapshot();
+    const worktree = snapshot.worktrees.find((w) => w.id === worktreeId);
+    if (!worktree) return { exists: false };
+    const exists = await this.git.pathExists(worktree.path);
+    return { exists };
   }
 }
