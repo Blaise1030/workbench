@@ -6,6 +6,7 @@ import {
   type AddProjectInput,
   type AddWorktreeInput,
   type CreateThreadInput,
+  type CreateWorktreeGroupInput,
   type DeleteThreadInput,
   type FileReadInput,
   type FileWriteInput,
@@ -17,6 +18,7 @@ import { EditService } from "./services/editService.js";
 import { FileService } from "./services/fileService.js";
 import { RunService } from "./services/runService.js";
 import { PtyService } from "./services/ptyService.js";
+import { createGitAdapter } from "./services/gitAdapter.js";
 import { WorkspaceService } from "./services/workspaceService.js";
 import { WorkspaceStore } from "./storage/store.js";
 
@@ -105,7 +107,7 @@ function registerIpc(workspaceService: WorkspaceService): void {
   ipcMain.handle(IPC_CHANNELS.workspaceAddProject, (_, payload: AddProjectInput) => {
     const project = workspaceService.addProject(payload.name, payload.repoPath);
     const branch = payload.defaultBranch ?? "main";
-    workspaceService.addWorktree(project.id, branch, payload.repoPath);
+    workspaceService.addWorktree(project.id, branch, payload.repoPath, true);
     emitWorkspaceDidChange();
     return workspaceService.getSnapshot();
   });
@@ -140,6 +142,21 @@ function registerIpc(workspaceService: WorkspaceService): void {
   ipcMain.handle(IPC_CHANNELS.workspaceReorderThreads, (_, payload: ReorderThreadsInput) => {
     workspaceService.reorderThreads(payload.worktreeId, payload.orderedThreadIds);
     emitWorkspaceDidChange();
+  });
+  ipcMain.handle(IPC_CHANNELS.workspaceCreateWorktreeGroup, async (_, payload: CreateWorktreeGroupInput) => {
+    const worktree = await workspaceService.createWorktreeGroup(payload);
+    emitWorkspaceDidChange();
+    return worktree;
+  });
+  ipcMain.handle(IPC_CHANNELS.workspaceDeleteWorktreeGroup, async (_, payload: { worktreeId: string }) => {
+    await workspaceService.deleteWorktreeGroup(payload.worktreeId);
+    emitWorkspaceDidChange();
+  });
+  ipcMain.handle(IPC_CHANNELS.workspaceListBranches, async (_, payload: { projectId: string }) => {
+    return workspaceService.listBranches(payload.projectId);
+  });
+  ipcMain.handle(IPC_CHANNELS.workspaceWorktreeHealth, async (_, payload: { worktreeId: string }) => {
+    return workspaceService.checkWorktreeHealth(payload.worktreeId);
   });
 
   ipcMain.handle(IPC_CHANNELS.runStart, (_, payload: { agent: "codex" | "claude"; cwd: string; prompt: string }) =>
@@ -238,7 +255,8 @@ const dataDir = app.getPath("userData");
 const schemaSql = readWorkspaceSchemaSql();
 const store = new WorkspaceStore(dataDir);
 store.migrate(schemaSql);
-const workspaceService = new WorkspaceService(store);
+const gitAdapter = createGitAdapter();
+const workspaceService = new WorkspaceService(store, gitAdapter);
 ptyService.setSubmittedInputListener((sessionId, input) => {
   if (workspaceService.maybeRenameThreadFromPrompt(sessionId, input)) {
     emitWorkspaceDidChange();
