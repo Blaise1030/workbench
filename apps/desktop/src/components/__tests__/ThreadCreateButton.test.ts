@@ -99,7 +99,8 @@ describe("ThreadCreateButton", () => {
     const items = Array.from(
       document.querySelectorAll('[data-testid="thread-agent-menu-panel"] [role="menuitem"]')
     ) as HTMLElement[];
-    const agentItems = items.slice(1);
+    // First four menu items are agent picks; the following item is "New Thread Group" (emoji, not SVG).
+    const agentItems = items.slice(0, 4);
 
     expect(agentItems).toHaveLength(4);
     for (const item of agentItems) {

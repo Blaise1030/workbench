@@ -1,4 +1,5 @@
-# Build desktop installers when you push a version tag (e.g. v0.2.0).
+# Build desktop installers when you push a version tag (e.g. v0.2.2).
+# Tag must match apps/desktop/package.json "version" (after stripping the leading v).
 # Creates a GitHub Release and attaches per-OS artifacts from the matrix jobs.
 name: Release
 
@@ -16,32 +17,70 @@ concurrency:
 
 jobs:
   build:
-    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            target: mac
+            electron_builder_args: --mac
+            artifact_glob: apps/desktop/release/*.dmg
+          - os: windows-latest
+            target: win
+            electron_builder_args: --win
+            artifact_glob: apps/desktop/release/*.exe
+          - os: ubuntu-latest
+            target: linux
+            electron_builder_args: --linux
+            artifact_glob: apps/desktop/release/*.AppImage
+
+    runs-on: ${{ matrix.os }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Verify tag matches workbench version
+        shell: bash
+        run: |
+          PKG_VERSION=$(node -p "require('./apps/desktop/package.json').version")
+          TAG="${GITHUB_REF_NAME#v}"
+          if [ "$PKG_VERSION" != "$TAG" ]; then
+            echo "::error::Git tag $GITHUB_REF_NAME must match apps/desktop/package.json version (expected v${PKG_VERSION})"
+            exit 1
+          fi
+
+      - name: Linux native build deps
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends build-essential python3
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 8.14.0
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "22"
-          cache: npm
+          cache: pnpm
 
       - name: Install dependencies
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       - name: Build renderer + main process
-        run: npm run build:app
+        run: pnpm run build:app
 
-      - name: Package (mac)
-        run: npx electron-builder --mac --publish never
+      - name: Package (${{ matrix.target }})
+        run: pnpm --filter workbench exec electron-builder ${{ matrix.electron_builder_args }} --publish never
 
       - name: Upload installers
         uses: actions/upload-artifact@v4
         with:
-          name: installers-mac
-          path: release/*.dmg
+          name: installers-${{ matrix.target }}
+          path: ${{ matrix.artifact_glob }}
           if-no-files-found: error
 
   publish:
@@ -52,10 +91,10 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           path: artifacts
-          name: installers-mac
+          pattern: installers-*
+          merge-multiple: true
 
       - name: Create GitHub Release
-        continue-on-error: true
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
@@ -66,5 +105,9 @@ jobs:
           files: |
             artifacts/*.dmg
             artifacts/**/*.dmg
+            artifacts/*.exe
+            artifacts/**/*.exe
+            artifacts/*.AppImage
+            artifacts/**/*.AppImage
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

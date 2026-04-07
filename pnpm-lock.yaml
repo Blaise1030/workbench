@@ -119,9 +119,6 @@ importers:
         specifier: ^5.3.0
         version: 5.3.0
     devDependencies:
-      '@tailwindcss/oxide-darwin-arm64':
-        specifier: ^4.2.2
-        version: 4.2.2
       '@tailwindcss/vite':
         specifier: ^4.2.2
         version: 4.2.2(vite@6.4.2)
@@ -1680,6 +1677,7 @@ packages:
     os: [darwin]
     requiresBuild: true
     dev: true
+    optional: true
 
   /@tailwindcss/oxide-darwin-x64@4.2.2:
     resolution: {integrity: sha512-BlR+2c3nzc8f2G639LpL89YY4bdcIdUmiOOkv2GQv4/4M0vJlpXEa0JXNHhCHU7VWOKWT/CjqHdTP8aUuDJkuw==}

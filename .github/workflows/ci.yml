@@ -12,18 +12,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 8.14.0
+
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-          cache: npm
+          cache: pnpm
 
       - name: Linux native build deps
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends build-essential python3
 
-      - run: npm ci
+      - run: pnpm install --frozen-lockfile
 
-      - run: npm test
+      - run: pnpm test
 
-      - run: npm run build:app
+      - run: pnpm run build:app

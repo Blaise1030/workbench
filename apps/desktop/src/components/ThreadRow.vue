@@ -243,7 +243,7 @@ onBeforeUnmount(() => {
       </button>
       <div
         v-if="menuOpen"
-        class="absolute right-0 top-full border shadow-sm z-50 mt-0.5 min-w-[8rem] rounded-md bg-popover p-1"
+        class="absolute right-0 top-full z-50 mt-0.5 min-w-[8rem] rounded-md bg-popover p-1"
         role="menu"
       >
         <button

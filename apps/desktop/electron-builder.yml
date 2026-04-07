@@ -30,3 +30,12 @@ mac:
     - dmg
   hardenedRuntime: true
   gatekeeperAssess: false
+
+win:
+  target:
+    - nsis
+
+linux:
+  target:
+    - AppImage
+  category: Development
