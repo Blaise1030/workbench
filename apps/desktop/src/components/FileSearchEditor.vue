@@ -1,6 +1,14 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
-import { FilePlus, PanelLeftClose, PanelLeftOpen, RefreshCw, Search, Trash2 } from "lucide-vue-next";
+import {
+  FilePlus,
+  FolderPlus,
+  PanelLeftClose,
+  PanelLeftOpen,
+  RefreshCw,
+  Search,
+  Trash2
+} from "lucide-vue-next";
 import type { FileSummary } from "@shared/ipc";
 import BaseButton from "@/components/ui/BaseButton.vue";
 import FileTreeNode, {
@@ -80,6 +88,11 @@ const newFileDialogOpen = ref(false);
 const newFilePathDraft = ref("");
 const newFilePathInputRef = ref<HTMLInputElement | null>(null);
 const newFileDialogFieldError = ref<string | null>(null);
+
+const newFolderDialogOpen = ref(false);
+const newFolderPathDraft = ref("");
+const newFolderPathInputRef = ref<HTMLInputElement | null>(null);
+const newFolderDialogFieldError = ref<string | null>(null);
 
 const hasWorkspace = computed(() => Boolean(props.worktreePath));
 const dirty = computed(
@@ -170,11 +183,25 @@ function buildFileTree(files: FileSummary[]): FileTreeNodeData[] {
       const isLeaf = index === segments.length - 1;
 
       if (isLeaf) {
-        currentChildren.push({
-          kind: "file",
-          name: segment,
-          path: nextPath
-        });
+        if (file.kind === "directory") {
+          let folder = folderMap.get(nextPath);
+          if (!folder) {
+            folder = {
+              kind: "folder",
+              name: segment,
+              path: nextPath,
+              children: []
+            };
+            folderMap.set(nextPath, folder);
+            currentChildren.push(folder);
+          }
+        } else {
+          currentChildren.push({
+            kind: "file",
+            name: segment,
+            path: nextPath
+          });
+        }
         continue;
       }
 
@@ -250,7 +277,7 @@ const contextMenuStyle = computed(() => {
   if (!m) return {};
   const pad = 8;
   const menuW = 200;
-  const menuH = 80;
+  const menuH = 140;
   let x = m.x;
   let y = m.y;
   if (typeof window !== "undefined") {
@@ -288,8 +315,30 @@ function closeNewFileDialog(): void {
   newFileDialogFieldError.value = null;
 }
 
+function closeNewFolderDialog(): void {
+  newFolderDialogOpen.value = false;
+  newFolderDialogFieldError.value = null;
+}
+
+function computeNewFolderDefaultValue(folderPathPrefix?: string): string {
+  if (folderPathPrefix !== undefined) {
+    const p = normalizeNewFilePathInput(folderPathPrefix);
+    return p ? `${p.replace(/\/+$/, "")}/new-folder` : "new-folder";
+  }
+  const folderHint = selectedPath.value?.includes("/")
+    ? selectedPath.value.replace(/\/[^/]+$/, "")
+    : selectedPath.value
+      ? ""
+      : "src";
+  return folderHint === "" ? "new-folder" : `${folderHint}/new-folder`;
+}
+
 function onNewFileBackdropPointerDown(event: MouseEvent): void {
   if (event.target === event.currentTarget) closeNewFileDialog();
+}
+
+function onNewFolderBackdropPointerDown(event: MouseEvent): void {
+  if (event.target === event.currentTarget) closeNewFolderDialog();
 }
 
 async function openNewFileDialog(folderPathPrefix?: string): Promise<void> {
@@ -304,6 +353,22 @@ async function openNewFileDialog(folderPathPrefix?: string): Promise<void> {
   newFileDialogOpen.value = true;
   await nextTick();
   const el = newFilePathInputRef.value;
+  el?.focus();
+  el?.select();
+}
+
+async function openNewFolderDialog(folderPathPrefix?: string): Promise<void> {
+  const api = getApi();
+  const cwd = props.worktreePath;
+  if (!api?.createFolder || !cwd) return;
+
+  newFolderPathDraft.value = computeNewFolderDefaultValue(
+    typeof folderPathPrefix === "string" ? folderPathPrefix : undefined
+  );
+  newFolderDialogFieldError.value = null;
+  newFolderDialogOpen.value = true;
+  await nextTick();
+  const el = newFolderPathInputRef.value;
   el?.focus();
   el?.select();
 }
@@ -332,6 +397,31 @@ async function submitNewFile(): Promise<void> {
   } catch (createError) {
     error.value =
       createError instanceof Error ? createError.message : "Could not create the file.";
+  }
+}
+
+async function submitNewFolder(): Promise<void> {
+  const api = getApi();
+  const cwd = props.worktreePath;
+  if (!api?.createFolder || !cwd) return;
+
+  const normalized = normalizeNewFilePathInput(newFolderPathDraft.value).replace(/\/+$/, "");
+  if (!normalized) {
+    newFolderDialogFieldError.value = "Enter a folder path.";
+    return;
+  }
+
+  newFolderDialogFieldError.value = null;
+  error.value = null;
+
+  try {
+    await api.createFolder(cwd, normalized);
+    closeNewFolderDialog();
+    await loadFileSummaries();
+    expandAncestorFolders(normalized);
+  } catch (createError) {
+    error.value =
+      createError instanceof Error ? createError.message : "Could not create the folder.";
   }
 }
 
@@ -390,6 +480,10 @@ function onGlobalKeydown(e: KeyboardEvent): void {
       closeNewFileDialog();
       return;
     }
+    if (newFolderDialogOpen.value) {
+      closeNewFolderDialog();
+      return;
+    }
     closeTreeContextMenu();
   }
 }
@@ -409,6 +503,7 @@ function resetState(): void {
   isLoadingFile.value = false;
   isSaving.value = false;
   closeNewFileDialog();
+  closeNewFolderDialog();
   clearSelection();
 }
 
@@ -499,6 +594,44 @@ async function handleAddFile(folderPathPrefix?: string): Promise<void> {
   await openNewFileDialog(folderPrefix);
 }
 
+async function handleAddFolder(folderPathPrefix?: string): Promise<void> {
+  const folderPrefix =
+    typeof folderPathPrefix === "string" ? folderPathPrefix : undefined;
+  await openNewFolderDialog(folderPrefix);
+}
+
+function pathIsUnderOrEqualFolder(parentRel: string, childRel: string): boolean {
+  const p = parentRel.replace(/\/+$/, "");
+  const c = childRel.replace(/\/+$/, "");
+  return c === p || c.startsWith(`${p}/`);
+}
+
+async function deleteFolderAtPath(relativePath: string): Promise<void> {
+  const api = getApi();
+  const cwd = props.worktreePath;
+  if (!api?.deleteFolder || !cwd) return;
+
+  const sel = selectedPath.value;
+  const loseEdits = sel && pathIsUnderOrEqualFolder(relativePath, sel) && dirty.value;
+  const message = loseEdits
+    ? `Delete folder ${relativePath} and its contents? Unsaved changes to an open file inside will be lost.`
+    : `Delete folder ${relativePath} and its contents?`;
+  if (!window.confirm(message)) return;
+
+  error.value = null;
+
+  try {
+    await api.deleteFolder(cwd, relativePath);
+    if (sel && pathIsUnderOrEqualFolder(relativePath, sel)) {
+      clearSelection();
+    }
+    await loadFileSummaries();
+  } catch (deleteError) {
+    error.value =
+      deleteError instanceof Error ? deleteError.message : "Could not delete the folder.";
+  }
+}
+
 async function deleteFileAtPath(relativePath: string): Promise<void> {
   const api = getApi();
   const cwd = props.worktreePath;
@@ -538,6 +671,24 @@ async function onCtxAddFile(): Promise<void> {
   } else if (m.variant === "pane") {
     await handleAddFile();
   }
+}
+
+async function onCtxAddFolder(): Promise<void> {
+  const m = treeContextMenu.value;
+  closeTreeContextMenu();
+  if (!m) return;
+  if (m.variant === "folder") {
+    await handleAddFolder(m.folderPath);
+  } else if (m.variant === "pane") {
+    await handleAddFolder();
+  }
+}
+
+async function onCtxDeleteFolder(): Promise<void> {
+  const m = treeContextMenu.value;
+  closeTreeContextMenu();
+  if (!m || m.variant !== "folder") return;
+  await deleteFolderAtPath(m.folderPath);
 }
 
 async function onCtxDeleteFile(): Promise<void> {
@@ -635,6 +786,10 @@ defineExpose({
   focusSearch: (): void => {
     void focusSearchAfterReveal();
   },
+  /** Same as the sidebar refresh control: reload the file list from disk. */
+  refreshFileExplorer: (): void => {
+    void loadFileSummaries();
+  },
   /** Open a worktree-relative path in the editor (same as picking the file in the tree). */
   openWorkspaceFile: handleSelectFile
 });
@@ -723,6 +878,18 @@ defineExpose({
           >
             <FilePlus class="h-3.5 w-3.5" aria-hidden="true" />
             <span class="sr-only">Add file</span>
+          </BaseButton>
+          <BaseButton
+            data-testid="add-folder"
+            variant="outline"
+            size="icon-xs"
+            class="shrink-0 px-1.5"
+            :disabled="!hasWorkspace"
+            :title="'Add folder'"
+            @click="handleAddFolder()"
+          >
+            <FolderPlus class="h-3.5 w-3.5" aria-hidden="true" />
+            <span class="sr-only">Add folder</span>
           </BaseButton>
         </div>
 
@@ -911,6 +1078,26 @@ defineExpose({
           >
             Add file…
           </button>
+          <button
+            type="button"
+            role="menuitem"
+            data-testid="ctx-add-folder"
+            class="flex w-full rounded-sm px-2 py-1.5 text-left text-xs hover:bg-muted"
+            @click="onCtxAddFolder"
+          >
+            Add folder…
+          </button>
+        </template>
+        <template v-if="treeContextMenu.variant === 'folder'">
+          <button
+            type="button"
+            role="menuitem"
+            data-testid="ctx-delete-folder"
+            class="flex w-full rounded-sm px-2 py-1.5 text-left text-xs text-destructive hover:bg-destructive/10"
+            @click="onCtxDeleteFolder"
+          >
+            Delete folder
+          </button>
         </template>
         <template v-if="treeContextMenu.variant === 'file'">
           <button
@@ -979,6 +1166,67 @@ defineExpose({
                 Cancel
               </BaseButton>
               <BaseButton type="submit" data-testid="new-file-confirm" variant="default" size="xs">
+                Create
+              </BaseButton>
+            </div>
+          </form>
+        </div>
+      </div>
+    </Teleport>
+
+    <Teleport to="body">
+      <div
+        v-if="newFolderDialogOpen"
+        data-testid="new-folder-dialog"
+        class="fixed inset-0 z-[210] flex items-start justify-center overflow-y-auto p-4 pt-[15vh] ui-glass-scrim"
+        role="presentation"
+        @pointerdown="onNewFolderBackdropPointerDown"
+      >
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="new-folder-dialog-title"
+          class="ui-glass-panel relative w-full max-w-md rounded-lg p-4 text-card-foreground outline-none"
+          tabindex="-1"
+          @pointerdown.stop
+        >
+          <h2 id="new-folder-dialog-title" class="text-sm font-semibold">New folder</h2>
+          <p class="mt-1 text-xs text-muted-foreground">
+            Path relative to the workspace (nested folders are created as needed).
+          </p>
+          <form class="mt-4 space-y-3" @submit.prevent="submitNewFolder">
+            <div>
+              <label for="new-folder-path-input" class="sr-only">Folder path</label>
+              <input
+                id="new-folder-path-input"
+                ref="newFolderPathInputRef"
+                v-model="newFolderPathDraft"
+                data-testid="new-folder-path-input"
+                type="text"
+                autocomplete="off"
+                spellcheck="false"
+                class="h-9 w-full rounded-md border border-input bg-background px-2.5 text-xs text-foreground outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50"
+                placeholder="e.g. src/components/MyFolder"
+              />
+              <p
+                v-if="newFolderDialogFieldError"
+                data-testid="new-folder-dialog-error"
+                class="mt-1.5 text-xs text-destructive"
+              >
+                {{ newFolderDialogFieldError }}
+              </p>
+            </div>
+            <div class="flex justify-end gap-2">
+              <BaseButton
+                type="button"
+                data-testid="new-folder-cancel"
+                variant="outline"
+                size="xs"
+                @click="closeNewFolderDialog"
+              >
+                Cancel
+              </BaseButton>
+              <BaseButton type="submit" data-testid="new-folder-confirm" variant="default" size="xs">
                 Create
               </BaseButton>
             </div>

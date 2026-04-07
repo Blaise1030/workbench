@@ -50,7 +50,16 @@ async function collectFileSummaries(
   for (const entry of entries) {
     if (entry.isDirectory()) {
       if (IGNORED_DIRECTORY_NAMES.has(entry.name)) continue;
-      await collectFileSummaries(root, path.join(currentDir, entry.name), output);
+      const absoluteDir = path.join(currentDir, entry.name);
+      const relDir = normalizeRelativePath(path.relative(root, absoluteDir));
+      const dirStat = await fs.stat(absoluteDir);
+      output.push({
+        relativePath: relDir,
+        size: 0,
+        modifiedAt: dirStat.mtimeMs,
+        kind: "directory"
+      });
+      await collectFileSummaries(root, absoluteDir, output);
       continue;
     }
 
@@ -67,17 +76,11 @@ async function collectFileSummaries(
 }
 
 export class FileService {
-  private readonly summaryCache = new Map<string, FileSummary[]>();
-
   async listFileSummaries(root: string): Promise<FileSummary[]> {
     const resolvedRoot = path.resolve(root);
-    const cached = this.summaryCache.get(resolvedRoot);
-    if (cached) return cached;
-
     const summaries: FileSummary[] = [];
     await collectFileSummaries(resolvedRoot, resolvedRoot, summaries);
     summaries.sort((a, b) => a.relativePath.localeCompare(b.relativePath));
-    this.summaryCache.set(resolvedRoot, summaries);
     return summaries;
   }
 
@@ -99,7 +102,6 @@ export class FileService {
   async writeFile(root: string, relativePath: string, content: string): Promise<void> {
     const absolutePath = assertPathWithinRoot(root, relativePath);
     await fs.writeFile(absolutePath, content, "utf8");
-    this.summaryCache.delete(path.resolve(root));
   }
 
   async createFile(root: string, relativePath: string): Promise<void> {
@@ -112,7 +114,6 @@ export class FileService {
     await fs.mkdir(path.dirname(absolutePath), { recursive: true });
     const handle = await fs.open(absolutePath, "wx");
     await handle.close();
-    this.summaryCache.delete(path.resolve(root));
   }
 
   async deleteFile(root: string, relativePath: string): Promise<void> {
@@ -127,6 +128,52 @@ export class FileService {
       throw new Error("Not a regular file");
     }
     await fs.unlink(absolutePath);
-    this.summaryCache.delete(path.resolve(root));
+  }
+
+  async createFolder(root: string, relativePath: string): Promise<void> {
+    const normalized = normalizeRelativePath(relativePath.trim()).replace(/^\/+|\/+$/g, "");
+    if (!normalized) {
+      throw new Error("Invalid folder path");
+    }
+
+    const absolutePath = assertPathWithinRoot(root, normalized);
+
+    try {
+      const stat = await fs.stat(absolutePath);
+      if (stat.isDirectory()) {
+        throw new Error("Folder already exists");
+      }
+      throw new Error("A file exists at this path");
+    } catch (err) {
+      if (err instanceof Error) {
+        if (err.message === "Folder already exists" || err.message === "A file exists at this path") {
+          throw err;
+        }
+      }
+      if (
+        err &&
+        typeof err === "object" &&
+        "code" in err &&
+        (err as NodeJS.ErrnoException).code === "ENOENT"
+      ) {
+        await fs.mkdir(absolutePath, { recursive: true });
+        return;
+      }
+      throw err;
+    }
+  }
+
+  async deleteFolder(root: string, relativePath: string): Promise<void> {
+    const normalized = normalizeRelativePath(relativePath.trim()).replace(/^\/+|\/+$/g, "");
+    if (!normalized) {
+      throw new Error("Invalid folder path");
+    }
+
+    const absolutePath = assertPathWithinRoot(root, normalized);
+    const stat = await fs.stat(absolutePath);
+    if (!stat.isDirectory()) {
+      throw new Error("Not a folder");
+    }
+    await fs.rm(absolutePath, { recursive: true, force: true });
   }
 }

@@ -300,6 +300,21 @@ const scmBranchLine = computed(() => {
 const hasActiveWorkspace = computed(() => Boolean(workspace.activeWorktree));
 const activeWorktreeHasThreads = computed(() => workspace.activeThreads.length > 0);
 
+/**
+ * Roots the Files explorer at the active thread's checkout when a thread is selected,
+ * so worktree-group threads always list files only from that worktree.
+ */
+const fileExplorerWorktree = computed(() => {
+  const threadId = workspace.activeThreadId;
+  if (threadId) {
+    const thread = workspace.threads.find((t) => t.id === threadId);
+    if (thread) {
+      return workspace.worktrees.find((w) => w.id === thread.worktreeId) ?? workspace.activeWorktree;
+    }
+  }
+  return workspace.activeWorktree;
+});
+
 function getApi(): WorkspaceApi | null {
   return window.workspaceApi ?? null;
 }
@@ -1141,6 +1156,7 @@ watch(
     if (tab === "diff") void refreshRepoStatus();
     if (tab === "files" && prevTab !== "files") {
       void nextTick(() => {
+        fileSearchRef.value?.refreshFileExplorer?.();
         fileSearchRef.value?.focusSearch?.();
       });
     }
@@ -1426,8 +1442,8 @@ watch(
           >
             <FileSearchEditor
               ref="fileSearchRef"
-              :worktree-path="workspace.activeWorktree?.path ?? null"
-              :worktree-label="workspace.activeWorktree?.name ?? null"
+              :worktree-path="fileExplorerWorktree?.path ?? null"
+              :worktree-label="fileExplorerWorktree?.name ?? null"
             />
           </div>
         </div>

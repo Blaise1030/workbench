@@ -24,6 +24,10 @@ describe("FileService", () => {
 
     await expect(service.listFileSummaries(tempDir)).resolves.toEqual([
       expect.objectContaining({
+        relativePath: "src",
+        kind: "directory"
+      }),
+      expect.objectContaining({
         relativePath: "src/App.vue",
         size: 12
       }),
@@ -48,6 +52,7 @@ describe("FileService", () => {
     await fs.writeFile(path.join(tempDir, "dist-electron", "ignore-me.ts"), "", "utf8");
 
     await expect(service.listFileSummaries(tempDir)).resolves.toEqual([
+      expect.objectContaining({ relativePath: "src", kind: "directory" }),
       expect.objectContaining({ relativePath: "src/keep-me.ts" })
     ]);
   });
@@ -71,6 +76,8 @@ describe("FileService", () => {
       ""
     );
     await expect(service.listFileSummaries(tempDir)).resolves.toEqual([
+      expect.objectContaining({ relativePath: "src", kind: "directory" }),
+      expect.objectContaining({ relativePath: "src/new", kind: "directory" }),
       expect.objectContaining({ relativePath: "src/new/empty.ts", size: 0 })
     ]);
   });
@@ -89,13 +96,43 @@ describe("FileService", () => {
     await service.deleteFile(tempDir, "src/gone.ts");
 
     await expect(fs.access(path.join(tempDir, "src", "gone.ts"))).rejects.toThrow();
-    await expect(service.listFileSummaries(tempDir)).resolves.toEqual([]);
+    await expect(service.listFileSummaries(tempDir)).resolves.toEqual([
+      expect.objectContaining({ relativePath: "src", kind: "directory" })
+    ]);
   });
 
   it("rejects deletes that escape the root", async () => {
     await expect(service.deleteFile(tempDir, "../nope.txt")).rejects.toThrow(
       "Path escapes the active worktree"
     );
+  });
+
+  it("creates a folder and parent directories", async () => {
+    await service.createFolder(tempDir, "docs/guides");
+
+    const st = await fs.stat(path.join(tempDir, "docs", "guides"));
+    expect(st.isDirectory()).toBe(true);
+  });
+
+  it("rejects createFolder when the folder already exists", async () => {
+    await fs.mkdir(path.join(tempDir, "existing"), { recursive: true });
+
+    await expect(service.createFolder(tempDir, "existing")).rejects.toThrow("Folder already exists");
+  });
+
+  it("deletes a folder recursively", async () => {
+    await fs.mkdir(path.join(tempDir, "drop", "nested"), { recursive: true });
+    await fs.writeFile(path.join(tempDir, "drop", "nested", "x.txt"), "x", "utf8");
+
+    await service.deleteFolder(tempDir, "drop");
+
+    await expect(fs.access(path.join(tempDir, "drop"))).rejects.toThrow();
+  });
+
+  it("rejects deleteFolder for a file path", async () => {
+    await fs.writeFile(path.join(tempDir, "only.txt"), "x", "utf8");
+
+    await expect(service.deleteFolder(tempDir, "only.txt")).rejects.toThrow("Not a folder");
   });
 
   it("reads and writes a text file under the root", async () => {
@@ -109,6 +146,7 @@ describe("FileService", () => {
 
     await expect(fs.readFile(filePath, "utf8")).resolves.toBe("after");
     await expect(service.listFileSummaries(tempDir)).resolves.toEqual([
+      expect.objectContaining({ relativePath: "src", kind: "directory" }),
       expect.objectContaining({
         relativePath: "src/note.txt",
         size: 5

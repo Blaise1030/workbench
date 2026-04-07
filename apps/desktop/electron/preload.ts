@@ -66,6 +66,10 @@ contextBridge.exposeInMainWorld("workspaceApi", {
     ipcRenderer.invoke(IPC_CHANNELS.filesCreate, { cwd, relativePath }),
   deleteFile: (cwd: string, relativePath: string) =>
     ipcRenderer.invoke(IPC_CHANNELS.filesDelete, { cwd, relativePath }),
+  createFolder: (cwd: string, relativePath: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.filesCreateFolder, { cwd, relativePath }),
+  deleteFolder: (cwd: string, relativePath: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.filesDeleteFolder, { cwd, relativePath }),
   applyPatch: (payload: unknown) => ipcRenderer.invoke(IPC_CHANNELS.editApplyPatch, payload),
   ptyCreate: (sessionId: string, cwd: string, worktreeId: string) =>
     ipcRenderer.invoke(IPC_CHANNELS.terminalPtyCreate, { sessionId, cwd, worktreeId }),
