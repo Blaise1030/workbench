@@ -9,6 +9,13 @@ export default defineConfig({
     tailwindcss(),
     vue()
   ],
+  server: {
+    watch: {
+      // Ignore git worktree checkouts — they duplicate the source tree and cause
+      // ENOENT crashes when deleted while Vite's file watcher is still active.
+      ignored: ["**/.worktrees/**", "**/.claude/worktrees/**"]
+    }
+  },
   build: {
     // Must match `loadFile` in electron/mainApp.ts (../dist from dist-electron/electron).
     outDir: "dist-electron/dist",
