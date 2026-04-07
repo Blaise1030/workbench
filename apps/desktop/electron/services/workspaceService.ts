@@ -117,24 +117,26 @@ export class WorkspaceService {
     this.store.renameThread(threadId, title);
   }
 
-  captureInitialPrompt(threadId: string, input: string): { renamed: boolean; initialPrompt: string | null } {
+  captureInitialPrompt(threadId: string, input: string): { renamed: boolean; captured: boolean; initialPrompt: string | null } {
     const nextTitle = deriveThreadTitleFromPrompt(input);
-    if (!nextTitle) return { renamed: false, initialPrompt: null };
+    if (!nextTitle) return { renamed: false, captured: false, initialPrompt: null };
 
     const thread = this.store.getThread(threadId);
-    if (!thread) return { renamed: false, initialPrompt: null };
+    if (!thread) return { renamed: false, captured: false, initialPrompt: null };
 
     const existingSession = this.store.getThreadSession(threadId);
     if (existingSession?.titleCapturedAt) {
       return {
         renamed: false,
-        initialPrompt: existingSession.initialPrompt ?? input
+        captured: false,
+        initialPrompt: existingSession.initialPrompt
       };
     }
 
     if (!hasDefaultGeneratedTitle(thread)) {
       return {
         renamed: false,
+        captured: false,
         initialPrompt: null
       };
     }
@@ -158,6 +160,7 @@ export class WorkspaceService {
     if (thread.title === nextTitle) {
       return {
         renamed: false,
+        captured: true,
         initialPrompt
       };
     }
@@ -165,12 +168,14 @@ export class WorkspaceService {
     this.store.renameThread(threadId, nextTitle);
     return {
       renamed: true,
+      captured: true,
       initialPrompt
     };
   }
 
   maybeRenameThreadFromPrompt(threadId: string, input: string): boolean {
-    return this.captureInitialPrompt(threadId, input).renamed;
+    const result = this.captureInitialPrompt(threadId, input);
+    return result.renamed || result.captured;
   }
 
   setActive(projectId: string | null, worktreeId: string | null, threadId: string | null): void {

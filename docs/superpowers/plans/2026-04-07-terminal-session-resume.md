@@ -186,6 +186,8 @@ captureInitialPrompt(threadId: string, input: string): { renamed: boolean; initi
 }
 ```
 
+Legacy note: if a thread already has a non-default title and no session row yet, do not backfill or invent `initialPrompt`; preserve the existing title and leave first-prompt provenance unset.
+
 - [ ] **Step 4: Keep truncation behavior explicit and unchanged**
 
 ```ts

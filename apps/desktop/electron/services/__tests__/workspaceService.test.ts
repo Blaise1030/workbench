@@ -154,6 +154,7 @@ describe("WorkspaceService.captureInitialPrompt", () => {
 
     expect(result).toEqual({
       renamed: true,
+      captured: true,
       initialPrompt: "Refactor sidebar thread naming"
     });
     expect(renameThread).toHaveBeenCalledWith("thread-1", "Refactor sidebar thread naming");
@@ -199,6 +200,7 @@ describe("WorkspaceService.captureInitialPrompt", () => {
 
     expect(result).toEqual({
       renamed: false,
+      captured: false,
       initialPrompt: "Refactor sidebar thread naming"
     });
     expect(renameThread).not.toHaveBeenCalled();
@@ -232,6 +234,7 @@ describe("WorkspaceService.captureInitialPrompt", () => {
 
     expect(result).toEqual({
       renamed: false,
+      captured: false,
       initialPrompt: null
     });
     expect(renameThread).not.toHaveBeenCalled();
@@ -272,10 +275,40 @@ describe("WorkspaceService.captureInitialPrompt", () => {
 
     expect(result).toEqual({
       renamed: false,
-      initialPrompt: "Fallback current prompt"
+      captured: false,
+      initialPrompt: null
     });
     expect(renameThread).not.toHaveBeenCalled();
     expect(upsertThreadSession).not.toHaveBeenCalled();
+  });
+
+  it("captures session metadata without renaming when the prompt matches the existing default title", () => {
+    const renameThread = vi.fn();
+    const upsertThreadSession = vi.fn();
+    const store = {
+      getSnapshot: vi.fn(),
+      upsertProject: vi.fn(),
+      setActiveState: vi.fn(),
+      upsertWorktree: vi.fn(),
+      upsertThread: vi.fn(),
+      upsertThreadSession,
+      deleteThread: vi.fn(),
+      renameThread,
+      getThread: vi.fn(() => buildThread()),
+      getThreadSession: vi.fn(() => null)
+    };
+    const service = new WorkspaceService(store as never);
+
+    const result = service.captureInitialPrompt("thread-1", "Codex CLI");
+
+    expect(result).toEqual({
+      renamed: false,
+      captured: true,
+      initialPrompt: "Codex CLI"
+    });
+    expect(renameThread).not.toHaveBeenCalled();
+    expect(upsertThreadSession).toHaveBeenCalledTimes(1);
+    expect(service.maybeRenameThreadFromPrompt("thread-1", "Codex CLI")).toBe(true);
   });
 
   it("keeps the first-prompt truncation behavior unchanged", () => {
@@ -302,6 +335,7 @@ describe("WorkspaceService.captureInitialPrompt", () => {
 
     expect(result).toEqual({
       renamed: true,
+      captured: true,
       initialPrompt:
         "Implement     the   current   thread sidebar name behavior with enough extra text to exceed the trim limit"
     });

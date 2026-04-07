@@ -169,6 +169,8 @@ The first non-empty submitted line after provider start becomes `initialPrompt`.
 
 The app truncates that raw prompt and renames the thread once. After `titleCapturedAt` is set, later prompts do not rewrite the title unless the user manually renames the thread.
 
+If a thread has already left its default-generated title state before any session metadata exists, the app should not invent or backfill `initialPrompt`. In that case the session-aware path preserves the current title and leaves prompt provenance unset because the original first prompt is no longer knowable.
+
 ## Startup And Resume Flow
 
 ### Fresh Thread
