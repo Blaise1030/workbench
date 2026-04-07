@@ -37,6 +37,8 @@ export const IPC_CHANNELS = {
   filesWrite: "files:write",
   filesCreate: "files:create",
   filesDelete: "files:delete",
+  filesCreateFolder: "files:createFolder",
+  filesDeleteFolder: "files:deleteFolder",
   editApplyPatch: "edit:applyPatch",
   previewSetUrl: "preview:setUrl",
   previewProbeUrl: "preview:probeUrl",
@@ -117,6 +119,8 @@ export interface FileSummary {
   relativePath: string;
   size: number;
   modifiedAt: number;
+  /** When `"directory"`, this path is an empty folder (or folder-only path) so the tree can show it. */
+  kind?: "file" | "directory";
 }
 
 export interface FileWriteInput extends FileReadInput {

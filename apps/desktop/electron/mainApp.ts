@@ -218,6 +218,14 @@ function registerIpc(workspaceService: WorkspaceService): void {
     await fileService.deleteFile(payload.cwd, payload.relativePath);
     emitWorkingTreeFilesDidChange();
   });
+  ipcMain.handle(IPC_CHANNELS.filesCreateFolder, async (_, payload: FileReadInput) => {
+    await fileService.createFolder(payload.cwd, payload.relativePath);
+    emitWorkingTreeFilesDidChange();
+  });
+  ipcMain.handle(IPC_CHANNELS.filesDeleteFolder, async (_, payload: FileReadInput) => {
+    await fileService.deleteFolder(payload.cwd, payload.relativePath);
+    emitWorkingTreeFilesDidChange();
+  });
   ipcMain.handle(IPC_CHANNELS.editApplyPatch, async (_, payload) => {
     await editService.applyPatch(payload);
     emitWorkingTreeFilesDidChange();

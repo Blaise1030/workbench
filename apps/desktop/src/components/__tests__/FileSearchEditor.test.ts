@@ -38,6 +38,8 @@ describe("FileSearchEditor", () => {
   const writeFile = vi.fn<WorkspaceApi["writeFile"]>();
   const createFile = vi.fn<WorkspaceApi["createFile"]>();
   const deleteFile = vi.fn<WorkspaceApi["deleteFile"]>();
+  const createFolder = vi.fn<WorkspaceApi["createFolder"]>();
+  const deleteFolder = vi.fn<WorkspaceApi["deleteFolder"]>();
   let onWorkspaceChangedCb: (() => void) | null = null;
   let onWorkingTreeFilesChangedCb: (() => void) | null = null;
 
@@ -49,6 +51,8 @@ describe("FileSearchEditor", () => {
     writeFile.mockReset();
     createFile.mockReset();
     deleteFile.mockReset();
+    createFolder.mockReset();
+    deleteFolder.mockReset();
     onWorkspaceChangedCb = null;
     onWorkingTreeFilesChangedCb = null;
 
@@ -75,6 +79,8 @@ describe("FileSearchEditor", () => {
       writeFile,
       createFile,
       deleteFile,
+      createFolder,
+      deleteFolder,
       applyPatch: vi.fn(),
       ptyCreate: vi.fn(),
       ptyWrite: vi.fn(),
@@ -629,6 +635,84 @@ describe("FileSearchEditor", () => {
       expect(confirmSpy).toHaveBeenCalledWith("Delete src/only.ts?");
       expect(deleteFile).toHaveBeenCalledWith("/tmp/project", "src/only.ts");
       expect(wrapper.text()).toContain("No file selected");
+    } finally {
+      wrapper.unmount();
+    }
+
+    confirmSpy.mockRestore();
+  });
+
+  it("creates a folder from the add-folder control", async () => {
+    listFiles
+      .mockResolvedValueOnce([{ relativePath: "src/App.vue", size: 1, modifiedAt: 1 }])
+      .mockResolvedValueOnce([
+        { relativePath: "src", kind: "directory", size: 0, modifiedAt: 1 },
+        { relativePath: "src/App.vue", size: 1, modifiedAt: 1 },
+        { relativePath: "src/new-dir", kind: "directory", size: 0, modifiedAt: 2 }
+      ]);
+    createFolder.mockResolvedValue();
+
+    const wrapper = mount(FileSearchEditor, {
+      props: { worktreePath: "/tmp/project" },
+      attachTo: document.body
+    });
+
+    try {
+      await flushPromises();
+      await wrapper.get('[data-testid="add-folder"]').trigger("click");
+      await flushPromises();
+      await nextTick();
+
+      const pathInput = document.querySelector(
+        '[data-testid="new-folder-path-input"]'
+      ) as HTMLInputElement;
+      expect(pathInput).toBeTruthy();
+      pathInput.value = "src/new-dir";
+      pathInput.dispatchEvent(new Event("input", { bubbles: true }));
+
+      (document.querySelector('[data-testid="new-folder-confirm"]') as HTMLButtonElement).click();
+      await flushPromises();
+
+      expect(createFolder).toHaveBeenCalledWith("/tmp/project", "src/new-dir");
+      expect(listFiles).toHaveBeenCalledTimes(2);
+    } finally {
+      wrapper.unmount();
+    }
+  });
+
+  it("deletes a folder from the folder context menu after confirmation", async () => {
+    listFiles
+      .mockResolvedValueOnce([
+        { relativePath: "src", kind: "directory", size: 0, modifiedAt: 1 },
+        { relativePath: "src/App.vue", size: 1, modifiedAt: 1 }
+      ])
+      .mockResolvedValueOnce([]);
+    deleteFolder.mockResolvedValue();
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
+
+    const wrapper = mount(FileSearchEditor, {
+      props: { worktreePath: "/tmp/project" },
+      attachTo: document.body
+    });
+
+    try {
+      await flushPromises();
+
+      await wrapper.get('[data-testid="folder-toggle-src"]').trigger("contextmenu", {
+        clientX: 4,
+        clientY: 4
+      });
+      await flushPromises();
+      await nextTick();
+
+      const del = document.querySelector('[data-testid="ctx-delete-folder"]');
+      expect(del).toBeTruthy();
+      (del as HTMLButtonElement).click();
+      await flushPromises();
+
+      expect(confirmSpy).toHaveBeenCalledWith("Delete folder src and its contents?");
+      expect(deleteFolder).toHaveBeenCalledWith("/tmp/project", "src");
+      expect(listFiles).toHaveBeenCalledTimes(2);
     } finally {
       wrapper.unmount();
     }

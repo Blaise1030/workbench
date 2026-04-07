@@ -43,6 +43,8 @@ interface WorkspaceApi {
   writeFile: (cwd: string, relativePath: string, content: string) => Promise<void>;
   createFile: (cwd: string, relativePath: string) => Promise<void>;
   deleteFile: (cwd: string, relativePath: string) => Promise<void>;
+  createFolder: (cwd: string, relativePath: string) => Promise<void>;
+  deleteFolder: (cwd: string, relativePath: string) => Promise<void>;
   applyPatch: (payload: unknown) => Promise<void>;
   /** @param sessionId Thread id or `__wt:${worktreeId}` when no thread is selected. */
   ptyCreate: (sessionId: string, cwd: string, worktreeId: string) => Promise<{ buffer: string }>;
