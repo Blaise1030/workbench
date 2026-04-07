@@ -185,6 +185,15 @@ function createLegacyDatabase(dbPath: string): void {
   db.close();
 }
 
+function insertRunWithEvent(db: InstanceType<typeof Database>, runId: string, threadId: string): void {
+  db.prepare(
+    "INSERT INTO runs (id, thread_id, status, started_at, completed_at) VALUES (?, ?, ?, ?, ?)"
+  ).run(runId, threadId, "running", "2026-04-07T10:00:00.000Z", null);
+  db.prepare(
+    "INSERT INTO run_events (id, run_id, kind, payload, created_at) VALUES (?, ?, ?, ?, ?)"
+  ).run(`${runId}-event`, runId, "stdout", "hello", "2026-04-07T10:00:01.000Z");
+}
+
 describe("WorkspaceStore", () => {
   afterEach(() => {
     // Temp directories are created per test case and cleaned up eagerly.
@@ -433,6 +442,45 @@ describe("WorkspaceStore", () => {
     expect(reopenedStore.getSnapshot().threadSessions).toEqual([makeThreadSession()]);
   });
 
+  it("removes orphaned thread sessions during migration", () => {
+    const baseDir = makeTempDir();
+    const store = new WorkspaceStore(baseDir);
+    store.migrate(NEW_SCHEMA);
+    seedBasicWorkspace(store);
+    store.upsertThread(makeThread());
+    store.upsertThreadSession(makeThreadSession());
+    store.deleteThread("thread-1");
+
+    const dbPath = path.join(baseDir, "workspace.db");
+    const db = new Database(dbPath);
+    db.exec("PRAGMA foreign_keys = OFF");
+    db.prepare(
+      `INSERT INTO thread_sessions (
+         thread_id, provider, resume_id, initial_prompt, title_captured_at, launch_mode,
+         status, last_activity_at, metadata_json, created_at, updated_at
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run(
+      "ghost-thread",
+      "agent",
+      "ghost-resume",
+      "stale prompt",
+      "2026-04-07T10:00:05.000Z",
+      "fresh",
+      "resumable",
+      "2026-04-07T10:01:00.000Z",
+      null,
+      "2026-04-07T10:00:00.000Z",
+      "2026-04-07T10:01:00.000Z"
+    );
+    db.close();
+
+    const reopenedStore = new WorkspaceStore(baseDir);
+    reopenedStore.migrate(NEW_SCHEMA);
+
+    expect(reopenedStore.getThreadSession("ghost-thread")).toBeNull();
+    expect(reopenedStore.getSnapshot().threadSessions).toEqual([]);
+  });
+
   it("removes thread sessions when the owning thread is deleted", () => {
     const baseDir = makeTempDir();
     const store = new WorkspaceStore(baseDir);
@@ -441,10 +489,22 @@ describe("WorkspaceStore", () => {
     store.upsertThread(makeThread());
     store.upsertThreadSession(makeThreadSession());
 
+    const db = new Database(path.join(baseDir, "workspace.db"));
+    insertRunWithEvent(db, "run-1", "thread-1");
+    db.close();
+
     store.deleteThread("thread-1");
 
     expect(store.getThreadSession("thread-1")).toBeNull();
     expect(store.listThreadSessions()).toEqual([]);
+    const verifyDb = new Database(path.join(baseDir, "workspace.db"));
+    expect(verifyDb.prepare("SELECT COUNT(*) AS count FROM runs WHERE thread_id = ?").get("thread-1")).toEqual({
+      count: 0
+    });
+    expect(verifyDb.prepare("SELECT COUNT(*) AS count FROM run_events WHERE run_id = ?").get("run-1")).toEqual({
+      count: 0
+    });
+    verifyDb.close();
   });
 
   it("deletes a worktree and all its threads", () => {
@@ -461,6 +521,12 @@ describe("WorkspaceStore", () => {
     store.upsertThreadSession(makeThreadSession({ threadId: "t2", resumeId: "resume-456" }));
     store.upsertThreadSession(makeThreadSession({ threadId: "t3", resumeId: "resume-789" }));
 
+    const db = new Database(path.join(baseDir, "workspace.db"));
+    insertRunWithEvent(db, "run-t1", "t1");
+    insertRunWithEvent(db, "run-t2", "t2");
+    insertRunWithEvent(db, "run-t3", "t3");
+    db.close();
+
     store.deleteWorktreeGroup("wt-feat");
 
     const snapshot = store.getSnapshot();
@@ -469,6 +535,15 @@ describe("WorkspaceStore", () => {
     expect(snapshot.threadSessions.map((session) => session.threadId)).toEqual(["t3"]);
     expect(store.getThreadSession("t1")).toBeNull();
     expect(store.getThreadSession("t2")).toBeNull();
+    const verifyDb = new Database(path.join(baseDir, "workspace.db"));
+    expect(verifyDb.prepare("SELECT COUNT(*) AS count FROM runs WHERE thread_id IN (?, ?)").get("t1", "t2")).toEqual({
+      count: 0
+    });
+    expect(
+      verifyDb.prepare("SELECT COUNT(*) AS count FROM run_events WHERE run_id IN (?, ?)").get("run-t1", "run-t2")
+    ).toEqual({ count: 0 });
+    expect(verifyDb.prepare("SELECT COUNT(*) AS count FROM runs WHERE thread_id = ?").get("t3")).toEqual({ count: 1 });
+    verifyDb.close();
   });
 
   it("normalizes legacy duplicate sort orders and creates a unique worktree sort index during migration", () => {

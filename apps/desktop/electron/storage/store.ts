@@ -74,6 +74,12 @@ export class WorkspaceStore {
         .run();
     }
     this.db
+      .prepare(
+        `DELETE FROM thread_sessions
+         WHERE thread_id NOT IN (SELECT id FROM threads)`
+      )
+      .run();
+    this.db
       .prepare("INSERT OR IGNORE INTO app_state (id, active_project_id, active_worktree_id, active_thread_id) VALUES (1, NULL, NULL, NULL)")
       .run();
   }
@@ -246,6 +252,23 @@ export class WorkspaceStore {
   deleteWorktreeGroup(worktreeId: string): void {
     const tx = this.db.transaction(() => {
       this.db
+        .prepare(
+          `DELETE FROM run_events
+           WHERE run_id IN (
+             SELECT r.id
+             FROM runs r
+             INNER JOIN threads t ON t.id = r.thread_id
+             WHERE t.worktree_id = ?
+           )`
+        )
+        .run(worktreeId);
+      this.db
+        .prepare(
+          `DELETE FROM runs
+           WHERE thread_id IN (SELECT id FROM threads WHERE worktree_id = ?)`
+        )
+        .run(worktreeId);
+      this.db
         .prepare("DELETE FROM thread_sessions WHERE thread_id IN (SELECT id FROM threads WHERE worktree_id = ?)")
         .run(worktreeId);
       this.db.prepare("DELETE FROM threads WHERE worktree_id = ?").run(worktreeId);
@@ -255,6 +278,8 @@ export class WorkspaceStore {
   }
 
   deleteThread(id: string): void {
+    this.db.prepare("DELETE FROM run_events WHERE run_id IN (SELECT id FROM runs WHERE thread_id = ?)").run(id);
+    this.db.prepare("DELETE FROM runs WHERE thread_id = ?").run(id);
     this.deleteThreadSession(id);
     this.db.prepare("DELETE FROM threads WHERE id = ?").run(id);
     this.db.prepare("UPDATE worktrees SET last_active_thread_id = NULL WHERE last_active_thread_id = ?").run(id);
