@@ -153,6 +153,14 @@ export class WorkspaceStore {
     reorder(worktreeId, orderedThreadIds);
   }
 
+  deleteWorktreeGroup(worktreeId: string): void {
+    const tx = this.db.transaction(() => {
+      this.db.prepare("DELETE FROM threads WHERE worktree_id = ?").run(worktreeId);
+      this.db.prepare("DELETE FROM worktrees WHERE id = ?").run(worktreeId);
+    });
+    tx();
+  }
+
   deleteThread(id: string): void {
     this.db.prepare("DELETE FROM threads WHERE id = ?").run(id);
     this.db.prepare("UPDATE worktrees SET last_active_thread_id = NULL WHERE last_active_thread_id = ?").run(id);

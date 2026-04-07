@@ -362,6 +362,51 @@ describe("WorkspaceStore", () => {
     ]);
   });
 
+  it("adds is_default and base_branch columns during migration", () => {
+    const baseDir = makeTempDir();
+    const dbPath = path.join(baseDir, "workspace.db");
+
+    // Create DB with old schema (no is_default / base_branch)
+    const db = new Database(dbPath);
+    db.exec(LEGACY_THREADS_WITH_SORT_ORDER_SCHEMA);
+    db.prepare(
+      "INSERT INTO app_state (id, active_project_id, active_worktree_id, active_thread_id) VALUES (1, NULL, NULL, NULL)"
+    ).run();
+    db.prepare(
+      "INSERT INTO projects (id, name, repo_path, status, created_at, updated_at) VALUES ('p1', 'test', '/tmp/test', 'idle', '2026-04-07T00:00:00Z', '2026-04-07T00:00:00Z')"
+    ).run();
+    db.prepare(
+      "INSERT INTO worktrees (id, project_id, name, branch, path, is_active, created_at, updated_at) VALUES ('w1', 'p1', 'main', 'main', '/tmp/test', 1, '2026-04-07T00:00:00Z', '2026-04-07T00:00:00Z')"
+    ).run();
+    db.close();
+
+    const store = new WorkspaceStore(baseDir);
+    store.migrate(NEW_SCHEMA);
+
+    const snapshot = store.getSnapshot();
+    const worktree = snapshot.worktrees.find((w) => w.id === "w1");
+    expect(worktree?.isDefault).toBe(false);
+    expect(worktree?.baseBranch).toBeNull();
+  });
+
+  it("deletes a worktree and all its threads", () => {
+    const baseDir = makeTempDir();
+    const store = new WorkspaceStore(baseDir);
+    store.migrate(NEW_SCHEMA);
+    store.upsertProject(makeProject());
+    store.upsertWorktree(makeWorktree({ id: "wt-default", name: "main", branch: "main" }));
+    store.upsertWorktree(makeWorktree({ id: "wt-feat", name: "feat/auth", branch: "feat/auth" }));
+    store.upsertThread(makeThread({ id: "t1", worktreeId: "wt-feat", sortOrder: 0 }));
+    store.upsertThread(makeThread({ id: "t2", worktreeId: "wt-feat", sortOrder: 1 }));
+    store.upsertThread(makeThread({ id: "t3", worktreeId: "wt-default", sortOrder: 0 }));
+
+    store.deleteWorktreeGroup("wt-feat");
+
+    const snapshot = store.getSnapshot();
+    expect(snapshot.worktrees.map((w) => w.id)).toEqual(["wt-default"]);
+    expect(snapshot.threads.map((t) => t.id)).toEqual(["t3"]);
+  });
+
   it("normalizes legacy duplicate sort orders and creates a unique worktree sort index during migration", () => {
     const baseDir = makeTempDir();
     const dbPath = path.join(baseDir, "workspace.db");
