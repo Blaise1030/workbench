@@ -578,9 +578,17 @@ async function handleCreateProject(): Promise<void> {
   await refreshRepoStatus();
 }
 
+async function syncWorktrees(projectId: string): Promise<void> {
+  const api = getApi();
+  if (!api?.syncWorktrees) return;
+  const snapshot = await api.syncWorktrees(projectId);
+  if (snapshot) await refreshSnapshot(snapshot as WorkspaceSnapshot);
+}
+
 async function handleSelectProject(projectId: string): Promise<void> {
   const api = getApi();
   if (!api) return;
+  await syncWorktrees(projectId);
   const project = workspace.projects.find((entry) => entry.id === projectId);
   const fallbackWorktreeId =
     project?.lastActiveWorktreeId ??
@@ -707,21 +715,21 @@ async function handleReorderThreads(orderedThreadIds: string[]): Promise<void> {
   }
 }
 
-async function handleAddThreadToGroup(worktreeId: string): Promise<void> {
+async function handleAddThreadToGroup(worktreeId: string, agent: ThreadAgent): Promise<void> {
   centerTab.value = "agent";
   const api = getApi();
   if (!api || !workspace.activeProjectId) return;
   const payload: CreateThreadInput = {
     projectId: workspace.activeProjectId,
     worktreeId,
-    title: defaultTitleForAgent("claude"),
-    agent: "claude"
+    title: defaultTitleForAgent(agent),
+    agent
   };
   const created = (await api.createThread(payload)) as Thread;
   if (created.id) {
     pendingAgentBootstrap.value = {
       threadId: created.id,
-      command: bootstrapCommandFor("claude")
+      command: bootstrapCommandFor(agent)
     };
   }
   await refreshSnapshot();
@@ -749,6 +757,12 @@ async function handleDeleteWorktreeGroup(worktreeId: string): Promise<void> {
   if (!api?.deleteWorktreeGroup) return;
 
   try {
+    // Kill PTY sessions for all threads in the group before removing the worktree directory
+    const groupThreads = workspace.activeProjectThreads.filter((t) => t.worktreeId === worktreeId);
+    await Promise.all(
+      groupThreads.map((t) => api.ptyKill(t.id).catch(() => { /* session may already be gone */ }))
+    );
+
     await api.deleteWorktreeGroup({ worktreeId });
     await refreshSnapshot();
   } catch (e) {
@@ -1031,6 +1045,9 @@ useWorkspaceKeybindings(
 
 onMounted(async () => {
   await refreshSnapshot();
+  if (workspace.activeProjectId) {
+    await syncWorktrees(workspace.activeProjectId);
+  }
   await refreshRepoStatus();
   const api = getApi();
   if (api?.onWorkspaceChanged) {

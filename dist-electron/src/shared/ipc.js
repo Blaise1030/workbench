@@ -53,6 +53,7 @@ exports.IPC_CHANNELS = {
     workspaceDeleteWorktreeGroup: "workspace:deleteWorktreeGroup",
     workspaceListBranches: "workspace:listBranches",
     workspaceWorktreeHealth: "workspace:worktreeHealth",
+    workspaceSyncWorktrees: "workspace:syncWorktrees",
     /** macOS often captures ⌘, for the app menu; main sends this so the renderer can open settings. */
     uiOpenWorkspaceSettings: "ui:openWorkspaceSettings"
 };

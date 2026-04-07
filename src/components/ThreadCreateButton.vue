@@ -20,12 +20,15 @@ withDefaults(
     title?: string;
     variant?: "default" | "destructive" | "outline" | "secondary" | "ghost" | "link";
     size?: "default" | "sm" | "lg" | "icon" | "xs" | "icon-xs";
+    /** When false, only agent tiles are shown (e.g. add thread to an existing group). */
+    showNewThreadGroup?: boolean;
   }>(),
   {
     ariaLabel: "New thread",
     title: threadCreateButtonDefaultTitle,
     variant: "outline",
-    size: "icon-xs"
+    size: "icon-xs",
+    showNewThreadGroup: true
   }
 );
 
@@ -142,7 +145,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div ref="triggerWrapRef" class="relative">
+  <div ref="triggerWrapRef" class="relative inline-flex items-center">
     <BaseButton
       type="button"
       :size="size"
@@ -172,7 +175,7 @@ onBeforeUnmount(() => {
           Create thread
         </h2>
         <div role="menu" :aria-labelledby="menuTitleId" class="flex flex-col">
-          <div class="border-b border-border pb-1.5">
+          <div v-if="showNewThreadGroup" class="border-b border-border pb-1.5">
             <BaseButton
               type="button"
               variant="outline"
@@ -183,12 +186,12 @@ onBeforeUnmount(() => {
             >
               <span class="text-base leading-none">🌳</span>
               <span>New Thread Group</span>
-            </BaseButton>            
+            </BaseButton>
             <p class="px-1.5 mt-1 text-center text-[9px] leading-snug text-muted-foreground">
               Uses git worktrees for isolation
             </p>
           </div>
-          <div class="mt-1.5 grid grid-cols-2 gap-1">
+          <div class="grid grid-cols-2 gap-1" :class="showNewThreadGroup ? 'mt-1.5' : ''">
             <button
               v-for="opt in AGENT_OPTIONS"
               :key="opt.agent"

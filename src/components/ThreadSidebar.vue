@@ -49,7 +49,7 @@ const emit = defineEmits<{
   rename: [threadId: string, newTitle: string];
   reorder: [threadIds: string[]];
   createWorktreeGroup: [branch: string, baseBranch: string | null];
-  addThreadToGroup: [worktreeId: string];
+  addThreadToGroup: [worktreeId: string, agent: ThreadAgent];
   cancelBranchPicker: [];
   showBranchPicker: [];
   deleteWorktreeGroup: [worktreeId: string];
@@ -312,7 +312,7 @@ defineExpose({ openNewThreadMenu });
           :is-active="group.threads.some((t) => t.id === activeThreadId)"
           :collapsed="collapsedGroups.has(group.worktree.id)"
           @toggle="toggleGroup(group.worktree.id)"
-          @add-thread="emit('addThreadToGroup', group.worktree.id)"
+          @add-thread="emit('addThreadToGroup', group.worktree.id, $event)"
           @delete="emit('deleteWorktreeGroup', group.worktree.id)"
         />
 

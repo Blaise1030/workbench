@@ -1,6 +1,8 @@
 <script setup lang="ts">
+import type { ThreadAgent } from "@shared/domain";
 import { ChevronDown, ChevronRight, EllipsisVertical, Plus, Trash2 } from "lucide-vue-next";
 import { onBeforeUnmount, onMounted, ref } from "vue";
+import ThreadCreateButton from "@/components/ThreadCreateButton.vue";
 import BaseButton from "@/components/ui/BaseButton.vue";
 
 defineProps<{
@@ -15,7 +17,7 @@ defineProps<{
 const emit = defineEmits<{
   toggle: [];
   delete: [];
-  addThread: [];
+  addThread: [agent: ThreadAgent];
 }>();
 
 const menuOpen = ref(false);
@@ -56,26 +58,32 @@ onBeforeUnmount(() => document.removeEventListener("mousedown", handleClickOutsi
       <span aria-hidden="true" class="shrink-0 font-normal leading-none">🌳</span>
       <span class="min-w-0 truncate">{{ title }}</span>
     </span>
-    <span class="ml-auto flex shrink-0 items-center gap-1">
-      <span class="text-[10px] leading-none tabular-nums text-muted-foreground">{{ threadCount }}</span>
-      <span class="inline-flex items-center gap-px">
-        <BaseButton
-          type="button"
-          variant="ghost"
-          size="icon-xs"
-          class="shrink-0 self-center text-muted-foreground"
-          aria-label="Add thread to group"
-          title="Add thread"
-          @click.stop="emit('addThread')"
-        >
-          <Plus class="h-3.5 w-3.5" />
-        </BaseButton>
-        <div ref="menuRef" class="relative flex items-center">
+    <span class="ml-auto flex shrink-0 items-center gap-1.5">
+      <span
+        class="flex h-6 min-w-[1.25rem] items-center justify-end tabular-nums text-[10px] leading-none text-muted-foreground"
+      >
+        {{ threadCount }}
+      </span>
+      <span class="inline-flex h-6 items-center gap-px">
+        <span class="inline-flex h-6 items-center" @click.stop>
+          <ThreadCreateButton
+            variant="ghost"
+            size="icon-xs"
+            class="shrink-0 text-muted-foreground"
+            aria-label="Add thread to group"
+            title="Add thread (choose agent)"
+            :show-new-thread-group="false"
+            @create-with-agent="emit('addThread', $event)"
+          >
+            <Plus class="h-3.5 w-3.5" />
+          </ThreadCreateButton>
+        </span>
+        <div ref="menuRef" class="relative flex h-6 items-center">
           <BaseButton
             type="button"
             variant="ghost"
             size="icon-xs"
-            class="shrink-0 self-center text-muted-foreground"
+            class="shrink-0 text-muted-foreground"
             :aria-expanded="menuOpen"
             aria-haspopup="menu"
             aria-label="Thread group actions"

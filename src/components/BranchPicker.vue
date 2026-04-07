@@ -1,6 +1,8 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount } from "vue";
+import { ref, computed, onMounted } from "vue";
 import BaseButton from "@/components/ui/BaseButton.vue";
+import Input from "@/components/ui/Input.vue";
+import NativeSelect from "@/components/ui/NativeSelect.vue";
 
 const props = defineProps<{
   projectId: string;
@@ -14,18 +16,18 @@ const emit = defineEmits<{
 const branches = ref<string[]>([]);
 const loading = ref(true);
 const branchInput = ref("");
-const isNewBranch = ref(true);
 const baseBranch = ref("");
-const showBranchDropdown = ref(false);
-const rootRef = ref<HTMLElement | null>(null);
 
-const filteredBranches = computed(() => {
-  const q = branchInput.value.toLowerCase();
-  if (!q) return branches.value;
-  return branches.value.filter((b) => b.toLowerCase().includes(q));
+const branchTrimmed = computed(() => branchInput.value.trim());
+
+/** True when the typed name is a new branch (not an existing local branch name). */
+const isNewBranchName = computed(() => {
+  const t = branchTrimmed.value;
+  if (!t.length) return false;
+  return !branches.value.includes(t);
 });
 
-const canCreate = computed(() => branchInput.value.trim().length > 0);
+const canCreate = computed(() => branchTrimmed.value.length > 0);
 
 function getApi(): { listBranches?: (projectId: string) => Promise<string[]> } | null {
   return (typeof window !== "undefined" ? window.workspaceApi : null) as never;
@@ -44,85 +46,36 @@ onMounted(async () => {
     }
   }
   loading.value = false;
-  document.addEventListener("mousedown", handleClickOutside);
 });
-
-onBeforeUnmount(() => {
-  document.removeEventListener("mousedown", handleClickOutside);
-});
-
-function handleClickOutside(e: MouseEvent): void {
-  if (rootRef.value && !rootRef.value.contains(e.target as Node)) {
-    showBranchDropdown.value = false;
-  }
-}
-
-function selectExistingBranch(branch: string): void {
-  branchInput.value = branch;
-  isNewBranch.value = false;
-  showBranchDropdown.value = false;
-}
-
-function selectCreateNew(): void {
-  isNewBranch.value = true;
-  showBranchDropdown.value = false;
-}
 
 function handleCreate(): void {
-  const branch = branchInput.value.trim();
+  const branch = branchTrimmed.value;
   if (!branch) return;
-  emit("create", branch, isNewBranch.value ? baseBranch.value : null);
+  const base = isNewBranchName.value ? baseBranch.value : null;
+  emit("create", branch, base);
 }
 </script>
 
 <template>
-  <div ref="rootRef" class="mx-2 my-1.5 rounded-md border border-border bg-card p-2.5 shadow-sm">
+  <div class="mx-2 my-1.5 rounded-md border border-border bg-card p-2.5 shadow-sm">
     <p class="mb-2 text-xs font-semibold text-foreground">New Thread Group</p>
 
     <!-- Branch input -->
     <div class="mb-2">
       <label class="mb-1 block text-[10px] text-muted-foreground">Branch</label>
-      <div class="relative">
-        <input
-          v-model="branchInput"
-          type="text"
-          class="w-full rounded border border-border bg-background px-2 py-1 text-xs text-foreground outline-none placeholder:text-muted-foreground"
-          :placeholder="loading ? 'Loading branches...' : 'Branch name'"
-          @focus="showBranchDropdown = true"
-        />
-        <div
-          v-if="showBranchDropdown && !loading"
-          class="absolute left-0 right-0 top-full z-50 mt-0.5 max-h-32 overflow-y-auto rounded border border-border bg-popover shadow-md"
-        >
-          <button
-            type="button"
-            class="flex w-full items-center gap-1.5 px-2 py-1 text-left text-xs text-emerald-500 hover:bg-accent"
-            @click="selectCreateNew"
-          >
-            Create new branch...
-          </button>
-          <button
-            v-for="branch in filteredBranches"
-            :key="branch"
-            type="button"
-            class="flex w-full items-center px-2 py-1 text-left text-xs text-foreground hover:bg-accent"
-            @click="selectExistingBranch(branch)"
-          >
-            {{ branch }}
-          </button>
-        </div>
-      </div>
+      <Input
+        v-model="branchInput"
+        :disabled="loading"
+        :placeholder="loading ? 'Loading branches...' : 'Branch name'"
+      />
     </div>
 
-    <!-- Base branch (only for new branches) -->
-    <div v-if="isNewBranch" class="mb-2">
+    <!-- Base branch (only when creating a new branch name) -->
+    <div v-if="isNewBranchName" class="mb-2">
       <label class="mb-1 block text-[10px] text-muted-foreground">Base branch</label>
-      <select
-        v-model="baseBranch"
-        class="w-full appearance-none rounded border border-border bg-background px-2 py-1 text-xs text-foreground outline-none"
-      >
+      <NativeSelect v-model="baseBranch">
         <option v-for="branch in branches" :key="branch" :value="branch">{{ branch }}</option>
-      </select>
+      </NativeSelect>
     </div>
 
     <!-- Actions -->

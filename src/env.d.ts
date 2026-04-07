@@ -59,6 +59,7 @@ interface WorkspaceApi {
   onWorkingTreeFilesChanged?: (callback: () => void) => () => void;
   /** Main process fired after ⌘, / Ctrl+, (see `before-input-event` in Electron main). */
   onOpenWorkspaceSettings?: (callback: () => void) => () => void;
+  syncWorktrees?: (projectId: string) => Promise<unknown>;
   pickRepoDirectory: () => Promise<string | null>;
   /** Present when running under Electron preload; maps a webkitdirectory file to the chosen folder path. */
   resolveRepoRootFromWebkitFile?: (file: File) => string;

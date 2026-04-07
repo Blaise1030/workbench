@@ -193,5 +193,44 @@ class WorkspaceService {
         const exists = await this.git.pathExists(worktree.path);
         return { exists };
     }
+    /**
+     * Discovers git worktrees on disk that are not tracked in the DB
+     * and imports them as non-default worktree groups.
+     */
+    async syncWorktrees(projectId) {
+        if (!this.git)
+            return false;
+        const snapshot = this.store.getSnapshot();
+        const project = snapshot.projects.find((p) => p.id === projectId);
+        if (!project)
+            return false;
+        const gitWorktrees = await this.git.worktreeList(project.repoPath);
+        const knownPaths = new Set(snapshot.worktrees
+            .filter((w) => w.projectId === projectId)
+            .map((w) => w.path));
+        let imported = false;
+        const now = new Date().toISOString();
+        for (const entry of gitWorktrees) {
+            // Skip the main worktree (same as repoPath) and already-tracked worktrees
+            if (entry.path === project.repoPath || knownPaths.has(entry.path))
+                continue;
+            const worktree = {
+                id: (0, node_crypto_1.randomUUID)(),
+                projectId,
+                name: entry.branch,
+                branch: entry.branch,
+                path: entry.path,
+                isActive: true,
+                isDefault: false,
+                baseBranch: null,
+                lastActiveThreadId: null,
+                createdAt: now,
+                updatedAt: now
+            };
+            this.store.upsertWorktree(worktree);
+            imported = true;
+        }
+        return imported;
+    }
 }
 exports.WorkspaceService = WorkspaceService;

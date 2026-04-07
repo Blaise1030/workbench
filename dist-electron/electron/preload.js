@@ -35,6 +35,7 @@ electron_1.contextBridge.exposeInMainWorld("workspaceApi", {
     deleteWorktreeGroup: (payload) => electron_1.ipcRenderer.invoke(ipc_js_1.IPC_CHANNELS.workspaceDeleteWorktreeGroup, payload),
     listBranches: (projectId) => electron_1.ipcRenderer.invoke(ipc_js_1.IPC_CHANNELS.workspaceListBranches, { projectId }),
     worktreeHealth: (worktreeId) => electron_1.ipcRenderer.invoke(ipc_js_1.IPC_CHANNELS.workspaceWorktreeHealth, { worktreeId }),
+    syncWorktrees: (projectId) => electron_1.ipcRenderer.invoke(ipc_js_1.IPC_CHANNELS.workspaceSyncWorktrees, { projectId }),
     startRun: (payload) => electron_1.ipcRenderer.invoke(ipc_js_1.IPC_CHANNELS.runStart, payload),
     sendRunInput: (runId, input) => electron_1.ipcRenderer.invoke(ipc_js_1.IPC_CHANNELS.runSendInput, { runId, input }),
     interruptRun: (runId) => electron_1.ipcRenderer.invoke(ipc_js_1.IPC_CHANNELS.runInterrupt, runId),

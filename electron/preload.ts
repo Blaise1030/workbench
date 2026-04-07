@@ -32,6 +32,7 @@ contextBridge.exposeInMainWorld("workspaceApi", {
   deleteWorktreeGroup: (payload: unknown) => ipcRenderer.invoke(IPC_CHANNELS.workspaceDeleteWorktreeGroup, payload),
   listBranches: (projectId: string) => ipcRenderer.invoke(IPC_CHANNELS.workspaceListBranches, { projectId }),
   worktreeHealth: (worktreeId: string) => ipcRenderer.invoke(IPC_CHANNELS.workspaceWorktreeHealth, { worktreeId }),
+  syncWorktrees: (projectId: string) => ipcRenderer.invoke(IPC_CHANNELS.workspaceSyncWorktrees, { projectId }),
   startRun: (payload: unknown) => ipcRenderer.invoke(IPC_CHANNELS.runStart, payload),
   sendRunInput: (runId: string, input: string) => ipcRenderer.invoke(IPC_CHANNELS.runSendInput, { runId, input }),
   interruptRun: (runId: string) => ipcRenderer.invoke(IPC_CHANNELS.runInterrupt, runId),

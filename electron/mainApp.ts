@@ -160,6 +160,11 @@ function registerIpc(workspaceService: WorkspaceService): void {
   ipcMain.handle(IPC_CHANNELS.workspaceWorktreeHealth, async (_, payload: { worktreeId: string }) => {
     return workspaceService.checkWorktreeHealth(payload.worktreeId);
   });
+  ipcMain.handle(IPC_CHANNELS.workspaceSyncWorktrees, async (_, payload: { projectId: string }) => {
+    const imported = await workspaceService.syncWorktrees(payload.projectId);
+    if (imported) emitWorkspaceDidChange();
+    return workspaceService.getSnapshot();
+  });
 
   ipcMain.handle(IPC_CHANNELS.runStart, (_, payload: { agent: "codex" | "claude"; cwd: string; prompt: string }) =>
     runService.start(payload.agent, payload.cwd, payload.prompt, () => {}, () => {})

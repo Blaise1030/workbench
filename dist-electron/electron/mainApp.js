@@ -146,6 +146,12 @@ function registerIpc(workspaceService) {
     electron_1.ipcMain.handle(ipc_js_1.IPC_CHANNELS.workspaceWorktreeHealth, async (_, payload) => {
         return workspaceService.checkWorktreeHealth(payload.worktreeId);
     });
+    electron_1.ipcMain.handle(ipc_js_1.IPC_CHANNELS.workspaceSyncWorktrees, async (_, payload) => {
+        const imported = await workspaceService.syncWorktrees(payload.projectId);
+        if (imported)
+            emitWorkspaceDidChange();
+        return workspaceService.getSnapshot();
+    });
     electron_1.ipcMain.handle(ipc_js_1.IPC_CHANNELS.runStart, (_, payload) => runService.start(payload.agent, payload.cwd, payload.prompt, () => { }, () => { }));
     electron_1.ipcMain.handle(ipc_js_1.IPC_CHANNELS.runSendInput, (_, payload) => runService.sendInput(payload.runId, payload.input));
     electron_1.ipcMain.handle(ipc_js_1.IPC_CHANNELS.runInterrupt, (_, runId) => runService.interrupt(runId));

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { RunStatus, Thread } from "@shared/domain";
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, useId, watch } from "vue";
-import { ChevronDown, GripVertical, Pencil, Trash2 } from "lucide-vue-next";
+import { GripVertical, MoreHorizontal, Pencil, Trash2 } from "lucide-vue-next";
 import AgentIcon from "@/components/ui/AgentIcon.vue";
 
 const props = withDefaults(
@@ -239,7 +239,7 @@ onBeforeUnmount(() => {
         :aria-expanded="menuOpen"
         @click.stop="toggleMenu"
       >
-        <ChevronDown class="h-2 w-2" stroke-width="2.5" />
+        <MoreHorizontal class="h-2.5 w-2.5" stroke-width="2" />
       </button>
       <div
         v-if="menuOpen"
