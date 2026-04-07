@@ -9,6 +9,8 @@
 #
 # Or add repo secret RELEASE_PLEASE_TOKEN (fine-grained PAT: Contents + Pull requests + Issues read/write
 # on this repo; or classic PAT with `repo` scope) and this workflow will use it instead of GITHUB_TOKEN.
+# With GITHUB_TOKEN only, tag pushes from this workflow do not trigger other workflows; the
+# `trigger-release` job below dispatches the Release workflow in that case.
 name: Release Please
 
 on:
@@ -28,6 +30,10 @@ concurrency:
 jobs:
   release-please:
     runs-on: ubuntu-latest
+    outputs:
+      releases_created: ${{ steps.release.outputs.releases_created }}
+      workbench_release_created: ${{ steps.release.outputs['apps/desktop--release_created'] }}
+      workbench_version: ${{ steps.release.outputs['apps/desktop--version'] }}
     steps:
       - uses: googleapis/release-please-action@v4
         id: release
@@ -38,3 +44,25 @@ jobs:
           target-branch: ${{ github.event.repository.default_branch }}
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
+
+  # Pushes made with the default GITHUB_TOKEN do not trigger other workflows (including tag pushes).
+  # When no RELEASE_PLEASE_TOKEN is configured, dispatch Release so installers still build.
+  # If you use a PAT for release-please, the tag push triggers Release and this job is skipped.
+  trigger-release:
+    needs: release-please
+    if: ${{ secrets.RELEASE_PLEASE_TOKEN == '' && (needs.release-please.outputs.workbench_release_created == 'true' || (needs.release-please.outputs.releases_created == 'true' && needs.release-please.outputs.workbench_version != '')) }}
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - name: Dispatch Release workflow
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          VERSION="${{ needs.release-please.outputs.workbench_version }}"
+          if [ -z "$VERSION" ]; then
+            echo "::error::Missing apps/desktop version from release-please outputs"
+            exit 1
+          fi
+          gh workflow run release.yml --repo "${{ github.repository }}" --ref "v${VERSION}"

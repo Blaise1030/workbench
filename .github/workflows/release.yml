@@ -10,6 +10,9 @@ on:
   push:
     tags:
       - "v*"
+  # Manual recovery, or chained from Release Please when tags are created with GITHUB_TOKEN
+  # (those tag pushes do not trigger workflows — see `.github/workflows/release-please.yml`).
+  workflow_dispatch:
 
 permissions:
   contents: write
