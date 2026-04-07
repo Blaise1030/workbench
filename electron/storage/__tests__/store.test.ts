@@ -385,7 +385,7 @@ describe("WorkspaceStore", () => {
 
     const snapshot = store.getSnapshot();
     const worktree = snapshot.worktrees.find((w) => w.id === "w1");
-    expect(worktree?.isDefault).toBe(false);
+    expect(worktree?.isDefault).toBe(true);
     expect(worktree?.baseBranch).toBeNull();
   });
 

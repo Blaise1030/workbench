@@ -39,6 +39,8 @@ export class WorkspaceStore {
       .get();
     if (!hasIsDefault) {
       this.db.exec("ALTER TABLE worktrees ADD COLUMN is_default INTEGER NOT NULL DEFAULT 0");
+      // Mark all pre-existing worktrees as default (before this feature, each project had one worktree)
+      this.db.exec("UPDATE worktrees SET is_default = 1");
     }
     const hasBaseBranch = this.db
       .prepare("SELECT 1 FROM pragma_table_info('worktrees') WHERE name = 'base_branch' LIMIT 1")
