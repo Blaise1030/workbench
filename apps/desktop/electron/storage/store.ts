@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import Database from "better-sqlite3";
-import type { Project, Thread, Worktree } from "../../src/shared/domain.js";
+import type { Project, Thread, ThreadSession, Worktree } from "../../src/shared/domain.js";
 import type { WorkspaceSnapshot } from "../../src/shared/ipc.js";
 
 const DEFAULT_DB_FILE = "workspace.db";
@@ -135,6 +135,84 @@ export class WorkspaceStore {
       .run({ ...thread, sortOrder });
   }
 
+  upsertThreadSession(threadSession: ThreadSession): void {
+    this.db
+      .prepare(
+        `INSERT INTO thread_sessions (
+           thread_id, provider, resume_id, initial_prompt, title_captured_at, launch_mode,
+           status, last_activity_at, metadata_json, created_at, updated_at
+         ) VALUES (
+           @threadId, @provider, @resumeId, @initialPrompt, @titleCapturedAt, @launchMode,
+           @status, @lastActivityAt, @metadataJson, @createdAt, @updatedAt
+         )
+         ON CONFLICT(thread_id) DO UPDATE SET
+           provider=excluded.provider,
+           resume_id=excluded.resume_id,
+           initial_prompt=excluded.initial_prompt,
+           title_captured_at=excluded.title_captured_at,
+           launch_mode=excluded.launch_mode,
+           status=excluded.status,
+           last_activity_at=excluded.last_activity_at,
+           metadata_json=excluded.metadata_json,
+           updated_at=excluded.updated_at`
+      )
+      .run({
+        ...threadSession,
+        resumeId: threadSession.resumeId ?? null,
+        initialPrompt: threadSession.initialPrompt ?? null,
+        titleCapturedAt: threadSession.titleCapturedAt ?? null,
+        metadataJson: threadSession.metadataJson ?? null
+      });
+  }
+
+  deleteThreadSession(threadId: string): void {
+    this.db.prepare("DELETE FROM thread_sessions WHERE thread_id = ?").run(threadId);
+  }
+
+  getThreadSession(threadId: string): ThreadSession | null {
+    return (
+      (this.db
+        .prepare(
+          `SELECT
+             thread_id AS threadId,
+             provider,
+             resume_id AS resumeId,
+             initial_prompt AS initialPrompt,
+             title_captured_at AS titleCapturedAt,
+             launch_mode AS launchMode,
+             status,
+             last_activity_at AS lastActivityAt,
+             metadata_json AS metadataJson,
+             created_at AS createdAt,
+             updated_at AS updatedAt
+           FROM thread_sessions
+           WHERE thread_id = ?`
+        )
+        .get(threadId) as ThreadSession | undefined) ?? null
+    );
+  }
+
+  listThreadSessions(): ThreadSession[] {
+    return this.db
+      .prepare(
+        `SELECT
+           thread_id AS threadId,
+           provider,
+           resume_id AS resumeId,
+           initial_prompt AS initialPrompt,
+           title_captured_at AS titleCapturedAt,
+           launch_mode AS launchMode,
+           status,
+           last_activity_at AS lastActivityAt,
+           metadata_json AS metadataJson,
+           created_at AS createdAt,
+           updated_at AS updatedAt
+         FROM thread_sessions
+         ORDER BY updated_at DESC, thread_id ASC`
+      )
+      .all() as ThreadSession[];
+  }
+
   reorderThreads(worktreeId: string, orderedThreadIds: string[]): void {
     const threadRows = this.db
       .prepare("SELECT id FROM threads WHERE worktree_id = ? ORDER BY id ASC")
@@ -173,6 +251,7 @@ export class WorkspaceStore {
   }
 
   deleteThread(id: string): void {
+    this.deleteThreadSession(id);
     this.db.prepare("DELETE FROM threads WHERE id = ?").run(id);
     this.db.prepare("UPDATE worktrees SET last_active_thread_id = NULL WHERE last_active_thread_id = ?").run(id);
     this.db
@@ -288,6 +367,7 @@ export class WorkspaceStore {
         "SELECT id, project_id AS projectId, worktree_id AS worktreeId, title, agent, sort_order AS sortOrder, created_at AS createdAt, updated_at AS updatedAt FROM threads ORDER BY worktree_id ASC, sort_order ASC, created_at ASC, id ASC"
       )
       .all() as Thread[];
+    const threadSessions = this.listThreadSessions();
     const active = this.db
       .prepare("SELECT active_project_id AS activeProjectId, active_worktree_id AS activeWorktreeId, active_thread_id AS activeThreadId FROM app_state WHERE id = 1")
       .get() as { activeProjectId: string | null; activeWorktreeId: string | null; activeThreadId: string | null } | undefined;
@@ -296,10 +376,11 @@ export class WorkspaceStore {
       projects,
       worktrees,
       threads,
+      threadSessions,
       activeProjectId: active?.activeProjectId ?? null,
       activeWorktreeId: active?.activeWorktreeId ?? null,
       activeThreadId: active?.activeThreadId ?? null
-    };
+    } as WorkspaceSnapshot;
   }
 
   private backfillLegacyThreadSortOrders(): void {

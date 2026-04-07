@@ -9,11 +9,13 @@ vi.mock("better-sqlite3", async () => {
 });
 
 import Database from "better-sqlite3";
-import type { Project, Thread, Worktree } from "../../../src/shared/domain";
+import type { Project, Thread, ThreadSession, Worktree } from "../../../src/shared/domain";
+import type { WorkspaceSnapshot } from "../../../src/shared/ipc";
 import { WorkspaceStore } from "../store";
 
 const CURRENT_SCHEMA_PATH = path.resolve(__dirname, "..", "schema.sql");
 type StoreThread = Thread & { sortOrder: number };
+type StoreThreadSession = ThreadSession;
 const LEGACY_THREADS_SCHEMA = `
 CREATE TABLE IF NOT EXISTS projects (
   id TEXT PRIMARY KEY,
@@ -149,6 +151,23 @@ function makeThread(overrides: Partial<StoreThread> = {}): StoreThread {
     createdAt: "2026-04-06T00:00:00.000Z",
     updatedAt: "2026-04-06T00:00:00.000Z",
     sortOrder: 0,
+    ...overrides
+  };
+}
+
+function makeThreadSession(overrides: Partial<StoreThreadSession> = {}): StoreThreadSession {
+  return {
+    threadId: "thread-1",
+    provider: "codex",
+    resumeId: "resume-123",
+    initialPrompt: "Fix the flaky sidebar test",
+    titleCapturedAt: "2026-04-07T10:00:05.000Z",
+    launchMode: "fresh",
+    status: "resumable",
+    lastActivityAt: "2026-04-07T10:01:00.000Z",
+    metadataJson: '{"source":"wrapper"}',
+    createdAt: "2026-04-07T10:00:00.000Z",
+    updatedAt: "2026-04-07T10:01:00.000Z",
     ...overrides
   };
 }
@@ -389,6 +408,48 @@ describe("WorkspaceStore", () => {
     expect(worktree?.baseBranch).toBeNull();
   });
 
+  it("creates thread_sessions during migration", () => {
+    const baseDir = makeTempDir();
+    const store = new WorkspaceStore(baseDir);
+    store.migrate(NEW_SCHEMA);
+
+    expect(storeDbTableInfo(store, "thread_sessions")).toBeDefined();
+    expect(storeDbIndexInfo(store, "thread_sessions", "idx_thread_sessions_status")?.isUnique).toBe(0);
+  });
+
+  it("persists thread sessions across reopen", () => {
+    const baseDir = makeTempDir();
+    const store = new WorkspaceStore(baseDir);
+    store.migrate(NEW_SCHEMA);
+    seedBasicWorkspace(store);
+    store.upsertThread(makeThread());
+
+    store.upsertThreadSession(makeThreadSession());
+
+    const reopenedStore = new WorkspaceStore(baseDir);
+    reopenedStore.migrate(NEW_SCHEMA);
+
+    expect(reopenedStore.getThreadSession("thread-1")).toEqual(makeThreadSession());
+    expect(reopenedStore.listThreadSessions()).toEqual([makeThreadSession()]);
+    expect((reopenedStore.getSnapshot() as WorkspaceSnapshot & { threadSessions: ThreadSession[] }).threadSessions).toEqual([
+      makeThreadSession()
+    ]);
+  });
+
+  it("removes thread sessions when the owning thread is deleted", () => {
+    const baseDir = makeTempDir();
+    const store = new WorkspaceStore(baseDir);
+    store.migrate(NEW_SCHEMA);
+    seedBasicWorkspace(store);
+    store.upsertThread(makeThread());
+    store.upsertThreadSession(makeThreadSession());
+
+    store.deleteThread("thread-1");
+
+    expect(store.getThreadSession("thread-1")).toBeNull();
+    expect(store.listThreadSessions()).toEqual([]);
+  });
+
   it("deletes a worktree and all its threads", () => {
     const baseDir = makeTempDir();
     const store = new WorkspaceStore(baseDir);
@@ -445,15 +506,27 @@ describe("WorkspaceStore", () => {
       "thread-c:2"
     ]);
 
-    const uniqueIndex = storeDbIndexInfo(store, "idx_threads_worktree_sort_order");
+    const uniqueIndex = storeDbIndexInfo(store, "threads", "idx_threads_worktree_sort_order");
     expect(uniqueIndex?.isUnique).toBe(1);
   });
 });
 
-function storeDbIndexInfo(store: WorkspaceStore, indexName: string): { name: string; isUnique: number } | undefined {
+function storeDbIndexInfo(
+  store: WorkspaceStore,
+  tableName: string,
+  indexName: string
+): { name: string; isUnique: number } | undefined {
   const db = (store as unknown as { db?: InstanceType<typeof Database> }).db;
   if (!db) return undefined;
-  return db.prepare("SELECT name, [unique] AS isUnique FROM pragma_index_list('threads') WHERE name = ?").get(indexName) as
+  return db.prepare(`SELECT name, [unique] AS isUnique FROM pragma_index_list('${tableName}') WHERE name = ?`).get(indexName) as
     | { name: string; isUnique: number }
+    | undefined;
+}
+
+function storeDbTableInfo(store: WorkspaceStore, tableName: string): { name: string } | undefined {
+  const db = (store as unknown as { db?: InstanceType<typeof Database> }).db;
+  if (!db) return undefined;
+  return db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?").get(tableName) as
+    | { name: string }
     | undefined;
 }

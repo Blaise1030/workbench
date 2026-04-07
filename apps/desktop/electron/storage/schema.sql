@@ -38,6 +38,21 @@ CREATE TABLE IF NOT EXISTS threads (
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_threads_worktree_sort_order ON threads(worktree_id, sort_order);
 
+CREATE TABLE IF NOT EXISTS thread_sessions (
+  thread_id TEXT PRIMARY KEY,
+  provider TEXT NOT NULL,
+  resume_id TEXT,
+  initial_prompt TEXT,
+  title_captured_at TEXT,
+  launch_mode TEXT NOT NULL,
+  status TEXT NOT NULL,
+  last_activity_at TEXT NOT NULL,
+  metadata_json TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  FOREIGN KEY(thread_id) REFERENCES threads(id) ON DELETE CASCADE
+);
+
 CREATE TABLE IF NOT EXISTS runs (
   id TEXT PRIMARY KEY,
   thread_id TEXT NOT NULL,
@@ -67,4 +82,5 @@ CREATE INDEX IF NOT EXISTS idx_worktrees_project_id ON worktrees(project_id);
 CREATE INDEX IF NOT EXISTS idx_threads_worktree_id ON threads(worktree_id);
 CREATE INDEX IF NOT EXISTS idx_runs_thread_id ON runs(thread_id);
 CREATE INDEX IF NOT EXISTS idx_runs_status ON runs(status);
+CREATE INDEX IF NOT EXISTS idx_thread_sessions_status ON thread_sessions(status);
 CREATE INDEX IF NOT EXISTS idx_events_run_id ON run_events(run_id);
