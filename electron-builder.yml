@@ -1,6 +1,6 @@
 # https://www.electron.build/configuration
 appId: com.workbench.desktop
-productName: workbench.
+productName: workbench
 copyright: Copyright © workbench contributors
 
 directories:
@@ -30,4 +30,3 @@ mac:
     - dmg
   hardenedRuntime: true
   gatekeeperAssess: false
-
