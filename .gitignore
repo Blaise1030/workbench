@@ -25,3 +25,6 @@ Thumbs.db
 coverage/
 .vitest/
 *.tsbuildinfo
+
+# Local git worktrees
+.worktrees/
