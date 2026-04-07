@@ -13,7 +13,7 @@ void app.whenReady().then(async () => {
     const hint =
       /NODE_MODULE_VERSION|compiled against a different Node/i.test(message) ||
       /\.node\b/i.test(message)
-        ? "\n\nRun: npm run rebuild:natives"
+        ? "\n\nRun: pnpm rebuild:natives"
         : "";
     dialog.showErrorBox("workbench. could not start", `${message}${hint}`);
     app.quit();

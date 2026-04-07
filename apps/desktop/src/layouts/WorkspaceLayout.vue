@@ -558,7 +558,7 @@ async function handleCreateProject(): Promise<void> {
     if (!api) {
       toast.error(
         "Unable to add workspace",
-        "Folder picking only works in the Electron app. From the project root, run: `npm run dev:electron`"
+        "Folder picking only works in the Electron app. From the project root, run: `pnpm dev:electron`"
       );
     } else if (!api.resolveRepoRootFromWebkitFile && !api.pickRepoDirectory) {
       toast.error(

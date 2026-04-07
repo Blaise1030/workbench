@@ -3,12 +3,15 @@ node_modules/
 
 # electron-builder output (installers / unpacked app)
 release/
+apps/desktop/release/
 
 # Compiled Electron output (regenerate with npm run build:electron)
 dist-electron/*
+apps/desktop/dist-electron/*
 
 # Vite frontend build
 dist/
+apps/desktop/dist/
 
 # Local / secrets
 .env
