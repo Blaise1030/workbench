@@ -1,5 +1,11 @@
 ---
 import "../styles/global.css";
+import {
+	GITHUB_API_LATEST_RELEASE_URL,
+	GITHUB_REPO_URL,
+	LATEST_RELEASE_JSON_URL,
+	LATEST_RELEASE_PAGE_URL,
+} from "../constants/releases";
 
 /** Same as `apps/desktop/src/constants/appMeta.ts` — threads panel header title */
 const APP_DISPLAY_NAME = "workbench";
@@ -59,8 +65,9 @@ const APP_DISPLAY_NAME = "workbench";
 					</h2>
 				</a>
 				<a
-					href="https://github.com"
+					href={GITHUB_REPO_URL}
 					class="shrink-0 text-sm font-medium text-zinc-500 transition hover:text-zinc-900"
+					rel="noopener noreferrer"
 				>
 					GitHub <span aria-hidden="true" class="opacity-70">↗</span>
 				</a>
@@ -75,18 +82,22 @@ const APP_DISPLAY_NAME = "workbench";
 				<p class="mx-auto mt-5 max-w-3xl text-lg text-zinc-600">
 					A native desktop workbench: projects, agent threads, integrated terminal, and editor—so local agents can plan, run commands, and land changes where your code already lives.
 				</p>
-				<div id="download" class="mt-10 flex justify-center">
+				<div id="download" class="mt-10 flex flex-col items-center gap-2">
 					<a
-						href="https://github.com"
+						id="download-btn"
+						href={LATEST_RELEASE_PAGE_URL}
 						class="inline-flex items-center gap-2 rounded-full bg-zinc-900 px-7 py-3.5 text-sm font-semibold text-white shadow-lg shadow-zinc-900/15 transition hover:bg-zinc-800"
+						rel="noopener noreferrer"
+						aria-busy="true"
 					>
 						<svg class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
 							<path
 								d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"
 							/>
 						</svg>
-						Download for macOS
+						<span id="download-btn-label">Preparing download…</span>
 					</a>
+					<p id="download-version" class="hidden text-xs text-zinc-500" aria-live="polite"></p>
 				</div>
 			</section>
 
@@ -131,7 +142,9 @@ const APP_DISPLAY_NAME = "workbench";
 			<div class="mx-auto flex max-w-5xl flex-col items-center justify-between gap-4 px-6 text-sm text-zinc-500 md:flex-row">
 				<p>© {new Date().getFullYear()} workbench</p>
 				<div class="flex gap-6">
-					<a href="https://github.com" class="text-zinc-500 transition hover:text-zinc-900">GitHub</a>
+					<a href={GITHUB_REPO_URL} class="text-zinc-500 transition hover:text-zinc-900" rel="noopener noreferrer">
+						GitHub
+					</a>
 				</div>
 			</div>
 		</footer>
@@ -156,6 +169,99 @@ const APP_DISPLAY_NAME = "workbench";
 					preview.classList.add("preview-scale-in--visible");
 				}
 			}
+		</script>
+
+		<script
+			define:vars={{
+				LATEST_RELEASE_JSON_URL,
+				GITHUB_API_LATEST_RELEASE_URL,
+				LATEST_RELEASE_PAGE_URL,
+			}}
+		>
+			function pickPlatform() {
+				const ua = navigator.userAgent.toLowerCase();
+				if (/\bwin\b/.test(ua) || /windows/.test(ua)) return "windows";
+				if (/macintosh|mac os x|mac os/.test(ua)) return "mac";
+				if (/linux/.test(ua)) return "linux";
+				return "mac";
+			}
+
+			function labelForPlatform(p) {
+				if (p === "windows") return "Download for Windows";
+				if (p === "linux") return "Download for Linux";
+				return "Download for macOS";
+			}
+
+			function urlsFromApiAssets(assets) {
+				const out = {};
+				for (const a of assets) {
+					const n = a.name.toLowerCase();
+					if (n.endsWith(".dmg")) out.mac = a.browser_download_url;
+					if (n.endsWith(".exe")) out.windows = a.browser_download_url;
+					if (n.endsWith(".appimage")) out.linux = a.browser_download_url;
+				}
+				return out;
+			}
+
+			async function resolveDownloadUrl() {
+				const platform = pickPlatform();
+				try {
+					const res = await fetch(LATEST_RELEASE_JSON_URL, {
+						headers: { Accept: "application/json" },
+					});
+					if (res.ok) {
+						const manifest = await res.json();
+						const entry = manifest?.downloads?.[platform];
+						if (entry?.url) {
+							return { url: entry.url, version: manifest.version, source: "manifest" };
+						}
+					}
+				} catch {
+					/* try API */
+				}
+				try {
+					const res = await fetch(GITHUB_API_LATEST_RELEASE_URL, {
+						headers: {
+							Accept: "application/vnd.github+json",
+							"X-GitHub-Api-Version": "2022-11-28",
+						},
+					});
+					if (!res.ok) throw new Error(String(res.status));
+					const data = await res.json();
+					const map = urlsFromApiAssets(data.assets ?? []);
+					const url = map[platform];
+					if (url) {
+						const version = typeof data.tag_name === "string" ? data.tag_name.replace(/^v/, "") : undefined;
+						return { url, version, source: "api" };
+					}
+				} catch {
+					/* fall through */
+				}
+				return { url: LATEST_RELEASE_PAGE_URL, version: undefined, source: "fallback" };
+			}
+
+			(async () => {
+				const btn = document.getElementById("download-btn");
+				const labelEl = document.getElementById("download-btn-label");
+				const versionEl = document.getElementById("download-version");
+				if (!btn || !labelEl) return;
+
+				const platform = pickPlatform();
+				labelEl.textContent = labelForPlatform(platform);
+
+				const { url, version, source } = await resolveDownloadUrl();
+				btn.setAttribute("href", url);
+				btn.setAttribute("aria-busy", "false");
+				if (versionEl) {
+					if (version) {
+						versionEl.textContent = `Version ${version}`;
+						versionEl.classList.remove("hidden");
+					} else if (source === "fallback") {
+						versionEl.textContent = "Open the release page to choose an installer.";
+						versionEl.classList.remove("hidden");
+					}
+				}
+			})();
 		</script>
 	</body>
 </html>

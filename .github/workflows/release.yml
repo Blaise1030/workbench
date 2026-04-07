@@ -1,6 +1,9 @@
 # Build desktop installers when you push a version tag (e.g. v0.2.2).
+# Tags and GitHub Releases are created by `.github/workflows/release-please.yml` when a release PR merges.
 # Tag must match apps/desktop/package.json "version" (after stripping the leading v).
-# Creates a GitHub Release and attaches per-OS artifacts from the matrix jobs.
+# Uploads per-OS artifacts to the existing GitHub Release for that tag.
+# Also uploads latest.json so the landing page can use a stable URL:
+#   https://github.com/<owner>/<repo>/releases/latest/download/latest.json
 name: Release
 
 on:
@@ -94,20 +97,104 @@ jobs:
           pattern: installers-*
           merge-multiple: true
 
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ github.ref_name }}
-          name: ${{ github.ref_name }}
-          draft: false
-          prerelease: ${{ contains(github.ref_name, '-') }}
-          generate_release_notes: true
-          files: |
-            artifacts/*.dmg
-            artifacts/**/*.dmg
-            artifacts/*.exe
-            artifacts/**/*.exe
-            artifacts/*.AppImage
-            artifacts/**/*.AppImage
+      - name: Upload installers to GitHub Release
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME}"
+          mapfile -t files < <(find artifacts -type f \( -name '*.dmg' -o -name '*.exe' -o -name '*.AppImage' \) | sort -u)
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "::error::No installer artifacts found under artifacts/"
+            exit 1
+          fi
+          RELEASE_READY=0
+          for _ in $(seq 1 30); do
+            if gh release view "$TAG" --repo "${{ github.repository }}" &>/dev/null; then
+              RELEASE_READY=1
+              break
+            fi
+            sleep 2
+          done
+          if [ "$RELEASE_READY" -ne 1 ]; then
+            echo "::notice::No GitHub Release for $TAG after waiting; creating (manual tag path)."
+            if [[ "$TAG" == *-* ]]; then
+              gh release create "$TAG" --repo "${{ github.repository }}" --title "$TAG" --generate-notes --prerelease
+            else
+              gh release create "$TAG" --repo "${{ github.repository }}" --title "$TAG" --generate-notes
+            fi
+          fi
+          gh release upload "$TAG" "${files[@]}" --clobber --repo "${{ github.repository }}"
+
+      - name: Publish latest.json (stable URL for landing page)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REF_NAME: ${{ github.ref_name }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME}"
+          REPO="${GITHUB_REPOSITORY}"
+          mapfile -t files < <(find artifacts -type f \( -name '*.dmg' -o -name '*.exe' -o -name '*.AppImage' \) | sort -u)
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "::error::No installers found for latest.json"
+            exit 1
+          fi
+          RELEASED_AT="$(gh release view "$TAG" --repo "$REPO" --json publishedAt -q .publishedAt)"
+          PRERELEASE="$(gh release view "$TAG" --repo "$REPO" --json isPrerelease -q .isPrerelease)"
+          python3 - "$TAG" "$REPO" "$RELEASED_AT" "$PRERELEASE" "${files[@]}" <<'PY'
+          import json, os, sys
+          from urllib.parse import quote
+
+          tag = sys.argv[1]
+          repo = sys.argv[2]
+          released_at = sys.argv[3]
+          prerelease = sys.argv[4].lower() == "true"
+          paths = sys.argv[5:]
+
+          version = tag[1:] if tag.startswith("v") else tag
+          owner, name = repo.split("/", 1)
+          base = f"https://github.com/{repo}/releases/download/{tag}"
+
+          def classify(name):
+              lower = name.lower()
+              if lower.endswith(".dmg"):
+                  return "mac"
+              if lower.endswith(".exe"):
+                  return "windows"
+              if lower.endswith(".appimage"):
+                  return "linux"
+              return None
+
+          downloads = {}
+          for p in paths:
+              fn = os.path.basename(p)
+              key = classify(fn)
+              if not key:
+                  continue
+              downloads[key] = {
+                  "filename": fn,
+                  "url": f"{base}/{quote(fn)}",
+              }
+
+          out = {
+              "version": version,
+              "tag": tag,
+              "repository": repo,
+              "released_at": released_at,
+              "prerelease": prerelease,
+              "latest": {
+                  "json": f"https://github.com/{repo}/releases/latest/download/latest.json",
+                  "release": f"https://github.com/{repo}/releases/latest",
+                  "github_api": f"https://api.github.com/repos/{owner}/{name}/releases/latest",
+              },
+              "downloads": downloads,
+          }
+
+          with open("latest.json", "w", encoding="utf-8") as f:
+              json.dump(out, f, indent=2)
+              f.write("\n")
+          PY
+          gh release upload "$TAG" latest.json --clobber --repo "$REPO"
