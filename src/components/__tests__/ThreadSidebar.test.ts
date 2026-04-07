@@ -2,7 +2,7 @@ import { mount } from "@vue/test-utils";
 import { nextTick } from "vue";
 import { afterEach, describe, expect, it } from "vitest";
 import ThreadSidebar from "@/components/ThreadSidebar.vue";
-import type { Thread } from "@shared/domain";
+import type { Thread, Worktree } from "@shared/domain";
 
 async function hoverFirstThreadRow(wrapper: ReturnType<typeof mount>): Promise<void> {
   await wrapper.get('[data-testid="thread-row"]').trigger("mouseenter");
@@ -306,6 +306,60 @@ describe("ThreadSidebar", () => {
     await dragHandles[1]!.trigger("dragend", { dataTransfer });
 
     expect(wrapper.emitted("reorder")).toBeUndefined();
+  });
+
+  it("renders threads grouped by worktree with group headers", () => {
+    const ungroupedThreads: Thread[] = [
+      {
+        id: "t1",
+        projectId: "p1",
+        worktreeId: "w-default",
+        title: "Ungrouped thread",
+        agent: "claude",
+        sortOrder: 0,
+        createdAt: "2026-04-07T00:00:00Z",
+        updatedAt: "2026-04-07T00:00:00Z"
+      }
+    ];
+    const groupedThreads: Thread[] = [
+      {
+        id: "t2",
+        projectId: "p1",
+        worktreeId: "w-feat",
+        title: "Grouped thread",
+        agent: "codex",
+        sortOrder: 0,
+        createdAt: "2026-04-07T00:01:00Z",
+        updatedAt: "2026-04-07T00:01:00Z"
+      }
+    ];
+
+    wrapper = mount(ThreadSidebar, {
+      props: {
+        threads: [...ungroupedThreads, ...groupedThreads],
+        activeThreadId: "t1",
+        threadGroups: [
+          {
+            id: "w-feat",
+            projectId: "p1",
+            name: "feat/auth",
+            branch: "feat/auth",
+            path: "/tmp/.worktrees/feat-auth",
+            isActive: true,
+            isDefault: false,
+            baseBranch: "main",
+            lastActiveThreadId: null,
+            createdAt: "2026-04-07T00:00:00Z",
+            updatedAt: "2026-04-07T00:00:00Z"
+          }
+        ],
+        defaultWorktreeId: "w-default"
+      }
+    });
+
+    expect(wrapper.find('[data-testid="thread-group-header"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="thread-group-header"]').text()).toContain("feat/auth");
+    expect(wrapper.findAll('[data-testid="thread-row"]')).toHaveLength(2);
   });
 
   it("restores the original order and does not emit reorder when drag is canceled", async () => {

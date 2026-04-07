@@ -1,21 +1,39 @@
 <script setup lang="ts">
-import type { RunStatus, Thread, ThreadAgent } from "@shared/domain";
+import type { RunStatus, Thread, ThreadAgent, Worktree } from "@shared/domain";
 import { PanelLeftClose, PanelLeftOpen } from "lucide-vue-next";
-import { nextTick, ref, watch } from "vue";
+import { computed, nextTick, ref, watch } from "vue";
+import ThreadGroupHeader from "@/components/ThreadGroupHeader.vue";
 import ThreadRow from "@/components/ThreadRow.vue";
 import ThreadTopBar from "@/components/ThreadTopBar.vue";
+import WorktreeStaleCallout from "@/components/WorktreeStaleCallout.vue";
 import BaseButton from "@/components/ui/BaseButton.vue";
 import { titleWithShortcut } from "@/keybindings/registry";
 
-const props = defineProps<{
-  threads: Thread[];
-  activeThreadId: string | null;
-  /** Narrow rail: agent icons only, no titles. */
-  collapsed?: boolean;
-  runStatusByThreadId?: Record<string, RunStatus>;
-  /** Thread ids whose agent terminal fired attention while not visible. */
-  threadsNeedingAttention?: ReadonlySet<string>;
-}>();
+const props = withDefaults(
+  defineProps<{
+    threads: Thread[];
+    activeThreadId: string | null;
+    /** Narrow rail: agent icons only, no titles. */
+    collapsed?: boolean;
+    runStatusByThreadId?: Record<string, RunStatus>;
+    /** Thread ids whose agent terminal fired attention while not visible. */
+    threadsNeedingAttention?: ReadonlySet<string>;
+    /** Non-default worktrees (thread groups). */
+    threadGroups?: Worktree[];
+    /** ID of the default worktree — threads with this worktreeId are "ungrouped". */
+    defaultWorktreeId?: string | null;
+    /** Worktree IDs whose path no longer exists on disk. */
+    staleWorktreeIds?: ReadonlySet<string>;
+  }>(),
+  {
+    collapsed: false,
+    runStatusByThreadId: undefined,
+    threadsNeedingAttention: undefined,
+    threadGroups: () => [],
+    defaultWorktreeId: null,
+    staleWorktreeIds: () => new Set()
+  }
+);
 
 const emit = defineEmits<{
   createWithAgent: [agent: ThreadAgent];
@@ -23,11 +41,38 @@ const emit = defineEmits<{
   remove: [threadId: string];
   rename: [threadId: string, newTitle: string];
   reorder: [threadIds: string[]];
+  createWorktreeGroup: [];
+  deleteWorktreeGroup: [worktreeId: string];
   collapse: [];
   expand: [];
 }>();
 
 const topBarRef = ref<InstanceType<typeof ThreadTopBar> | null>(null);
+
+const ungroupedThreads = computed(() => {
+  if (!props.defaultWorktreeId) return props.threads;
+  return props.threads.filter((t) => t.worktreeId === props.defaultWorktreeId);
+});
+
+const groupData = computed(() => {
+  return (props.threadGroups ?? []).map((wt) => ({
+    worktree: wt,
+    threads: props.threads.filter((t) => t.worktreeId === wt.id),
+    isStale: props.staleWorktreeIds?.has(wt.id) ?? false
+  }));
+});
+
+const collapsedGroups = ref<Set<string>>(new Set());
+
+function toggleGroup(worktreeId: string): void {
+  const next = new Set(collapsedGroups.value);
+  if (next.has(worktreeId)) {
+    next.delete(worktreeId);
+  } else {
+    next.add(worktreeId);
+  }
+  collapsedGroups.value = next;
+}
 
 const renderedThreads = ref<Thread[]>([...props.threads]);
 const draggedThreadId = ref<string | null>(null);
@@ -44,6 +89,11 @@ function hasVisibleOrderChanged(): boolean {
 
   return currentIds.some((threadId, index) => threadId !== originalIds[index]);
 }
+
+const ungroupedRenderedThreads = computed(() => {
+  if (!props.defaultWorktreeId) return renderedThreads.value;
+  return renderedThreads.value.filter((t) => t.worktreeId === props.defaultWorktreeId);
+});
 
 watch(
   () => props.threads,
@@ -189,6 +239,7 @@ defineExpose({ openNewThreadMenu });
       ref="topBarRef"
       :collapsed="collapsed"
       @create-with-agent="emit('createWithAgent', $event)"
+      @create-worktree-group="emit('createWorktreeGroup')"
     />
     <section
       v-if="threads.length === 0"
@@ -201,35 +252,86 @@ defineExpose({ openNewThreadMenu });
         </h3>
       </template>
     </section>
-    <ul
-      v-else
-      class="min-h-0 flex-1 space-y-0.5 overflow-y-auto pb-3 pl-2 pr-2 pt-2"
-    >
-      <li
-        v-for="thread in renderedThreads"
-        :key="thread.id"
-        :data-testid="`thread-list-item-${thread.id}`"
-        @dragenter.prevent="handleDragEnter(thread.id)"
-        @dragover="handleDragOver"
-        @drop="handleDrop(thread.id, $event)"
-      >
-        <ThreadRow
-          :thread="thread"
-          :collapsed="collapsed"
-          :is-active="thread.id === activeThreadId"
-          :run-status="runStatusByThreadId?.[thread.id] ?? null"
-          :needs-attention="threadsNeedingAttention?.has(thread.id) ?? false"
-          :is-dragging="thread.id === draggedThreadId"
-          :is-drag-target="draggedThreadId !== null && thread.id === dragOverThreadId"
-          @dragstart="handleDragStart(thread.id, $event)"
-          @dragend="handleDragEnd"
-          @keyboard-reorder="handleKeyboardReorder(thread.id, $event)"
-          @select="emit('select', thread.id)"
-          @remove="emit('remove', thread.id)"
-          @rename="(title) => emit('rename', thread.id, title)"
+    <div v-else class="min-h-0 flex-1 overflow-y-auto pb-3 pt-2">
+      <!-- Ungrouped threads -->
+      <ul class="space-y-0.5 px-2">
+        <li
+          v-for="thread in ungroupedRenderedThreads"
+          :key="thread.id"
+          :data-testid="`thread-list-item-${thread.id}`"
+          @dragenter.prevent="handleDragEnter(thread.id)"
+          @dragover="handleDragOver"
+          @drop="handleDrop(thread.id, $event)"
+        >
+          <ThreadRow
+            data-testid="thread-row"
+            :thread="thread"
+            :collapsed="collapsed"
+            :is-active="thread.id === activeThreadId"
+            :run-status="runStatusByThreadId?.[thread.id] ?? null"
+            :needs-attention="threadsNeedingAttention?.has(thread.id) ?? false"
+            :is-dragging="thread.id === draggedThreadId"
+            :is-drag-target="draggedThreadId !== null && thread.id === dragOverThreadId"
+            @dragstart="handleDragStart(thread.id, $event)"
+            @dragend="handleDragEnd"
+            @keyboard-reorder="handleKeyboardReorder(thread.id, $event)"
+            @select="emit('select', thread.id)"
+            @remove="emit('remove', thread.id)"
+            @rename="(title) => emit('rename', thread.id, title)"
+          />
+        </li>
+      </ul>
+
+      <!-- Thread groups -->
+      <div v-for="group in groupData" :key="group.worktree.id">
+        <ThreadGroupHeader
+          data-testid="thread-group-header"
+          :branch="group.worktree.branch"
+          :base-branch="group.worktree.baseBranch"
+          :thread-count="group.threads.length"
+          :is-stale="group.isStale"
+          :collapsed="collapsedGroups.has(group.worktree.id)"
+          @toggle="toggleGroup(group.worktree.id)"
+          @delete="emit('deleteWorktreeGroup', group.worktree.id)"
         />
-      </li>
-    </ul>
+
+        <WorktreeStaleCallout
+          v-if="group.isStale && group.threads.length > 0"
+          :branch="group.worktree.branch"
+          @delete="emit('deleteWorktreeGroup', group.worktree.id)"
+          @dismiss="() => {}"
+        />
+
+        <ul
+          v-show="!collapsedGroups.has(group.worktree.id)"
+          class="space-y-0.5 px-2"
+          :class="collapsed ? '' : 'pl-5'"
+        >
+          <li
+            v-for="thread in group.threads"
+            :key="thread.id"
+            :data-testid="`thread-list-item-${thread.id}`"
+          >
+            <ThreadRow
+              data-testid="thread-row"
+              :thread="thread"
+              :collapsed="collapsed"
+              :is-active="thread.id === activeThreadId"
+              :run-status="runStatusByThreadId?.[thread.id] ?? null"
+              :needs-attention="threadsNeedingAttention?.has(thread.id) ?? false"
+              :is-dragging="thread.id === draggedThreadId"
+              :is-drag-target="draggedThreadId !== null && thread.id === dragOverThreadId"
+              @dragstart="handleDragStart(thread.id, $event)"
+              @dragend="handleDragEnd"
+              @keyboard-reorder="handleKeyboardReorder(thread.id, $event)"
+              @select="emit('select', thread.id)"
+              @remove="emit('remove', thread.id)"
+              @rename="(title) => emit('rename', thread.id, title)"
+            />
+          </li>
+        </ul>
+      </div>
+    </div>
     <footer
       class="shrink-0 border-t border-border p-2"
       :class="collapsed ? 'flex justify-center' : 'flex justify-end'"

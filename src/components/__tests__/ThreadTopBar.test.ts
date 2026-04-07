@@ -47,10 +47,11 @@ describe("ThreadTopBar", () => {
     await wrapper.get('[aria-label="New thread"]').trigger("click");
     await nextTick();
     const items = getAgentMenuPanel().querySelectorAll('[role="menuitem"]');
-    expect(items).toHaveLength(4);
-    for (const item of items) {
-      expect(item.className).toContain("border");
-      expect(item.className).toContain("shadow-");
+    expect(items).toHaveLength(5);
+    // First 4 are agent tiles with border and shadow styling
+    for (let i = 0; i < 4; i++) {
+      expect(items[i]!.className).toContain("border");
+      expect(items[i]!.className).toContain("shadow-");
     }
   });
 
