@@ -434,6 +434,9 @@ defineExpose({ openNewThreadMenu });
           <ThreadGroupHeader
             data-testid="thread-group-header"
             :title="group.worktree.name"
+            :branch="group.worktree.branch"
+            :base-branch="group.worktree.baseBranch"
+            :path="group.worktree.path"
             :thread-count="group.threads.length"
             :is-stale="group.isStale"
             :is-active="group.threads.some((t) => t.id === activeThreadId)"
@@ -505,10 +508,29 @@ defineExpose({ openNewThreadMenu });
         :id="collapsedGroupTooltipId"
         data-testid="thread-group-collapsed-tooltip"
         role="tooltip"
-        class="pointer-events-none fixed z-[200] -translate-y-1/2 whitespace-nowrap rounded-md border border-border bg-popover px-2 py-1 text-xs font-medium text-popover-foreground shadow-md"
+        class="pointer-events-none fixed z-[200] max-w-[min(22rem,calc(100vw-2rem))] -translate-y-1/2 rounded-md border border-border bg-popover px-2.5 py-2 text-left text-xs text-popover-foreground shadow-md"
         :style="collapsedGroupTooltipStyle"
       >
-        {{ currentCollapsedTooltipGroup.worktree.name }}
+        <div class="font-medium leading-snug text-popover-foreground">
+          {{ currentCollapsedTooltipGroup.worktree.name }}
+        </div>
+        <div class="mt-1 break-all font-normal leading-snug text-[11px] text-muted-foreground">
+          {{ currentCollapsedTooltipGroup.worktree.path }}
+        </div>
+        <div class="mt-1.5 space-y-0.5 font-normal text-[11px] leading-snug text-muted-foreground">
+          <div>
+            Branch:
+            <span class="text-foreground">{{ currentCollapsedTooltipGroup.worktree.branch }}</span>
+          </div>
+          <div>
+            Source branch:
+            <span class="text-foreground">{{
+              currentCollapsedTooltipGroup.worktree.baseBranch?.trim()
+                ? currentCollapsedTooltipGroup.worktree.baseBranch
+                : "—"
+            }}</span>
+          </div>
+        </div>
       </div>
       <div
         v-if="openCollapsedPopoverGroup"
@@ -518,23 +540,44 @@ defineExpose({ openNewThreadMenu });
         class="fixed z-[200] w-[min(18rem,calc(100vw-1.5rem))] rounded-md border border-border bg-popover p-1.5 text-popover-foreground shadow-md"
         :style="collapsedGroupPopoverStyle"
       >
-        <div class="flex items-center gap-2 px-2 py-1 text-xs font-medium">
-          <span aria-hidden="true">🌳</span>
-          <span class="min-w-0 truncate">{{ openCollapsedPopoverGroup.worktree.name }}</span>
+        <div
+          class="flex flex-col gap-1 border-b border-border px-2 pb-2 pt-1 text-xs"
+        >
+          <div class="flex items-center gap-2 font-medium">
+            <span aria-hidden="true">🌳</span>
+            <span class="min-w-0 truncate">{{ openCollapsedPopoverGroup.worktree.name }}</span>
+          </div>
+          <div class="break-all pl-7 text-[11px] font-normal leading-snug text-muted-foreground">
+            {{ openCollapsedPopoverGroup.worktree.path }}
+          </div>
+          <div class="flex flex-col gap-0.5 pl-7 text-[11px] text-muted-foreground">
+            <div>
+              Branch:
+              <span class="text-foreground">{{ openCollapsedPopoverGroup.worktree.branch }}</span>
+            </div>
+            <div>
+              Source branch:
+              <span class="text-foreground">{{
+                openCollapsedPopoverGroup.worktree.baseBranch?.trim()
+                  ? openCollapsedPopoverGroup.worktree.baseBranch
+                  : "—"
+              }}</span>
+            </div>
+          </div>
         </div>
         <div
           v-if="openCollapsedPopoverGroup.isStale"
-          class="px-2 py-1.5 text-xs text-destructive"
+          class="px-2 pt-2 pb-1.5 text-xs text-destructive"
         >
           Worktree missing
         </div>
         <div
           v-else-if="openCollapsedPopoverGroup.threads.length === 0"
-          class="px-2 py-1.5 text-xs text-muted-foreground"
+          class="px-2 pt-2 pb-1.5 text-xs text-muted-foreground"
         >
           No threads in this worktree
         </div>
-        <ul v-else class="space-y-0.5">
+        <ul v-else class="space-y-0.5 pt-2">
           <li
             v-for="thread in openCollapsedPopoverGroup.threads"
             :key="thread.id"

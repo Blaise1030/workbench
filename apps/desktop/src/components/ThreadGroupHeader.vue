@@ -1,18 +1,30 @@
 <script setup lang="ts">
 import type { ThreadAgent } from "@shared/domain";
 import { ChevronDown, ChevronRight, EllipsisVertical, Plus, Trash2 } from "lucide-vue-next";
-import { onBeforeUnmount, onMounted, ref } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import ThreadCreateButton from "@/components/ThreadCreateButton.vue";
 import BaseButton from "@/components/ui/BaseButton.vue";
 
-defineProps<{
+const props = defineProps<{
   /** Worktree display name (not the Git branch string). */
   title: string;
+  /** Checked-out branch in this worktree. */
+  branch: string;
+  /** Branch this worktree was created from (e.g. main), if known. */
+  baseBranch: string | null;
+  /** Absolute path to the worktree on disk. */
+  path: string;
   threadCount: number;
   isStale: boolean;
   collapsed: boolean;
   isActive: boolean;
 }>();
+
+/** Native tooltip: full path + branch lineage (line breaks render in most desktop browsers). */
+const hoverDetails = computed(() => {
+  const source = props.baseBranch?.trim() ? props.baseBranch : "—";
+  return `${props.title}\n${props.path}\nBranch: ${props.branch}\nSource branch: ${source}`;
+});
 
 const emit = defineEmits<{
   toggle: [];
@@ -44,7 +56,8 @@ onBeforeUnmount(() => document.removeEventListener("mousedown", handleClickOutsi
     :class="isStale ? 'opacity-60' : ''"
     role="button"
     :aria-expanded="!collapsed"
-    :aria-label="`Thread group ${title}`"
+    :aria-label="`Worktree ${title}, branch ${branch}`"
+    :title="hoverDetails"
     @click="emit('toggle')"
   >
     <component
