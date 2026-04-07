@@ -15,6 +15,8 @@ CREATE TABLE IF NOT EXISTS worktrees (
   branch TEXT NOT NULL,
   path TEXT NOT NULL,
   is_active INTEGER NOT NULL DEFAULT 0,
+  is_default INTEGER NOT NULL DEFAULT 0,
+  base_branch TEXT,
   last_active_thread_id TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,

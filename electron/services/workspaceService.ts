@@ -59,7 +59,7 @@ export class WorkspaceService {
     return project;
   }
 
-  addWorktree(projectId: string, branch: string, worktreePath: string): Worktree {
+  addWorktree(projectId: string, branch: string, worktreePath: string, isDefault = false): Worktree {
     const now = new Date().toISOString();
     const worktree: Worktree = {
       id: randomUUID(),
@@ -68,6 +68,8 @@ export class WorkspaceService {
       branch,
       path: worktreePath,
       isActive: true,
+      isDefault,
+      baseBranch: null,
       lastActiveThreadId: null,
       createdAt: now,
       updatedAt: now

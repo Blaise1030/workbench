@@ -34,6 +34,18 @@ export class WorkspaceStore {
     if (!hasSortOrder) {
       this.db.prepare("ALTER TABLE threads ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0").run();
     }
+    const hasIsDefault = this.db
+      .prepare("SELECT 1 FROM pragma_table_info('worktrees') WHERE name = 'is_default' LIMIT 1")
+      .get();
+    if (!hasIsDefault) {
+      this.db.exec("ALTER TABLE worktrees ADD COLUMN is_default INTEGER NOT NULL DEFAULT 0");
+    }
+    const hasBaseBranch = this.db
+      .prepare("SELECT 1 FROM pragma_table_info('worktrees') WHERE name = 'base_branch' LIMIT 1")
+      .get();
+    if (!hasBaseBranch) {
+      this.db.exec("ALTER TABLE worktrees ADD COLUMN base_branch TEXT");
+    }
     const hasLastActiveThreadId = this.db
       .prepare("SELECT 1 FROM pragma_table_info('worktrees') WHERE name = 'last_active_thread_id' LIMIT 1")
       .get();
@@ -79,18 +91,20 @@ export class WorkspaceStore {
   upsertWorktree(worktree: Worktree): void {
     this.db
       .prepare(
-        `INSERT INTO worktrees (id, project_id, name, branch, path, is_active, last_active_thread_id, created_at, updated_at)
-         VALUES (@id, @projectId, @name, @branch, @path, @isActive, @lastActiveThreadId, @createdAt, @updatedAt)
+        `INSERT INTO worktrees (id, project_id, name, branch, path, is_active, is_default, base_branch, last_active_thread_id, created_at, updated_at)
+         VALUES (@id, @projectId, @name, @branch, @path, @isActive, @isDefault, @baseBranch, @lastActiveThreadId, @createdAt, @updatedAt)
          ON CONFLICT(id) DO UPDATE SET
            project_id=excluded.project_id,
            name=excluded.name,
            branch=excluded.branch,
            path=excluded.path,
            is_active=excluded.is_active,
+           is_default=excluded.is_default,
+           base_branch=excluded.base_branch,
            last_active_thread_id=excluded.last_active_thread_id,
            updated_at=excluded.updated_at`
       )
-      .run({ ...worktree, isActive: worktree.isActive ? 1 : 0, lastActiveThreadId: worktree.lastActiveThreadId ?? null });
+      .run({ ...worktree, isActive: worktree.isActive ? 1 : 0, isDefault: worktree.isDefault ? 1 : 0, baseBranch: worktree.baseBranch ?? null, lastActiveThreadId: worktree.lastActiveThreadId ?? null });
   }
 
   upsertThread(thread: Thread): void {
@@ -246,10 +260,10 @@ export class WorkspaceStore {
       .all() as Project[];
     const worktreeRows = this.db
       .prepare(
-        "SELECT id, project_id AS projectId, name, branch, path, is_active AS isActive, last_active_thread_id AS lastActiveThreadId, created_at AS createdAt, updated_at AS updatedAt FROM worktrees ORDER BY updated_at DESC"
+        "SELECT id, project_id AS projectId, name, branch, path, is_active AS isActive, is_default AS isDefault, base_branch AS baseBranch, last_active_thread_id AS lastActiveThreadId, created_at AS createdAt, updated_at AS updatedAt FROM worktrees ORDER BY updated_at DESC"
       )
-      .all() as Array<Omit<Worktree, "isActive"> & { isActive: number | boolean }>;
-    const worktrees = worktreeRows.map((w) => ({ ...w, isActive: Boolean(w.isActive) })) as Worktree[];
+      .all() as Array<Omit<Worktree, "isActive" | "isDefault"> & { isActive: number | boolean; isDefault: number | boolean }>;
+    const worktrees = worktreeRows.map((w) => ({ ...w, isActive: Boolean(w.isActive), isDefault: Boolean(w.isDefault), baseBranch: w.baseBranch ?? null })) as Worktree[];
     const threads = this.db
       .prepare(
         "SELECT id, project_id AS projectId, worktree_id AS worktreeId, title, agent, sort_order AS sortOrder, created_at AS createdAt, updated_at AS updatedAt FROM threads ORDER BY worktree_id ASC, sort_order ASC, created_at ASC, id ASC"
