@@ -20,6 +20,7 @@ const DEFAULT_THREAD_TITLES: Record<Thread["agent"], string> = {
 };
 const MAX_DERIVED_TITLE_LENGTH = 68;
 
+// Preserve the raw first prompt, collapse whitespace, and truncate once.
 export function deriveThreadTitleFromPrompt(input: string): string | null {
   const firstLine = input
     .split(/\r?\n/)
@@ -116,18 +117,55 @@ export class WorkspaceService {
     this.store.renameThread(threadId, title);
   }
 
-  maybeRenameThreadFromPrompt(threadId: string, input: string): boolean {
+  captureInitialPrompt(threadId: string, input: string): { renamed: boolean; initialPrompt: string | null } {
     const nextTitle = deriveThreadTitleFromPrompt(input);
-    if (!nextTitle) return false;
+    if (!nextTitle) return { renamed: false, initialPrompt: null };
 
     const thread = this.store.getThread(threadId);
-    if (!thread) return false;
-    if (thread.createdAt !== thread.updatedAt) return false;
-    if (!hasDefaultGeneratedTitle(thread)) return false;
-    if (thread.title === nextTitle) return false;
+    if (!thread) return { renamed: false, initialPrompt: null };
+
+    const sessionStore = this.store as WorkspaceStore &
+      Partial<Pick<WorkspaceStore, "getThreadSession" | "upsertThreadSession">>;
+    const existingSession = sessionStore.getThreadSession?.(threadId) ?? null;
+    if (existingSession?.titleCapturedAt) {
+      return {
+        renamed: false,
+        initialPrompt: existingSession.initialPrompt
+      };
+    }
+
+    const now = new Date().toISOString();
+    const initialPrompt = existingSession?.initialPrompt ?? input;
+    sessionStore.upsertThreadSession?.({
+      threadId,
+      provider: thread.agent,
+      resumeId: existingSession?.resumeId ?? null,
+      initialPrompt,
+      titleCapturedAt: existingSession?.titleCapturedAt ?? now,
+      launchMode: existingSession?.launchMode ?? "fresh",
+      status: existingSession?.status ?? "idle",
+      lastActivityAt: existingSession?.lastActivityAt ?? now,
+      metadataJson: existingSession?.metadataJson ?? null,
+      createdAt: existingSession?.createdAt ?? now,
+      updatedAt: now
+    });
+
+    if (!hasDefaultGeneratedTitle(thread) || thread.title === nextTitle) {
+      return {
+        renamed: false,
+        initialPrompt
+      };
+    }
 
     this.store.renameThread(threadId, nextTitle);
-    return true;
+    return {
+      renamed: true,
+      initialPrompt
+    };
+  }
+
+  maybeRenameThreadFromPrompt(threadId: string, input: string): boolean {
+    return this.captureInitialPrompt(threadId, input).renamed;
   }
 
   setActive(projectId: string | null, worktreeId: string | null, threadId: string | null): void {

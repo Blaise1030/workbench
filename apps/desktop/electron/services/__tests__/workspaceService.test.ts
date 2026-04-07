@@ -124,6 +124,113 @@ describe("WorkspaceService.maybeRenameThreadFromPrompt", () => {
   });
 });
 
+describe("WorkspaceService.captureInitialPrompt", () => {
+  it("renames once from the first captured prompt and persists session metadata", () => {
+    const renameThread = vi.fn();
+    const upsertThreadSession = vi.fn();
+    const store = {
+      getSnapshot: vi.fn(),
+      upsertProject: vi.fn(),
+      setActiveState: vi.fn(),
+      upsertWorktree: vi.fn(),
+      upsertThread: vi.fn(),
+      upsertThreadSession,
+      deleteThread: vi.fn(),
+      renameThread,
+      getThread: vi.fn(() => buildThread()),
+      getThreadSession: vi.fn(() => null)
+    };
+    const service = new WorkspaceService(store as never);
+
+    const result = service.captureInitialPrompt("thread-1", "Refactor sidebar thread naming");
+
+    expect(result).toEqual({
+      renamed: true,
+      initialPrompt: "Refactor sidebar thread naming"
+    });
+    expect(renameThread).toHaveBeenCalledWith("thread-1", "Refactor sidebar thread naming");
+    expect(upsertThreadSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        threadId: "thread-1",
+        initialPrompt: "Refactor sidebar thread naming",
+        titleCapturedAt: expect.any(String)
+      })
+    );
+  });
+
+  it("does not rename after the title has already been captured", () => {
+    const renameThread = vi.fn();
+    const upsertThreadSession = vi.fn();
+    const store = {
+      getSnapshot: vi.fn(),
+      upsertProject: vi.fn(),
+      setActiveState: vi.fn(),
+      upsertWorktree: vi.fn(),
+      upsertThread: vi.fn(),
+      upsertThreadSession,
+      deleteThread: vi.fn(),
+      renameThread,
+      getThread: vi.fn(() => buildThread()),
+      getThreadSession: vi.fn(() => ({
+        threadId: "thread-1",
+        provider: "codex",
+        resumeId: null,
+        initialPrompt: "Refactor sidebar thread naming",
+        titleCapturedAt: "2026-04-06T00:01:00.000Z",
+        launchMode: "fresh",
+        status: "idle",
+        lastActivityAt: "2026-04-06T00:01:00.000Z",
+        metadataJson: null,
+        createdAt: "2026-04-06T00:00:00.000Z",
+        updatedAt: "2026-04-06T00:01:00.000Z"
+      }))
+    };
+    const service = new WorkspaceService(store as never);
+
+    const result = service.captureInitialPrompt("thread-1", "A later follow-up prompt");
+
+    expect(result).toEqual({
+      renamed: false,
+      initialPrompt: "Refactor sidebar thread naming"
+    });
+    expect(renameThread).not.toHaveBeenCalled();
+    expect(upsertThreadSession).not.toHaveBeenCalled();
+  });
+
+  it("keeps the first-prompt truncation behavior unchanged", () => {
+    const renameThread = vi.fn();
+    const upsertThreadSession = vi.fn();
+    const store = {
+      getSnapshot: vi.fn(),
+      upsertProject: vi.fn(),
+      setActiveState: vi.fn(),
+      upsertWorktree: vi.fn(),
+      upsertThread: vi.fn(),
+      upsertThreadSession,
+      deleteThread: vi.fn(),
+      renameThread,
+      getThread: vi.fn(() => buildThread()),
+      getThreadSession: vi.fn(() => null)
+    };
+    const service = new WorkspaceService(store as never);
+
+    const result = service.captureInitialPrompt(
+      "thread-1",
+      "Implement     the   current   thread sidebar name behavior with enough extra text to exceed the trim limit"
+    );
+
+    expect(result).toEqual({
+      renamed: true,
+      initialPrompt:
+        "Implement     the   current   thread sidebar name behavior with enough extra text to exceed the trim limit"
+    });
+    expect(renameThread).toHaveBeenCalledWith(
+      "thread-1",
+      "Implement the current thread sidebar name behavior with enough..."
+    );
+  });
+});
+
 describe("WorkspaceService.createWorktreeGroup", () => {
   it("creates a worktree with isDefault false and baseBranch", async () => {
     const upsertWorktree = vi.fn();
