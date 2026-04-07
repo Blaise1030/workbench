@@ -1,5 +1,14 @@
 # Opens and updates release PRs from Conventional Commits; merges create a version tag.
 # The tag triggers `.github/workflows/release.yml`, which builds installers and publishes the GitHub Release.
+#
+# If you see: "GitHub Actions is not permitted to create or approve pull requests":
+#   Repo → Settings → Actions → General → Workflow permissions:
+#   - "Read and write permissions" AND
+#   - Enable "Allow GitHub Actions to create and approve pull requests"
+#   https://docs.github.com/actions/how-to/use-workflows-and-actions/configure-workflow-permissions
+#
+# Or add repo secret RELEASE_PLEASE_TOKEN (fine-grained PAT: Contents + Pull requests + Issues read/write
+# on this repo; or classic PAT with `repo` scope) and this workflow will use it instead of GITHUB_TOKEN.
 name: Release Please
 
 on:
@@ -10,6 +19,7 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  issues: write
 
 concurrency:
   group: release-please-${{ github.ref }}
@@ -21,6 +31,6 @@ jobs:
     steps:
       - uses: googleapis/release-please-action@v4
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json

@@ -481,7 +481,7 @@ defineExpose({ openNewThreadMenu });
       </div>
     </div>
     <footer
-      class="shrink-0 border-t border-border p-2"
+      class="shrink-0 w-full border-t border-border p-2 [&_button]:w-full"
       :class="collapsed ? 'flex justify-center' : 'flex justify-start'"
     >
       <ThreadCreateButton

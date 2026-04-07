@@ -14,6 +14,10 @@
     "typecheck": "pnpm --filter workbench typecheck",
     "dist": "pnpm --filter workbench dist",
     "dist:dir": "pnpm --filter workbench dist:dir",
-    "rebuild:natives": "pnpm --filter workbench rebuild:natives"
+    "rebuild:natives": "pnpm --filter workbench rebuild:natives",
+    "dev:landing": "pnpm --filter apps-landing-page dev",
+    "build:landing": "pnpm --filter apps-landing-page build",
+    "preview:landing": "pnpm --filter apps-landing-page preview",
+    "deploy:landing": "pnpm --filter apps-landing-page run deploy"
   }
 }
