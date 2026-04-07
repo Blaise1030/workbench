@@ -104,6 +104,32 @@ describe("ThreadRow", () => {
     expect(wrapper.find('[data-testid="thread-rename"]').exists()).toBe(true);
   });
 
+  it("renders a flat action menu without border or shadow", async () => {
+    const wrapper = mount(ThreadRow, { props: { thread, isActive: false } });
+    await hoverThreadRow(wrapper);
+    await wrapper.get('[data-testid="thread-menu-trigger"]').trigger("click");
+
+    const menu = wrapper.get('[role="menu"]');
+    expect(menu.classes()).not.toContain("border");
+    expect(menu.classes()).not.toContain("shadow-md");
+    expect(menu.classes()).toContain("bg-popover");
+  });
+
+  it("uses list-style action rows with hover background and destructive delete text", async () => {
+    const wrapper = mount(ThreadRow, { props: { thread, isActive: false } });
+    await hoverThreadRow(wrapper);
+    await wrapper.get('[data-testid="thread-menu-trigger"]').trigger("click");
+
+    const rename = wrapper.get('[data-testid="thread-rename"]');
+    const deleteButton = wrapper.get('[data-testid="thread-delete"]');
+
+    expect(rename.classes()).toContain("hover:bg-accent");
+    expect(rename.classes()).not.toContain("border");
+    expect(deleteButton.classes()).toContain("text-destructive");
+    expect(deleteButton.classes()).toContain("hover:bg-accent");
+    expect(deleteButton.classes()).not.toContain("border");
+  });
+
   it("emits remove when Delete menu item is clicked", async () => {
     const wrapper = mount(ThreadRow, { props: { thread, isActive: false } });
     await hoverThreadRow(wrapper);

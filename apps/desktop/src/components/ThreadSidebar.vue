@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import type { RunStatus, Thread, ThreadAgent, Worktree } from "@shared/domain";
-import { PanelLeftClose, PanelLeftOpen } from "lucide-vue-next";
-import { computed, nextTick, ref, watch } from "vue";
+import { Plus } from "lucide-vue-next";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, useId, watch } from "vue";
 import BranchPicker from "@/components/BranchPicker.vue";
+import ThreadCreateButton from "@/components/ThreadCreateButton.vue";
 import ThreadGroupHeader from "@/components/ThreadGroupHeader.vue";
 import ThreadRow from "@/components/ThreadRow.vue";
 import ThreadTopBar from "@/components/ThreadTopBar.vue";
 import WorktreeStaleCallout from "@/components/WorktreeStaleCallout.vue";
-import BaseButton from "@/components/ui/BaseButton.vue";
 import { titleWithShortcut } from "@/keybindings/registry";
 
 const props = withDefaults(
@@ -57,7 +57,7 @@ const emit = defineEmits<{
   expand: [];
 }>();
 
-const topBarRef = ref<InstanceType<typeof ThreadTopBar> | null>(null);
+const createButtonRef = ref<InstanceType<typeof ThreadCreateButton> | null>(null);
 
 const ungroupedThreads = computed(() => {
   if (!props.defaultWorktreeId) return props.threads;
@@ -73,6 +73,14 @@ const groupData = computed(() => {
 });
 
 const collapsedGroups = ref<Set<string>>(new Set());
+const collapsedGroupTooltipId = `thread-group-collapsed-tooltip-${useId().replace(/:/g, "_")}`;
+const hoveredCollapsedGroupId = ref<string | null>(null);
+const focusedCollapsedGroupId = ref<string | null>(null);
+const openCollapsedGroupId = ref<string | null>(null);
+const collapsedGroupTooltipStyle = ref<Record<string, string>>({});
+const collapsedGroupPopoverStyle = ref<Record<string, string>>({});
+const collapsedGroupPopoverRef = ref<HTMLElement | null>(null);
+const collapsedGroupTriggerRefs = new Map<string, HTMLElement>();
 
 function toggleGroup(worktreeId: string): void {
   const next = new Set(collapsedGroups.value);
@@ -105,6 +113,17 @@ const ungroupedRenderedThreads = computed(() => {
   return renderedThreads.value.filter((t) => t.worktreeId === props.defaultWorktreeId);
 });
 
+const currentCollapsedTooltipGroup = computed(() => {
+  const activeId = hoveredCollapsedGroupId.value ?? focusedCollapsedGroupId.value;
+  if (!activeId || openCollapsedGroupId.value === activeId) return null;
+  return groupData.value.find((group) => group.worktree.id === activeId) ?? null;
+});
+
+const openCollapsedPopoverGroup = computed(() => {
+  if (!openCollapsedGroupId.value) return null;
+  return groupData.value.find((group) => group.worktree.id === openCollapsedGroupId.value) ?? null;
+});
+
 watch(
   () => props.threads,
   (threads) => {
@@ -112,6 +131,25 @@ watch(
     renderedThreads.value = [...threads];
   },
   { immediate: true }
+);
+
+watch(
+  [currentCollapsedTooltipGroup, openCollapsedPopoverGroup],
+  async () => {
+    await nextTick();
+    updateCollapsedGroupFloatingPositions();
+  }
+);
+
+watch(
+  () => props.collapsed,
+  (collapsed) => {
+    if (!collapsed) {
+      hoveredCollapsedGroupId.value = null;
+      focusedCollapsedGroupId.value = null;
+      openCollapsedGroupId.value = null;
+    }
+  }
 );
 
 function moveThread(threadId: string, targetThreadId: string): void {
@@ -227,15 +265,75 @@ function handleKeyboardReorder(threadId: string, direction: "up" | "down"): void
 }
 
 function openNewThreadMenu(): void {
-  if (props.collapsed) {
-    emit("expand");
-    void nextTick(() => {
-      topBarRef.value?.openNewThreadMenu();
-    });
-    return;
-  }
-  topBarRef.value?.openNewThreadMenu();
+  createButtonRef.value?.openMenu();
 }
+
+function setCollapsedGroupTriggerRef(worktreeId: string, el: Element | null): void {
+  if (el instanceof HTMLElement) {
+    collapsedGroupTriggerRefs.set(worktreeId, el);
+  } else {
+    collapsedGroupTriggerRefs.delete(worktreeId);
+  }
+}
+
+function getCollapsedGroupTriggerRect(): DOMRect | null {
+  const worktreeId = openCollapsedGroupId.value ?? currentCollapsedTooltipGroup.value?.worktree.id ?? null;
+  if (!worktreeId) return null;
+  return collapsedGroupTriggerRefs.get(worktreeId)?.getBoundingClientRect() ?? null;
+}
+
+function updateCollapsedGroupFloatingPositions(): void {
+  const rect = getCollapsedGroupTriggerRect();
+  if (!rect) return;
+
+  collapsedGroupTooltipStyle.value = {
+    left: `${Math.round(rect.right + 8)}px`,
+    top: `${Math.round(rect.top + rect.height / 2)}px`
+  };
+  collapsedGroupPopoverStyle.value = {
+    left: `${Math.round(rect.right + 8)}px`,
+    top: `${Math.round(rect.top)}px`
+  };
+}
+
+function handleCollapsedGroupPointerDown(event: MouseEvent): void {
+  if (!openCollapsedGroupId.value) return;
+
+  const activeTrigger = collapsedGroupTriggerRefs.get(openCollapsedGroupId.value);
+  const target = event.target as Node;
+  if (activeTrigger?.contains(target) || collapsedGroupPopoverRef.value?.contains(target)) return;
+
+  openCollapsedGroupId.value = null;
+}
+
+function handleCollapsedGroupKeydown(event: KeyboardEvent): void {
+  if (event.key === "Escape") {
+    openCollapsedGroupId.value = null;
+  }
+}
+
+function toggleCollapsedGroupPopover(worktreeId: string): void {
+  openCollapsedGroupId.value = openCollapsedGroupId.value === worktreeId ? null : worktreeId;
+}
+
+function handleCollapsedGroupSelect(threadId: string): void {
+  openCollapsedGroupId.value = null;
+  emit("select", threadId);
+}
+
+onMounted(() => {
+  document.addEventListener("pointerdown", handleCollapsedGroupPointerDown);
+  document.addEventListener("keydown", handleCollapsedGroupKeydown);
+  window.addEventListener("resize", updateCollapsedGroupFloatingPositions);
+  window.addEventListener("scroll", updateCollapsedGroupFloatingPositions, true);
+});
+
+onBeforeUnmount(() => {
+  document.removeEventListener("pointerdown", handleCollapsedGroupPointerDown);
+  document.removeEventListener("keydown", handleCollapsedGroupKeydown);
+  window.removeEventListener("resize", updateCollapsedGroupFloatingPositions);
+  window.removeEventListener("scroll", updateCollapsedGroupFloatingPositions, true);
+});
 
 defineExpose({ openNewThreadMenu });
 </script>
@@ -246,10 +344,9 @@ defineExpose({ openNewThreadMenu });
     :data-thread-sidebar-collapsed="collapsed ? 'true' : undefined"
   >
     <ThreadTopBar
-      ref="topBarRef"
       :collapsed="collapsed"
-      @create-with-agent="emit('createWithAgent', $event)"
-      @create-worktree-group="emit('showBranchPicker')"
+      @collapse="emit('collapse')"
+      @expand="emit('expand')"
     />
     <BranchPicker
       v-if="showBranchPicker && projectId"
@@ -304,73 +401,158 @@ defineExpose({ openNewThreadMenu });
         :key="group.worktree.id"
         :class="groupIndex > 0 || ungroupedRenderedThreads.length > 0 ? 'mt-2' : ''"
       >
-        <ThreadGroupHeader
-          data-testid="thread-group-header"
-          :title="group.worktree.name"
-          :thread-count="group.threads.length"
-          :is-stale="group.isStale"
-          :is-active="group.threads.some((t) => t.id === activeThreadId)"
-          :collapsed="collapsedGroups.has(group.worktree.id)"
-          @toggle="toggleGroup(group.worktree.id)"
-          @add-thread="emit('addThreadToGroup', group.worktree.id, $event)"
-          @delete="emit('deleteWorktreeGroup', group.worktree.id)"
-        />
+        <template v-if="collapsed">
+          <div class="px-2">
+            <button
+              :ref="(el) => setCollapsedGroupTriggerRef(group.worktree.id, el)"
+              type="button"
+              data-testid="thread-group-collapsed-trigger"
+              class="flex h-7 w-full items-center justify-center rounded-sm text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background"
+              :class="[
+                group.threads.some((t) => t.id === activeThreadId)
+                  ? 'bg-accent text-foreground'
+                  : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground',
+                group.isStale ? 'text-destructive/80' : ''
+              ]"
+              :aria-label="`Worktree ${group.worktree.name}`"
+              :aria-describedby="currentCollapsedTooltipGroup?.worktree.id === group.worktree.id
+                ? collapsedGroupTooltipId
+                : undefined"
+              :aria-expanded="openCollapsedGroupId === group.worktree.id"
+              aria-haspopup="dialog"
+              @mouseenter="hoveredCollapsedGroupId = group.worktree.id; updateCollapsedGroupFloatingPositions()"
+              @mouseleave="hoveredCollapsedGroupId = hoveredCollapsedGroupId === group.worktree.id ? null : hoveredCollapsedGroupId"
+              @focus="focusedCollapsedGroupId = group.worktree.id; updateCollapsedGroupFloatingPositions()"
+              @blur="focusedCollapsedGroupId = focusedCollapsedGroupId === group.worktree.id ? null : focusedCollapsedGroupId"
+              @click="toggleCollapsedGroupPopover(group.worktree.id)"
+            >
+              <span aria-hidden="true">🌳</span>
+            </button>
+          </div>
+        </template>
+        <template v-else>
+          <ThreadGroupHeader
+            data-testid="thread-group-header"
+            :title="group.worktree.name"
+            :thread-count="group.threads.length"
+            :is-stale="group.isStale"
+            :is-active="group.threads.some((t) => t.id === activeThreadId)"
+            :collapsed="collapsedGroups.has(group.worktree.id)"
+            @toggle="toggleGroup(group.worktree.id)"
+            @add-thread="emit('addThreadToGroup', group.worktree.id, $event)"
+            @delete="emit('deleteWorktreeGroup', group.worktree.id)"
+          />
 
-        <WorktreeStaleCallout
-          v-if="group.isStale && group.threads.length > 0"
-          :branch="group.worktree.branch"
-          @delete="emit('deleteWorktreeGroup', group.worktree.id)"
-          @dismiss="() => {}"
-        />
+          <WorktreeStaleCallout
+            v-if="group.isStale && group.threads.length > 0 && !collapsedGroups.has(group.worktree.id)"
+            :branch="group.worktree.branch"
+            @delete="emit('deleteWorktreeGroup', group.worktree.id)"
+          />
 
-        <ul
-          v-show="!collapsedGroups.has(group.worktree.id)"
-          class="space-y-0.5 px-2 pt-2"
-          :class="collapsed ? '' : 'pl-3'"
+          <ul
+            v-show="!collapsedGroups.has(group.worktree.id)"
+            class="space-y-0.5 px-2 pt-2"
+            :class="'pl-3'"
+          >
+            <li
+              v-for="thread in group.threads"
+              :key="thread.id"
+              :data-testid="`thread-list-item-${thread.id}`"
+            >
+              <ThreadRow
+                data-testid="thread-row"
+                :thread="thread"
+                :collapsed="collapsed"
+                :is-active="thread.id === activeThreadId"
+                :run-status="runStatusByThreadId?.[thread.id] ?? null"
+                :needs-attention="threadsNeedingAttention?.has(thread.id) ?? false"
+                :is-dragging="thread.id === draggedThreadId"
+                :is-drag-target="draggedThreadId !== null && thread.id === dragOverThreadId"
+                @dragstart="handleDragStart(thread.id, $event)"
+                @dragend="handleDragEnd"
+                @keyboard-reorder="handleKeyboardReorder(thread.id, $event)"
+                @select="emit('select', thread.id)"
+                @remove="emit('remove', thread.id)"
+                @rename="(title) => emit('rename', thread.id, title)"
+              />
+            </li>
+          </ul>
+        </template>
+      </div>
+    </div>
+    <footer
+      class="shrink-0 border-t border-border p-2"
+      :class="collapsed ? 'flex justify-center' : 'flex justify-start'"
+    >
+      <ThreadCreateButton
+        ref="createButtonRef"
+        :aria-label="'Add thread'"
+        :title="titleWithShortcut('Add thread', 'newThreadMenu')"
+        variant="outline"
+        class="w-full"
+        :size="collapsed ? 'icon-xs' : 'sm'"
+        data-testid="thread-sidebar-add-thread"
+        @create-with-agent="emit('createWithAgent', $event)"
+        @create-worktree-group="emit('showBranchPicker')"
+      >
+        <Plus class="h-3.5 w-3.5" />          
+        <span v-if="!collapsed">Add thread</span>
+      </ThreadCreateButton>
+    </footer>
+    <Teleport to="body">
+      <div
+        v-if="currentCollapsedTooltipGroup"
+        :id="collapsedGroupTooltipId"
+        data-testid="thread-group-collapsed-tooltip"
+        role="tooltip"
+        class="pointer-events-none fixed z-[200] -translate-y-1/2 whitespace-nowrap rounded-md border border-border bg-popover px-2 py-1 text-xs font-medium text-popover-foreground shadow-md"
+        :style="collapsedGroupTooltipStyle"
+      >
+        {{ currentCollapsedTooltipGroup.worktree.name }}
+      </div>
+      <div
+        v-if="openCollapsedPopoverGroup"
+        ref="collapsedGroupPopoverRef"
+        data-testid="thread-group-collapsed-popover"
+        role="dialog"
+        class="fixed z-[200] w-[min(18rem,calc(100vw-1.5rem))] rounded-md border border-border bg-popover p-1.5 text-popover-foreground shadow-md"
+        :style="collapsedGroupPopoverStyle"
+      >
+        <div class="flex items-center gap-2 px-2 py-1 text-xs font-medium">
+          <span aria-hidden="true">🌳</span>
+          <span class="min-w-0 truncate">{{ openCollapsedPopoverGroup.worktree.name }}</span>
+        </div>
+        <div
+          v-if="openCollapsedPopoverGroup.isStale"
+          class="px-2 py-1.5 text-xs text-destructive"
         >
+          Worktree missing
+        </div>
+        <div
+          v-else-if="openCollapsedPopoverGroup.threads.length === 0"
+          class="px-2 py-1.5 text-xs text-muted-foreground"
+        >
+          No threads in this worktree
+        </div>
+        <ul v-else class="space-y-0.5">
           <li
-            v-for="thread in group.threads"
+            v-for="thread in openCollapsedPopoverGroup.threads"
             :key="thread.id"
             :data-testid="`thread-list-item-${thread.id}`"
           >
             <ThreadRow
               data-testid="thread-row"
               :thread="thread"
-              :collapsed="collapsed"
               :is-active="thread.id === activeThreadId"
               :run-status="runStatusByThreadId?.[thread.id] ?? null"
               :needs-attention="threadsNeedingAttention?.has(thread.id) ?? false"
-              :is-dragging="thread.id === draggedThreadId"
-              :is-drag-target="draggedThreadId !== null && thread.id === dragOverThreadId"
-              @dragstart="handleDragStart(thread.id, $event)"
-              @dragend="handleDragEnd"
-              @keyboard-reorder="handleKeyboardReorder(thread.id, $event)"
-              @select="emit('select', thread.id)"
+              @select="handleCollapsedGroupSelect(thread.id)"
               @remove="emit('remove', thread.id)"
               @rename="(title) => emit('rename', thread.id, title)"
             />
           </li>
         </ul>
       </div>
-    </div>
-    <footer
-      class="shrink-0 border-t border-border p-2"
-      :class="collapsed ? 'flex justify-center' : 'flex justify-end'"
-    >
-      <BaseButton
-        type="button"
-        size="icon-xs"
-        variant="outline"
-        :aria-label="collapsed ? 'Expand threads sidebar' : 'Collapse threads sidebar'"
-        :title="collapsed
-          ? titleWithShortcut('Expand threads sidebar', 'toggleThreadSidebar')
-          : titleWithShortcut('Collapse threads sidebar', 'toggleThreadSidebar')"
-        data-testid="thread-sidebar-toggle"
-        @click="collapsed ? emit('expand') : emit('collapse')"
-      >
-        <PanelLeftOpen v-if="collapsed" class="h-3.5 w-3.5" />
-        <PanelLeftClose v-else class="h-3.5 w-3.5" />
-      </BaseButton>
-    </footer>
+    </Teleport>
   </aside>
 </template>

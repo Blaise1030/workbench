@@ -1,11 +1,10 @@
 <script setup lang="ts">
-import type { ThreadAgent } from "@shared/domain";
-import { Plus } from "lucide-vue-next";
-import { ref } from "vue";
+import { PanelLeftClose, PanelLeftOpen } from "lucide-vue-next";
 import Badge from "@/components/ui/Badge.vue";
+import BaseButton from "@/components/ui/BaseButton.vue";
 import WorkbenchLogoMark from "@/components/WorkbenchLogoMark.vue";
-import ThreadCreateButton from "@/components/ThreadCreateButton.vue";
 import { APP_DISPLAY_NAME } from "@/constants/appMeta";
+import { titleWithShortcut } from "@/keybindings/registry";
 
 withDefaults(
   defineProps<{
@@ -18,26 +17,29 @@ withDefaults(
 );
 
 const emit = defineEmits<{
-  createWithAgent: [agent: ThreadAgent];
-  createWorktreeGroup: [];
+  collapse: [];
+  expand: [];
 }>();
-
-const createButtonRef = ref<InstanceType<typeof ThreadCreateButton> | null>(null);
-
-function openNewThreadMenu(): void {
-  createButtonRef.value?.openMenu();
-}
-
-defineExpose({ openNewThreadMenu });
 </script>
 
 <template>
   <header
     v-if="collapsed"
-    class="flex shrink-0 select-none justify-center px-1 py-3"
+    class="flex shrink-0 select-none flex-col items-center gap-2 px-1 py-3"
   >
     <span class="sr-only">{{ title }} Alpha</span>
     <WorkbenchLogoMark variant="md" />
+    <BaseButton
+      type="button"
+      size="icon-xs"
+      variant="outline"
+      aria-label="Expand threads sidebar"
+      :title="titleWithShortcut('Expand threads sidebar', 'toggleThreadSidebar')"
+      data-testid="thread-sidebar-toggle"
+      @click="emit('expand')"
+    >
+      <PanelLeftOpen class="h-3.5 w-3.5" />
+    </BaseButton>
   </header>
   <header v-else class="flex shrink-0 select-none items-center gap-1 px-3 py-2.5">
     <h2
@@ -52,20 +54,21 @@ defineExpose({ openNewThreadMenu });
          <Badge
            variant="outline"
           data-testid="thread-sidebar-alpha-badge"
-          class="shadow-xs ms-0.5 h-3.5 mt-0.5 min-h-0 rounded-sm !px-1 !py-0 text-[8px] font-semibold uppercase leading-none tracking-wide"
+         class="shadow-xs ms-0.5 h-3.5 mt-0.5 min-h-0 rounded-sm !px-1 !py-0 text-[8px] font-semibold uppercase leading-none tracking-wide"
         >
           Alpha
         </Badge>
     </h2>
-    <div class="flex shrink-0 items-center justify-end">
-      <ThreadCreateButton
-        ref="createButtonRef"
-        variant="outline"
-        @create-with-agent="emit('createWithAgent', $event)"
-        @create-worktree-group="emit('createWorktreeGroup')"
-      >
-        <Plus class="h-3.5 w-3.5" />
-      </ThreadCreateButton>
-    </div>
+    <BaseButton
+      type="button"
+      size="icon-xs"
+      variant="outline"
+      aria-label="Collapse threads sidebar"
+      :title="titleWithShortcut('Collapse threads sidebar', 'toggleThreadSidebar')"
+      data-testid="thread-sidebar-toggle"
+      @click="emit('collapse')"
+    >
+      <PanelLeftClose class="h-3.5 w-3.5" />
+    </BaseButton>
   </header>
 </template>

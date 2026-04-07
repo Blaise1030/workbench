@@ -90,7 +90,7 @@ describe("ThreadSidebar", () => {
     expect(wrapper.findAll('[data-testid="thread-drag-handle"]')).toHaveLength(0);
   });
 
-  it("renders the expand toggle in the sidebar footer when collapsed", async () => {
+  it("renders the expand toggle in the top bar when collapsed", async () => {
     wrapper = mount(ThreadSidebar, {
       props: {
         threads: reorderedThreads,
@@ -104,7 +104,7 @@ describe("ThreadSidebar", () => {
     expect(wrapper.emitted("expand")).toEqual([[]]);
   });
 
-  it("renders the collapse toggle in the sidebar footer when expanded", async () => {
+  it("renders the collapse toggle in the top bar when expanded", async () => {
     wrapper = mount(ThreadSidebar, {
       props: {
         threads: reorderedThreads,
@@ -127,10 +127,10 @@ describe("ThreadSidebar", () => {
 
     expect(wrapper.text()).toContain("No threads");
     expect(wrapper.text()).not.toContain("No threads yet");
-    expect(wrapper.find('[aria-label="Add thread"]').exists()).toBe(false);
+    expect(wrapper.find('[aria-label="Add thread"]').exists()).toBe(true);
   });
 
-  it("emits createWithAgent when an agent row is chosen", async () => {
+  it("renders a labeled add-thread button in the footer when expanded", () => {
     wrapper = mount(ThreadSidebar, {
       props: {
         threads,
@@ -138,7 +138,30 @@ describe("ThreadSidebar", () => {
       }
     });
 
-    await wrapper.get('[aria-label="New thread"]').trigger("click");
+    expect(wrapper.get('[aria-label="Add thread"]').text()).toContain("Add thread");
+  });
+
+  it("renders an icon-only add-thread button in the footer when collapsed", () => {
+    wrapper = mount(ThreadSidebar, {
+      props: {
+        threads,
+        activeThreadId: "t1",
+        collapsed: true
+      }
+    });
+
+    expect(wrapper.get('[aria-label="Add thread"]').text()).toBe("");
+  });
+
+  it("emits createWithAgent when an agent row is chosen from the footer button", async () => {
+    wrapper = mount(ThreadSidebar, {
+      props: {
+        threads,
+        activeThreadId: "t1"
+      }
+    });
+
+    await wrapper.get('[aria-label="Add thread"]').trigger("click");
     await nextTick();
     const panel = document.querySelector('[data-testid="thread-agent-menu-panel"]');
     expect(panel).toBeTruthy();
@@ -361,6 +384,184 @@ describe("ThreadSidebar", () => {
     expect(wrapper.find('[data-testid="thread-group-header"]').exists()).toBe(true);
     expect(wrapper.find('[data-testid="thread-group-header"]').text()).toContain("feat/auth");
     expect(wrapper.findAll('[data-testid="thread-row"]')).toHaveLength(2);
+  });
+
+  it("hides stale worktree callouts when the sidebar is collapsed", () => {
+    const worktree: Worktree = {
+      id: "w-feat",
+      projectId: "p1",
+      name: "feat/auth",
+      branch: "feat/auth",
+      path: "/tmp/.worktrees/feat-auth",
+      isActive: true,
+      isDefault: false,
+      baseBranch: "main",
+      lastActiveThreadId: null,
+      createdAt: "2026-04-07T00:00:00Z",
+      updatedAt: "2026-04-07T00:00:00Z"
+    };
+
+    wrapper = mount(ThreadSidebar, {
+      props: {
+        threads: [
+          {
+            id: "t2",
+            projectId: "p1",
+            worktreeId: "w-feat",
+            title: "Grouped thread",
+            agent: "codex",
+            sortOrder: 0,
+            createdAt: "2026-04-07T00:01:00Z",
+            updatedAt: "2026-04-07T00:01:00Z"
+          }
+        ],
+        activeThreadId: "t2",
+        collapsed: true,
+        threadGroups: [worktree],
+        defaultWorktreeId: "w-default",
+        staleWorktreeIds: new Set(["w-feat"])
+      }
+    });
+
+    expect(wrapper.findComponent({ name: "WorktreeStaleCallout" }).exists()).toBe(false);
+    expect(wrapper.text()).not.toContain("Delete group & threads");
+  });
+
+  it("hides stale worktree callouts when the group is collapsed", async () => {
+    const worktree: Worktree = {
+      id: "w-feat",
+      projectId: "p1",
+      name: "feat/auth",
+      branch: "feat/auth",
+      path: "/tmp/.worktrees/feat-auth",
+      isActive: true,
+      isDefault: false,
+      baseBranch: "main",
+      lastActiveThreadId: null,
+      createdAt: "2026-04-07T00:00:00Z",
+      updatedAt: "2026-04-07T00:00:00Z"
+    };
+
+    wrapper = mount(ThreadSidebar, {
+      props: {
+        threads: [
+          {
+            id: "t2",
+            projectId: "p1",
+            worktreeId: "w-feat",
+            title: "Grouped thread",
+            agent: "codex",
+            sortOrder: 0,
+            createdAt: "2026-04-07T00:01:00Z",
+            updatedAt: "2026-04-07T00:01:00Z"
+          }
+        ],
+        activeThreadId: "t2",
+        threadGroups: [worktree],
+        defaultWorktreeId: "w-default",
+        staleWorktreeIds: new Set(["w-feat"])
+      }
+    });
+
+    expect(wrapper.text()).toContain("Delete group & threads");
+
+    await wrapper.get('[data-testid="thread-group-header"]').trigger("click");
+
+    expect(wrapper.findComponent({ name: "WorktreeStaleCallout" }).exists()).toBe(false);
+    expect(wrapper.text()).not.toContain("Delete group & threads");
+  });
+
+  it("shows a tooltip for collapsed worktree groups on hover", async () => {
+    const worktree: Worktree = {
+      id: "w-feat",
+      projectId: "p1",
+      name: "feat/auth",
+      branch: "feat/auth",
+      path: "/tmp/.worktrees/feat-auth",
+      isActive: true,
+      isDefault: false,
+      baseBranch: "main",
+      lastActiveThreadId: null,
+      createdAt: "2026-04-07T00:00:00Z",
+      updatedAt: "2026-04-07T00:00:00Z"
+    };
+
+    wrapper = mount(ThreadSidebar, {
+      props: {
+        threads: [
+          {
+            id: "t2",
+            projectId: "p1",
+            worktreeId: "w-feat",
+            title: "Grouped thread",
+            agent: "codex",
+            sortOrder: 0,
+            createdAt: "2026-04-07T00:01:00Z",
+            updatedAt: "2026-04-07T00:01:00Z"
+          }
+        ],
+        activeThreadId: "t2",
+        collapsed: true,
+        threadGroups: [worktree],
+        defaultWorktreeId: "w-default"
+      },
+      attachTo: document.body
+    });
+
+    expect(document.querySelector('[data-testid="thread-group-collapsed-tooltip"]')).toBeNull();
+
+    await wrapper.get('[data-testid="thread-group-collapsed-trigger"]').trigger("mouseenter");
+
+    expect(
+      document.querySelector('[data-testid="thread-group-collapsed-tooltip"]')?.textContent
+    ).toContain("feat/auth");
+  });
+
+  it("opens a popover thread list for collapsed worktree groups on click", async () => {
+    const worktree: Worktree = {
+      id: "w-feat",
+      projectId: "p1",
+      name: "feat/auth",
+      branch: "feat/auth",
+      path: "/tmp/.worktrees/feat-auth",
+      isActive: true,
+      isDefault: false,
+      baseBranch: "main",
+      lastActiveThreadId: null,
+      createdAt: "2026-04-07T00:00:00Z",
+      updatedAt: "2026-04-07T00:00:00Z"
+    };
+
+    wrapper = mount(ThreadSidebar, {
+      props: {
+        threads: [
+          {
+            id: "t2",
+            projectId: "p1",
+            worktreeId: "w-feat",
+            title: "Grouped thread",
+            agent: "codex",
+            sortOrder: 0,
+            createdAt: "2026-04-07T00:01:00Z",
+            updatedAt: "2026-04-07T00:01:00Z"
+          }
+        ],
+        activeThreadId: "t2",
+        collapsed: true,
+        threadGroups: [worktree],
+        defaultWorktreeId: "w-default"
+      },
+      attachTo: document.body
+    });
+
+    expect(document.querySelector('[data-testid="thread-group-collapsed-popover"]')).toBeNull();
+
+    await wrapper.get('[data-testid="thread-group-collapsed-trigger"]').trigger("click");
+
+    const popover = document.querySelector('[data-testid="thread-group-collapsed-popover"]');
+    expect(popover).not.toBeNull();
+    expect(popover?.textContent).toContain("Grouped thread");
+    expect(document.querySelectorAll('[data-testid="thread-group-collapsed-popover"] [data-testid="thread-row"]')).toHaveLength(1);
   });
 
   it("restores the original order and does not emit reorder when drag is canceled", async () => {

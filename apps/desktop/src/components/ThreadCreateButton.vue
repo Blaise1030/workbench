@@ -61,14 +61,14 @@ function updateFloatingPosition(): void {
   const rect = el.getBoundingClientRect();
   const sidebarRect = el.closest("aside")?.getBoundingClientRect();
   const gap = 4;
-  const minMenuWidthPx = 136;
+  const minMenuWidthPx = 200;
   const widthPx = sidebarRect
     ? Math.max(minMenuWidthPx, Math.min(188, sidebarRect.width * 0.78))
     : undefined;
   floatingMenuStyle.value = {
-    top: `${rect.bottom + gap}px`,
-    left: `${rect.left + rect.width / 2}px`,
-    transform: "translateX(-50%)",
+    top: `${rect.top - gap}px`,
+    left: `${rect.left}px`,
+    transform: "translateY(-100%)",
     width: widthPx != null ? `${widthPx}px` : "15rem"
   };
 }
@@ -165,45 +165,43 @@ onBeforeUnmount(() => {
         :id="menuId"
         ref="menuPanelRef"
         data-testid="thread-agent-menu-panel"
-        class="fixed z-[200] rounded-md border border-border bg-popover p-1.5 text-popover-foreground shadow-md"
+        class="fixed z-[200] rounded-xl border border-border bg-popover p-1.5 text-popover-foreground shadow-md"
         :style="floatingMenuStyle"
       >
         <h2
           :id="menuTitleId"
-          class="mb-1.5 px-0.5 text-xs font-semibold leading-tight text-foreground"
+          class="py-1 px-2 text-xs font-semibold leading-tight text-foreground"
         >
           Create thread
         </h2>
-        <div role="menu" :aria-labelledby="menuTitleId" class="flex flex-col">
-          <div v-if="showNewThreadGroup" class="border-b border-border pb-1.5">
-            <BaseButton
-              type="button"
-              variant="outline"
-              size="lg"
-              class="w-full font-medium"
-              role="menuitem"
-              @click="emit('createWorktreeGroup'); popoverOpen = false"
-            >
-              <span class="text-base leading-none">🌳</span>
-              <span>New Thread Group</span>
-            </BaseButton>
-            <p class="px-1.5 mt-1 text-center text-[9px] leading-snug text-muted-foreground">
-              Uses git worktrees for isolation
-            </p>
-          </div>
-          <div class="grid grid-cols-2 gap-1" :class="showNewThreadGroup ? 'mt-1.5' : ''">
+        <div role="menu" :aria-labelledby="menuTitleId" class="flex flex-col">          
+          <div class="flex flex-col gap-1" :class="showNewThreadGroup ? 'mt-1.5' : ''">
             <button
               v-for="opt in AGENT_OPTIONS"
               :key="opt.agent"
               type="button"
               role="menuitem"
               :title="opt.label"
-              class="flex aspect-square w-full min-w-0 flex-col items-center justify-center gap-1.5 rounded-md border border-border/70 bg-card/60 p-1 text-center shadow-sm transition-[border-color,box-shadow,background-color] duration-150 hover:border-border hover:bg-accent/40 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-popover"
+              class="flex w-full min-w-0 items-center justify-start gap-2 rounded-md px-2.5 py-2 text-left transition-colors duration-150 hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-popover"
               @click="pickAgent(opt.agent)"
             >
-              <AgentIcon :agent="opt.agent" :size="22" class="shrink-0" />
-              <span class="w-full min-w-0 truncate text-[9px] leading-tight">{{ opt.label }}</span>
+              <AgentIcon :agent="opt.agent" :size="18" class="shrink-0" />
+              <span class="min-w-0 truncate text-xs font-medium leading-tight">{{ opt.label }}</span>
             </button>
+          </div>
+          <div v-if="showNewThreadGroup" class="border-t border-border pt-1.5">
+            <button
+              type="button"
+              class="flex w-full min-w-0 items-center justify-start gap-2 rounded-md px-2.5 py-2 text-left transition-colors duration-150 hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-popover"
+              role="menuitem"
+              @click="emit('createWorktreeGroup'); popoverOpen = false"
+            >
+              <span class="text-base leading-none">🌳</span>
+              <span class="min-w-0 truncate text-xs font-medium leading-tight">New Thread Group</span>
+            </button>
+            <p class="px-1.5 mt-1 text-start text-[9px] leading-snug text-muted-foreground">
+              Uses git worktrees for isolation
+            </p>
           </div>
         </div>
       </div>
