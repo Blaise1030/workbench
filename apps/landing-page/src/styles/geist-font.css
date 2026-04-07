@@ -1,0 +1,21 @@
+/**
+ * Vercel Geist & Geist Mono (variable woff2 from the `geist` npm package, SIL OFL).
+ * Same pattern as apps/desktop/src/styles/geist-font.css
+ * @see https://github.com/vercel/geist-font
+ */
+
+@font-face {
+	font-family: "Geist";
+	font-style: normal;
+	font-weight: 100 900;
+	font-display: swap;
+	src: url("../../node_modules/geist/dist/fonts/geist-sans/Geist-Variable.woff2") format("woff2-variations");
+}
+
+@font-face {
+	font-family: "Geist Mono";
+	font-style: normal;
+	font-weight: 100 900;
+	font-display: swap;
+	src: url("../../node_modules/geist/dist/fonts/geist-mono/GeistMono-Variable.woff2") format("woff2-variations");
+}

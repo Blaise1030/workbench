@@ -38,6 +38,8 @@ describe("FileSearchEditor", () => {
   const writeFile = vi.fn<WorkspaceApi["writeFile"]>();
   const createFile = vi.fn<WorkspaceApi["createFile"]>();
   const deleteFile = vi.fn<WorkspaceApi["deleteFile"]>();
+  let onWorkspaceChangedCb: (() => void) | null = null;
+  let onWorkingTreeFilesChangedCb: (() => void) | null = null;
 
   beforeEach(() => {
     vi.useFakeTimers();
@@ -47,6 +49,8 @@ describe("FileSearchEditor", () => {
     writeFile.mockReset();
     createFile.mockReset();
     deleteFile.mockReset();
+    onWorkspaceChangedCb = null;
+    onWorkingTreeFilesChangedCb = null;
 
     window.workspaceApi = {
       getSnapshot: vi.fn(),
@@ -77,8 +81,14 @@ describe("FileSearchEditor", () => {
       ptyResize: vi.fn(),
       ptyKill: vi.fn(),
       onPtyData: vi.fn(() => () => {}),
-      onWorkspaceChanged: vi.fn(() => () => {}),
-      onWorkingTreeFilesChanged: vi.fn(() => () => {}),
+      onWorkspaceChanged: vi.fn((cb: () => void) => {
+        onWorkspaceChangedCb = cb;
+        return () => {};
+      }),
+      onWorkingTreeFilesChanged: vi.fn((cb: () => void) => {
+        onWorkingTreeFilesChangedCb = cb;
+        return () => {};
+      }),
       pickRepoDirectory: vi.fn()
     };
   });
@@ -105,6 +115,45 @@ describe("FileSearchEditor", () => {
     expect(wrapper.text()).toContain("src");
     expect(wrapper.text()).toContain("App.vue");
     expect(wrapper.text()).not.toContain("FileSearchEditor.vue");
+  });
+
+  it("refreshes file explorer when the refresh control is clicked", async () => {
+    listFiles
+      .mockResolvedValueOnce([{ relativePath: "src/App.vue", size: 11, modifiedAt: 1 }])
+      .mockResolvedValueOnce([{ relativePath: "src/App.vue", size: 11, modifiedAt: 1 }]);
+
+    const wrapper = mount(FileSearchEditor, {
+      props: { worktreePath: "/tmp/project" }
+    });
+
+    await flushPromises();
+    await wrapper.get('[data-testid="refresh-file-explorer"]').trigger("click");
+    await flushPromises();
+
+    expect(listFiles).toHaveBeenCalledTimes(2);
+    expect(listFiles).toHaveBeenNthCalledWith(2, "/tmp/project");
+  });
+
+  it("auto-refreshes file explorer on workspace and working-tree change events", async () => {
+    listFiles
+      .mockResolvedValueOnce([{ relativePath: "src/App.vue", size: 11, modifiedAt: 1 }])
+      .mockResolvedValueOnce([{ relativePath: "src/App.vue", size: 11, modifiedAt: 2 }])
+      .mockResolvedValueOnce([{ relativePath: "src/App.vue", size: 11, modifiedAt: 3 }]);
+
+    mount(FileSearchEditor, {
+      props: { worktreePath: "/tmp/project" }
+    });
+    await flushPromises();
+
+    expect(onWorkspaceChangedCb).toBeTypeOf("function");
+    expect(onWorkingTreeFilesChangedCb).toBeTypeOf("function");
+
+    onWorkspaceChangedCb?.();
+    await flushPromises();
+    onWorkingTreeFilesChangedCb?.();
+    await flushPromises();
+
+    expect(listFiles).toHaveBeenCalledTimes(3);
   });
 
   it("renders the search input with the updated field styling", async () => {
