@@ -8,8 +8,8 @@ const APP_DISPLAY_NAME = "workbench";
 <html lang="en">
 	<head>
 		<meta charset="utf-8" />
-		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-		<link rel="icon" href="/favicon.ico" />
+		<link rel="icon" type="image/png" href="/workbench-logo.png" />
+		<link rel="apple-touch-icon" href="/workbench-logo.png" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
 		<meta name="generator" content={Astro.generator} />
 		<meta
@@ -93,7 +93,7 @@ const APP_DISPLAY_NAME = "workbench";
 			<section class="mx-auto max-w-5xl pb-24 md:pb-32" aria-labelledby="preview-heading">
 				<h2 id="preview-heading" class="sr-only">Product preview</h2>
 				<figure
-					class="flex flex-col overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-lg shadow-zinc-900/5"
+					class="preview-scale-in flex flex-col overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-lg shadow-zinc-900/5"
 				>
 					<figcaption
 						class="shrink-0 border-b border-zinc-200/80 bg-zinc-50/95 px-4 py-3 text-center text-xs text-zinc-600"
@@ -135,5 +135,27 @@ const APP_DISPLAY_NAME = "workbench";
 				</div>
 			</div>
 		</footer>
+
+		<script>
+			const preview = document.querySelector(".preview-scale-in");
+			if (preview) {
+				if ("IntersectionObserver" in window) {
+					const io = new IntersectionObserver(
+						(entries) => {
+							for (const e of entries) {
+								if (e.isIntersecting) {
+									e.target.classList.add("preview-scale-in--visible");
+									io.disconnect();
+								}
+							}
+						},
+						{ root: null, rootMargin: "0px 0px -8% 0px", threshold: 0.12 }
+					);
+					io.observe(preview);
+				} else {
+					preview.classList.add("preview-scale-in--visible");
+				}
+			}
+		</script>
 	</body>
 </html>
