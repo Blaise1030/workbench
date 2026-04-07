@@ -48,6 +48,10 @@ export const IPC_CHANNELS = {
   terminalPtyGetBuffer: "terminal:ptyGetBuffer",
   terminalPtyData: "terminal:ptyData",
   dialogPickRepoDirectory: "dialog:pickRepoDirectory",
+  workspaceCreateWorktreeGroup: "workspace:createWorktreeGroup",
+  workspaceDeleteWorktreeGroup: "workspace:deleteWorktreeGroup",
+  workspaceListBranches: "workspace:listBranches",
+  workspaceWorktreeHealth: "workspace:worktreeHealth",
   /** macOS often captures ⌘, for the app menu; main sends this so the renderer can open settings. */
   uiOpenWorkspaceSettings: "ui:openWorkspaceSettings"
 } as const;
@@ -77,6 +81,14 @@ export interface AddProjectInput {
   name: string;
   repoPath: string;
   defaultBranch?: string;
+}
+
+export interface CreateWorktreeGroupInput {
+  projectId: string;
+  /** Existing branch name, or new branch to create. */
+  branch: string;
+  /** When creating a new branch, the base to branch from. Null if using existing branch. */
+  baseBranch: string | null;
 }
 
 export interface AddWorktreeInput {
