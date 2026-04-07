@@ -45,9 +45,11 @@ describe("WorkspaceService.maybeRenameThreadFromPrompt", () => {
       setActiveState: vi.fn(),
       upsertWorktree: vi.fn(),
       upsertThread: vi.fn(),
+      upsertThreadSession: vi.fn(),
       deleteThread: vi.fn(),
       renameThread,
-      getThread: vi.fn(() => buildThread())
+      getThread: vi.fn(() => buildThread()),
+      getThreadSession: vi.fn(() => null)
     };
     const service = new WorkspaceService(store as never);
 
@@ -64,9 +66,11 @@ describe("WorkspaceService.maybeRenameThreadFromPrompt", () => {
       setActiveState: vi.fn(),
       upsertWorktree: vi.fn(),
       upsertThread: vi.fn(),
+      upsertThreadSession: vi.fn(),
       deleteThread: vi.fn(),
       renameThread,
-      getThread: vi.fn(() => buildThread())
+      getThread: vi.fn(() => buildThread()),
+      getThreadSession: vi.fn(() => null)
     };
     const service = new WorkspaceService(store as never);
 
@@ -83,6 +87,7 @@ describe("WorkspaceService.maybeRenameThreadFromPrompt", () => {
       setActiveState: vi.fn(),
       upsertWorktree: vi.fn(),
       upsertThread: vi.fn(),
+      upsertThreadSession: vi.fn(),
       deleteThread: vi.fn(),
       renameThread,
       getThread: vi.fn(() =>
@@ -90,7 +95,8 @@ describe("WorkspaceService.maybeRenameThreadFromPrompt", () => {
           title: "Investigate flaky auth flow",
           updatedAt: "2026-04-06T00:02:00.000Z"
         })
-      )
+      ),
+      getThreadSession: vi.fn(() => null)
     };
     const service = new WorkspaceService(store as never);
 
@@ -107,6 +113,7 @@ describe("WorkspaceService.maybeRenameThreadFromPrompt", () => {
       setActiveState: vi.fn(),
       upsertWorktree: vi.fn(),
       upsertThread: vi.fn(),
+      upsertThreadSession: vi.fn(),
       deleteThread: vi.fn(),
       renameThread,
       getThread: vi.fn(() =>
@@ -114,7 +121,8 @@ describe("WorkspaceService.maybeRenameThreadFromPrompt", () => {
           title: "Refactor sidebar thread naming",
           updatedAt: "2026-04-06T00:01:00.000Z"
         })
-      )
+      ),
+      getThreadSession: vi.fn(() => null)
     };
     const service = new WorkspaceService(store as never);
 
@@ -192,6 +200,79 @@ describe("WorkspaceService.captureInitialPrompt", () => {
     expect(result).toEqual({
       renamed: false,
       initialPrompt: "Refactor sidebar thread naming"
+    });
+    expect(renameThread).not.toHaveBeenCalled();
+    expect(upsertThreadSession).not.toHaveBeenCalled();
+  });
+
+  it("does not persist a bogus first prompt for a legacy already-renamed thread with no session row", () => {
+    const renameThread = vi.fn();
+    const upsertThreadSession = vi.fn();
+    const getThreadSession = vi.fn(() => null);
+    const store = {
+      getSnapshot: vi.fn(),
+      upsertProject: vi.fn(),
+      setActiveState: vi.fn(),
+      upsertWorktree: vi.fn(),
+      upsertThread: vi.fn(),
+      upsertThreadSession,
+      deleteThread: vi.fn(),
+      renameThread,
+      getThread: vi.fn(() =>
+        buildThread({
+          title: "Investigate flaky auth flow",
+          updatedAt: "2026-04-06T00:01:00.000Z"
+        })
+      ),
+      getThreadSession
+    };
+    const service = new WorkspaceService(store as never);
+
+    const result = service.captureInitialPrompt("thread-1", "Follow-up prompt after rename");
+
+    expect(result).toEqual({
+      renamed: false,
+      initialPrompt: null
+    });
+    expect(renameThread).not.toHaveBeenCalled();
+    expect(upsertThreadSession).not.toHaveBeenCalled();
+    expect(getThreadSession).toHaveBeenCalledWith("thread-1");
+  });
+
+  it("falls back to the current prompt when an existing session is missing initialPrompt", () => {
+    const renameThread = vi.fn();
+    const upsertThreadSession = vi.fn();
+    const store = {
+      getSnapshot: vi.fn(),
+      upsertProject: vi.fn(),
+      setActiveState: vi.fn(),
+      upsertWorktree: vi.fn(),
+      upsertThread: vi.fn(),
+      upsertThreadSession,
+      deleteThread: vi.fn(),
+      renameThread,
+      getThread: vi.fn(() => buildThread()),
+      getThreadSession: vi.fn(() => ({
+        threadId: "thread-1",
+        provider: "codex",
+        resumeId: null,
+        initialPrompt: null,
+        titleCapturedAt: "2026-04-06T00:01:00.000Z",
+        launchMode: "fresh",
+        status: "idle",
+        lastActivityAt: "2026-04-06T00:01:00.000Z",
+        metadataJson: null,
+        createdAt: "2026-04-06T00:00:00.000Z",
+        updatedAt: "2026-04-06T00:01:00.000Z"
+      }))
+    };
+    const service = new WorkspaceService(store as never);
+
+    const result = service.captureInitialPrompt("thread-1", "Fallback current prompt");
+
+    expect(result).toEqual({
+      renamed: false,
+      initialPrompt: "Fallback current prompt"
     });
     expect(renameThread).not.toHaveBeenCalled();
     expect(upsertThreadSession).not.toHaveBeenCalled();

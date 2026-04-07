@@ -124,19 +124,24 @@ export class WorkspaceService {
     const thread = this.store.getThread(threadId);
     if (!thread) return { renamed: false, initialPrompt: null };
 
-    const sessionStore = this.store as WorkspaceStore &
-      Partial<Pick<WorkspaceStore, "getThreadSession" | "upsertThreadSession">>;
-    const existingSession = sessionStore.getThreadSession?.(threadId) ?? null;
+    const existingSession = this.store.getThreadSession(threadId);
     if (existingSession?.titleCapturedAt) {
       return {
         renamed: false,
-        initialPrompt: existingSession.initialPrompt
+        initialPrompt: existingSession.initialPrompt ?? input
+      };
+    }
+
+    if (!hasDefaultGeneratedTitle(thread)) {
+      return {
+        renamed: false,
+        initialPrompt: null
       };
     }
 
     const now = new Date().toISOString();
     const initialPrompt = existingSession?.initialPrompt ?? input;
-    sessionStore.upsertThreadSession?.({
+    this.store.upsertThreadSession({
       threadId,
       provider: thread.agent,
       resumeId: existingSession?.resumeId ?? null,
@@ -150,7 +155,7 @@ export class WorkspaceService {
       updatedAt: now
     });
 
-    if (!hasDefaultGeneratedTitle(thread) || thread.title === nextTitle) {
+    if (thread.title === nextTitle) {
       return {
         renamed: false,
         initialPrompt
