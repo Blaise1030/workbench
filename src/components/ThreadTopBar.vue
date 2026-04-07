@@ -19,6 +19,7 @@ withDefaults(
 
 const emit = defineEmits<{
   createWithAgent: [agent: ThreadAgent];
+  createWorktreeGroup: [];
 }>();
 
 const createButtonRef = ref<InstanceType<typeof ThreadCreateButton> | null>(null);
@@ -57,7 +58,7 @@ defineExpose({ openNewThreadMenu });
         </Badge>
     </h2>
     <div class="flex shrink-0 items-center justify-end">
-      <ThreadCreateButton ref="createButtonRef" @create-with-agent="emit('createWithAgent', $event)">
+      <ThreadCreateButton ref="createButtonRef" @create-with-agent="emit('createWithAgent', $event)" @create-worktree-group="emit('createWorktreeGroup')">
         <Plus class="h-3.5 w-3.5" />
       </ThreadCreateButton>
     </div>

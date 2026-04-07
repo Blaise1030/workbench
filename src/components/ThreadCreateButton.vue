@@ -31,6 +31,7 @@ withDefaults(
 
 const emit = defineEmits<{
   createWithAgent: [agent: ThreadAgent];
+  createWorktreeGroup: [];
 }>();
 
 const AGENT_OPTIONS: { agent: ThreadAgent; label: string }[] = [
@@ -178,6 +179,20 @@ onBeforeUnmount(() => {
             <AgentIcon :agent="opt.agent" :size="28" class="shrink-0" />
             <span class="w-full min-w-0 truncate text-[10px] leading-tight">{{ opt.label }}</span>
           </button>
+        </div>
+        <div class="mt-1.5 border-t border-border pt-1.5">
+          <button
+            type="button"
+            role="menuitem"
+            class="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs hover:bg-accent"
+            @click="emit('createWorktreeGroup'); popoverOpen = false"
+          >
+            <span class="text-sm">&#127807;</span>
+            <span>New Thread Group</span>
+          </button>
+          <p class="px-2 pt-0.5 text-[9px] text-muted-foreground">
+            Uses git worktrees for isolation
+          </p>
         </div>
       </div>
     </Teleport>
