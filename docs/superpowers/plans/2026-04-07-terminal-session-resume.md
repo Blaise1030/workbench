@@ -105,6 +105,8 @@ export interface ThreadSession {
 }
 ```
 
+Note: `provider` should stay aligned with the owning thread's `agent` value. If a later wrapper needs to launch a different underlying CLI binary (for example, a `cursor` thread kind invoking `agent --resume`), that translation belongs in the provider-adapter layer, not in the persisted session type.
+
 ```sql
 CREATE TABLE IF NOT EXISTS thread_sessions (
   thread_id TEXT PRIMARY KEY,

@@ -94,6 +94,8 @@ Each wrapper:
 
 The wrapper is intentionally thin. Its job is metadata capture and normalization, not UI policy.
 
+`provider` stores the app's thread-agent taxonomy, not necessarily the literal CLI binary name. For example, the existing `cursor` thread kind may be implemented by a wrapper that launches `agent --resume ...`. The provider adapter layer is responsible for that mapping; the persisted session record stays aligned with the owning thread's `agent`.
+
 ### Sideband Metadata Channel
 
 The wrapper emits metadata updates over an app-local side channel. The transport can be a local NDJSON event file, Unix domain socket, or another local IPC mechanism. The design requirement is a normalized event stream that survives wrapper restarts well enough for the main process to persist canonical state.
