@@ -40,7 +40,7 @@ describe("electron-builder packaging metadata", () => {
     expect(rootPackage.scripts?.test).toContain("--filter");
 
     expect(desktopPackage.name).toBe("workbench");
-    expect(desktopPackage.scripts?.dev).toContain("vite");
+    expect(desktopPackage.scripts?.dev).toContain("runViteDev.cjs");
     expect(desktopPackage.scripts?.build).toContain("vite build");
   });
 });
