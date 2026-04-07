@@ -14,6 +14,7 @@ export class WorkspaceStore {
     fs.mkdirSync(baseDir, { recursive: true });
     const dbPath = path.join(baseDir, filename);
     this.db = new Database(dbPath);
+    this.db.exec("PRAGMA foreign_keys = ON");
   }
 
   migrate(schemaSql: string): void {
@@ -244,6 +245,9 @@ export class WorkspaceStore {
 
   deleteWorktreeGroup(worktreeId: string): void {
     const tx = this.db.transaction(() => {
+      this.db
+        .prepare("DELETE FROM thread_sessions WHERE thread_id IN (SELECT id FROM threads WHERE worktree_id = ?)")
+        .run(worktreeId);
       this.db.prepare("DELETE FROM threads WHERE worktree_id = ?").run(worktreeId);
       this.db.prepare("DELETE FROM worktrees WHERE id = ?").run(worktreeId);
     });
@@ -380,7 +384,7 @@ export class WorkspaceStore {
       activeProjectId: active?.activeProjectId ?? null,
       activeWorktreeId: active?.activeWorktreeId ?? null,
       activeThreadId: active?.activeThreadId ?? null
-    } as WorkspaceSnapshot;
+    };
   }
 
   private backfillLegacyThreadSortOrders(): void {

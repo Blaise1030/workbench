@@ -2,6 +2,7 @@ export type RunStatus = "running" | "needsReview" | "failed" | "done";
 
 /** Agent associated with a thread (run adapters may only support a subset). */
 export type ThreadAgent = "claude" | "cursor" | "codex" | "gemini";
+export type ThreadSessionProvider = "claude" | "codex" | "agent" | "gemini";
 export type ThreadSessionLaunchMode = "fresh" | "resume";
 export type ThreadSessionStatus = "idle" | "active" | "resumable" | "resumeFailed";
 
@@ -42,7 +43,7 @@ export interface Thread {
 
 export interface ThreadSession {
   threadId: string;
-  provider: ThreadAgent;
+  provider: ThreadSessionProvider;
   resumeId: string | null;
   initialPrompt: string | null;
   titleCapturedAt: string | null;

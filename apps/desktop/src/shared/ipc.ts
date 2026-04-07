@@ -1,4 +1,4 @@
-import type { Project, Thread, ThreadAgent, Worktree } from "./domain";
+import type { Project, Thread, ThreadSession, ThreadAgent, Worktree } from "./domain";
 
 export const IPC_CHANNELS = {
   workspaceGetSnapshot: "workspace:getSnapshot",
@@ -61,6 +61,7 @@ export interface WorkspaceSnapshot {
   projects: Project[];
   worktrees: Worktree[];
   threads: Thread[];
+  threadSessions: ThreadSession[];
   activeProjectId: string | null;
   activeWorktreeId: string | null;
   activeThreadId: string | null;

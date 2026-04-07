@@ -10,7 +10,6 @@ vi.mock("better-sqlite3", async () => {
 
 import Database from "better-sqlite3";
 import type { Project, Thread, ThreadSession, Worktree } from "../../../src/shared/domain";
-import type { WorkspaceSnapshot } from "../../../src/shared/ipc";
 import { WorkspaceStore } from "../store";
 
 const CURRENT_SCHEMA_PATH = path.resolve(__dirname, "..", "schema.sql");
@@ -158,7 +157,7 @@ function makeThread(overrides: Partial<StoreThread> = {}): StoreThread {
 function makeThreadSession(overrides: Partial<StoreThreadSession> = {}): StoreThreadSession {
   return {
     threadId: "thread-1",
-    provider: "codex",
+    provider: "agent",
     resumeId: "resume-123",
     initialPrompt: "Fix the flaky sidebar test",
     titleCapturedAt: "2026-04-07T10:00:05.000Z",
@@ -431,9 +430,7 @@ describe("WorkspaceStore", () => {
 
     expect(reopenedStore.getThreadSession("thread-1")).toEqual(makeThreadSession());
     expect(reopenedStore.listThreadSessions()).toEqual([makeThreadSession()]);
-    expect((reopenedStore.getSnapshot() as WorkspaceSnapshot & { threadSessions: ThreadSession[] }).threadSessions).toEqual([
-      makeThreadSession()
-    ]);
+    expect(reopenedStore.getSnapshot().threadSessions).toEqual([makeThreadSession()]);
   });
 
   it("removes thread sessions when the owning thread is deleted", () => {
@@ -460,12 +457,18 @@ describe("WorkspaceStore", () => {
     store.upsertThread(makeThread({ id: "t1", worktreeId: "wt-feat", sortOrder: 0 }));
     store.upsertThread(makeThread({ id: "t2", worktreeId: "wt-feat", sortOrder: 1 }));
     store.upsertThread(makeThread({ id: "t3", worktreeId: "wt-default", sortOrder: 0 }));
+    store.upsertThreadSession(makeThreadSession({ threadId: "t1" }));
+    store.upsertThreadSession(makeThreadSession({ threadId: "t2", resumeId: "resume-456" }));
+    store.upsertThreadSession(makeThreadSession({ threadId: "t3", resumeId: "resume-789" }));
 
     store.deleteWorktreeGroup("wt-feat");
 
     const snapshot = store.getSnapshot();
     expect(snapshot.worktrees.map((w) => w.id)).toEqual(["wt-default"]);
     expect(snapshot.threads.map((t) => t.id)).toEqual(["t3"]);
+    expect(snapshot.threadSessions.map((session) => session.threadId)).toEqual(["t3"]);
+    expect(store.getThreadSession("t1")).toBeNull();
+    expect(store.getThreadSession("t2")).toBeNull();
   });
 
   it("normalizes legacy duplicate sort orders and creates a unique worktree sort index during migration", () => {
