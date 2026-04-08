@@ -15,9 +15,14 @@ export class PtyService {
   private sessions = new Map<string, PtySession>();
   private pendingInputBySessionId = new Map<string, string>();
   private submittedInputListener: ((sessionId: string, input: string) => void) | null = null;
+  private rawDataListener: ((sessionId: string, data: string) => void) | null = null;
 
   setSubmittedInputListener(listener: ((sessionId: string, input: string) => void) | null): void {
     this.submittedInputListener = listener;
+  }
+
+  setRawDataListener(listener: ((sessionId: string, data: string) => void) | null): void {
+    this.rawDataListener = listener;
   }
 
   /**
@@ -46,6 +51,7 @@ export class PtyService {
       if (Buffer.byteLength(session.buffer, "utf8") > MAX_BUFFER_BYTES) {
         session.buffer = session.buffer.slice(-MAX_BUFFER_BYTES);
       }
+      this.rawDataListener?.(sessionId, data);
       const payload = { sessionId, data };
       for (const win of BrowserWindow.getAllWindows()) {
         win.webContents.send(IPC_CHANNELS.terminalPtyData, payload);
