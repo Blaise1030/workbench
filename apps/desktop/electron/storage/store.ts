@@ -118,11 +118,25 @@ export class WorkspaceStore {
       .run();
   }
 
-  nextThreadSortOrder(worktreeId: string): number {
-    const row = this.db
-      .prepare("SELECT COALESCE(MAX(sort_order) + 1, 0) AS nextSortOrder FROM threads WHERE worktree_id = ?")
-      .get(worktreeId) as { nextSortOrder: number } | undefined;
-    return row?.nextSortOrder ?? 0;
+  /**
+   * Reserves sort_order 0 for a new thread by bumping existing rows (high → low) so the
+   * unique (worktree_id, sort_order) index is never violated.
+   */
+  prependThreadSortOrderForWorktree(worktreeId: string): number {
+    const tx = this.db.transaction((wtId: string) => {
+      const rows = this.db
+        .prepare(
+          `SELECT id FROM threads WHERE worktree_id = ?
+           ORDER BY sort_order DESC, created_at DESC, id DESC`
+        )
+        .all(wtId) as Array<{ id: string }>;
+      const bump = this.db.prepare(`UPDATE threads SET sort_order = sort_order + 1 WHERE id = ?`);
+      for (const row of rows) {
+        bump.run(row.id);
+      }
+    });
+    tx(worktreeId);
+    return 0;
   }
 
   upsertProject(project: Project): void {

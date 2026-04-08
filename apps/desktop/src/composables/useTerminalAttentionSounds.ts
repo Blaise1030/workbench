@@ -5,26 +5,43 @@ import { playTerminalChirp } from "@/terminal/playTerminalChirp";
 /**
  * Subscribes once to `onPtyData`, plays attention chirp per spec (bell + optional one-shot background).
  * `visibleSessionId` is the PTY session id currently shown in the center panel (`null` on Git Diff / no session).
+ *
+ * **Chime cap:** at most **one** chirp per PTY session while that session is not visible; re-armed when the user
+ * switches back to that session (same visible id). Stops repeated bells or background chunks from spamming sound.
  */
 export function useTerminalAttentionSounds(opts: {
   visibleSessionId: Ref<string | null>;
   notificationsEnabled: Ref<boolean>;
   bellEnabled: Ref<boolean>;
   backgroundEnabled: Ref<boolean>;
-  /** Fired when terminal attention would play a sound for a session that is not currently visible (e.g. another thread or Git Diff tab). */
-  onUnviewedAttention?: (sessionId: string) => void;
 }): void {
   /** `true` = one-shot armed; `false` = disarmed until re-arm; missing = treat as armed. */
   const backgroundArmedBySession = new Map<string, boolean>();
+  /** After a chime for a session while away, `false` until that session is visible again. */
+  const chimeArmedBySession = new Map<string, boolean>();
 
   function rearmVisibleSession(): void {
     const v = opts.visibleSessionId.value;
     if (v != null) {
       backgroundArmedBySession.set(v, true);
+      chimeArmedBySession.set(v, true);
     }
   }
 
-  watch(() => opts.visibleSessionId.value, rearmVisibleSession, { flush: "sync" });
+  watch(
+    () => opts.visibleSessionId.value,
+    (_, prev) => {
+      // While a session is visible, BEL does not play and does not consume the one-shot chime.
+      // After switching away, that session would still be "armed" until the next visit, so the next
+      // BEL from the thread we left (still running) would incorrectly chirp. Disarm on leave.
+      if (prev != null) {
+        chimeArmedBySession.set(prev, false);
+        backgroundArmedBySession.set(prev, false);
+      }
+      rearmVisibleSession();
+    },
+    { flush: "sync" }
+  );
 
   let disposePty: (() => void) | null = null;
 
@@ -39,7 +56,6 @@ export function useTerminalAttentionSounds(opts: {
     disposePty = api.onPtyData((sessionId, data) => {
       const visibleSessionId = opts.visibleSessionId.value;
       const armed = backgroundArmedBySession.get(sessionId) !== false;
-      const inView = visibleSessionId != null && sessionId === visibleSessionId;
 
       const decision = decideTerminalAttentionChunk({
         sessionId,
@@ -51,10 +67,11 @@ export function useTerminalAttentionSounds(opts: {
       });
 
       if (decision.playSound && opts.notificationsEnabled.value) {
-        playTerminalChirp();
-      }
-      if (decision.playSound && opts.notificationsEnabled.value && !inView) {
-        opts.onUnviewedAttention?.(sessionId);
+        const chimeArmed = chimeArmedBySession.get(sessionId) !== false;
+        if (chimeArmed) {
+          playTerminalChirp();
+          chimeArmedBySession.set(sessionId, false);
+        }
       }
       if (decision.consumedBackgroundOneShot) {
         backgroundArmedBySession.set(sessionId, false);

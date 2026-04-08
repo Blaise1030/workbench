@@ -3,6 +3,7 @@ import type { ThreadAgent } from "@shared/domain";
 import { THREAD_AGENT_BOOTSTRAP_COMMAND } from "@shared/threadAgentBootstrap";
 import { computed, nextTick, onBeforeUnmount, ref, watch } from "vue";
 import Button from "@/components/ui/Button.vue";
+import Checkbox from "@/components/ui/Checkbox.vue";
 import AgentIcon from "@/components/ui/AgentIcon.vue";
 import PillTabs, { type PillTabItem } from "@/components/ui/PillTabs.vue";
 import {
@@ -11,6 +12,14 @@ import {
   DialogHeader,
   DialogTitle
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from "@/components/ui/select";
+import { usePreferredThreadAgent } from "@/composables/usePreferredThreadAgent";
 import { useTerminalSoundSettings } from "@/composables/useTerminalSoundSettings";
 import { useColorScheme, type ColorSchemePreference } from "@/composables/useColorScheme";
 import { uiThemePresetLabel, useUiThemePreset } from "@/composables/useUiThemePreset";
@@ -29,7 +38,7 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  save: [commands: Record<ThreadAgent, string>];
+  save: [payload: { commands: Record<ThreadAgent, string> }];
 }>();
 
 const AGENT_ROWS: { agent: ThreadAgent; label: string }[] = [
@@ -41,6 +50,8 @@ const AGENT_ROWS: { agent: ThreadAgent; label: string }[] = [
 
 const draft = ref<Record<ThreadAgent, string>>({ ...props.commands });
 const panelRef = ref<HTMLElement | null>(null);
+
+const { preferredAgent, setPreferredAgent, syncFromStorage } = usePreferredThreadAgent();
 
 type SettingsSection = "agents" | "terminal" | "appearance" | "keyboard";
 const activeSection = ref<SettingsSection>("agents");
@@ -86,11 +97,7 @@ const keyboardBindingsGrouped = computed(() => {
   }));
 });
 
-const {
-  terminalNotificationsEnabled,
-  terminalBellSound,
-  terminalBackgroundOutputSound
-} = useTerminalSoundSettings();
+const { terminalNotificationsEnabled } = useTerminalSoundSettings();
 
 let removeEscapeListener: (() => void) | null = null;
 
@@ -111,6 +118,7 @@ watch(modelValue, async (isOpen) => {
   removeEscapeListener = null;
   if (isOpen) {
     draft.value = { ...props.commands };
+    syncFromStorage();
     activeSection.value = "agents";
     bindEscapeWhileOpen();
     await nextTick();
@@ -140,7 +148,7 @@ function resetDraftToDefaults(): void {
 }
 
 function save(): void {
-  emit("save", { ...draft.value });
+  emit("save", { commands: { ...draft.value } });
   modelValue.value = false;
 }
 </script>
@@ -194,6 +202,32 @@ function save(): void {
                 />
               </div>
             </div>
+
+            <div class="mt-6 border-t border-border pt-4">
+              <label class="mb-1 block text-sm font-medium text-foreground" for="preferred-thread-agent"
+                >Default agent for new threads</label
+              >
+              <p class="mb-2 text-xs text-muted-foreground">
+                Pre-selected in the add-thread overlay. You can still pick another agent before starting.
+              </p>
+              <Select
+                id="preferred-thread-agent"
+                :model-value="preferredAgent"
+                @update:model-value="(v) => setPreferredAgent(v as ThreadAgent)"
+              >
+                <SelectTrigger class="h-9 w-full max-w-sm bg-background text-sm">
+                  <SelectValue placeholder="Choose agent" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem v-for="row in AGENT_ROWS" :key="row.agent" :value="row.agent">
+                    <span class="flex items-center gap-2">
+                      <AgentIcon :agent="row.agent" :size="16" class="shrink-0" />
+                      {{ row.label }}
+                    </span>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           <div
@@ -203,41 +237,22 @@ function save(): void {
             aria-label="Terminal settings"
           >
             <p class="text-sm text-muted-foreground">
-              Short sounds when the integrated terminal needs your attention (bell character or output while you
-              are on another tab or thread).
+              Short sounds for terminal bell, output while you're on another tab or thread, or when a thread goes
+              idle after activity. Idle threads are highlighted in blue until you open them.
             </p>
-            <div class="mt-3 space-y-2.5 text-sm">
-              <label class="flex cursor-pointer items-start gap-2.5 select-none">
-                <input
-                  v-model="terminalNotificationsEnabled"
-                  type="checkbox"
-                  class="mt-0.5 size-3.5 shrink-0 rounded border-border accent-primary"
-                />
-                <span>Enable notifications</span>
-              </label>
-              <label class="flex cursor-pointer items-start gap-2.5 select-none">
-                <input
-                  v-model="terminalBellSound"
-                  type="checkbox"
-                  class="mt-0.5 size-3.5 shrink-0 rounded border-border accent-primary"
-                />
-                <span
-                  >Bell (<kbd class="rounded bg-muted px-1 font-mono text-[0.65rem]">\a</kbd>)</span
-                >
-              </label>
-              <label class="flex cursor-pointer items-start gap-2.5 select-none">
-                <input
-                  v-model="terminalBackgroundOutputSound"
-                  type="checkbox"
-                  class="mt-0.5 size-3.5 shrink-0 rounded border-border accent-primary"
-                />
-                <span>Background output (once until you view that terminal)</span>
+            <div class="mt-3 flex items-start gap-2.5 text-sm">
+              <Checkbox
+                id="settings-terminal-notifications"
+                v-model="terminalNotificationsEnabled"
+                class="mt-0.5"
+              />
+              <label
+                class="cursor-pointer leading-snug text-foreground select-none"
+                for="settings-terminal-notifications"
+              >
+                Enable notifications
               </label>
             </div>
-            <p class="mt-2 text-xs text-muted-foreground">
-              Turn off <span class="font-medium text-foreground/80">Enable notifications</span> to silence all
-              terminal attention sounds.
-            </p>
           </div>
 
           <div

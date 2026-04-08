@@ -489,7 +489,7 @@ describe("FileSearchEditor", () => {
       await flushPromises();
 
       expect(readFile).toHaveBeenCalledTimes(1);
-      expect(wrapper.get('[data-testid="file-editor-header"]').text()).toContain("src/one.ts");
+      expect(wrapper.get('[data-testid="file-editor-active-path"]').text()).toContain("src/one.ts");
     } finally {
       wrapper.unmount();
     }
@@ -530,7 +530,7 @@ describe("FileSearchEditor", () => {
       await flushPromises();
 
       expect(writeFile).toHaveBeenCalledWith("/tmp/project-a", "src/one.ts", "changed");
-      expect(wrapper.get('[data-testid="file-editor-header"]').text()).toContain("src/one.ts");
+      expect(wrapper.get('[data-testid="file-editor-active-path"]').text()).toContain("src/one.ts");
     } finally {
       wrapper.unmount();
     }
@@ -571,7 +571,7 @@ describe("FileSearchEditor", () => {
     resolveSecondRead?.("two");
     await flushPromises();
 
-    expect(wrapper.get('[data-testid="file-editor-header"]').text()).toContain("src/two.ts");
+    expect(wrapper.get('[data-testid="file-editor-active-path"]').text()).toContain("src/two.ts");
     expect((wrapper.get('[data-testid="file-editor"]').element as HTMLTextAreaElement).value).toBe(
       "two"
     );
@@ -579,7 +579,7 @@ describe("FileSearchEditor", () => {
     resolveFirstRead?.("one");
     await flushPromises();
 
-    expect(wrapper.get('[data-testid="file-editor-header"]').text()).toContain("src/two.ts");
+    expect(wrapper.get('[data-testid="file-editor-active-path"]').text()).toContain("src/two.ts");
     expect((wrapper.get('[data-testid="file-editor"]').element as HTMLTextAreaElement).value).toBe(
       "two"
     );
@@ -657,7 +657,7 @@ describe("FileSearchEditor", () => {
 
       expect(deleteFile).toHaveBeenCalledWith("/tmp/project", "src/one.ts");
       expect(listFiles).toHaveBeenCalledTimes(2);
-      expect(wrapper.text()).toContain("No file selected");
+      expect(wrapper.text()).toContain("No file");
     } finally {
       wrapper.unmount();
     }
@@ -788,7 +788,7 @@ describe("FileSearchEditor", () => {
       await flushPromises();
 
       expect(deleteFile).toHaveBeenCalledWith("/tmp/project", "src/only.ts");
-      expect(wrapper.text()).toContain("No file selected");
+      expect(wrapper.text()).toContain("No file");
     } finally {
       wrapper.unmount();
     }

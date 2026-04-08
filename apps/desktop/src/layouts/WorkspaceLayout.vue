@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { computed, nextTick, onBeforeMount, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { Plus, Settings } from "lucide-vue-next";
 import Button from "@/components/ui/Button.vue";
 import SourceControlPanel from "@/components/SourceControlPanel.vue";
@@ -24,12 +24,17 @@ import {
 import { useTerminalAttentionSounds } from "@/composables/useTerminalAttentionSounds";
 import { useTerminalSoundSettings } from "@/composables/useTerminalSoundSettings";
 import { useToast } from "@/composables/useToast";
+import {
+  openThreadCreateDialog,
+  registerThreadCreateDialogOpener,
+  type ThreadCreateDialogOpenOptions
+} from "@/composables/threadCreateDialog";
 import { useWorkspaceKeybindings } from "@/composables/useWorkspaceKeybindings";
 import { formatShortcut, MOD_DIGIT_SLOT_CODES, titleWithShortcut } from "@/keybindings/registry";
 import { useWorkspaceStore } from "@/stores/workspaceStore";
-import { useRunStore } from "@/stores/runStore";
+import { useThreadPtyRunStatus } from "@/composables/useThreadPtyRunStatus";
 import { visibleTerminalSessionId } from "@/terminal/attentionRules";
-import type { Thread, ThreadAgent } from "@shared/domain";
+import type { Thread, ThreadAgent, ThreadCreateWithAgentPayload } from "@shared/domain";
 import type {
   AddProjectInput,
   CreateThreadInput,
@@ -43,11 +48,12 @@ import type {
   WorkspaceSnapshot
 } from "@shared/ipc";
 const workspace = useWorkspaceStore();
-const { terminalNotificationsEnabled, terminalBellSound, terminalBackgroundOutputSound } =
-  useTerminalSoundSettings();
-const { commands, applySaved, bootstrapCommandFor } = useAgentBootstrapCommands();
+const { terminalNotificationsEnabled } = useTerminalSoundSettings();
+/** Fixed policy: bell and background-output rules (settings UI removed). */
+const terminalBellSound = ref(true);
+const terminalBackgroundOutputSound = ref(false);
+const { commands, applySaved, bootstrapCommandLineWithPrompt } = useAgentBootstrapCommands();
 const agentCommandsSettingsOpen = ref(false);
-const runs = useRunStore();
 const toast = useToast();
 /** `null` while checking the active worktree; `false` when the folder is not a Git repository. */
 const hasGitRepository = ref<boolean | null>(null);
@@ -96,6 +102,20 @@ const centerTab = ref<string>("agent");
 const shellSlotIds = ref<string[]>([]);
 
 const threadSidebarRef = ref<InstanceType<typeof ThreadSidebar> | null>(null);
+const threadCreateHostRef = ref<InstanceType<typeof ThreadCreateButton> | null>(null);
+/** Destination hint + submit routing for the shared new-thread dialog */
+const threadCreateSubmitTarget = ref<
+  { kind: "default" } | { kind: "group"; worktreeId: string }
+>({ kind: "default" });
+const threadCreateDestinationLabel = ref<string | null>(null);
+/** Worktree root for @ mentions in the new-thread dialog (matches where the thread will be created). */
+const threadCreateWorktreePath = computed(() => {
+  const t = threadCreateSubmitTarget.value;
+  if (t.kind === "group") {
+    return workspace.threadGroups.find((w) => w.id === t.worktreeId)?.path ?? null;
+  }
+  return workspace.defaultWorktree?.path ?? null;
+});
 const fileSearchRef = ref<InstanceType<typeof FileSearchEditor> | null>(null);
 const workspaceLauncherOpen = ref(false);
 const keybindingsEnabled = ref(true);
@@ -146,23 +166,6 @@ const centerTabModel = computed({
   }
 });
 
-/** Agent threads that got terminal attention (sound rules) while their PTY was not the visible session. */
-const threadsNeedingAttention = ref<Set<string>>(new Set());
-
-function markThreadNeedingAttention(sessionId: string): void {
-  if (!workspace.threads.some((t) => t.id === sessionId)) return;
-  const next = new Set(threadsNeedingAttention.value);
-  next.add(sessionId);
-  threadsNeedingAttention.value = next;
-}
-
-function clearAttentionForVisibleSession(visibleId: string | null): void {
-  if (visibleId == null || !threadsNeedingAttention.value.has(visibleId)) return;
-  const next = new Set(threadsNeedingAttention.value);
-  next.delete(visibleId);
-  threadsNeedingAttention.value = next;
-}
-
 /** PTY session id currently visible in the center panel, or `null` when Git Diff (or no session). */
 const visiblePtySessionId = computed(() => {
   const tab = centerTab.value;
@@ -176,35 +179,20 @@ const visiblePtySessionId = computed(() => {
   return null;
 });
 
-watch(visiblePtySessionId, (vid) => clearAttentionForVisibleSession(vid), { flush: "sync" });
-
-watch(
-  () => workspace.threads.map((t) => t.id).join("\0"),
-  () => {
-    const allow = new Set(workspace.threads.map((t) => t.id));
-    const filtered = [...threadsNeedingAttention.value].filter((id) => allow.has(id));
-    if (filtered.length === threadsNeedingAttention.value.size) return;
-    threadsNeedingAttention.value = new Set(filtered);
-  }
-);
-
-/** Projects that have at least one thread with unviewed terminal attention. */
-const projectIdsNeedingAttention = computed(() => {
-  const next = new Set<string>();
-  for (const t of workspace.threads) {
-    if (threadsNeedingAttention.value.has(t.id)) {
-      next.add(t.projectId);
-    }
-  }
-  return next;
-});
-
 useTerminalAttentionSounds({
   visibleSessionId: visiblePtySessionId,
   notificationsEnabled: terminalNotificationsEnabled,
   bellEnabled: terminalBellSound,
-  backgroundEnabled: terminalBackgroundOutputSound,
-  onUnviewedAttention: markThreadNeedingAttention
+  backgroundEnabled: terminalBackgroundOutputSound
+});
+
+const {
+  runStatusByThreadId: ptyRunStatusByThreadId,
+  idleAttentionByThreadId: ptyIdleAttentionByThreadId,
+  clearIdleAttention: clearPtyIdleAttention
+} = useThreadPtyRunStatus(computed(() => workspace.threads), {
+  visibleSessionId: visiblePtySessionId,
+  notificationsEnabled: terminalNotificationsEnabled
 });
 
 function addShellTerminal(): void {
@@ -625,22 +613,32 @@ function defaultTitleForAgent(agent: ThreadAgent): string {
   return `${label} · ${stamp}`;
 }
 
-async function handleCreateThreadWithAgent(agent: ThreadAgent): Promise<void> {
+function resolveNewThreadTitle(payload: ThreadCreateWithAgentPayload, agent: ThreadAgent): string {
+  const explicit = payload.threadTitle?.trim();
+  if (explicit) return explicit;
+  const first = payload.prompt.trim().split(/\n/)[0]?.trim() ?? "";
+  if (first && !first.startsWith("[")) return first;
+  return defaultTitleForAgent(agent);
+}
+
+async function handleCreateThreadWithAgent(payload: ThreadCreateWithAgentPayload): Promise<void> {
+  const { agent, prompt } = payload;
   centerTab.value = "agent";
   const api = getApi();
   const defaultWorktreeId = workspace.defaultWorktree?.id;
   if (!api || !workspace.activeProjectId || !defaultWorktreeId) return;
-  const payload: CreateThreadInput = {
+  const title = resolveNewThreadTitle(payload, agent);
+  const createPayload: CreateThreadInput = {
     projectId: workspace.activeProjectId,
     worktreeId: defaultWorktreeId,
-    title: defaultTitleForAgent(agent),
+    title,
     agent
   };
-  const created = (await api.createThread(payload)) as Thread;
+  const created = (await api.createThread(createPayload)) as Thread;
   if (created.id) {
     pendingAgentBootstrap.value = {
       threadId: created.id,
-      command: bootstrapCommandFor(agent)
+      command: bootstrapCommandLineWithPrompt(agent, prompt)
     };
   }
   await refreshSnapshot();
@@ -650,8 +648,8 @@ function onTerminalBootstrapConsumed(): void {
   pendingAgentBootstrap.value = null;
 }
 
-function onSaveAgentCommands(next: Record<ThreadAgent, string>): void {
-  applySaved(next);
+function onSaveAgentSettings(payload: { commands: Record<ThreadAgent, string> }): void {
+  applySaved(payload.commands);
 }
 
 async function handleRemoveThread(threadId: string): Promise<void> {
@@ -688,40 +686,74 @@ async function handleRenameThread(threadId: string, newTitle: string): Promise<v
   await refreshSnapshot();
 }
 
-async function handleReorderThreads(orderedThreadIds: string[]): Promise<void> {
+async function handleReorderThreads(payload: {
+  worktreeId: string;
+  orderedThreadIds: string[];
+}): Promise<void> {
   const api = getApi();
-  const worktreeId = workspace.activeWorktreeId;
-  if (!api || !worktreeId) return;
+  const { worktreeId, orderedThreadIds } = payload;
+  if (!api || !worktreeId || orderedThreadIds.length === 0) return;
 
   workspace.reorderThreadsLocal(worktreeId, orderedThreadIds);
 
   try {
-    const payload: ReorderThreadsInput = { worktreeId, orderedThreadIds };
-    await api.reorderThreads(payload);
+    const reorderPayload: ReorderThreadsInput = { worktreeId, orderedThreadIds };
+    await api.reorderThreads(reorderPayload);
     await refreshSnapshot();
   } catch {
     await refreshSnapshot();
   }
 }
 
-async function handleAddThreadToGroup(worktreeId: string, agent: ThreadAgent): Promise<void> {
+async function handleAddThreadToGroup(worktreeId: string, payload: ThreadCreateWithAgentPayload): Promise<void> {
+  const { agent, prompt } = payload;
   centerTab.value = "agent";
   const api = getApi();
   if (!api || !workspace.activeProjectId) return;
-  const payload: CreateThreadInput = {
+  const title = resolveNewThreadTitle(payload, agent);
+  const createPayload: CreateThreadInput = {
     projectId: workspace.activeProjectId,
     worktreeId,
-    title: defaultTitleForAgent(agent),
+    title,
     agent
   };
-  const created = (await api.createThread(payload)) as Thread;
+  const created = (await api.createThread(createPayload)) as Thread;
   if (created.id) {
     pendingAgentBootstrap.value = {
       threadId: created.id,
-      command: bootstrapCommandFor(agent)
+      command: bootstrapCommandLineWithPrompt(agent, prompt)
     };
   }
   await refreshSnapshot();
+}
+
+function applyThreadCreateOpen(opts: ThreadCreateDialogOpenOptions): void {
+  if (opts.target === "activeWorktree") {
+    threadCreateSubmitTarget.value = { kind: "default" };
+    threadCreateDestinationLabel.value =
+      opts.destinationContextLabel ?? activeContextLabel.value;
+  } else {
+    threadCreateSubmitTarget.value = { kind: "group", worktreeId: opts.worktreeId };
+    threadCreateDestinationLabel.value = opts.destinationContextLabel ?? null;
+  }
+  void nextTick(() => {
+    threadCreateHostRef.value?.openMenu();
+  });
+}
+
+function openAddThreadFromToolbarOrEmpty(): void {
+  openThreadCreateDialog({
+    target: "activeWorktree",
+    destinationContextLabel: activeContextLabel.value
+  });
+}
+
+async function onThreadCreateFromSharedDialog(payload: ThreadCreateWithAgentPayload): Promise<void> {
+  if (threadCreateSubmitTarget.value.kind === "group") {
+    await handleAddThreadToGroup(threadCreateSubmitTarget.value.worktreeId, payload);
+  } else {
+    await handleCreateThreadWithAgent(payload);
+  }
 }
 
 async function handleCreateWorktreeGroup(branch: string, baseBranch: string | null): Promise<void> {
@@ -783,6 +815,7 @@ async function handleSelectThread(threadId: string): Promise<void> {
   if (targetThread.worktreeId === workspace.activeWorktreeId && api.setActiveThread) {
     const snapshot = (await api.setActiveThread(threadId)) as WorkspaceSnapshot;
     await refreshSnapshot(snapshot);
+    clearPtyIdleAttention(threadId);
     return;
   }
   if (!(await confirmFilesContextSwitch(targetThread.worktreeId))) return;
@@ -795,6 +828,7 @@ async function handleSelectThread(threadId: string): Promise<void> {
   });
   await refreshSnapshot();
   await refreshRepoStatus();
+  clearPtyIdleAttention(threadId);
 }
 
 async function handleStageSelected(paths: string[]): Promise<void> {
@@ -959,7 +993,10 @@ function toggleThreadsSidebar(): void {
 }
 
 function openNewThreadMenuFromShortcut(): void {
-  threadSidebarRef.value?.openNewThreadMenu();
+  openThreadCreateDialog({
+    target: "activeWorktree",
+    destinationContextLabel: activeContextLabel.value
+  });
 }
 
 function focusFileSearchShortcut(): void {
@@ -1048,6 +1085,11 @@ useWorkspaceKeybindings(
   keybindingsEnabled
 );
 
+let disposeThreadCreateDialog: (() => void) | null = null;
+onBeforeMount(() => {
+  disposeThreadCreateDialog = registerThreadCreateDialogOpener(applyThreadCreateOpen);
+});
+
 onMounted(async () => {
   await refreshSnapshot();
   if (workspace.activeProjectId) {
@@ -1077,6 +1119,8 @@ onMounted(async () => {
 let worktreeHealthInterval: ReturnType<typeof setInterval> | null = null;
 
 onBeforeUnmount(() => {
+  disposeThreadCreateDialog?.();
+  disposeThreadCreateDialog = null;
   if (worktreeHealthInterval) clearInterval(worktreeHealthInterval);
   disposeOpenWorkspaceSettings?.();
   disposeOpenWorkspaceSettings = null;
@@ -1198,9 +1242,9 @@ watch(
       :projects="workspace.projects"
       :worktrees="workspace.worktrees"
       :threads="workspace.threads"
-      :thread-ids-needing-attention="threadsNeedingAttention"
+      :idle-attention-by-thread-id="ptyIdleAttentionByThreadId"
+      :run-status-by-thread-id="ptyRunStatusByThreadId"
       :active-project-id="workspace.activeProjectId"
-      :project-ids-needing-attention="projectIdsNeedingAttention"
       @select="handleSelectProject"
       @remove="handleRemoveProject"
       @create="handleCreateProject"
@@ -1242,19 +1286,17 @@ watch(
           :context-label="activeContextLabel"
           :threads="workspace.activeProjectThreads"
           :active-thread-id="workspace.activeThreadId"
-          :run-status-by-thread-id="runs.statusByThreadId"
-          :threads-needing-attention="threadsNeedingAttention"
+          :run-status-by-thread-id="ptyRunStatusByThreadId"
+          :idle-attention-by-thread-id="ptyIdleAttentionByThreadId"
           :thread-groups="workspace.threadGroups"
           :default-worktree-id="workspace.defaultWorktree?.id ?? null"
           :stale-worktree-ids="staleWorktreeIds"
           :show-branch-picker="showBranchPicker"
           :project-id="workspace.activeProjectId"
-          @create-with-agent="handleCreateThreadWithAgent"
           @show-branch-picker="showBranchPicker = true"
           @cancel-branch-picker="showBranchPicker = false"
           @create-worktree-group="handleCreateWorktreeGroup"
           @delete-worktree-group="handleDeleteWorktreeGroup"
-          @add-thread-to-group="handleAddThreadToGroup"
           @select="handleSelectThread"
           @remove="handleRemoveThread"
           @rename="handleRenameThread"
@@ -1269,9 +1311,9 @@ watch(
           :projects="workspace.projects"
           :worktrees="workspace.worktrees"
           :threads="workspace.threads"
-          :thread-ids-needing-attention="threadsNeedingAttention"
+          :idle-attention-by-thread-id="ptyIdleAttentionByThreadId"
+          :run-status-by-thread-id="ptyRunStatusByThreadId"
           :active-project-id="workspace.activeProjectId"
-          :project-ids-needing-attention="projectIdsNeedingAttention"
           @select="handleSelectProject"
           @remove="handleRemoveProject"
           @create="handleCreateProject"
@@ -1355,19 +1397,20 @@ watch(
                 create one.
               </p>
             </div>
-            <ThreadCreateButton
+            <Button
+              type="button"
               data-testid="workspace-create-thread-empty-state"
               aria-label="Add thread"
               :title="titleWithShortcut('Add thread', 'newThreadMenu')"
               variant="outline"
               size="sm"
-              @create-with-agent="handleCreateThreadWithAgent"
+              @click="openAddThreadFromToolbarOrEmpty"
             >
               <span class="inline-flex items-center gap-2">
                 <Plus class="h-4 w-4" />
                 <span>Add thread</span>
               </span>
-            </ThreadCreateButton>
+            </Button>
           </section>
           <div
             v-else
@@ -1444,6 +1487,16 @@ watch(
       </section>
     </section>
 
+    <ThreadCreateButton
+      v-if="hasActiveWorkspace"
+      ref="threadCreateHostRef"
+      triggerless
+      class="pointer-events-none fixed h-0 w-0 overflow-hidden p-0"
+      :destination-context-label="threadCreateDestinationLabel"
+      :worktree-path="threadCreateWorktreePath"
+      @create-with-agent="onThreadCreateFromSharedDialog"
+    />
+
     <WorkspaceLauncherModal
       v-model="workspaceLauncherOpen"
       @pick-thread="onLauncherPickThread"
@@ -1453,6 +1506,10 @@ watch(
       @pick-worktree="onLauncherPickWorktree"
     />
 
-    <AgentCommandsSettingsDialog v-model="agentCommandsSettingsOpen" :commands="commands" @save="onSaveAgentCommands" />
+    <AgentCommandsSettingsDialog
+      v-model="agentCommandsSettingsOpen"
+      :commands="commands"
+      @save="onSaveAgentSettings"
+    />
   </main>
 </template>

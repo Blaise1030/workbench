@@ -119,27 +119,27 @@ const ssrVersion = releaseManifest.version;
 			<section class="mx-auto max-w-5xl pb-12" aria-labelledby="preview-heading">
 				<h2 id="preview-heading" class="sr-only">Product preview</h2>
 				<div
-					class=" flex flex-col overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-lg shadow-zinc-900/5"
+					class="preview-scale-in flex flex-col overflow-hidden rounded-b-xl border border-zinc-200 bg-white shadow-lg shadow-zinc-900/5"
 				>
 					<div
 						class="shrink-0 border-b border-zinc-200/80 bg-zinc-50/95 px-4 py-3 text-center text-xs text-zinc-600"
 					>
 						workbench — breeze through local projects, agent threads, terminal, and editor in one window.
 					</div>
-					<div class="group relative flex overflow-hidden rounded-[10px] bg-zinc-100">
+					<div class="group relative overflow-hidden rounded-b-[10px] bg-zinc-100">
 						<img
-							src="/clip-1775663897128.png"
-							alt="workbench screenshot with annotations highlighting project bar, worktree resources, and multi-CLI support."
+							src="/workbench-preview-clean.png"
+							alt="workbench desktop workspace showing sidebar worktrees, project tabs, and agent panel."
 							loading="lazy"
-                            class="max-w-5xl"
+							class="relative z-0 block h-auto w-full object-contain object-top"
 							decoding="async"
 							draggable="false"
 						/>
 						<img
-							src="/clip-1775663906452.png"
-							alt="workbench interface screenshot without annotations."
-							class="max-w-5xl pointer-events-none absolute object-contain object-top opacity-0 transition-opacity duration-300 ease-out motion-reduce:transition-none group-hover:opacity-100"
-							loading="lazy"                            
+							src="/workbench-preview-annotated.png"
+							alt=""
+							loading="lazy"
+							class="pointer-events-none absolute inset-0 z-10 h-full w-full object-contain object-top opacity-0 transition-opacity duration-300 ease-out motion-reduce:transition-none group-hover:opacity-100"
 							decoding="async"
 							aria-hidden="true"
 							draggable="false"

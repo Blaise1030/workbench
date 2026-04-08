@@ -2,6 +2,14 @@ export type RunStatus = "running" | "needsReview" | "failed" | "done";
 
 /** Agent associated with a thread (run adapters may only support a subset). */
 export type ThreadAgent = "claude" | "cursor" | "codex" | "gemini";
+
+/** Add-thread flow: prompt is sent to the PTY bootstrap CLI per settings; title is usually the first line of your text. The new-thread dialog may append `[Attached skills]` and `[Attached files]` path blocks. */
+export interface ThreadCreateWithAgentPayload {
+  agent: ThreadAgent;
+  prompt: string;
+  /** When set, used as the thread title (e.g. first line of the prompt, or derived from attachments). */
+  threadTitle?: string;
+}
 export type ThreadSessionLaunchMode = "fresh" | "resume";
 export type ThreadSessionStatus = "idle" | "active" | "resumable" | "resumeFailed";
 

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { Project, Thread, Worktree } from "@shared/domain";
+import type { Project, RunStatus, Thread, Worktree } from "@shared/domain";
 import { Plus, Settings, X } from "lucide-vue-next";
 import { ref } from "vue";
 import ThemeToggle from "@/components/ThemeToggle.vue";
@@ -18,17 +18,17 @@ const props = withDefaults(
     activeProjectId: string | null;
     /** All threads (across projects) for hover summary counts. */
     threads?: readonly Thread[];
-    /** Thread ids with unviewed terminal attention (bell / background output). */
-    threadIdsNeedingAttention?: ReadonlySet<string>;
-    /** Projects where some thread has terminal attention while that thread was not visible. */
-    projectIdsNeedingAttention?: ReadonlySet<string>;
+    /** Matches ThreadSidebar: background idle completion on a non-visible PTY. */
+    idleAttentionByThreadId?: Readonly<Record<string, boolean>>;
+    /** Derived agent run status from PTY (needs review, failed, etc.). */
+    runStatusByThreadId?: Readonly<Record<string, RunStatus>>;
   }>(),
-  { threads: () => [] }
+  {
+    threads: () => [],
+    idleAttentionByThreadId: () => ({}),
+    runStatusByThreadId: () => ({})
+  }
 );
-
-function tabNeedsAttention(projectId: string): boolean {
-  return props.projectIdsNeedingAttention?.has(projectId) ?? false;
-}
 
 const emit = defineEmits<{
   select: [projectId: string];
@@ -75,10 +75,45 @@ function projectThreads(projectId: string): readonly Thread[] {
   return props.threads.filter((thread) => thread.projectId === projectId);
 }
 
-function projectAttentionThreads(projectId: string): readonly Thread[] {
-  return projectThreads(projectId).filter(
-    (thread) => props.threadIdsNeedingAttention?.has(thread.id) ?? false
-  );
+/** Highest-priority attention for any thread in this project (for tab chrome). */
+function projectAttentionLevel(projectId: string): "failed" | "review" | "idle" | null {
+  let hasIdle = false;
+  for (const thread of projectThreads(projectId)) {
+    if (props.idleAttentionByThreadId[thread.id]) hasIdle = true;
+    const rs = props.runStatusByThreadId[thread.id];
+    if (rs === "failed") return "failed";
+    if (rs === "needsReview") return "review";
+  }
+  if (hasIdle) return "idle";
+  return null;
+}
+
+function projectAttentionTabClass(projectId: string): string {
+  const level = projectAttentionLevel(projectId);
+  if (!level) return "";
+  switch (level) {
+    case "failed":
+      return "ring-1 ring-red-500/55 ring-inset dark:ring-red-400/45";
+    case "review":
+      return "ring-1 ring-orange-500/55 ring-inset dark:ring-orange-400/45";
+    case "idle":
+      return "ring-1 ring-blue-500/55 ring-inset dark:ring-blue-400/45";
+    default:
+      return "";
+  }
+}
+
+function tabButtonTitle(projectName: string, projectId: string, projectIndex: number): string {
+  const level = projectAttentionLevel(projectId);
+  const base = projectTabTitle(projectName, projectIndex);
+  if (!level) return base;
+  const hint =
+    level === "failed"
+      ? "Action needed (failed run)"
+      : level === "review"
+        ? "Needs your review"
+        : "Needs attention (agent idle)";
+  return `${base} — ${hint}`;
 }
 
 async function refreshPtySessions(): Promise<void> {
@@ -134,35 +169,23 @@ function onRemoveClick(projectId: string, event: MouseEvent): void {
               variant="ghost"
               role="tab"
               :data-project-id="project.id"
+              :data-needs-attention="projectAttentionLevel(project.id) ?? undefined"
               :aria-selected="project.id === activeProjectId"
-              :title="projectTabTitle(project.name, projectIndex)"
+              :title="tabButtonTitle(project.name, project.id, projectIndex)"
               :aria-label="
-                tabNeedsAttention(project.id)
-                  ? `${project.name}, thread needs attention`
-                  : projectIndex < 9
-                    ? `${project.name}, ${shortcutForModDigitSlot(projectIndex)}`
-                    : undefined
+                projectIndex < 9 ? `${project.name}, ${shortcutForModDigitSlot(projectIndex)}` : undefined
               "
               :class="[
                 tabInactive,
                 tabButtonClass,
                 'pr-8',
-                project.id === activeProjectId ? tabActive : tabInactiveInteractive,
-                tabNeedsAttention(project.id)
-                  ? 'relative z-[1] ring-2 ring-inset ring-blue-600 dark:ring-blue-400'
-                  : ''
+                projectAttentionTabClass(project.id),
+                project.id === activeProjectId ? tabActive : tabInactiveInteractive
               ]"
               @click="emit('select', project.id)"
             >
-              <span
-                class="shrink-0 text-sm leading-none"
-                :class="tabNeedsAttention(project.id) ? 'relative z-[1] animate-pulse' : ''"
-                aria-hidden="true"
-              >📁</span>
-              <span
-                class="min-w-0 truncate"
-                :class="tabNeedsAttention(project.id) ? 'relative z-[1]' : ''"
-              >{{ project.name }}</span>
+              <span class="shrink-0 text-sm leading-none" aria-hidden="true">📁</span>
+              <span class="min-w-0 truncate">{{ project.name }}</span>
             </Button>
           </HoverCardTrigger>
           <Button
@@ -204,27 +227,6 @@ function onRemoveClick(projectId: string, event: MouseEvent): void {
                 </li>
               </ul>
             </template>
-            <div
-              v-if="projectAttentionThreads(project.id).length > 0"
-              class="mt-2 border-t border-border pt-2"
-            >
-              <p class="text-[11px] font-semibold uppercase tracking-wide text-blue-600 dark:text-blue-400">
-                Needs attention
-                <span class="ml-1 tabular-nums text-foreground">
-                  ({{ projectAttentionThreads(project.id).length }})
-                </span>
-              </p>
-              <ul class="mt-1 max-h-28 space-y-0.5 overflow-y-auto text-xs text-foreground">
-                <li
-                  v-for="thread in projectAttentionThreads(project.id)"
-                  :key="thread.id"
-                  class="truncate pl-0.5"
-                  :title="thread.title"
-                >
-                  {{ thread.title }}
-                </li>
-              </ul>
-            </div>
             <p class="mt-2 border-t border-border pt-2 text-xs text-foreground">
               {{
                 !hasPtySessionApi()

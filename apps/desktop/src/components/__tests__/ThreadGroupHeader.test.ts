@@ -21,8 +21,9 @@ describe("ThreadGroupHeader", () => {
       }
     });
 
-    expect(wrapper.get('[data-testid="thread-group-context-badge"]').text()).toBe("main");
-    expect(wrapper.get('[data-testid="thread-group-primary-context-badge"]').text()).toBe("Primary");
+    const header = wrapper.get('[data-testid="thread-group-header"]');
+    expect(header.attributes("aria-label")).toContain("main");
+    expect(header.text()).toContain("Primary");
   });
 
   it("renders the primary context badge from contextBadgeLabel when provided", () => {
@@ -39,9 +40,26 @@ describe("ThreadGroupHeader", () => {
       }
     });
 
-    expect(wrapper.get('[data-testid="thread-group-primary-context-badge"]').text()).toBe(
-      "feature/checkout"
-    );
+    expect(wrapper.get('[data-testid="thread-group-header"]').text()).toContain("feature/checkout");
+  });
+
+  it("shows add thread in the header even when group menu is hidden (primary)", () => {
+    const wrapper = mount(ThreadGroupHeader, {
+      props: {
+        title: "Primary",
+        branch: "main",
+        threadCount: 1,
+        isStale: false,
+        collapsed: false,
+        isActive: true,
+        isPrimary: true,
+        showActions: false,
+        worktreeIdForCreate: "wt-default"
+      }
+    });
+
+    expect(wrapper.find('[aria-label="Add thread to group"]').exists()).toBe(true);
+    expect(wrapper.find('[aria-label="Thread group actions"]').exists()).toBe(false);
   });
 
   it("opens a shadcn dropdown menu for group actions", async () => {
@@ -55,7 +73,8 @@ describe("ThreadGroupHeader", () => {
         threadCount: 2,
         isStale: false,
         collapsed: false,
-        isActive: true
+        isActive: true,
+        worktreeIdForCreate: "wt-feat"
       }
     });
 

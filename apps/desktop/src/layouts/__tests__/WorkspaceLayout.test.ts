@@ -89,7 +89,7 @@ vi.mock("@/components/ThreadCreateButton.vue", () => ({
       <button
         type="button"
         data-testid="thread-create-button"
-        @click="$emit('createWithAgent', 'codex')"
+        @click="$emit('createWithAgent', { agent: 'codex', prompt: '' })"
       >
         <slot />
       </button>
@@ -111,7 +111,7 @@ vi.mock("@/components/ThreadSidebar.vue", () => ({
         <button
           type="button"
           data-testid="thread-sidebar-reorder"
-          @click="$emit('reorder', ['thread-2', 'thread-1'])"
+          @click="$emit('reorder', { worktreeId: 'worktree-1', orderedThreadIds: ['thread-2', 'thread-1'] })"
         >
           reorder
         </button>
@@ -462,10 +462,10 @@ describe("WorkspaceLayout", () => {
     await diffButton!.trigger("click");
     await flushPromises();
 
-    expect(wrapper.get('[data-testid="source-control-context-label"]').text()).toBe("feature-a");
+    expect(wrapper.text()).toContain("feature-a");
   });
 
-  it("shows the context tag before the Agent tab label for the default worktree", async () => {
+  it("shows the active worktree context in the center bar badge for the default worktree", async () => {
     const { default: WorkspaceLayout } = await import("../WorkspaceLayout.vue");
     const getSnapshot = vi.fn<WorkspaceApi["getSnapshot"]>().mockResolvedValue(makeSnapshot("Codex CLI"));
     const changedFiles = vi.fn<WorkspaceApi["changedFiles"]>().mockResolvedValue([]);
@@ -515,10 +515,11 @@ describe("WorkspaceLayout", () => {
     await flushPromises();
 
     const agentTab = wrapper.findAll("button").find((button) => button.text().includes("Agent"));
-    expect(agentTab?.text()).toContain("[Primary] 🤖 Agent");
+    expect(agentTab?.text()).toContain("🤖 Agent");
+    expect(wrapper.text()).toMatch(/Primary/);
   });
 
-  it("shows the linked worktree context tag before the Agent tab label when active", async () => {
+  it("shows the linked worktree context in the center bar badge when active", async () => {
     const { default: WorkspaceLayout } = await import("../WorkspaceLayout.vue");
     const getSnapshot = vi.fn<WorkspaceApi["getSnapshot"]>().mockResolvedValue(makeMultiWorktreeSnapshot());
     const changedFiles = vi.fn<WorkspaceApi["changedFiles"]>().mockResolvedValue([]);
@@ -568,7 +569,8 @@ describe("WorkspaceLayout", () => {
     await flushPromises();
 
     const agentTab = wrapper.findAll("button").find((button) => button.text().includes("Agent"));
-    expect(agentTab?.text()).toContain("[feature-a] 🤖 Agent");
+    expect(agentTab?.text()).toContain("🤖 Agent");
+    expect(wrapper.text()).toContain("feature-a");
   });
 
   it("shows the create-thread empty state instead of the terminal when the active worktree has no threads", async () => {

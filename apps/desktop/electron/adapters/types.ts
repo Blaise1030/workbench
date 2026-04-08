@@ -1,4 +1,7 @@
-export type AgentKind = "codex" | "claude";
+import type { ThreadAgent } from "../../src/shared/domain.js";
+
+/** Same union as thread agents — used when starting a PTY-backed run. */
+export type AgentKind = ThreadAgent;
 export type AdapterRunState = "running" | "needsReview" | "failed" | "done";
 
 export interface AdapterStartInput {

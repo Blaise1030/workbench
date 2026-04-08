@@ -366,7 +366,7 @@ describe("WorkspaceService.createWorktreeGroup", () => {
       deleteThread: vi.fn(),
       renameThread: vi.fn(),
       getThread: vi.fn(),
-      nextThreadSortOrder: vi.fn(),
+      prependThreadSortOrderForWorktree: vi.fn(),
       reorderThreads: vi.fn(),
       deleteWorktreeGroup: vi.fn()
     };
@@ -418,7 +418,7 @@ describe("WorkspaceService.deleteWorktreeGroup", () => {
       deleteThread: vi.fn(),
       renameThread: vi.fn(),
       getThread: vi.fn(),
-      nextThreadSortOrder: vi.fn(),
+      prependThreadSortOrderForWorktree: vi.fn(),
       reorderThreads: vi.fn(),
       deleteWorktreeGroup: deleteWorktreeGroupStore
     };
@@ -464,7 +464,7 @@ describe("WorkspaceService.listBranches", () => {
       deleteThread: vi.fn(),
       renameThread: vi.fn(),
       getThread: vi.fn(),
-      nextThreadSortOrder: vi.fn(),
+      prependThreadSortOrderForWorktree: vi.fn(),
       reorderThreads: vi.fn(),
       deleteWorktreeGroup: vi.fn()
     };
@@ -489,7 +489,7 @@ describe("WorkspaceService.removeProject", () => {
       deleteThread: vi.fn(),
       renameThread: vi.fn(),
       getThread: vi.fn(),
-      nextThreadSortOrder: vi.fn(),
+      prependThreadSortOrderForWorktree: vi.fn(),
       reorderThreads: vi.fn(),
       deleteWorktreeGroup: vi.fn(),
       deleteProject
@@ -503,10 +503,10 @@ describe("WorkspaceService.removeProject", () => {
 });
 
 describe("WorkspaceService thread ordering", () => {
-  it("assigns the next sort order when creating a thread", () => {
+  it("prepends new threads at sort order 0 (top of list)", () => {
     const upsertThread = vi.fn();
     const setActiveState = vi.fn();
-    const nextThreadSortOrder = vi.fn(() => 7);
+    const prependThreadSortOrderForWorktree = vi.fn(() => 0);
     const store = {
       getSnapshot: vi.fn(),
       upsertProject: vi.fn(),
@@ -516,7 +516,7 @@ describe("WorkspaceService thread ordering", () => {
       deleteThread: vi.fn(),
       renameThread: vi.fn(),
       getThread: vi.fn(),
-      nextThreadSortOrder
+      prependThreadSortOrderForWorktree
     };
     const service = new WorkspaceService(store as never);
 
@@ -527,9 +527,9 @@ describe("WorkspaceService thread ordering", () => {
       agent: "codex"
     });
 
-    expect(nextThreadSortOrder).toHaveBeenCalledWith("worktree-1");
-    expect(upsertThread).toHaveBeenCalledWith(expect.objectContaining({ sortOrder: 7 }));
-    expect(created.sortOrder).toBe(7);
+    expect(prependThreadSortOrderForWorktree).toHaveBeenCalledWith("worktree-1");
+    expect(upsertThread).toHaveBeenCalledWith(expect.objectContaining({ sortOrder: 0 }));
+    expect(created.sortOrder).toBe(0);
     expect(setActiveState).toHaveBeenCalledWith("project-1", "worktree-1", created.id);
   });
 
@@ -544,7 +544,7 @@ describe("WorkspaceService thread ordering", () => {
       deleteThread: vi.fn(),
       renameThread: vi.fn(),
       getThread: vi.fn(),
-      nextThreadSortOrder: vi.fn(),
+      prependThreadSortOrderForWorktree: vi.fn(),
       reorderThreads
     };
     const service = new WorkspaceService(store as never);

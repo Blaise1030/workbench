@@ -1,5 +1,6 @@
 import { ref } from "vue";
 import type { ThreadAgent } from "@shared/domain";
+import { threadBootstrapCommandLine } from "@shared/threadBootstrapCommandLine";
 import { THREAD_AGENT_BOOTSTRAP_COMMAND } from "@shared/threadAgentBootstrap";
 
 const STORAGE_KEY = "instrument.agentBootstrapCommands";
@@ -55,6 +56,11 @@ export function useAgentBootstrapCommands() {
     return commands.value[agent];
   }
 
+  /** Full PTY line: settings base command plus optional double-quoted prompt. */
+  function bootstrapCommandLineWithPrompt(agent: ThreadAgent, prompt: string): string {
+    return threadBootstrapCommandLine(commands.value[agent], prompt);
+  }
+
   function applySaved(next: Record<ThreadAgent, string>): void {
     commands.value = { ...next };
     persist();
@@ -65,6 +71,7 @@ export function useAgentBootstrapCommands() {
     persist,
     resetToAppDefaults,
     bootstrapCommandFor,
+    bootstrapCommandLineWithPrompt,
     applySaved
   };
 }

@@ -18,7 +18,7 @@ const forwardedProps = useForwardProps(delegatedProps);
     v-bind="{ ...$attrs, ...forwardedProps }"
     :class="
       cn(
-        'fixed inset-0 z-50 bg-background/70 backdrop-blur-xs data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
+        'fixed inset-0 z-50 bg-background/70 backdrop-blur-xs duration-150 ease-out data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
         props.class
       )
     "

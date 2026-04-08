@@ -237,6 +237,30 @@ describe("WorkspaceStore", () => {
     ]);
   });
 
+  it("prepends sort order for new threads by shifting existing rows down", () => {
+    const baseDir = makeTempDir();
+    const store = new WorkspaceStore(baseDir);
+    store.migrate(NEW_SCHEMA);
+    seedBasicWorkspace(store);
+
+    store.upsertThread(makeThread({ id: "thread-a", sortOrder: 0 }));
+    store.upsertThread(makeThread({ id: "thread-b", sortOrder: 1 }));
+
+    const sort0 = store.prependThreadSortOrderForWorktree("worktree-1");
+    expect(sort0).toBe(0);
+    store.upsertThread(makeThread({ id: "thread-new", sortOrder: 0 }));
+
+    const threads = (store.getSnapshot().threads as Array<StoreThread>).map((t) => ({
+      id: t.id,
+      sortOrder: t.sortOrder
+    }));
+    expect(threads).toEqual([
+      { id: "thread-new", sortOrder: 0 },
+      { id: "thread-a", sortOrder: 1 },
+      { id: "thread-b", sortOrder: 2 }
+    ]);
+  });
+
   it("reorders threads for a worktree and persists the new sortOrder", () => {
     const baseDir = makeTempDir();
     const store = new WorkspaceStore(baseDir);

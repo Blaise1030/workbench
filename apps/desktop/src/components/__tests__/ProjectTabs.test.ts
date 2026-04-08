@@ -116,6 +116,34 @@ describe("ProjectTabs", () => {
     expect(wrapper.emitted("select")).toEqual([["proj-2"]]);
   });
 
+  it("adds attention ring and data attribute when a thread in that project needs idle attention", () => {
+    const wrapper = mount(ProjectTabs, {
+      props: {
+        projects,
+        worktrees: [],
+        activeProjectId: "proj-1",
+        threads: [
+          {
+            id: "t1",
+            projectId: "proj-2",
+            worktreeId: "w2",
+            title: "Side thread",
+            agent: "claude",
+            sortOrder: 0,
+            createdAt: "2026-04-05T00:00:00.000Z",
+            updatedAt: "2026-04-05T00:00:00.000Z"
+          }
+        ],
+        idleAttentionByThreadId: { t1: true },
+        runStatusByThreadId: {}
+      }
+    });
+
+    const tab = wrapper.get('[data-project-id="proj-2"]');
+    expect(tab.attributes("data-needs-attention")).toBe("idle");
+    expect(tab.classes().some((c) => c.includes("ring-blue"))).toBe(true);
+  });
+
   it("emits create when plus button is clicked", async () => {
     const wrapper = mount(ProjectTabs, {
       props: {
@@ -198,148 +226,6 @@ describe("ProjectTabs", () => {
     expect(tabList.classes()).toContain("items-center");
     expect(tabList.classes()).toContain("h-full");
     expect(actionCluster?.className).toContain("self-center");
-  });
-
-  it("shows attention ring on tabs whose project ids are in projectIdsNeedingAttention", () => {
-    const wrapper = mount(ProjectTabs, {
-      props: {
-        projects,
-        worktrees: [],
-        activeProjectId: "proj-1",
-        projectIdsNeedingAttention: new Set(["proj-2"])
-      }
-    });
-    const attentive = wrapper.get('[data-project-id="proj-2"]').classes();
-    expect(attentive).toEqual(expect.arrayContaining(["ring-2", "ring-blue-600"]));
-    const calm = wrapper.get('[data-project-id="proj-1"]').classes();
-    expect(calm.includes("ring-2")).toBe(false);
-  });
-
-  it("hover tooltip lists only threads that need attention", async () => {
-    const threads: Thread[] = [
-      {
-        id: "t1",
-        projectId: "proj-1",
-        worktreeId: "w1",
-        title: "Quiet thread",
-        agent: "claude",
-        sortOrder: 0,
-        createdAt: "2026-04-05T00:00:00.000Z",
-        updatedAt: "2026-04-05T00:00:00.000Z"
-      },
-      {
-        id: "t2",
-        projectId: "proj-1",
-        worktreeId: "w1",
-        title: "Noisy thread",
-        agent: "codex",
-        sortOrder: 1,
-        createdAt: "2026-04-05T00:00:00.000Z",
-        updatedAt: "2026-04-05T00:00:00.000Z"
-      },
-      {
-        id: "t3",
-        projectId: "proj-2",
-        worktreeId: "w2",
-        title: "Other project thread",
-        agent: "claude",
-        sortOrder: 0,
-        createdAt: "2026-04-05T00:00:00.000Z",
-        updatedAt: "2026-04-05T00:00:00.000Z"
-      }
-    ];
-    const wrapper = mount(ProjectTabs, {
-      attachTo: document.body,
-      props: {
-        projects,
-        worktrees: [],
-        activeProjectId: "proj-1",
-        threads,
-        threadIdsNeedingAttention: new Set(["t2"])
-      }
-    });
-    await openProjectHoverCard(wrapper, "proj-1");
-    await nextTick();
-    const tip = document.querySelector('[role="tooltip"]');
-    expect(tip?.textContent).toContain("Needs attention");
-    expect(tip?.textContent).toMatch(/\(1\)/);
-    expect(tip?.textContent).toContain("Noisy thread");
-    expect(tip?.textContent).not.toContain("Quiet thread");
-    expect(tip?.textContent).not.toContain("Other project thread");
-    wrapper.unmount();
-  });
-
-  it("hover tooltip shows attention count when multiple threads need attention", async () => {
-    const threads: Thread[] = [
-      {
-        id: "t1",
-        projectId: "proj-1",
-        worktreeId: "w1",
-        title: "First noisy",
-        agent: "claude",
-        sortOrder: 0,
-        createdAt: "2026-04-05T00:00:00.000Z",
-        updatedAt: "2026-04-05T00:00:00.000Z"
-      },
-      {
-        id: "t2",
-        projectId: "proj-1",
-        worktreeId: "w1",
-        title: "Second noisy",
-        agent: "codex",
-        sortOrder: 1,
-        createdAt: "2026-04-05T00:00:00.000Z",
-        updatedAt: "2026-04-05T00:00:00.000Z"
-      }
-    ];
-    const wrapper = mount(ProjectTabs, {
-      attachTo: document.body,
-      props: {
-        projects,
-        worktrees: [],
-        activeProjectId: "proj-1",
-        threads,
-        threadIdsNeedingAttention: new Set(["t1", "t2"])
-      }
-    });
-    await openProjectHoverCard(wrapper, "proj-1");
-    await nextTick();
-    const tip = document.querySelector('[role="tooltip"]');
-    expect(tip?.textContent).toMatch(/\(2\)/);
-    expect(tip?.textContent).toContain("First noisy");
-    expect(tip?.textContent).toContain("Second noisy");
-    wrapper.unmount();
-  });
-
-  it("hover tooltip omits thread section when none need attention", async () => {
-    const threads: Thread[] = [
-      {
-        id: "t1",
-        projectId: "proj-1",
-        worktreeId: "w1",
-        title: "Only thread",
-        agent: "claude",
-        sortOrder: 0,
-        createdAt: "2026-04-05T00:00:00.000Z",
-        updatedAt: "2026-04-05T00:00:00.000Z"
-      }
-    ];
-    const wrapper = mount(ProjectTabs, {
-      attachTo: document.body,
-      props: {
-        projects,
-        worktrees: [],
-        activeProjectId: "proj-1",
-        threads,
-        threadIdsNeedingAttention: new Set()
-      }
-    });
-    await openProjectHoverCard(wrapper, "proj-1");
-    await nextTick();
-    const tip = document.querySelector('[role="tooltip"]');
-    expect(tip?.textContent).not.toContain("Needs attention");
-    expect(tip?.textContent).not.toContain("Only thread");
-    wrapper.unmount();
   });
 
   it("anchors the hover card to the hovered project tab", async () => {

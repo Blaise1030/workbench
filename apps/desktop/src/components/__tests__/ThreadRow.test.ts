@@ -36,7 +36,7 @@ describe("ThreadRow", () => {
     wrapper = mount(ThreadRow, { props: { thread, isActive: false } });
     const selectButton = wrapper.get('[data-testid="thread-select"]');
     expect(selectButton.classes()).toContain("cursor-pointer");
-    expect(selectButton.classes()).toContain("justify-start");
+    expect(selectButton.classes()).toContain("items-center");
     await selectButton.trigger("click");
     expect(wrapper.emitted("select")).toHaveLength(1);
   });
@@ -58,7 +58,7 @@ describe("ThreadRow", () => {
     });
 
     const button = wrapper.get('[data-testid="thread-select"]');
-    expect(button.attributes("aria-label")).toBe(thread.title);
+    expect(button.attributes("aria-label")).toContain(thread.title);
     expect(button.find("svg").exists()).toBe(true);
   });
 
@@ -67,14 +67,20 @@ describe("ThreadRow", () => {
     expect(wrapper.get('[data-testid="thread-row"]').classes()).toContain("bg-accent");
   });
 
-  it("applies green pulsing agent icon when needsAttention is true", () => {
+  it("applies blue highlight when needsIdleAttention is true", () => {
     wrapper = mount(ThreadRow, {
-      props: { thread, isActive: false, needsAttention: true, runStatus: "failed" }
+      props: { thread, isActive: false, needsIdleAttention: true }
+    });
+    const row = wrapper.get('[data-testid="thread-row"]');
+    expect(row.classes().some((c) => c.includes("blue-"))).toBe(true);
+  });
+
+  it("applies red agent icon when runStatus is failed", () => {
+    wrapper = mount(ThreadRow, {
+      props: { thread, isActive: false, runStatus: "failed" }
     });
     const icon = wrapper.getComponent({ name: "AgentIcon" });
-    expect(icon.classes()).toEqual(
-      expect.arrayContaining(["animate-pulse", "text-blue-600", "dark:text-blue-400"])
-    );
+    expect(icon.classes()).toEqual(expect.arrayContaining(["text-red-500"]));
   });
 
   it("keeps thread row at 32px and does not mount the menu trigger until the row is hovered", async () => {

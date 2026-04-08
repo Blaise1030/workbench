@@ -12,7 +12,7 @@ withDefaults(
     title?: string;
     /** Icon-only header strip (narrow sidebar). */
     collapsed?: boolean;
-    /** Active worktree label (Primary/linked name); shown when sidebar is collapsed. */
+    /** Active worktree label (Primary/linked name); sr-only when sidebar is collapsed. */
     contextLabel?: string | null;
   }>(),
   { title: APP_DISPLAY_NAME, collapsed: false, contextLabel: null }
@@ -34,14 +34,6 @@ const emit = defineEmits<{
     >
     <div class="min-h-11 flex flex-col items-center gap-1">
       <WorkbenchLogoMark variant="md" />
-      <Badge
-        v-if="contextLabel"
-        variant="outline"
-        data-testid="thread-topbar-context-label"
-        class="h-4 rounded-sm px-1 text-[8px] font-semibold uppercase leading-none tracking-wide"
-      >
-        {{ contextLabel }}
-      </Badge>
     </div>
     <Button
       type="button"

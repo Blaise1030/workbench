@@ -104,7 +104,7 @@ export class WorkspaceService {
       worktreeId: input.worktreeId,
       title: input.title,
       agent: input.agent,
-      sortOrder: this.store.nextThreadSortOrder(input.worktreeId),
+      sortOrder: this.store.prependThreadSortOrderForWorktree(input.worktreeId),
       createdAt: now,
       updatedAt: now
     };

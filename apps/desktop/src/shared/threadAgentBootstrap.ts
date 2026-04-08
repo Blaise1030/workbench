@@ -6,6 +6,8 @@ import type { ThreadAgent } from "./domain";
  *
  * @see electron/adapters/claudeCodeCliAdapter.ts (`claude`)
  * @see electron/adapters/codexCliAdapter.ts (`codex`)
+ * @see electron/adapters/cursorCliAdapter.ts (`cursor`)
+ * @see electron/adapters/geminiCliAdapter.ts (`gemini`)
  */
 export const THREAD_AGENT_BOOTSTRAP_COMMAND: Record<ThreadAgent, string> = {
   claude: "claude",

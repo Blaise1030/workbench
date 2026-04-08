@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from "vue";
+import { cn } from "@/lib/utils";
 import Button from "@/components/ui/Button.vue";
 import Input from "@/components/ui/Input.vue";
 import {
@@ -10,9 +11,14 @@ import {
   SelectValue
 } from "@/components/ui/select";
 
-const props = defineProps<{
-  projectId: string;
-}>();
+const props = withDefaults(
+  defineProps<{
+    projectId: string;
+    /** Tighter layout when embedded in the thread sidebar footer. */
+    variant?: "default" | "footer";
+  }>(),
+  { variant: "default" }
+);
 
 const emit = defineEmits<{
   create: [branch: string, baseBranch: string | null];
@@ -69,8 +75,15 @@ function handleCreate(): void {
 </script>
 
 <template>
-  <div class="mx-2 my-1.5 rounded-md border border-border bg-card p-2.5 shadow-sm">
-    <p class="mb-2 text-xs font-semibold text-foreground">New Thread Group</p>
+  <div
+    :class="
+      cn(
+        'rounded-md border border-border bg-card p-2.5 shadow-sm',
+        props.variant === 'footer' ? 'mx-0 my-0 w-full' : 'mx-2 my-1.5'
+      )
+    "
+  >
+    <p class="mb-2 text-xs font-semibold text-foreground">Add worktree</p>
 
     <!-- Branch input -->
     <div class="mb-2">

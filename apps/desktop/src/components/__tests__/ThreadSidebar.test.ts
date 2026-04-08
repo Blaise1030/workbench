@@ -149,71 +149,76 @@ describe("ThreadSidebar", () => {
     wrapper = mount(ThreadSidebar, {
       props: {
         threads: [],
-        activeThreadId: null
+        activeThreadId: null,
+        projectId: "p1"
       }
     });
 
     expect(wrapper.text()).toContain("No threads");
     expect(wrapper.text()).not.toContain("No threads yet");
-    expect(wrapper.find('[aria-label="Add thread"]').exists()).toBe(true);
+    expect(wrapper.find('[aria-label="Add worktree"]').exists()).toBe(true);
   });
 
-  it("renders a labeled add-thread button in the footer when expanded", () => {
+  it("renders a labeled add-worktree button in the footer when expanded", () => {
     wrapper = mount(ThreadSidebar, {
       props: {
         threads,
-        activeThreadId: "t1"
+        activeThreadId: "t1",
+        projectId: "p1"
       }
     });
 
-    expect(wrapper.get('[aria-label="Add thread"]').text()).toContain("Add thread");
+    expect(wrapper.get('[aria-label="Add worktree"]').text()).toContain("Add worktree");
   });
 
-  it("renders a larger add-thread button in the footer when expanded", () => {
+  it("renders a larger add-worktree button in the footer when expanded", () => {
     wrapper = mount(ThreadSidebar, {
       props: {
         threads,
-        activeThreadId: "t1"
+        activeThreadId: "t1",
+        projectId: "p1"
       }
     });
 
-    const button = wrapper.get('[aria-label="Add thread"]');
+    const button = wrapper.get('[aria-label="Add worktree"]');
     expect(button.attributes("data-size")).toBe("lg");
     expect(button.classes()).toContain("h-9");
     expect(button.classes()).toContain("gap-1.5");
     expect(button.classes()).toContain("px-2.5");
   });
 
-  it("renders an icon-only add-thread button in the footer when collapsed", () => {
+  it("renders an icon-only add-worktree button in the footer when collapsed", () => {
     wrapper = mount(ThreadSidebar, {
       props: {
         threads,
         activeThreadId: "t1",
-        collapsed: true
+        collapsed: true,
+        projectId: "p1"
       }
     });
 
-    expect(wrapper.get('[aria-label="Add thread"]').text()).toBe("");
+    expect(wrapper.get('[aria-label="Add worktree"]').text()).toBe("");
   });
 
-  it("emits createWithAgent when an agent row is chosen from the footer button", async () => {
+  it("emits showBranchPicker when add worktree is clicked and cancelBranchPicker when cancel", async () => {
     wrapper = mount(ThreadSidebar, {
       props: {
         threads,
-        activeThreadId: "t1"
+        activeThreadId: "t1",
+        projectId: "p1"
       }
     });
 
-    await wrapper.get('[aria-label="Add thread"]').trigger("click");
+    await wrapper.get('[aria-label="Add worktree"]').trigger("click");
     await nextTick();
-    const panel = document.querySelector('[data-testid="thread-agent-menu-panel"]');
-    expect(panel).toBeTruthy();
-    const items = panel!.querySelectorAll('[role="menuitem"]');
-    const claude = Array.from(items).find((el) => el.textContent?.includes("Claude Code"));
-    expect(claude).toBeTruthy();
-    await claude!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(wrapper.emitted("showBranchPicker")).toEqual([[]]);
 
-    expect(wrapper.emitted("createWithAgent")).toEqual([["claude"]]);
+    wrapper.setProps({ showBranchPicker: true });
+    await nextTick();
+
+    await wrapper.get('[aria-label="Cancel add worktree"]').trigger("click");
+    await nextTick();
+    expect(wrapper.emitted("cancelBranchPicker")).toEqual([[]]);
   });
 
   it("emits remove with threadId when a ThreadRow emits remove", async () => {
@@ -305,7 +310,9 @@ describe("ThreadSidebar", () => {
 
     await dragHandles[1]!.trigger("keydown", { key: "ArrowDown" });
 
-    expect(wrapper.emitted("reorder")).toEqual([[["t1", "t3", "t2"]]]);
+    expect(wrapper.emitted("reorder")).toEqual([
+      [{ worktreeId: "w1", orderedThreadIds: ["t1", "t3", "t2"] }]
+    ]);
     expect(wrapper.findAll('[data-testid="thread-select"]').map((node) => node.text())).toEqual([
       "Codex CLI · test",
       "Gemini CLI · review",
@@ -330,7 +337,9 @@ describe("ThreadSidebar", () => {
     await dragRows[2]!.trigger("drop", { dataTransfer });
     await dragHandles[0]!.trigger("dragend", { dataTransfer });
 
-    expect(wrapper.emitted("reorder")).toEqual([[["t2", "t3", "t1"]]]);
+    expect(wrapper.emitted("reorder")).toEqual([
+      [{ worktreeId: "w1", orderedThreadIds: ["t2", "t3", "t1"] }]
+    ]);
     expect(wrapper.findAll('[data-testid="thread-select"]').map((node) => node.text())).toEqual([
       "Claude Code · docs",
       "Gemini CLI · review",
@@ -354,7 +363,9 @@ describe("ThreadSidebar", () => {
     await dragRows[2]!.trigger("drop", { dataTransfer });
     await dragHandles[0]!.trigger("dragend", { dataTransfer });
 
-    expect(wrapper.emitted("reorder")).toEqual([[["t2", "t3", "t1"]]]);
+    expect(wrapper.emitted("reorder")).toEqual([
+      [{ worktreeId: "w1", orderedThreadIds: ["t2", "t3", "t1"] }]
+    ]);
     expect(wrapper.findAll('[data-testid="thread-select"]').map((node) => node.text())).toEqual([
       "Claude Code · docs",
       "Gemini CLI · review",
@@ -1230,7 +1241,9 @@ describe("ThreadSidebar", () => {
     handles[0]!.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
     await nextTick();
 
-    expect(wrapper.emitted("reorder")).toEqual([[["t3", "t2"]]]);
+    expect(wrapper.emitted("reorder")).toEqual([
+      [{ worktreeId: "w-feat", orderedThreadIds: ["t3", "t2"] }]
+    ]);
   });
 
   it("hides stale worktree callouts when the sidebar is collapsed", () => {

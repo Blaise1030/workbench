@@ -78,7 +78,8 @@ function codeToDisplayLabel(code: string): string {
     KeyT: "T",
     KeyS: "S",
     KeyF: "F",
-    KeyK: "K"
+    KeyK: "K",
+    KeyN: "N"
   };
   return map[code] ?? code.replace(/^Key/, "");
 }
@@ -115,7 +116,9 @@ export const KEYBINDING_DEFINITIONS: KeybindingDefinition[] = [
     id: "newThreadMenu",
     label: "New thread (open agent menu)",
     category: "Threads",
-    shortcut: mod("KeyT", { shift: true })
+    shortcut: mod("KeyT", { shift: true }),
+    aliases: [mod("KeyN")],
+    notes: "⌘⇧T / Ctrl+Shift+T or ⌘N / Ctrl+N."
   },
   {
     id: "addTerminal",

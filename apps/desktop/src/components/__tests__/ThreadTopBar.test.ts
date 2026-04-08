@@ -39,10 +39,11 @@ describe("ThreadTopBar", () => {
     expect(wrapper.get('[data-testid="thread-sidebar-logo"]').classes()).toContain("size-8");
   });
 
-  it("renders the active context label in collapsed mode", () => {
+  it("keeps the active context label in sr-only when collapsed (no visible tag)", () => {
     wrapper = mount(ThreadTopBar, { props: { collapsed: true, contextLabel: "feature-a" } });
 
-    expect(wrapper.get('[data-testid="thread-topbar-context-label"]').text()).toBe("feature-a");
+    expect(wrapper.find('[data-testid="thread-topbar-context-label"]').exists()).toBe(false);
+    expect(wrapper.get(".sr-only").text()).toContain("feature-a");
   });
 
   it("does not render the add-thread control in the top bar", () => {

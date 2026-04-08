@@ -14,6 +14,7 @@ import {
   type RenameThreadInput,
   type ReorderThreadsInput
 } from "../src/shared/ipc.js";
+import type { ThreadAgent } from "../src/shared/domain.js";
 import { DiffService } from "./services/diffService.js";
 import { EditService } from "./services/editService.js";
 import { FileService } from "./services/fileService.js";
@@ -171,7 +172,7 @@ function registerIpc(workspaceService: WorkspaceService): void {
     return workspaceService.getSnapshot();
   });
 
-  ipcMain.handle(IPC_CHANNELS.runStart, (_, payload: { agent: "codex" | "claude"; cwd: string; prompt: string }) =>
+  ipcMain.handle(IPC_CHANNELS.runStart, (_, payload: { agent: ThreadAgent; cwd: string; prompt: string }) =>
     runService.start(payload.agent, payload.cwd, payload.prompt, () => {}, () => {})
   );
   ipcMain.handle(IPC_CHANNELS.runSendInput, (_, payload: { runId: string; input: string }) => runService.sendInput(payload.runId, payload.input));

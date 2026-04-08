@@ -7,11 +7,14 @@ import {
   PanelLeftOpen,
   RefreshCw,
   Search,
-  Trash2
+  Trash2,
+  X
 } from "lucide-vue-next";
 import type { FileSummary } from "@shared/ipc";
 import Button from "@/components/ui/Button.vue";
 import Badge from "@/components/ui/Badge.vue";
+import { badgeVariants } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -58,10 +61,56 @@ function basenameFromPath(absPath: string): string {
   return parts[parts.length - 1] ?? absPath;
 }
 
+/** Small emoji hint for file kind (shown in the file tab badge). */
+function fileEmojiForPath(relativePath: string): string {
+  const lower = relativePath.toLowerCase();
+  const dot = lower.lastIndexOf(".");
+  const ext = dot >= 0 ? lower.slice(dot + 1) : "";
+  const map: Record<string, string> = {
+    ts: "📘",
+    tsx: "⚛️",
+    vue: "💚",
+    js: "📜",
+    jsx: "⚛️",
+    md: "📝",
+    markdown: "📝",
+    json: "📋",
+    css: "🎨",
+    scss: "🎨",
+    sass: "🎨",
+    less: "🎨",
+    html: "🌐",
+    htm: "🌐",
+    py: "🐍",
+    rs: "🦀",
+    go: "🐹",
+    java: "☕",
+    kt: "🟣",
+    swift: "🐦",
+    rb: "💎",
+    php: "🐘",
+    sh: "⌨️",
+    bash: "⌨️",
+    zsh: "⌨️",
+    yml: "⚙️",
+    yaml: "⚙️",
+    toml: "⚙️",
+    sql: "🗃️"
+  };
+  return map[ext] ?? "📄";
+}
+
 const workspaceHeaderLine = computed(() => {
   if (!props.worktreePath) return null;
   const label = props.worktreeLabel?.trim();
   return label || basenameFromPath(props.worktreePath);
+});
+
+/** Prefer explicit context badge; fall back to worktree label for the compact badge. */
+const workspaceContextBadge = computed(() => {
+  const c = props.contextLabel?.trim();
+  if (c) return c;
+  return props.worktreeLabel?.trim() || null;
 });
 
 const searchInput = ref<InstanceType<typeof Input> | null>(null);
@@ -464,6 +513,12 @@ function clearSelection(): void {
   selectedPath.value = null;
   loadedContent.value = "";
   draftContent.value = "";
+}
+
+async function handleCloseFileTab(): Promise<void> {
+  if (!selectedPath.value) return;
+  if (!(await confirmDiscardIfDirty())) return;
+  clearSelection();
 }
 
 function invalidatePendingFileRequests(): void {
@@ -950,18 +1005,81 @@ defineExpose({
         data-testid="file-editor-header"
         class="flex items-center justify-between gap-3 border-b border-border px-4 py-1.5"
       >
-        <div class="flex min-w-0 flex-1 flex-wrap items-center gap-2">          
-          <p class="min-w-0 flex-1 truncate text-xs font-medium">
-            {{ selectedPath ?? "No file selected" }}
-          </p>
-          <template v-if="dirty">
-            <span class="sr-only">Unsaved changes</span>
+        <div
+          class="flex min-w-0 flex-1 flex-nowrap items-center gap-2 overflow-x-auto overflow-y-hidden [scrollbar-width:thin]"
+        >
+          <div
+            v-if="hasWorkspace"
+            data-testid="file-editor-workspace-context"
+            class="flex min-w-0 max-w-[min(18rem,calc(100vw-8rem))] shrink-0 items-center gap-1.5 text-[11px] text-muted-foreground"
+          >
+            <span class="shrink-0 font-medium text-muted-foreground/90">Workspace</span>
+            <span class="min-w-0 truncate" :title="workspaceHeaderLine ?? undefined">{{
+              workspaceHeaderLine
+            }}</span>
+            <Badge
+              v-if="workspaceContextBadge"
+              data-testid="file-editor-context-label"
+              variant="outline"
+              class="max-w-[8rem] shrink-0 truncate px-1.5 py-0 text-[10px] font-normal"
+              :title="workspaceContextBadge"
+            >
+              {{ workspaceContextBadge }}
+            </Badge>
+          </div>
+          <template v-if="selectedPath">
+            <span
+              class="sr-only"
+              data-testid="file-editor-active-path"
+            >{{ selectedPath }}</span>
             <div
-              class="shrink-0 rounded-full size-2 bg-amber-600"
-              aria-hidden="true"
-              title="Unsaved changes"
-            />
+              :class="
+                cn(
+                  badgeVariants({ variant: 'secondary' }),
+                  'inline-flex h-7 min-w-0 max-w-[16rem] shrink-0 items-stretch gap-0.5 rounded-full border-border/60 bg-muted/70 py-0 pr-0.5 pl-1.5 shadow-none'
+                )
+              "
+              :title="selectedPath"
+            >
+              <span class="flex min-w-0 flex-1 items-center gap-1.5">
+                <span
+                  class="shrink-0 text-[13px] leading-none"
+                  aria-hidden="true"
+                >{{ fileEmojiForPath(selectedPath) }}</span>
+                <span class="min-w-0 truncate text-xs font-medium">{{
+                  basenameFromPath(selectedPath)
+                }}</span>
+                <span
+                  v-if="dirty"
+                  class="sr-only"
+                >Unsaved changes</span>
+                <span
+                  v-if="dirty"
+                  class="shrink-0 rounded-full size-1.5 bg-amber-600"
+                  aria-hidden="true"
+                  title="Unsaved changes"
+                />
+              </span>
+              <Button
+                data-testid="file-editor-tab-close"
+                type="button"
+                variant="ghost"
+                size="icon-xs"
+                class="size-6 shrink-0 rounded-full text-muted-foreground hover:bg-background/80 hover:text-foreground"
+                :aria-label="`Close ${basenameFromPath(selectedPath)}`"
+                @click="handleCloseFileTab"
+              >
+                <X class="size-3" aria-hidden="true" />
+                <span class="sr-only">Close file tab</span>
+              </Button>
+            </div>
           </template>
+          <p
+            v-else
+            class="shrink-0 text-xs text-muted-foreground"
+          >
+            No file
+          </p>
         </div>
         <div
           role="toolbar"

@@ -3,8 +3,8 @@ import { nextTick } from "vue";
 import { afterEach, describe, expect, it } from "vitest";
 import ThreadCreateButton from "@/components/ThreadCreateButton.vue";
 
-function getThreadCreatePanel(): HTMLElement {
-  return document.querySelector('[data-testid="thread-agent-menu-panel"]') as HTMLElement;
+function getDialog(): HTMLElement {
+  return document.querySelector('[data-testid="thread-create-dialog"]') as HTMLElement;
 }
 
 describe("ThreadCreateButton", () => {
@@ -14,7 +14,7 @@ describe("ThreadCreateButton", () => {
     wrapper?.unmount();
   });
 
-  it("renders the menu as a portaled shadcn dropdown", async () => {
+  it("opens a dialog with a prompt field when the trigger is clicked", async () => {
     wrapper = mount(ThreadCreateButton, {
       attachTo: document.body,
       slots: {
@@ -25,13 +25,12 @@ describe("ThreadCreateButton", () => {
     await wrapper.get('button[aria-label="New thread"]').trigger("click");
     await nextTick();
 
-    const panel = getThreadCreatePanel();
-    expect(panel).toBeTruthy();
-    expect(panel.getAttribute("data-side")).toBeTruthy();
-    expect(panel.className).toContain("w-[15rem]");
+    const dialog = getDialog();
+    expect(dialog).toBeTruthy();
+    expect(dialog.querySelector('[data-testid="thread-create-prompt-input"]')).toBeTruthy();
   });
 
-  it("renders providers as a vertical list with icons at the start", async () => {
+  it("emits createWithAgent with prompt when Start thread is clicked", async () => {
     wrapper = mount(ThreadCreateButton, {
       attachTo: document.body,
       slots: {
@@ -42,38 +41,35 @@ describe("ThreadCreateButton", () => {
     await wrapper.get('button[aria-label="New thread"]').trigger("click");
     await nextTick();
 
-    const items = Array.from(getThreadCreatePanel().querySelectorAll('[role="menuitem"]')) as HTMLElement[];
-    // First four menu items are agent picks; the following item is "New Thread Group" (emoji, not SVG).
-    const agentItems = items.slice(0, 4);
+    const promptEl = document.querySelector(
+      '[data-testid="thread-create-prompt-input"]'
+    ) as HTMLTextAreaElement;
+    expect(promptEl).toBeTruthy();
+    promptEl.value = "Refactor auth";
+    await promptEl.dispatchEvent(new Event("input", { bubbles: true }));
+    await nextTick();
 
-    expect(agentItems).toHaveLength(4);
-    for (const item of agentItems) {
-      expect(item.className).toContain("justify-start");
-      expect(item.className).toContain("gap-2");
-      expect(item.querySelector("svg")).toBeTruthy();
-    }
+    const dialog = getDialog();
+    const start = dialog.querySelector('[aria-label="Start thread"]') as HTMLButtonElement;
+    expect(start).toBeTruthy();
+    await start.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    await nextTick();
+
+    expect(wrapper.emitted("createWithAgent")).toEqual([
+      [{ agent: "claude", prompt: "Refactor auth", threadTitle: "Refactor auth" }]
+    ]);
   });
 
-  it("uses a flat popover shell and flat list rows while preserving hover styling", async () => {
+  it("shows attach files control", async () => {
     wrapper = mount(ThreadCreateButton, {
       attachTo: document.body,
-      slots: {
-        default: "Add thread"
-      }
+      slots: { default: "Add thread" }
     });
 
     await wrapper.get('button[aria-label="New thread"]').trigger("click");
     await nextTick();
 
-    const panel = getThreadCreatePanel();
-    expect(panel.className).toContain("border");
-    expect(panel.className).toContain("shadow-md");
-
-    const items = Array.from(panel.querySelectorAll('[role="menuitem"]')) as HTMLElement[];
-    for (const item of items) {
-      expect(item.className).not.toContain("border");
-      expect(item.className).not.toContain("shadow");
-      expect(item.className).toContain("focus:bg-accent");
-    }
+    const dialog = getDialog();
+    expect(dialog.querySelector('[data-testid="thread-create-add-file"]')).toBeTruthy();
   });
 });

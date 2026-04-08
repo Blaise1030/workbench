@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import type { ThreadAgent } from "@shared/domain";
+defineOptions({ inheritAttrs: false });
+
 import { ChevronDown, ChevronRight, EllipsisVertical, Plus, Trash2 } from "lucide-vue-next";
 import { computed, ref } from "vue";
-import ThreadCreateButton from "@/components/ThreadCreateButton.vue";
+import { openThreadCreateDialog } from "@/composables/threadCreateDialog";
+import { titleWithShortcut } from "@/keybindings/registry";
 import Badge from "@/components/ui/Badge.vue";
 import Button from "@/components/ui/Button.vue";
 import {
@@ -30,8 +32,10 @@ const props = withDefaults(
     isActive: boolean;
     isPrimary?: boolean;
     showActions?: boolean;
+    /** Worktree to create the thread in; when missing the add button is hidden. */
+    worktreeIdForCreate?: string | null;
   }>(),
-  { showActions: true, contextBadgeLabel: null }
+  { showActions: true, contextBadgeLabel: null, worktreeIdForCreate: null }
 );
 
 /** Primary row: badge text matches active context when provided, else `title`. */
@@ -58,18 +62,36 @@ const hoverDetails = computed(() => {
   return `${props.title}\n${props.path ?? "—"}\nBranch: ${props.branch ?? "—"}\nSource branch: ${source}`;
 });
 
+/** Label shown in the new-thread dialog (“adding a thread to …”). */
+const addThreadDestinationLabel = computed(() => {
+  if (props.isPrimary) {
+    return primaryLabelBadgeText.value ?? props.title;
+  }
+  return props.title;
+});
+
 const emit = defineEmits<{
   toggle: [];
   delete: [];
-  addThread: [agent: ThreadAgent];
 }>();
 
 const menuOpen = ref(false);
+
+function openAddThreadDialog(): void {
+  const id = props.worktreeIdForCreate?.trim();
+  if (!id) return;
+  openThreadCreateDialog({
+    target: "worktreeGroup",
+    worktreeId: id,
+    destinationContextLabel: addThreadDestinationLabel.value
+  });
+}
 </script>
 
 <template>
-  <div class="px-1">
+  <div class="px-2">
     <div
+    v-bind="$attrs"
     data-testid="thread-group-header"
     class="flex h-[30px] cursor-pointer select-none items-center gap-2 px-2.5 hover:bg-accent/80 rounded-sm"
     :class="isStale ? 'opacity-60' : ''"
@@ -94,45 +116,31 @@ const menuOpen = ref(false);
       :class="isStale ? 'text-destructive' : ''"
     >
       <span v-if="!isPrimary" aria-hidden="true" class="shrink-0 font-normal leading-none">🌳</span>
-      <Badge
-        v-if="primaryBranchBadge"
-        variant="outline"
-        data-testid="thread-group-context-badge"
-        class="h-4 max-w-[min(8rem,40%)] shrink-0 truncate rounded-sm px-1.5 text-[10px] font-semibold leading-none"
-      >
-        {{ primaryBranchBadge }}
-      </Badge>
-      <Badge
-        v-if="isPrimary && primaryLabelBadgeText"
-        variant="outline"
-        data-testid="thread-group-primary-context-badge"
-        class="h-4 max-w-[min(8rem,40%)] min-w-0 shrink truncate rounded-sm px-1.5 text-[10px] font-semibold leading-none"
-      >
-        {{ primaryLabelBadgeText }}
-      </Badge>
-      <span v-else class="min-w-0 truncate">{{ title }}</span>
+      <span v-else aria-hidden="true" class="shrink-0 font-normal leading-none">⛰️</span>
+       {{ primaryLabelBadgeText }}
+      <span v-if="!isPrimary || !primaryLabelBadgeText" class="min-w-0 truncate">{{ title }}</span>
     </span>
-    <span class="ml-auto flex shrink-0 items-center gap-1.5">
+      <span class="ml-auto flex shrink-0 items-center gap-1.5">
       <span
         class="flex h-6 min-w-[1.25rem] items-center justify-end tabular-nums text-[10px] leading-none text-muted-foreground"
       >
         {{ threadCount }}
       </span>
-      <span v-if="showActions" class="inline-flex h-6 items-center gap-px">
-        <span class="inline-flex h-6 items-center" @click.stop>
-          <ThreadCreateButton
+      <span class="inline-flex h-6 items-center gap-px">
+        <span v-if="worktreeIdForCreate" class="inline-flex h-6 items-center" @click.stop>
+          <Button
+            type="button"
             variant="ghost"
             size="icon-xs"
-            class="shrink-0 text-muted-foreground"
+            class="h-7 w-7 shrink-0 rounded-md"
             aria-label="Add thread to group"
-            title="Add thread (choose agent)"
-            :show-new-thread-group="false"
-            @create-with-agent="emit('addThread', $event)"
+            :title="titleWithShortcut('Add thread to group', 'newThreadMenu')"
+            @click="openAddThreadDialog"
           >
-            <Plus class="h-3.5 w-3.5" />
-          </ThreadCreateButton>
+            <Plus class="size-4" />
+          </Button>
         </span>
-        <DropdownMenu v-model:open="menuOpen">
+        <DropdownMenu v-if="showActions" v-model:open="menuOpen">
           <DropdownMenuTrigger as-child @click.stop>
             <Button
               type="button"
