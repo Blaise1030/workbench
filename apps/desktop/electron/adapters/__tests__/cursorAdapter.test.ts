@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { extractResumeIdFromStdout } from "../resumeIdCapture";
+import { CursorCliAdapter } from "../cursorCliAdapter";
 
 describe("extractResumeIdFromStdout", () => {
   it("extracts session_id from JSON fragment", () => {
@@ -29,9 +30,12 @@ describe("extractResumeIdFromStdout", () => {
   });
 });
 
-import { CursorCliAdapter } from "../cursorCliAdapter";
-
 describe("CursorCliAdapter", () => {
+  it("has provider set to cursor", () => {
+    const adapter = new CursorCliAdapter();
+    expect(adapter.provider).toBe("cursor");
+  });
+
   it("detects resume ID from output", () => {
     const adapter = new CursorCliAdapter();
     expect(adapter.detectResumeId("session_id: resumable-session-99")).toBe("resumable-session-99");
