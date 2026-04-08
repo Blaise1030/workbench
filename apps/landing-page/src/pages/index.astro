@@ -9,6 +9,20 @@ import {
 
 /** Same as `apps/desktop/src/constants/appMeta.ts` — threads panel header title */
 const APP_DISPLAY_NAME = "workbench";
+
+interface ReleaseManifest {
+	version?: string;
+	downloads?: Record<string, { url: string; filename: string }>;
+}
+
+let releaseManifest: ReleaseManifest = {};
+try {
+	const res = await fetch(LATEST_RELEASE_JSON_URL);
+	if (res.ok) releaseManifest = await res.json() as ReleaseManifest;
+} catch { /* use fallback */ }
+
+const ssrDownloadUrl = releaseManifest.downloads?.mac?.url ?? LATEST_RELEASE_PAGE_URL;
+const ssrVersion = releaseManifest.version;
 ---
 
 <html lang="en">
@@ -74,7 +88,7 @@ const APP_DISPLAY_NAME = "workbench";
 			</div>
 		</header>
 
-		<main>
+		<main class="px-2">
 			<section class="mx-auto max-w-5xl px-6 pb-16 pt-16 text-center md:pb-20 md:pt-20" aria-labelledby="hero-heading">
 				<h1 id="hero-heading" class="mx-auto max-w-5xl text-balance text-4xl font-medium leading-[1.1] tracking-tight text-zinc-900 md:text-5xl lg:text-[3.25rem]">
 					workbench is the best way to code with agents on your machine.
@@ -85,56 +99,53 @@ const APP_DISPLAY_NAME = "workbench";
 				<div id="download" class="mt-10 flex flex-col items-center gap-2">
 					<a
 						id="download-btn"
-						href={LATEST_RELEASE_PAGE_URL}
+						href={ssrDownloadUrl}
 						class="inline-flex items-center gap-2 rounded-full bg-zinc-900 px-7 py-3.5 text-sm font-semibold text-white shadow-lg shadow-zinc-900/15 transition hover:bg-zinc-800"
 						rel="noopener noreferrer"
-						aria-busy="true"
 					>
 						<svg class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
 							<path
 								d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"
 							/>
 						</svg>
-						<span id="download-btn-label">Preparing download…</span>
+						<span id="download-btn-label">Download for macOS</span>
 					</a>
-					<p id="download-version" class="hidden text-xs text-zinc-500" aria-live="polite"></p>
+					<p id="download-version" class={`text-xs text-zinc-500${ssrVersion ? "" : " hidden"}`} aria-live="polite">
+						{ssrVersion ? `Version ${ssrVersion}` : ""}
+					</p>
 				</div>
 			</section>
 
-			<section class="mx-auto max-w-5xl pb-24 md:pb-32" aria-labelledby="preview-heading">
+			<section class="mx-auto max-w-5xl pb-12" aria-labelledby="preview-heading">
 				<h2 id="preview-heading" class="sr-only">Product preview</h2>
-				<figure
-					class="preview-scale-in flex flex-col overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-lg shadow-zinc-900/5"
+				<div
+					class=" flex flex-col overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-lg shadow-zinc-900/5"
 				>
-					<figcaption
+					<div
 						class="shrink-0 border-b border-zinc-200/80 bg-zinc-50/95 px-4 py-3 text-center text-xs text-zinc-600"
 					>
 						workbench — breeze through local projects, agent threads, terminal, and editor in one window.
-					</figcaption>
-					<div class="group relative overflow-hidden rounded-[10px] bg-zinc-100">
+					</div>
+					<div class="group relative flex overflow-hidden rounded-[10px] bg-zinc-100">
 						<img
-							src="/clip-1775582438350.png"
-							width={1265}
-							height={922}
-							alt="workbench Alpha: desktop app with thread list, project branches, and center panel showing Agent, Git Diff, Files, and Terminal tabs."
-							class="relative z-0 -m-[10px] block h-auto w-[calc(100%+20px)] max-w-none"
+							src="/clip-1775663897128.png"
+							alt="workbench screenshot with annotations highlighting project bar, worktree resources, and multi-CLI support."
 							loading="lazy"
+                            class="max-w-5xl"
 							decoding="async"
 							draggable="false"
 						/>
 						<img
-							src="/clip-1775582431444.png"
-							width={1265}
-							height={922}
-							alt="workbench UI — alternate view on hover."
-							class="pointer-events-none absolute -inset-[10px] z-10 h-[calc(100%+20px)] w-[calc(100%+20px)] max-w-none object-contain object-top opacity-0 transition-opacity duration-300 ease-out motion-reduce:transition-none group-hover:opacity-100"
-							loading="lazy"
+							src="/clip-1775663906452.png"
+							alt="workbench interface screenshot without annotations."
+							class="max-w-5xl pointer-events-none absolute object-contain object-top opacity-0 transition-opacity duration-300 ease-out motion-reduce:transition-none group-hover:opacity-100"
+							loading="lazy"                            
 							decoding="async"
 							aria-hidden="true"
 							draggable="false"
 						/>
 					</div>
-				</figure>
+				</div>
 			</section>
 		</main>
 
@@ -173,8 +184,7 @@ const APP_DISPLAY_NAME = "workbench";
 
 		<script
 			define:vars={{
-				LATEST_RELEASE_JSON_URL,
-				GITHUB_API_LATEST_RELEASE_URL,
+				SSR_MANIFEST: releaseManifest,
 				LATEST_RELEASE_PAGE_URL,
 			}}
 		>
@@ -192,55 +202,7 @@ const APP_DISPLAY_NAME = "workbench";
 				return "Download for macOS";
 			}
 
-			function urlsFromApiAssets(assets) {
-				const out = {};
-				for (const a of assets) {
-					const n = a.name.toLowerCase();
-					if (n.endsWith(".dmg")) out.mac = a.browser_download_url;
-					if (n.endsWith(".exe")) out.windows = a.browser_download_url;
-					if (n.endsWith(".appimage")) out.linux = a.browser_download_url;
-				}
-				return out;
-			}
-
-			async function resolveDownloadUrl() {
-				const platform = pickPlatform();
-				try {
-					const res = await fetch(LATEST_RELEASE_JSON_URL, {
-						headers: { Accept: "application/json" },
-					});
-					if (res.ok) {
-						const manifest = await res.json();
-						const entry = manifest?.downloads?.[platform];
-						if (entry?.url) {
-							return { url: entry.url, version: manifest.version, source: "manifest" };
-						}
-					}
-				} catch {
-					/* try API */
-				}
-				try {
-					const res = await fetch(GITHUB_API_LATEST_RELEASE_URL, {
-						headers: {
-							Accept: "application/vnd.github+json",
-							"X-GitHub-Api-Version": "2022-11-28",
-						},
-					});
-					if (!res.ok) throw new Error(String(res.status));
-					const data = await res.json();
-					const map = urlsFromApiAssets(data.assets ?? []);
-					const url = map[platform];
-					if (url) {
-						const version = typeof data.tag_name === "string" ? data.tag_name.replace(/^v/, "") : undefined;
-						return { url, version, source: "api" };
-					}
-				} catch {
-					/* fall through */
-				}
-				return { url: LATEST_RELEASE_PAGE_URL, version: undefined, source: "fallback" };
-			}
-
-			(async () => {
+			(() => {
 				const btn = document.getElementById("download-btn");
 				const labelEl = document.getElementById("download-btn-label");
 				const versionEl = document.getElementById("download-version");
@@ -249,17 +211,16 @@ const APP_DISPLAY_NAME = "workbench";
 				const platform = pickPlatform();
 				labelEl.textContent = labelForPlatform(platform);
 
-				const { url, version, source } = await resolveDownloadUrl();
-				btn.setAttribute("href", url);
-				btn.setAttribute("aria-busy", "false");
-				if (versionEl) {
-					if (version) {
-						versionEl.textContent = `Version ${version}`;
-						versionEl.classList.remove("hidden");
-					} else if (source === "fallback") {
-						versionEl.textContent = "Open the release page to choose an installer.";
-						versionEl.classList.remove("hidden");
-					}
+				const entry = SSR_MANIFEST?.downloads?.[platform];
+				if (entry?.url) {
+					btn.setAttribute("href", entry.url);
+				} else {
+					btn.setAttribute("href", LATEST_RELEASE_PAGE_URL);
+				}
+
+				if (versionEl && SSR_MANIFEST?.version) {
+					versionEl.textContent = `Version ${SSR_MANIFEST.version}`;
+					versionEl.classList.remove("hidden");
 				}
 			})();
 		</script>

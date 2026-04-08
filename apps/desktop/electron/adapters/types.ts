@@ -17,8 +17,3 @@ export interface AgentAdapter {
   command(input: AdapterStartInput): { file: string; args: string[] };
   detectState(chunk: string): AdapterRunState | null;
 }
-
-export interface ResumeIdAdapter {
-  readonly provider: string;
-  detectResumeId(chunk: string): string | null;
-}

@@ -13,6 +13,7 @@ import WorkspaceLauncherModal from "@/components/WorkspaceLauncherModal.vue";
 import ThreadCreateButton from "@/components/ThreadCreateButton.vue";
 import BranchPicker from "@/components/BranchPicker.vue";
 import ThreadSidebar from "@/components/ThreadSidebar.vue";
+import Badge from "@/components/ui/Badge.vue";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAgentBootstrapCommands } from "@/composables/useAgentBootstrapCommands";
 import {
@@ -100,13 +101,19 @@ const workspaceLauncherOpen = ref(false);
 const keybindingsEnabled = ref(true);
 const showBranchPicker = ref(false);
 const staleWorktreeIds = ref<Set<string>>(new Set());
-
+const activeContextBadge = computed(() => workspace.activeContextBadge);
+const activeContextLabel = computed(() => activeContextBadge.value?.displayLabel ?? null);
 const projectDigitSlotCount = computed(() => Math.min(MOD_DIGIT_SLOT_CODES.length, workspace.projects.length));
 
 const centerPanelTabs = computed<PillTabItem[]>(() => {
   const slots = shellSlotIds.value;
   const projectSlots = projectDigitSlotCount.value;
-  const tabs: PillTabItem[] = [{ value: "agent", label: "🤖 Agent" }];
+  const tabs: PillTabItem[] = [
+    {
+      value: "agent",
+      label: "🤖 Agent",      
+    }
+  ];
   if (hasGitRepository.value === true) {
     tabs.push({ value: "diff", label: "🌿 Git Diff" });
   }
@@ -252,20 +259,8 @@ const scmBranchLine = computed(() => {
 const hasActiveWorkspace = computed(() => Boolean(workspace.activeWorktree));
 const activeWorktreeHasThreads = computed(() => workspace.activeThreads.length > 0);
 
-/**
- * Roots the Files explorer at the active thread's checkout when a thread is selected,
- * so worktree-group threads always list files only from that worktree.
- */
-const fileExplorerWorktree = computed(() => {
-  const threadId = workspace.activeThreadId;
-  if (threadId) {
-    const thread = workspace.threads.find((t) => t.id === threadId);
-    if (thread) {
-      return workspace.worktrees.find((w) => w.id === thread.worktreeId) ?? workspace.activeWorktree;
-    }
-  }
-  return workspace.activeWorktree;
-});
+/** Files is always rooted at the accepted active worktree context. */
+const fileExplorerWorktree = computed(() => workspace.activeWorktree);
 
 function getApi(): WorkspaceApi | null {
   return window.workspaceApi ?? null;
@@ -552,6 +547,16 @@ async function syncWorktrees(projectId: string): Promise<void> {
   if (snapshot) await refreshSnapshot(snapshot as WorkspaceSnapshot);
 }
 
+async function confirmFilesContextSwitch(nextWorktreeId: string | null): Promise<boolean> {
+  const currentWorktreeId = workspace.activeWorktreeId;
+  if (!currentWorktreeId || nextWorktreeId === currentWorktreeId) return true;
+
+  const nextWorktreePath =
+    workspace.worktrees.find((worktree) => worktree.id === nextWorktreeId)?.path ?? null;
+
+  return (await fileSearchRef.value?.confirmContextSwitch?.(nextWorktreePath)) ?? true;
+}
+
 async function handleSelectProject(projectId: string): Promise<void> {
   const api = getApi();
   if (!api) return;
@@ -563,6 +568,7 @@ async function handleSelectProject(projectId: string): Promise<void> {
     null;
   const fallbackThreadId =
     workspace.worktrees.find((worktree) => worktree.id === fallbackWorktreeId)?.lastActiveThreadId ?? null;
+  if (!(await confirmFilesContextSwitch(fallbackWorktreeId))) return;
   await api.setActive({ projectId, worktreeId: fallbackWorktreeId, threadId: fallbackThreadId });
   await refreshSnapshot();
   await refreshRepoStatus();
@@ -581,11 +587,13 @@ async function handleRemoveProject(projectId: string): Promise<void> {
   await refreshRepoStatus();
 }
 
-async function handleSelectWorktree(worktreeId: string): Promise<void> {
+async function handleSelectWorktree(worktreeId: string): Promise<boolean> {
   const api = getApi();
-  if (!api) return;
+  if (!api) return false;
   const targetWt = workspace.worktrees.find((w) => w.id === worktreeId);
-  if (!targetWt || workspace.activeWorktreeId === targetWt.id) return;
+  if (!targetWt) return false;
+  if (workspace.activeWorktreeId === targetWt.id) return true;
+  if (!(await confirmFilesContextSwitch(targetWt.id))) return false;
   const firstThreadInWt = workspace.threads.find((t) => t.worktreeId === targetWt.id)?.id ?? null;
   await api.setActive({
     projectId: targetWt.projectId,
@@ -594,6 +602,7 @@ async function handleSelectWorktree(worktreeId: string): Promise<void> {
   });
   await refreshSnapshot();
   await refreshRepoStatus();
+  return true;
 }
 
 const THREAD_AGENT_LABELS: Record<ThreadAgent, string> = {
@@ -769,8 +778,23 @@ async function handleSelectThread(threadId: string): Promise<void> {
   centerTab.value = "agent";
   const api = getApi();
   if (!api) return;
-  const snapshot = (await api.setActiveThread(threadId)) as WorkspaceSnapshot;
-  await refreshSnapshot(snapshot);
+  const targetThread = workspace.threads.find((thread) => thread.id === threadId);
+  if (!targetThread) return;
+  if (targetThread.worktreeId === workspace.activeWorktreeId && api.setActiveThread) {
+    const snapshot = (await api.setActiveThread(threadId)) as WorkspaceSnapshot;
+    await refreshSnapshot(snapshot);
+    return;
+  }
+  if (!(await confirmFilesContextSwitch(targetThread.worktreeId))) return;
+  const targetWorktree =
+    workspace.worktrees.find((worktree) => worktree.id === targetThread.worktreeId) ?? null;
+  await api.setActive({
+    projectId: targetWorktree?.projectId ?? targetThread.projectId,
+    worktreeId: targetThread.worktreeId,
+    threadId
+  });
+  await refreshSnapshot();
+  await refreshRepoStatus();
 }
 
 async function handleStageSelected(paths: string[]): Promise<void> {
@@ -975,7 +999,8 @@ async function onLauncherPickFile(payload: {
   if (!targetWt) return;
 
   if (workspace.activeWorktreeId !== targetWt.id) {
-    await handleSelectWorktree(targetWt.id);
+    const switched = await handleSelectWorktree(targetWt.id);
+    if (!switched) return;
   }
 
   centerTab.value = "files";
@@ -1214,6 +1239,7 @@ watch(
           ref="threadSidebarRef"
           class="min-h-0 min-w-0 flex-1"
           :collapsed="threadsSidebarCollapsed"
+          :context-label="activeContextLabel"
           :threads="workspace.activeProjectThreads"
           :active-thread-id="workspace.activeThreadId"
           :run-status-by-thread-id="runs.statusByThreadId"
@@ -1255,6 +1281,10 @@ watch(
           v-if="activeWorktreeHasThreads"
           class="flex min-h-0 min-w-0 shrink-0 items-center justify-start gap-1 overflow-hidden py-0.5 pr-1 pl-0.5"
         >
+          <Badge variant="outline" class="ms-2 text-[10px] text-muted-foreground">
+            {{ activeContextLabel }}
+          </Badge> 
+          <div class="h-5 border-s ms-2" />
           <PillTabs
             v-model="centerTabModel"
             class="min-w-0 flex-1"
@@ -1368,9 +1398,10 @@ watch(
             />
           </div>
           <div v-show="centerTab === 'diff'" class="flex min-h-0 flex-1 flex-col overflow-hidden">
-            <SourceControlPanel
+          <SourceControlPanel
               v-if="hasGitRepository"
               v-model:commit-message="scmCommitMessage"
+              :context-label="activeContextLabel"
               :repo-status="repoStatus"
               :branch-line="scmBranchLine"
               :last-commit-subject="scmMeta.lastCommitSubject"
@@ -1404,6 +1435,7 @@ watch(
           >
             <FileSearchEditor
               ref="fileSearchRef"
+              :context-label="activeContextLabel"
               :worktree-path="fileExplorerWorktree?.path ?? null"
               :worktree-label="fileExplorerWorktree?.name ?? null"
             />

@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { app, BrowserWindow, dialog, ipcMain } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
 import {
   IPC_CHANNELS,
   type AddProjectInput,
@@ -288,3 +288,40 @@ createMainWindow();
 app.on("activate", () => {
   if (BrowserWindow.getAllWindows().length === 0) createMainWindow();
 });
+
+if (app.isPackaged) {
+  void checkForUpdate();
+}
+
+async function checkForUpdate(): Promise<void> {
+  try {
+    const res = await fetch("https://api.github.com/repos/Blaise1030/instrumental/releases/latest", {
+      headers: { Accept: "application/vnd.github+json", "User-Agent": "workbench-app" }
+    });
+    if (!res.ok) return;
+    const data = await res.json() as { tag_name?: string; html_url?: string };
+    const latestTag = data.tag_name ?? "";
+    const latestVersion = latestTag.replace(/^v/, "");
+    const currentVersion = app.getVersion();
+    if (!latestVersion || latestVersion === currentVersion) return;
+
+    const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0];
+    const opts = {
+      type: "info" as const,
+      buttons: ["Download", "Later"],
+      defaultId: 0,
+      title: "Update available",
+      message: `workbench ${latestVersion} is available (you have ${currentVersion}).`,
+      detail: "Click Download to open the release page in your browser."
+    };
+    const { response } = win
+      ? await dialog.showMessageBox(win, opts)
+      : await dialog.showMessageBox(opts);
+    if (response === 0) {
+      const url = typeof data.html_url === "string" ? data.html_url : `https://github.com/Blaise1030/instrumental/releases/latest`;
+      void shell.openExternal(url);
+    }
+  } catch {
+    // silently ignore — no network, rate limit, etc.
+  }
+}

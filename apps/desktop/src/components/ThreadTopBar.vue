@@ -3,7 +3,7 @@ import { PanelLeftClose, PanelLeftOpen } from "lucide-vue-next";
 import Badge from "@/components/ui/Badge.vue";
 import Button from "@/components/ui/Button.vue";
 import WorkbenchLogoMark from "@/components/WorkbenchLogoMark.vue";
-import { APP_DISPLAY_NAME } from "@/constants/appMeta";
+import { APP_BRAND_BADGE, APP_DISPLAY_NAME, APP_PRERELEASE_BADGE } from "@/constants/appMeta";
 import { titleWithShortcut } from "@/keybindings/registry";
 
 withDefaults(
@@ -12,8 +12,10 @@ withDefaults(
     title?: string;
     /** Icon-only header strip (narrow sidebar). */
     collapsed?: boolean;
+    /** Active worktree label (Primary/linked name); shown when sidebar is collapsed. */
+    contextLabel?: string | null;
   }>(),
-  { title: APP_DISPLAY_NAME, collapsed: false }
+  { title: APP_DISPLAY_NAME, collapsed: false, contextLabel: null }
 );
 
 const emit = defineEmits<{
@@ -25,11 +27,21 @@ const emit = defineEmits<{
 <template>
   <header
     v-if="collapsed"
-    class="flex shrink-0 select-none flex-col items-center gap-2 px-1"
+    class="flex shrink-0 select-none flex-col items-center gap-1.5 px-1"
   >
-    <span class="sr-only">{{ title }} Alpha</span>
-    <div class="min-h-11 flex items-center">
+    <span class="sr-only"
+      >{{ APP_BRAND_BADGE }} {{ APP_PRERELEASE_BADGE }} {{ contextLabel ?? "" }}</span
+    >
+    <div class="min-h-11 flex flex-col items-center gap-1">
       <WorkbenchLogoMark variant="md" />
+      <Badge
+        v-if="contextLabel"
+        variant="outline"
+        data-testid="thread-topbar-context-label"
+        class="h-4 rounded-sm px-1 text-[8px] font-semibold uppercase leading-none tracking-wide"
+      >
+        {{ contextLabel }}
+      </Badge>
     </div>
     <Button
       type="button"
@@ -48,8 +60,8 @@ const emit = defineEmits<{
       class="relative m-0 flex min-w-0 flex-1 flex-nowrap items-center gap-1 overflow-hidden p-0 text-foreground"
       data-testid="thread-sidebar-brand"
     >
-      <WorkbenchLogoMark variant="md" />      
-        <span
+      <WorkbenchLogoMark variant="md" />
+       <span
           class="font-app-brand-title block min-w-0 truncate text-base uppercase leading-none text-sidebar-foreground"
           data-testid="app-title-a11y"
         >{{ title }}</span>             

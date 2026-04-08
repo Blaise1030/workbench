@@ -19,6 +19,7 @@ import {
   Undo2
 } from "lucide-vue-next";
 import Button from "@/components/ui/Button.vue";
+import Badge from "@/components/ui/Badge.vue";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -53,6 +54,8 @@ const props = withDefaults(
     branchLine?: string | null;
     /** Latest commit subject from `git log -1`; shown as a one-click draft hint. */
     lastCommitSubject?: string | null;
+    /** Active worktree label shown in the panel chrome. */
+    contextLabel?: string | null;
     /** Desktop preload exposes `gitFetch`. */
     scmFetchAvailable?: boolean;
     /** Desktop preload exposes `gitPush`. */
@@ -69,6 +72,7 @@ const props = withDefaults(
   {
     branchLine: null,
     lastCommitSubject: null,
+    contextLabel: null,
     scmFetchAvailable: false,
     scmPushAvailable: false,
     scmCommitAvailable: false,
@@ -524,10 +528,10 @@ onBeforeUnmount(() => {
         aria-label="Source control"
       >
         <div class="flex w-full items-center justify-between gap-1.5">
-          <div class="min-w-0">
+          <div class="flex min-w-0 items-center gap-1.5">
             <p class="text-[10px] font-medium leading-none text-foreground">
               {{ totalChanges.toLocaleString() }} changes
-            </p>
+            </p>            
           </div>
           <!-- Actions dropdown -->
           <DropdownMenu v-model:open="actionsOpen">

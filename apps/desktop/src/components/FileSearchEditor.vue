@@ -11,6 +11,7 @@ import {
 } from "lucide-vue-next";
 import type { FileSummary } from "@shared/ipc";
 import Button from "@/components/ui/Button.vue";
+import Badge from "@/components/ui/Badge.vue";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -46,8 +47,10 @@ const props = withDefaults(
     worktreePath: string | null;
     /** Shown beside the file path in the editor header (active worktree name). */
     worktreeLabel?: string | null;
+    /** Active worktree badge shown in the panel chrome. */
+    contextLabel?: string | null;
   }>(),
-  { worktreeLabel: null }
+  { worktreeLabel: null, contextLabel: null }
 );
 
 function basenameFromPath(absPath: string): string {
@@ -98,6 +101,8 @@ watch(sidebarCollapsed, (collapsed) => {
 
 let disposeWorkspaceChanged: (() => void) | null = null;
 let disposeWorkingTreeFilesChanged: (() => void) | null = null;
+let fileSummariesSeq = 0;
+let openFileSeq = 0;
 
 const newFileDialogOpen = ref(false);
 const newFilePathDraft = ref("");
@@ -461,6 +466,13 @@ function clearSelection(): void {
   draftContent.value = "";
 }
 
+function invalidatePendingFileRequests(): void {
+  fileSummariesSeq += 1;
+  openFileSeq += 1;
+  isSearching.value = false;
+  isLoadingFile.value = false;
+}
+
 function resetState(): void {
   query.value = "";
   allFiles.value = [];
@@ -529,20 +541,25 @@ async function loadFileSummaries(): Promise<void> {
     return;
   }
 
+  const seq = ++fileSummariesSeq;
   isSearching.value = true;
   error.value = null;
 
   try {
     const files = await api.listFiles(cwd);
+    if (seq !== fileSummariesSeq || props.worktreePath !== cwd) return;
     allFiles.value = files;
     expandedFolders.value = defaultExpandedFolders(files);
   } catch (searchError) {
+    if (seq !== fileSummariesSeq || props.worktreePath !== cwd) return;
     allFiles.value = [];
     expandedFolders.value = new Set();
     error.value =
       searchError instanceof Error ? searchError.message : "Could not load files.";
   } finally {
-    isSearching.value = false;
+    if (seq === fileSummariesSeq) {
+      isSearching.value = false;
+    }
   }
 }
 
@@ -551,19 +568,24 @@ async function openFile(relativePath: string): Promise<void> {
   const cwd = props.worktreePath;
   if (!api || !cwd) return;
 
+  const seq = ++openFileSeq;
   isLoadingFile.value = true;
   error.value = null;
 
   try {
     const content = await api.readFile(cwd, relativePath);
+    if (seq !== openFileSeq || props.worktreePath !== cwd) return;
     selectedPath.value = relativePath;
     loadedContent.value = content;
     draftContent.value = content;
   } catch (readError) {
+    if (seq !== openFileSeq || props.worktreePath !== cwd) return;
     error.value =
       readError instanceof Error ? readError.message : "Could not open the selected file.";
   } finally {
-    isLoadingFile.value = false;
+    if (seq === openFileSeq) {
+      isLoadingFile.value = false;
+    }
   }
 }
 
@@ -711,6 +733,11 @@ function handleToggleFolder(path: string): void {
   expandedFolders.value = next;
 }
 
+async function confirmContextSwitch(nextWorktreePath: string | null): Promise<boolean> {
+  if (nextWorktreePath === props.worktreePath) return true;
+  return confirmDiscardIfDirty();
+}
+
 watch(query, () => {
   error.value = null;
 });
@@ -725,11 +752,7 @@ watch(
   () => props.worktreePath,
   async (next, previous) => {
     if (next === previous) return;
-
-    if (previous !== undefined && !(await confirmDiscardIfDirty())) {
-      return;
-    }
-
+    invalidatePendingFileRequests();
     resetState();
     await loadFileSummaries();
     void focusSearchInput();
@@ -769,6 +792,8 @@ defineExpose({
   refreshFileExplorer: (): void => {
     void loadFileSummaries();
   },
+  /** Ask before leaving the current worktree context when there are unsaved edits. */
+  confirmContextSwitch,
   /** Open a worktree-relative path in the editor (same as picking the file in the tree). */
   openWorkspaceFile: handleSelectFile
 });
@@ -856,6 +881,17 @@ defineExpose({
             <FolderPlus class="h-3.5 w-3.5" aria-hidden="true" />
             <span class="sr-only">Add folder</span>
           </Button>
+          <Button
+            data-testid="file-search-sidebar-collapse"
+            variant="outline"
+            size="icon-xs"
+            class="shrink-0 px-1.5"
+            :title="'Hide file explorer'"
+            @click="collapseSidebar()"
+          >
+            <PanelLeftClose class="h-3.5 w-3.5" aria-hidden="true" />
+            <span class="sr-only">Hide file explorer</span>
+          </Button>
         </div>
 
         <ContextMenu>
@@ -914,20 +950,7 @@ defineExpose({
         data-testid="file-editor-header"
         class="flex items-center justify-between gap-3 border-b border-border px-4 py-1.5"
       >
-        <div class="flex min-w-0 flex-1 flex-wrap items-center gap-2">
-          <div
-            v-if="workspaceHeaderLine"
-            data-testid="file-editor-workspace-context"
-            class="flex min-w-0 max-w-[min(14rem,32vw)] shrink-0 items-center gap-2 border-r border-border pr-3"
-          >
-            <span class="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-              Workspace
-            </span>
-            <span
-              class="min-w-0 truncate font-mono text-[11px] text-foreground"
-              :title="props.worktreePath ?? undefined"
-            >{{ workspaceHeaderLine }}</span>
-          </div>
+        <div class="flex min-w-0 flex-1 flex-wrap items-center gap-2">          
           <p class="min-w-0 flex-1 truncate text-xs font-medium">
             {{ selectedPath ?? "No file selected" }}
           </p>

@@ -3,6 +3,7 @@ import { nextTick } from "vue";
 import { afterEach, describe, expect, it } from "vitest";
 import ThreadSidebar from "@/components/ThreadSidebar.vue";
 import type { Thread, Worktree } from "@shared/domain";
+import type { WorkspaceThreadContext } from "@/stores/workspaceStore";
 
 async function hoverFirstThreadRow(wrapper: ReturnType<typeof mount>): Promise<void> {
   await wrapper.get('[data-testid="thread-row"]').trigger("mouseenter");
@@ -72,6 +73,16 @@ describe("ThreadSidebar", () => {
     }
   ];
 
+  function makeThreadContext(worktree: Worktree, contextThreads: Thread[]): WorkspaceThreadContext {
+    return {
+      worktreeId: worktree.id,
+      worktree,
+      displayLabel: worktree.isDefault ? "Primary" : worktree.name,
+      isDefault: worktree.isDefault,
+      threads: contextThreads
+    };
+  }
+
   it("shows icon-only thread rows when collapsed", () => {
     wrapper = mount(ThreadSidebar, {
       props: {
@@ -82,12 +93,29 @@ describe("ThreadSidebar", () => {
     });
 
     expect(wrapper.attributes("data-thread-sidebar-collapsed")).toBe("true");
-    expect(wrapper.findAll('[data-testid="thread-select"]').map((n) => n.text())).toEqual([
-      "",
-      "",
-      ""
-    ]);
+    expect(wrapper.findAll('[data-testid="thread-select"]')).toHaveLength(0);
+    expect(wrapper.findAll('[data-testid="thread-group-collapsed-trigger"]')).toHaveLength(1);
     expect(wrapper.findAll('[data-testid="thread-drag-handle"]')).toHaveLength(0);
+  });
+
+  it("supports collapsed primary fallback popover without a default worktree id", async () => {
+    wrapper = mount(ThreadSidebar, {
+      props: {
+        threads: reorderedThreads,
+        activeThreadId: "t1",
+        collapsed: true,
+        threadGroups: []
+      },
+      attachTo: document.body
+    });
+
+    const trigger = wrapper.get('[data-testid="thread-group-section-__sidebar-primary__"] [data-testid="thread-group-collapsed-trigger"]');
+    expect(trigger.attributes("aria-expanded")).toBe("false");
+
+    await trigger.trigger("click");
+
+    expect(trigger.attributes("aria-expanded")).toBe("true");
+    expect(document.querySelector('[data-testid="thread-group-collapsed-popover"]')?.textContent).toContain("Codex CLI · test");
   });
 
   it("renders the expand toggle in the top bar when collapsed", async () => {
@@ -151,9 +179,9 @@ describe("ThreadSidebar", () => {
 
     const button = wrapper.get('[aria-label="Add thread"]');
     expect(button.attributes("data-size")).toBe("lg");
-    expect(button.classes()).toContain("h-11");
-    expect(button.classes()).toContain("rounded-2xl");
-    expect(button.classes()).toContain("text-base");
+    expect(button.classes()).toContain("h-9");
+    expect(button.classes()).toContain("gap-1.5");
+    expect(button.classes()).toContain("px-2.5");
   });
 
   it("renders an icon-only add-thread button in the footer when collapsed", () => {
@@ -379,33 +407,830 @@ describe("ThreadSidebar", () => {
         updatedAt: "2026-04-07T00:01:00Z"
       }
     ];
+    const linkedWorktree: Worktree = {
+      id: "w-feat",
+      projectId: "p1",
+      name: "feat/auth",
+      branch: "feat/auth",
+      path: "/tmp/.worktrees/feat-auth",
+      isActive: true,
+      isDefault: false,
+      baseBranch: "main",
+      lastActiveThreadId: null,
+      createdAt: "2026-04-07T00:00:00Z",
+      updatedAt: "2026-04-07T00:00:00Z"
+    };
+
+    const defaultWorktree: Worktree = {
+      id: "w-default",
+      projectId: "p1",
+      name: "main",
+      branch: "main",
+      path: "/tmp/project",
+      isActive: false,
+      isDefault: true,
+      baseBranch: null,
+      lastActiveThreadId: null,
+      createdAt: "2026-04-07T00:00:00Z",
+      updatedAt: "2026-04-07T00:00:00Z"
+    };
 
     wrapper = mount(ThreadSidebar, {
       props: {
         threads: [...ungroupedThreads, ...groupedThreads],
         activeThreadId: "t1",
-        threadGroups: [
-          {
-            id: "w-feat",
-            projectId: "p1",
-            name: "feat/auth",
-            branch: "feat/auth",
-            path: "/tmp/.worktrees/feat-auth",
-            isActive: true,
-            isDefault: false,
-            baseBranch: "main",
-            lastActiveThreadId: null,
-            createdAt: "2026-04-07T00:00:00Z",
-            updatedAt: "2026-04-07T00:00:00Z"
-          }
+        threadContexts: [
+          makeThreadContext(defaultWorktree, ungroupedThreads),
+          makeThreadContext(linkedWorktree, groupedThreads)
         ],
+        threadGroups: [linkedWorktree],
         defaultWorktreeId: "w-default"
       }
     });
 
-    expect(wrapper.find('[data-testid="thread-group-header"]').exists()).toBe(true);
-    expect(wrapper.find('[data-testid="thread-group-header"]').text()).toContain("feat/auth");
+    expect(wrapper.findAll('[data-testid="thread-group-header"]').map((node) => node.text())).toEqual([
+      expect.stringContaining("Primary"),
+      expect.stringContaining("feat/auth")
+    ]);
+    expect(wrapper.get('[data-thread-group-id="w-default"]').text()).toContain("Primary");
+    expect(wrapper.get('[data-thread-group-id="w-feat"]').text()).toContain("feat/auth");
+    expect(
+      wrapper.findAll('[data-testid="thread-group-header"]').map((node) => node.attributes("aria-expanded"))
+    ).toEqual(["true", "false"]);
+    expect(wrapper.find('[data-testid="thread-group-threads-w-default"]').isVisible()).toBe(true);
+    expect(wrapper.find('[data-testid="thread-group-threads-w-feat"]').isVisible()).toBe(false);
     expect(wrapper.findAll('[data-testid="thread-row"]')).toHaveLength(2);
+  });
+
+  it("expands the active linked context by default and collapses primary when inactive", () => {
+    const primaryThread: Thread = {
+      id: "t1",
+      projectId: "p1",
+      worktreeId: "w-default",
+      title: "Primary thread",
+      agent: "claude",
+      sortOrder: 0,
+      createdAt: "2026-04-07T00:00:00Z",
+      updatedAt: "2026-04-07T00:00:00Z"
+    };
+    const groupedThread: Thread = {
+      id: "t2",
+      projectId: "p1",
+      worktreeId: "w-feat",
+      title: "Grouped thread",
+      agent: "codex",
+      sortOrder: 1,
+      createdAt: "2026-04-07T00:01:00Z",
+      updatedAt: "2026-04-07T00:01:00Z"
+    };
+    const worktree: Worktree = {
+      id: "w-feat",
+      projectId: "p1",
+      name: "feat/auth",
+      branch: "feat/auth",
+      path: "/tmp/.worktrees/feat-auth",
+      isActive: true,
+      isDefault: false,
+      baseBranch: "main",
+      lastActiveThreadId: null,
+      createdAt: "2026-04-07T00:00:00Z",
+      updatedAt: "2026-04-07T00:00:00Z"
+    };
+    const defaultWorktree: Worktree = {
+      id: "w-default",
+      projectId: "p1",
+      name: "main",
+      branch: "main",
+      path: "/tmp/project",
+      isActive: false,
+      isDefault: true,
+      baseBranch: null,
+      lastActiveThreadId: null,
+      createdAt: "2026-04-07T00:00:00Z",
+      updatedAt: "2026-04-07T00:00:00Z"
+    };
+
+    wrapper = mount(ThreadSidebar, {
+      props: {
+        threads: [primaryThread, groupedThread],
+        activeThreadId: "t2",
+        threadContexts: [
+          makeThreadContext(defaultWorktree, [primaryThread]),
+          makeThreadContext(worktree, [groupedThread])
+        ],
+        threadGroups: [worktree],
+        defaultWorktreeId: "w-default"
+      }
+    });
+
+    expect(wrapper.get('[data-thread-group-id="w-default"]').attributes("aria-expanded")).toBe("false");
+    expect(wrapper.get('[data-thread-group-id="w-feat"]').attributes("aria-expanded")).toBe("true");
+    expect(wrapper.find('[data-testid="thread-group-threads-w-default"]').isVisible()).toBe(false);
+    expect(wrapper.find('[data-testid="thread-group-threads-w-feat"]').isVisible()).toBe(true);
+  });
+
+  it("emits select for threads clicked inside grouped contexts", async () => {
+    const defaultWorktree: Worktree = {
+      id: "w-default",
+      projectId: "p1",
+      name: "main",
+      branch: "main",
+      path: "/tmp/project",
+      isActive: false,
+      isDefault: true,
+      baseBranch: null,
+      lastActiveThreadId: null,
+      createdAt: "2026-04-07T00:00:00Z",
+      updatedAt: "2026-04-07T00:00:00Z"
+    };
+    const linkedWorktree: Worktree = {
+      id: "w-feat",
+      projectId: "p1",
+      name: "feat/auth",
+      branch: "feat/auth",
+      path: "/tmp/.worktrees/feat-auth",
+      isActive: true,
+      isDefault: false,
+      baseBranch: "main",
+      lastActiveThreadId: null,
+      createdAt: "2026-04-07T00:00:00Z",
+      updatedAt: "2026-04-07T00:00:00Z"
+    };
+    const primaryThread = {
+      id: "t1",
+      projectId: "p1",
+      worktreeId: "w-default",
+      title: "Primary thread",
+      agent: "claude",
+      sortOrder: 0,
+      createdAt: "2026-04-07T00:00:00Z",
+      updatedAt: "2026-04-07T00:00:00Z"
+    } satisfies Thread;
+    const groupedThread = {
+      id: "t2",
+      projectId: "p1",
+      worktreeId: "w-feat",
+      title: "Grouped thread",
+      agent: "codex",
+      sortOrder: 1,
+      createdAt: "2026-04-07T00:01:00Z",
+      updatedAt: "2026-04-07T00:01:00Z"
+    } satisfies Thread;
+
+    wrapper = mount(ThreadSidebar, {
+      props: {
+        threads: [primaryThread, groupedThread],
+        activeThreadId: "t1",
+        threadContexts: [
+          makeThreadContext(defaultWorktree, [primaryThread]),
+          makeThreadContext(linkedWorktree, [groupedThread])
+        ],
+        threadGroups: [linkedWorktree],
+        defaultWorktreeId: "w-default"
+      }
+    });
+
+    await wrapper.get('[data-thread-group-id="w-feat"]').trigger("click");
+    await wrapper
+      .get('[data-testid="thread-list-item-t2"] [data-testid="thread-select"]')
+      .trigger("click");
+
+    expect(wrapper.emitted("select")).toEqual([["t2"]]);
+  });
+
+  it("expands the newly active context when the active thread changes", async () => {
+    const defaultWorktree: Worktree = {
+      id: "w-default",
+      projectId: "p1",
+      name: "main",
+      branch: "main",
+      path: "/tmp/project",
+      isActive: false,
+      isDefault: true,
+      baseBranch: null,
+      lastActiveThreadId: null,
+      createdAt: "2026-04-07T00:00:00Z",
+      updatedAt: "2026-04-07T00:00:00Z"
+    };
+    const linkedWorktree: Worktree = {
+      id: "w-feat",
+      projectId: "p1",
+      name: "feat/auth",
+      branch: "feat/auth",
+      path: "/tmp/.worktrees/feat-auth",
+      isActive: true,
+      isDefault: false,
+      baseBranch: "main",
+      lastActiveThreadId: null,
+      createdAt: "2026-04-07T00:00:00Z",
+      updatedAt: "2026-04-07T00:00:00Z"
+    };
+    const primaryThread: Thread = {
+      id: "t1",
+      projectId: "p1",
+      worktreeId: "w-default",
+      title: "Primary thread",
+      agent: "claude",
+      sortOrder: 0,
+      createdAt: "2026-04-07T00:00:00Z",
+      updatedAt: "2026-04-07T00:00:00Z"
+    };
+    const groupedThread: Thread = {
+      id: "t2",
+      projectId: "p1",
+      worktreeId: "w-feat",
+      title: "Grouped thread",
+      agent: "codex",
+      sortOrder: 1,
+      createdAt: "2026-04-07T00:01:00Z",
+      updatedAt: "2026-04-07T00:01:00Z"
+    };
+
+    wrapper = mount(ThreadSidebar, {
+      props: {
+        threads: [primaryThread, groupedThread],
+        activeThreadId: "t1",
+        threadContexts: [
+          makeThreadContext(defaultWorktree, [primaryThread]),
+          makeThreadContext(linkedWorktree, [groupedThread])
+        ],
+        threadGroups: [linkedWorktree],
+        defaultWorktreeId: "w-default"
+      }
+    });
+
+    expect(wrapper.get('[data-thread-group-id="w-feat"]').attributes("aria-expanded")).toBe("false");
+
+    await wrapper.setProps({
+      activeThreadId: "t2",
+      threadContexts: [
+        makeThreadContext(defaultWorktree, [primaryThread]),
+        makeThreadContext(linkedWorktree, [groupedThread])
+      ]
+    });
+
+    expect(wrapper.get('[data-thread-group-id="w-feat"]').attributes("aria-expanded")).toBe("true");
+    expect(wrapper.find('[data-testid="thread-group-threads-w-feat"]').isVisible()).toBe(true);
+  });
+
+  it("uses local rendered order for grouped contexts when threadContexts are provided", async () => {
+    const defaultWorktree: Worktree = {
+      id: "w-default",
+      projectId: "p1",
+      name: "main",
+      branch: "main",
+      path: "/tmp/project",
+      isActive: false,
+      isDefault: true,
+      baseBranch: null,
+      lastActiveThreadId: null,
+      createdAt: "2026-04-07T00:00:00Z",
+      updatedAt: "2026-04-07T00:00:00Z"
+    };
+    const linkedWorktree: Worktree = {
+      id: "w-feat",
+      projectId: "p1",
+      name: "feat/auth",
+      branch: "feat/auth",
+      path: "/tmp/.worktrees/feat-auth",
+      isActive: true,
+      isDefault: false,
+      baseBranch: "main",
+      lastActiveThreadId: null,
+      createdAt: "2026-04-07T00:00:00Z",
+      updatedAt: "2026-04-07T00:00:00Z"
+    };
+    const primaryThread: Thread = {
+      id: "t1",
+      projectId: "p1",
+      worktreeId: "w-default",
+      title: "Primary thread",
+      agent: "claude",
+      sortOrder: 0,
+      createdAt: "2026-04-07T00:00:00Z",
+      updatedAt: "2026-04-07T00:00:00Z"
+    };
+    const groupedThreads: Thread[] = [
+      {
+        id: "t2",
+        projectId: "p1",
+        worktreeId: "w-feat",
+        title: "Grouped thread A",
+        agent: "codex",
+        sortOrder: 1,
+        createdAt: "2026-04-07T00:01:00Z",
+        updatedAt: "2026-04-07T00:01:00Z"
+      },
+      {
+        id: "t3",
+        projectId: "p1",
+        worktreeId: "w-feat",
+        title: "Grouped thread B",
+        agent: "gemini",
+        sortOrder: 2,
+        createdAt: "2026-04-07T00:02:00Z",
+        updatedAt: "2026-04-07T00:02:00Z"
+      }
+    ];
+
+    wrapper = mount(ThreadSidebar, {
+      props: {
+        threads: [primaryThread, ...groupedThreads],
+        activeThreadId: "t2",
+        threadContexts: [
+          makeThreadContext(defaultWorktree, [primaryThread]),
+          makeThreadContext(linkedWorktree, groupedThreads)
+        ],
+        threadGroups: [linkedWorktree],
+        defaultWorktreeId: "w-default"
+      }
+    });
+
+    const dragRows = wrapper.findAll('[data-testid="thread-row"]');
+    const dragHandles = wrapper.findAll('[data-testid="thread-drag-handle"]');
+    const dataTransfer = createDragData();
+
+    await dragHandles[1]!.trigger("dragstart", { dataTransfer });
+    await dragRows[2]!.trigger("dragenter", { dataTransfer });
+
+    expect(
+      wrapper
+        .find('[data-testid="thread-group-threads-w-feat"]')
+        .findAll('[data-testid="thread-select"]')
+        .map((node) => node.text())
+    ).toEqual(["Grouped thread B", "Grouped thread A"]);
+  });
+
+  it("keeps extra same-worktree threads visible in local rendered order", () => {
+    const defaultWorktree: Worktree = {
+      id: "w-default",
+      projectId: "p1",
+      name: "main",
+      branch: "main",
+      path: "/tmp/project",
+      isActive: false,
+      isDefault: true,
+      baseBranch: null,
+      lastActiveThreadId: null,
+      createdAt: "2026-04-07T00:00:00Z",
+      updatedAt: "2026-04-07T00:00:00Z"
+    };
+    const linkedWorktree: Worktree = {
+      id: "w-feat",
+      projectId: "p1",
+      name: "feat/auth",
+      branch: "feat/auth",
+      path: "/tmp/.worktrees/feat-auth",
+      isActive: true,
+      isDefault: false,
+      baseBranch: "main",
+      lastActiveThreadId: null,
+      createdAt: "2026-04-07T00:00:00Z",
+      updatedAt: "2026-04-07T00:00:00Z"
+    };
+    const primaryThread: Thread = {
+      id: "t1",
+      projectId: "p1",
+      worktreeId: "w-default",
+      title: "Primary thread",
+      agent: "claude",
+      sortOrder: 0,
+      createdAt: "2026-04-07T00:00:00Z",
+      updatedAt: "2026-04-07T00:00:00Z"
+    };
+    const groupedThreadA: Thread = {
+      id: "t2",
+      projectId: "p1",
+      worktreeId: "w-feat",
+      title: "Grouped thread A",
+      agent: "codex",
+      sortOrder: 1,
+      createdAt: "2026-04-07T00:01:00Z",
+      updatedAt: "2026-04-07T00:01:00Z"
+    };
+    const groupedThreadB: Thread = {
+      id: "t3",
+      projectId: "p1",
+      worktreeId: "w-feat",
+      title: "Grouped thread B",
+      agent: "gemini",
+      sortOrder: 2,
+      createdAt: "2026-04-07T00:02:00Z",
+      updatedAt: "2026-04-07T00:02:00Z"
+    };
+    const groupedThreadOutsideContext: Thread = {
+      id: "t4",
+      projectId: "p1",
+      worktreeId: "w-feat",
+      title: "Hidden same-worktree thread",
+      agent: "claude",
+      sortOrder: 3,
+      createdAt: "2026-04-07T00:03:00Z",
+      updatedAt: "2026-04-07T00:03:00Z"
+    };
+
+    wrapper = mount(ThreadSidebar, {
+      props: {
+        threads: [primaryThread, groupedThreadOutsideContext, groupedThreadA, groupedThreadB],
+        activeThreadId: "t2",
+        threadContexts: [
+          makeThreadContext(defaultWorktree, [primaryThread]),
+          makeThreadContext(linkedWorktree, [groupedThreadA, groupedThreadB])
+        ],
+        threadGroups: [linkedWorktree],
+        defaultWorktreeId: "w-default"
+      }
+    });
+
+    expect(
+      wrapper
+        .find('[data-testid="thread-group-threads-w-feat"]')
+        .findAll('[data-testid="thread-select"]')
+        .map((node) => node.text())
+    ).toEqual(["Hidden same-worktree thread", "Grouped thread A", "Grouped thread B"]);
+  });
+
+  it("appends fallback groups for threads whose worktree is missing from threadContexts entirely", () => {
+    const defaultWorktree: Worktree = {
+      id: "w-default",
+      projectId: "p1",
+      name: "main",
+      branch: "main",
+      path: "/tmp/project",
+      isActive: false,
+      isDefault: true,
+      baseBranch: null,
+      lastActiveThreadId: null,
+      createdAt: "2026-04-07T00:00:00Z",
+      updatedAt: "2026-04-07T00:00:00Z"
+    };
+    const linkedWorktree: Worktree = {
+      id: "w-feat",
+      projectId: "p1",
+      name: "feat/auth",
+      branch: "feat/auth",
+      path: "/tmp/.worktrees/feat-auth",
+      isActive: true,
+      isDefault: false,
+      baseBranch: "main",
+      lastActiveThreadId: null,
+      createdAt: "2026-04-07T00:00:00Z",
+      updatedAt: "2026-04-07T00:00:00Z"
+    };
+    const primaryThread: Thread = {
+      id: "t1",
+      projectId: "p1",
+      worktreeId: "w-default",
+      title: "Primary thread",
+      agent: "claude",
+      sortOrder: 0,
+      createdAt: "2026-04-07T00:00:00Z",
+      updatedAt: "2026-04-07T00:00:00Z"
+    };
+    const groupedThread: Thread = {
+      id: "t2",
+      projectId: "p1",
+      worktreeId: "w-feat",
+      title: "Grouped thread",
+      agent: "codex",
+      sortOrder: 1,
+      createdAt: "2026-04-07T00:01:00Z",
+      updatedAt: "2026-04-07T00:01:00Z"
+    };
+    const uncoveredThread: Thread = {
+      id: "t3",
+      projectId: "p1",
+      worktreeId: "w-untracked",
+      title: "Recovered fallback thread",
+      agent: "gemini",
+      sortOrder: 2,
+      createdAt: "2026-04-07T00:02:00Z",
+      updatedAt: "2026-04-07T00:02:00Z"
+    };
+
+    wrapper = mount(ThreadSidebar, {
+      props: {
+        threads: [primaryThread, groupedThread, uncoveredThread],
+        activeThreadId: "t1",
+        threadContexts: [
+          makeThreadContext(defaultWorktree, [primaryThread]),
+          makeThreadContext(linkedWorktree, [groupedThread])
+        ],
+        threadGroups: [linkedWorktree],
+        defaultWorktreeId: "w-default"
+      }
+    });
+
+    expect(wrapper.findAll('[data-testid="thread-group-header"]').map((node) => node.text())).toEqual([
+      expect.stringContaining("Primary"),
+      expect.stringContaining("feat/auth"),
+      expect.stringContaining("w-untracked")
+    ]);
+    expect(wrapper.text()).toContain("Recovered fallback thread");
+    expect(wrapper.find('[data-testid="thread-group-threads-w-untracked"]').isVisible()).toBe(false);
+  });
+
+  it("renders fallback Primary first when threadContexts omits the default context", () => {
+    const linkedWorktree: Worktree = {
+      id: "w-feat",
+      projectId: "p1",
+      name: "feat/auth",
+      branch: "feat/auth",
+      path: "/tmp/.worktrees/feat-auth",
+      isActive: true,
+      isDefault: false,
+      baseBranch: "main",
+      lastActiveThreadId: null,
+      createdAt: "2026-04-07T00:00:00Z",
+      updatedAt: "2026-04-07T00:00:00Z"
+    };
+    const primaryThread: Thread = {
+      id: "t1",
+      projectId: "p1",
+      worktreeId: "w-default",
+      title: "Primary thread",
+      agent: "claude",
+      sortOrder: 0,
+      createdAt: "2026-04-07T00:00:00Z",
+      updatedAt: "2026-04-07T00:00:00Z"
+    };
+    const groupedThread: Thread = {
+      id: "t2",
+      projectId: "p1",
+      worktreeId: "w-feat",
+      title: "Grouped thread",
+      agent: "codex",
+      sortOrder: 1,
+      createdAt: "2026-04-07T00:01:00Z",
+      updatedAt: "2026-04-07T00:01:00Z"
+    };
+
+    wrapper = mount(ThreadSidebar, {
+      props: {
+        threads: [primaryThread, groupedThread],
+        activeThreadId: "t1",
+        threadContexts: [makeThreadContext(linkedWorktree, [groupedThread])],
+        threadGroups: [linkedWorktree],
+        defaultWorktreeId: "w-default"
+      }
+    });
+
+    expect(wrapper.findAll('[data-testid="thread-group-header"]').map((node) => node.text())).toEqual([
+      expect.stringContaining("Primary"),
+      expect.stringContaining("feat/auth")
+    ]);
+    expect(wrapper.findAll('[data-testid="thread-group-header"]')[0]!.text()).toContain("Primary");
+  });
+
+  it("preserves manual expand state when a group disappears and later reappears", async () => {
+    const defaultWorktree: Worktree = {
+      id: "w-default",
+      projectId: "p1",
+      name: "main",
+      branch: "main",
+      path: "/tmp/project",
+      isActive: false,
+      isDefault: true,
+      baseBranch: null,
+      lastActiveThreadId: null,
+      createdAt: "2026-04-07T00:00:00Z",
+      updatedAt: "2026-04-07T00:00:00Z"
+    };
+    const linkedWorktree: Worktree = {
+      id: "w-feat",
+      projectId: "p1",
+      name: "feat/auth",
+      branch: "feat/auth",
+      path: "/tmp/.worktrees/feat-auth",
+      isActive: true,
+      isDefault: false,
+      baseBranch: "main",
+      lastActiveThreadId: null,
+      createdAt: "2026-04-07T00:00:00Z",
+      updatedAt: "2026-04-07T00:00:00Z"
+    };
+    const primaryThread: Thread = {
+      id: "t1",
+      projectId: "p1",
+      worktreeId: "w-default",
+      title: "Primary thread",
+      agent: "claude",
+      sortOrder: 0,
+      createdAt: "2026-04-07T00:00:00Z",
+      updatedAt: "2026-04-07T00:00:00Z"
+    };
+    const groupedThread: Thread = {
+      id: "t2",
+      projectId: "p1",
+      worktreeId: "w-feat",
+      title: "Grouped thread",
+      agent: "codex",
+      sortOrder: 1,
+      createdAt: "2026-04-07T00:01:00Z",
+      updatedAt: "2026-04-07T00:01:00Z"
+    };
+
+    wrapper = mount(ThreadSidebar, {
+      props: {
+        threads: [primaryThread, groupedThread],
+        activeThreadId: "t1",
+        threadContexts: [
+          makeThreadContext(defaultWorktree, [primaryThread]),
+          makeThreadContext(linkedWorktree, [groupedThread])
+        ],
+        threadGroups: [linkedWorktree],
+        defaultWorktreeId: "w-default"
+      }
+    });
+
+    expect(wrapper.get('[data-thread-group-id="w-feat"]').attributes("aria-expanded")).toBe("false");
+
+    await wrapper.get('[data-thread-group-id="w-feat"]').trigger("click");
+    expect(wrapper.get('[data-thread-group-id="w-feat"]').attributes("aria-expanded")).toBe("true");
+
+    await wrapper.setProps({
+      threads: [primaryThread],
+      threadContexts: [makeThreadContext(defaultWorktree, [primaryThread])]
+    });
+
+    expect(wrapper.find('[data-thread-group-id="w-feat"]').exists()).toBe(false);
+
+    await wrapper.setProps({
+      threads: [primaryThread, groupedThread],
+      threadContexts: [
+        makeThreadContext(defaultWorktree, [primaryThread]),
+        makeThreadContext(linkedWorktree, [groupedThread])
+      ]
+    });
+
+    expect(wrapper.get('[data-thread-group-id="w-feat"]').attributes("aria-expanded")).toBe("true");
+    expect(wrapper.find('[data-testid="thread-group-threads-w-feat"]').isVisible()).toBe(true);
+  });
+
+  it("keeps manual collapse preference while active and restores it once inactive again", async () => {
+    const defaultWorktree: Worktree = {
+      id: "w-default",
+      projectId: "p1",
+      name: "main",
+      branch: "main",
+      path: "/tmp/project",
+      isActive: false,
+      isDefault: true,
+      baseBranch: null,
+      lastActiveThreadId: null,
+      createdAt: "2026-04-07T00:00:00Z",
+      updatedAt: "2026-04-07T00:00:00Z"
+    };
+    const linkedWorktree: Worktree = {
+      id: "w-feat",
+      projectId: "p1",
+      name: "feat/auth",
+      branch: "feat/auth",
+      path: "/tmp/.worktrees/feat-auth",
+      isActive: true,
+      isDefault: false,
+      baseBranch: "main",
+      lastActiveThreadId: null,
+      createdAt: "2026-04-07T00:00:00Z",
+      updatedAt: "2026-04-07T00:00:00Z"
+    };
+    const primaryThread: Thread = {
+      id: "t1",
+      projectId: "p1",
+      worktreeId: "w-default",
+      title: "Primary thread",
+      agent: "claude",
+      sortOrder: 0,
+      createdAt: "2026-04-07T00:00:00Z",
+      updatedAt: "2026-04-07T00:00:00Z"
+    };
+    const groupedThread: Thread = {
+      id: "t2",
+      projectId: "p1",
+      worktreeId: "w-feat",
+      title: "Grouped thread",
+      agent: "codex",
+      sortOrder: 1,
+      createdAt: "2026-04-07T00:01:00Z",
+      updatedAt: "2026-04-07T00:01:00Z"
+    };
+
+    wrapper = mount(ThreadSidebar, {
+      props: {
+        threads: [primaryThread, groupedThread],
+        activeThreadId: null,
+        threadContexts: [
+          makeThreadContext(defaultWorktree, [primaryThread]),
+          makeThreadContext(linkedWorktree, [groupedThread])
+        ],
+        threadGroups: [linkedWorktree],
+        defaultWorktreeId: "w-default"
+      }
+    });
+
+    expect(wrapper.get('[data-thread-group-id="w-feat"]').attributes("aria-expanded")).toBe("false");
+
+    await wrapper.get('[data-thread-group-id="w-feat"]').trigger("click");
+    expect(wrapper.get('[data-thread-group-id="w-feat"]').attributes("aria-expanded")).toBe("true");
+
+    await wrapper.get('[data-thread-group-id="w-feat"]').trigger("click");
+    expect(wrapper.get('[data-thread-group-id="w-feat"]').attributes("aria-expanded")).toBe("false");
+
+    await wrapper.setProps({
+      activeThreadId: "t2",
+      threadContexts: [
+        makeThreadContext(defaultWorktree, [primaryThread]),
+        makeThreadContext(linkedWorktree, [groupedThread])
+      ]
+    });
+
+    expect(wrapper.get('[data-thread-group-id="w-feat"]').attributes("aria-expanded")).toBe("true");
+
+    await wrapper.setProps({
+      threadContexts: [
+        makeThreadContext(defaultWorktree, [primaryThread]),
+        makeThreadContext(linkedWorktree, [groupedThread])
+      ]
+    });
+
+    expect(wrapper.get('[data-thread-group-id="w-feat"]').attributes("aria-expanded")).toBe("true");
+    expect(wrapper.find('[data-testid="thread-group-threads-w-feat"]').isVisible()).toBe(true);
+
+    await wrapper.setProps({
+      activeThreadId: "t1",
+      threadContexts: [
+        makeThreadContext(defaultWorktree, [primaryThread]),
+        makeThreadContext(linkedWorktree, [groupedThread])
+      ]
+    });
+
+    expect(wrapper.get('[data-thread-group-id="w-feat"]').attributes("aria-expanded")).toBe("false");
+    expect(
+      (wrapper.get('[data-testid="thread-group-threads-w-feat"]').element as HTMLElement).style.display
+    ).toBe("none");
+  });
+
+  it("preserves reorder hooks inside collapsed grouped popovers", async () => {
+    const worktree: Worktree = {
+      id: "w-feat",
+      projectId: "p1",
+      name: "feat/auth",
+      branch: "feat/auth",
+      path: "/tmp/.worktrees/feat-auth",
+      isActive: true,
+      isDefault: false,
+      baseBranch: "main",
+      lastActiveThreadId: null,
+      createdAt: "2026-04-07T00:00:00Z",
+      updatedAt: "2026-04-07T00:00:00Z"
+    };
+    const groupThreads: Thread[] = [
+      {
+        id: "t2",
+        projectId: "p1",
+        worktreeId: "w-feat",
+        title: "Grouped thread A",
+        agent: "codex",
+        sortOrder: 0,
+        createdAt: "2026-04-07T00:01:00Z",
+        updatedAt: "2026-04-07T00:01:00Z"
+      },
+      {
+        id: "t3",
+        projectId: "p1",
+        worktreeId: "w-feat",
+        title: "Grouped thread B",
+        agent: "gemini",
+        sortOrder: 1,
+        createdAt: "2026-04-07T00:02:00Z",
+        updatedAt: "2026-04-07T00:02:00Z"
+      }
+    ];
+
+    wrapper = mount(ThreadSidebar, {
+      props: {
+        threads: groupThreads,
+        activeThreadId: "t2",
+        collapsed: true,
+        threadGroups: [worktree],
+        defaultWorktreeId: "w-default"
+      },
+      attachTo: document.body
+    });
+
+    await wrapper
+      .get('[data-testid="thread-group-section-w-feat"] [data-testid="thread-group-collapsed-trigger"]')
+      .trigger("click");
+
+    const handles = document.querySelectorAll(
+      '[data-testid="thread-group-collapsed-popover"] [data-testid="thread-drag-handle"]'
+    );
+    expect(handles).toHaveLength(2);
+
+    handles[0]!.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
+    await nextTick();
+
+    expect(wrapper.emitted("reorder")).toEqual([[["t3", "t2"]]]);
   });
 
   it("hides stale worktree callouts when the sidebar is collapsed", () => {
@@ -478,16 +1303,18 @@ describe("ThreadSidebar", () => {
             updatedAt: "2026-04-07T00:01:00Z"
           }
         ],
-        activeThreadId: "t2",
+        activeThreadId: null,
         threadGroups: [worktree],
         defaultWorktreeId: "w-default",
         staleWorktreeIds: new Set(["w-feat"])
       }
     });
 
+    await wrapper.get('[data-thread-group-id="w-feat"]').trigger("click");
+
     expect(wrapper.text()).toContain("Delete group & threads");
 
-    await wrapper.get('[data-testid="thread-group-header"]').trigger("click");
+    await wrapper.get('[data-thread-group-id="w-feat"]').trigger("click");
 
     expect(wrapper.findComponent({ name: "WorktreeStaleCallout" }).exists()).toBe(false);
     expect(wrapper.text()).not.toContain("Delete group & threads");
@@ -530,9 +1357,11 @@ describe("ThreadSidebar", () => {
       attachTo: document.body
     });
 
-    expect(wrapper.get('[data-testid="thread-group-collapsed-trigger"]').attributes("aria-label")).toBe(
-      "Worktree feat/auth"
-    );
+    expect(
+      wrapper
+        .get('[data-testid="thread-group-section-w-feat"] [data-testid="thread-group-collapsed-trigger"]')
+        .attributes("aria-label")
+    ).toBe("Worktree feat/auth");
   });
 
   it("opens a popover thread list for collapsed worktree groups on click", async () => {
@@ -574,7 +1403,9 @@ describe("ThreadSidebar", () => {
 
     expect(document.querySelector('[data-testid="thread-group-collapsed-popover"]')).toBeNull();
 
-    await wrapper.get('[data-testid="thread-group-collapsed-trigger"]').trigger("click");
+    await wrapper
+      .get('[data-testid="thread-group-section-w-feat"] [data-testid="thread-group-collapsed-trigger"]')
+      .trigger("click");
 
     const popover = document.querySelector('[data-testid="thread-group-collapsed-popover"]');
     expect(popover).not.toBeNull();

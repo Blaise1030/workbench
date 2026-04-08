@@ -5,6 +5,8 @@ import { buttonSizeClassMap } from "@/components/ui/button";
 export type PillTabItem = {
   value: string;
   label: string;
+  /** Optional compact tag rendered before the tab label. */
+  tag?: string;
   closable?: boolean;
   /** When true, a vertical rule is drawn after this tab (e.g. before shell tabs). */
   dividerAfter?: boolean;
@@ -83,6 +85,13 @@ function onTabKeydown(event: KeyboardEvent, index: number) {
           @click="select(tab.value)"
           @keydown="onTabKeydown($event, index)"
         >
+          <span
+            v-if="tab.tag"
+            class="rounded border border-border bg-background px-1 py-0 text-[10px] font-semibold leading-none text-muted-foreground"
+            data-testid="pill-tab-tag"
+          >
+            {{ tab.tag }}
+          </span>
           <span class="min-w-0 truncate">{{ tab.label }}</span>
         </Button>
         <Button

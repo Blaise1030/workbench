@@ -1,7 +1,9 @@
 import { mount, flushPromises } from "@vue/test-utils";
 import { createPinia } from "pinia";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { WorkspaceSnapshot } from "@shared/ipc";
+
+const mockFileSearchConfirmContextSwitch = vi.fn(() => Promise.resolve(true));
 
 vi.mock("@/components/ProjectTabs.vue", () => ({
   default: {
@@ -52,7 +54,7 @@ vi.mock("@/components/ui/PillTabs.vue", () => ({
           type="button"
           @click="$emit('update:modelValue', tab.value)"
         >
-          {{ tab.label }}
+          <span v-if="tab.tag">[{{ tab.tag }}] </span>{{ tab.label }}
         </button>
       </div>
     `
@@ -66,15 +68,18 @@ vi.mock("@/components/TerminalPane.vue", () => ({
 }));
 vi.mock("@/components/FileSearchEditor.vue", () => ({
   default: {
-    props: ["worktreePath"],
+    props: ["worktreePath", "contextLabel"],
     methods: {
       focusSearch() {},
       refreshFileExplorer() {},
+      confirmContextSwitch(nextWorktreePath: string | null) {
+        return mockFileSearchConfirmContextSwitch(nextWorktreePath);
+      },
       openWorkspaceFile() {
         return Promise.resolve();
       }
     },
-    template: '<div data-testid="file-search-editor">{{ worktreePath }}</div>'
+    template: '<div data-testid="file-search-editor">{{ worktreePath }}<template v-if="contextLabel">|{{ contextLabel }}</template></div>'
   }
 }));
 vi.mock("@/components/ThreadCreateButton.vue", () => ({
@@ -94,6 +99,7 @@ vi.mock("@/components/ThreadCreateButton.vue", () => ({
 vi.mock("@/components/ThreadSidebar.vue", () => ({
   default: {
     props: ["threads"],
+    emits: ["select", "reorder"],
     computed: {
       titles(): string {
         return this.threads.map((t: { title: string }) => t.title).join("|");
@@ -108,6 +114,38 @@ vi.mock("@/components/ThreadSidebar.vue", () => ({
           @click="$emit('reorder', ['thread-2', 'thread-1'])"
         >
           reorder
+        </button>
+        <button
+          v-for="thread in threads"
+          :key="'select-' + thread.id"
+          type="button"
+          :data-thread-id="thread.id"
+          @click="$emit('select', thread.id)"
+        >
+          select {{ thread.title }}
+        </button>
+      </div>
+    `
+  }
+}));
+vi.mock("@/components/WorkspaceLauncherModal.vue", () => ({
+  default: {
+    emits: ["pickWorktree", "update:modelValue"],
+    template: `
+      <div>
+        <button
+          type="button"
+          data-testid="launcher-pick-worktree-1"
+          @click="$emit('pickWorktree', 'worktree-1')"
+        >
+          pick worktree 1
+        </button>
+        <button
+          type="button"
+          data-testid="launcher-pick-worktree-2"
+          @click="$emit('pickWorktree', 'worktree-2')"
+        >
+          pick worktree 2
         </button>
       </div>
     `
@@ -136,6 +174,7 @@ function makeSnapshot(threadTitles: string | string[]): WorkspaceSnapshot {
         branch: "main",
         path: "/tmp/instrument",
         isActive: true,
+        isDefault: true,
         createdAt: "2026-04-06T00:00:00.000Z",
         updatedAt: "2026-04-06T00:00:00.000Z"
       }
@@ -156,7 +195,89 @@ function makeSnapshot(threadTitles: string | string[]): WorkspaceSnapshot {
   };
 }
 
+function makeMultiWorktreeSnapshot(): WorkspaceSnapshot {
+  return {
+    projects: [
+      {
+        id: "project-1",
+        name: "instrument",
+        repoPath: "/tmp/instrument",
+        status: "idle",
+        createdAt: "2026-04-06T00:00:00.000Z",
+        updatedAt: "2026-04-06T00:00:00.000Z",
+        lastActiveWorktreeId: "worktree-1"
+      }
+    ],
+    worktrees: [
+      {
+        id: "worktree-1",
+        projectId: "project-1",
+        name: "main",
+        branch: "main",
+        path: "/tmp/instrument",
+        isActive: true,
+        isDefault: true,
+        lastActiveThreadId: "thread-1",
+        createdAt: "2026-04-06T00:00:00.000Z",
+        updatedAt: "2026-04-06T00:00:00.000Z"
+      },
+      {
+        id: "worktree-2",
+        projectId: "project-1",
+        name: "feature-a",
+        branch: "feature-a",
+        path: "/tmp/instrument-feature-a",
+        isActive: false,
+        isDefault: false,
+        lastActiveThreadId: "thread-2",
+        createdAt: "2026-04-06T00:00:00.000Z",
+        updatedAt: "2026-04-06T00:00:00.000Z"
+      }
+    ],
+    threads: [
+      {
+        id: "thread-1",
+        projectId: "project-1",
+        worktreeId: "worktree-1",
+        title: "Primary thread",
+        agent: "codex",
+        sortOrder: 0,
+        createdAt: "2026-04-06T00:00:00.000Z",
+        updatedAt: "2026-04-06T00:00:00.000Z"
+      },
+      {
+        id: "thread-2",
+        projectId: "project-1",
+        worktreeId: "worktree-2",
+        title: "Feature thread",
+        agent: "codex",
+        sortOrder: 1,
+        createdAt: "2026-04-06T00:00:00.000Z",
+        updatedAt: "2026-04-06T00:00:00.000Z"
+      },
+      {
+        id: "thread-3",
+        projectId: "project-1",
+        worktreeId: "worktree-2",
+        title: "Second feature thread",
+        agent: "codex",
+        sortOrder: 2,
+        createdAt: "2026-04-06T00:00:00.000Z",
+        updatedAt: "2026-04-06T00:00:00.000Z"
+      }
+    ],
+    activeProjectId: "project-1",
+    activeWorktreeId: "worktree-2",
+    activeThreadId: "thread-2"
+  };
+}
+
 describe("WorkspaceLayout", () => {
+  beforeEach(() => {
+    mockFileSearchConfirmContextSwitch.mockReset();
+    mockFileSearchConfirmContextSwitch.mockResolvedValue(true);
+  });
+
   afterEach(() => {
     delete window.workspaceApi;
   });
@@ -281,8 +402,173 @@ describe("WorkspaceLayout", () => {
     await filesButton!.trigger("click");
     await flushPromises();
 
-    expect(wrapper.get('[data-testid="file-search-editor"]').text()).toBe("/tmp/instrument");
+    const fileSearchEditorText = wrapper.get('[data-testid="file-search-editor"]').text();
+    expect(fileSearchEditorText).toContain("/tmp/instrument");
+    expect(fileSearchEditorText).toContain("Primary");
     expect(wrapper.get('[data-testid="workspace-files-pane"]').classes()).toContain("border-t");
+  });
+
+  it("renders the active context label in the Git Diff header", async () => {
+    const { default: WorkspaceLayout } = await import("../WorkspaceLayout.vue");
+    const getSnapshot = vi.fn<WorkspaceApi["getSnapshot"]>().mockResolvedValue(makeMultiWorktreeSnapshot());
+    const changedFiles = vi.fn<WorkspaceApi["changedFiles"]>().mockResolvedValue([]);
+
+    window.workspaceApi = {
+      getSnapshot,
+      changedFiles,
+      isGitRepository: vi.fn().mockResolvedValue(true),
+      addProject: vi.fn(),
+      addWorktree: vi.fn(),
+      setActive: vi.fn(),
+      createThread: vi.fn(),
+      setActiveThread: vi.fn(),
+      deleteThread: vi.fn(),
+      renameThread: vi.fn(),
+      startRun: vi.fn(),
+      sendRunInput: vi.fn(),
+      interruptRun: vi.fn(),
+      fileDiff: vi.fn(),
+      stageAll: vi.fn(),
+      discardAll: vi.fn(),
+      listFiles: vi.fn(),
+      searchFiles: vi.fn(),
+      readFile: vi.fn(),
+      writeFile: vi.fn(),
+      createFile: vi.fn(),
+      deleteFile: vi.fn(),
+      createFolder: vi.fn(),
+      deleteFolder: vi.fn(),
+      applyPatch: vi.fn(),
+      ptyCreate: vi.fn().mockResolvedValue({ buffer: "" }),
+      ptyWrite: vi.fn(),
+      ptyResize: vi.fn(),
+      ptyKill: vi.fn(),
+      onPtyData: vi.fn(() => () => {}),
+      pickRepoDirectory: vi.fn(),
+      onWorkspaceChanged: vi.fn(() => () => {}),
+      onWorkingTreeFilesChanged: vi.fn(() => () => {})
+    };
+
+    const wrapper = mount(WorkspaceLayout, {
+      global: {
+        plugins: [createPinia()]
+      }
+    });
+
+    await flushPromises();
+    const diffButton = wrapper.findAll("button").find((button) => button.text().includes("Git Diff"));
+    expect(diffButton).toBeTruthy();
+
+    await diffButton!.trigger("click");
+    await flushPromises();
+
+    expect(wrapper.get('[data-testid="source-control-context-label"]').text()).toBe("feature-a");
+  });
+
+  it("shows the context tag before the Agent tab label for the default worktree", async () => {
+    const { default: WorkspaceLayout } = await import("../WorkspaceLayout.vue");
+    const getSnapshot = vi.fn<WorkspaceApi["getSnapshot"]>().mockResolvedValue(makeSnapshot("Codex CLI"));
+    const changedFiles = vi.fn<WorkspaceApi["changedFiles"]>().mockResolvedValue([]);
+
+    window.workspaceApi = {
+      getSnapshot,
+      changedFiles,
+      isGitRepository: vi.fn().mockResolvedValue(true),
+      addProject: vi.fn(),
+      addWorktree: vi.fn(),
+      setActive: vi.fn(),
+      createThread: vi.fn(),
+      setActiveThread: vi.fn(),
+      deleteThread: vi.fn(),
+      renameThread: vi.fn(),
+      startRun: vi.fn(),
+      sendRunInput: vi.fn(),
+      interruptRun: vi.fn(),
+      fileDiff: vi.fn(),
+      stageAll: vi.fn(),
+      discardAll: vi.fn(),
+      listFiles: vi.fn(),
+      searchFiles: vi.fn(),
+      readFile: vi.fn(),
+      writeFile: vi.fn(),
+      createFile: vi.fn(),
+      deleteFile: vi.fn(),
+      createFolder: vi.fn(),
+      deleteFolder: vi.fn(),
+      applyPatch: vi.fn(),
+      ptyCreate: vi.fn().mockResolvedValue({ buffer: "" }),
+      ptyWrite: vi.fn(),
+      ptyResize: vi.fn(),
+      ptyKill: vi.fn(),
+      onPtyData: vi.fn(() => () => {}),
+      pickRepoDirectory: vi.fn(),
+      onWorkspaceChanged: vi.fn(() => () => {}),
+      onWorkingTreeFilesChanged: vi.fn(() => () => {})
+    };
+
+    const wrapper = mount(WorkspaceLayout, {
+      global: {
+        plugins: [createPinia()]
+      }
+    });
+
+    await flushPromises();
+
+    const agentTab = wrapper.findAll("button").find((button) => button.text().includes("Agent"));
+    expect(agentTab?.text()).toContain("[Primary] 🤖 Agent");
+  });
+
+  it("shows the linked worktree context tag before the Agent tab label when active", async () => {
+    const { default: WorkspaceLayout } = await import("../WorkspaceLayout.vue");
+    const getSnapshot = vi.fn<WorkspaceApi["getSnapshot"]>().mockResolvedValue(makeMultiWorktreeSnapshot());
+    const changedFiles = vi.fn<WorkspaceApi["changedFiles"]>().mockResolvedValue([]);
+
+    window.workspaceApi = {
+      getSnapshot,
+      changedFiles,
+      isGitRepository: vi.fn().mockResolvedValue(true),
+      addProject: vi.fn(),
+      addWorktree: vi.fn(),
+      setActive: vi.fn(),
+      createThread: vi.fn(),
+      setActiveThread: vi.fn(),
+      deleteThread: vi.fn(),
+      renameThread: vi.fn(),
+      startRun: vi.fn(),
+      sendRunInput: vi.fn(),
+      interruptRun: vi.fn(),
+      fileDiff: vi.fn(),
+      stageAll: vi.fn(),
+      discardAll: vi.fn(),
+      listFiles: vi.fn(),
+      searchFiles: vi.fn(),
+      readFile: vi.fn(),
+      writeFile: vi.fn(),
+      createFile: vi.fn(),
+      deleteFile: vi.fn(),
+      createFolder: vi.fn(),
+      deleteFolder: vi.fn(),
+      applyPatch: vi.fn(),
+      ptyCreate: vi.fn().mockResolvedValue({ buffer: "" }),
+      ptyWrite: vi.fn(),
+      ptyResize: vi.fn(),
+      ptyKill: vi.fn(),
+      onPtyData: vi.fn(() => () => {}),
+      pickRepoDirectory: vi.fn(),
+      onWorkspaceChanged: vi.fn(() => () => {}),
+      onWorkingTreeFilesChanged: vi.fn(() => () => {})
+    };
+
+    const wrapper = mount(WorkspaceLayout, {
+      global: {
+        plugins: [createPinia()]
+      }
+    });
+
+    await flushPromises();
+
+    const agentTab = wrapper.findAll("button").find((button) => button.text().includes("Agent"));
+    expect(agentTab?.text()).toContain("[feature-a] 🤖 Agent");
   });
 
   it("shows the create-thread empty state instead of the terminal when the active worktree has no threads", async () => {
@@ -548,6 +834,372 @@ describe("WorkspaceLayout", () => {
     });
   });
 
+  it("switches to the selected thread's worktree before activating a thread in another worktree", async () => {
+    const { default: WorkspaceLayout } = await import("../WorkspaceLayout.vue");
+    const initialSnapshot = makeMultiWorktreeSnapshot();
+    const afterSelectSnapshot: WorkspaceSnapshot = {
+      ...initialSnapshot,
+      activeWorktreeId: "worktree-1",
+      activeThreadId: "thread-1"
+    };
+    const getSnapshot = vi
+      .fn<WorkspaceApi["getSnapshot"]>()
+      .mockResolvedValueOnce(initialSnapshot)
+      .mockResolvedValueOnce(afterSelectSnapshot);
+    const setActive = vi.fn<WorkspaceApi["setActive"]>().mockResolvedValue(undefined);
+    const setActiveThread = vi.fn<WorkspaceApi["setActiveThread"]>();
+
+    window.workspaceApi = {
+      getSnapshot,
+      changedFiles: vi.fn().mockResolvedValue([]),
+      isGitRepository: vi.fn().mockResolvedValue(true),
+      addProject: vi.fn(),
+      addWorktree: vi.fn(),
+      setActive,
+      createThread: vi.fn(),
+      setActiveThread,
+      deleteThread: vi.fn(),
+      renameThread: vi.fn(),
+      reorderThreads: vi.fn(),
+      startRun: vi.fn(),
+      sendRunInput: vi.fn(),
+      interruptRun: vi.fn(),
+      fileDiff: vi.fn(),
+      stageAll: vi.fn(),
+      discardAll: vi.fn(),
+      listFiles: vi.fn(),
+      searchFiles: vi.fn(),
+      readFile: vi.fn(),
+      writeFile: vi.fn(),
+      createFile: vi.fn(),
+      deleteFile: vi.fn(),
+      createFolder: vi.fn(),
+      deleteFolder: vi.fn(),
+      applyPatch: vi.fn(),
+      ptyCreate: vi.fn().mockResolvedValue({ buffer: "" }),
+      ptyWrite: vi.fn(),
+      ptyResize: vi.fn(),
+      ptyKill: vi.fn(),
+      onPtyData: vi.fn(() => () => {}),
+      pickRepoDirectory: vi.fn(),
+      onWorkspaceChanged: vi.fn(() => () => {}),
+      onWorkingTreeFilesChanged: vi.fn(() => () => {})
+    };
+
+    const wrapper = mount(WorkspaceLayout, {
+      global: {
+        plugins: [createPinia()]
+      }
+    });
+
+    await flushPromises();
+    await wrapper.get('[data-thread-id="thread-1"]').trigger("click");
+    await flushPromises();
+
+    expect(setActive).toHaveBeenCalledWith({
+      projectId: "project-1",
+      worktreeId: "worktree-1",
+      threadId: "thread-1"
+    });
+    expect(setActiveThread).not.toHaveBeenCalled();
+  });
+
+  it("restores the default worktree context when selecting a thread in the default worktree", async () => {
+    const { default: WorkspaceLayout } = await import("../WorkspaceLayout.vue");
+    const initialSnapshot = makeMultiWorktreeSnapshot();
+    const afterSelectSnapshot: WorkspaceSnapshot = {
+      ...initialSnapshot,
+      activeWorktreeId: "worktree-1",
+      activeThreadId: "thread-1"
+    };
+    const getSnapshot = vi
+      .fn<WorkspaceApi["getSnapshot"]>()
+      .mockResolvedValueOnce(initialSnapshot)
+      .mockResolvedValueOnce(afterSelectSnapshot);
+    const setActive = vi.fn<WorkspaceApi["setActive"]>().mockResolvedValue(undefined);
+    const setActiveThread = vi.fn<WorkspaceApi["setActiveThread"]>();
+
+    window.workspaceApi = {
+      getSnapshot,
+      changedFiles: vi.fn().mockResolvedValue([]),
+      isGitRepository: vi.fn().mockResolvedValue(true),
+      addProject: vi.fn(),
+      addWorktree: vi.fn(),
+      setActive,
+      createThread: vi.fn(),
+      setActiveThread,
+      deleteThread: vi.fn(),
+      renameThread: vi.fn(),
+      reorderThreads: vi.fn(),
+      startRun: vi.fn(),
+      sendRunInput: vi.fn(),
+      interruptRun: vi.fn(),
+      fileDiff: vi.fn(),
+      stageAll: vi.fn(),
+      discardAll: vi.fn(),
+      listFiles: vi.fn(),
+      searchFiles: vi.fn(),
+      readFile: vi.fn(),
+      writeFile: vi.fn(),
+      createFile: vi.fn(),
+      deleteFile: vi.fn(),
+      createFolder: vi.fn(),
+      deleteFolder: vi.fn(),
+      applyPatch: vi.fn(),
+      ptyCreate: vi.fn().mockResolvedValue({ buffer: "" }),
+      ptyWrite: vi.fn(),
+      ptyResize: vi.fn(),
+      ptyKill: vi.fn(),
+      onPtyData: vi.fn(() => () => {}),
+      pickRepoDirectory: vi.fn(),
+      onWorkspaceChanged: vi.fn(() => () => {}),
+      onWorkingTreeFilesChanged: vi.fn(() => () => {})
+    };
+
+    const wrapper = mount(WorkspaceLayout, {
+      global: {
+        plugins: [createPinia()]
+      }
+    });
+
+    await flushPromises();
+    const filesButton = wrapper.findAll("button").find((button) => button.text().includes("Files"));
+    expect(filesButton).toBeTruthy();
+    await filesButton!.trigger("click");
+    await flushPromises();
+
+    const fileSearchEditorBeforeSwitchText = wrapper.get('[data-testid="file-search-editor"]').text();
+    expect(fileSearchEditorBeforeSwitchText).toContain("/tmp/instrument-feature-a");
+    expect(fileSearchEditorBeforeSwitchText).toContain("feature-a");
+
+    await wrapper.get('[data-thread-id="thread-1"]').trigger("click");
+    await flushPromises();
+
+    expect(setActive).toHaveBeenCalledWith({
+      projectId: "project-1",
+      worktreeId: "worktree-1",
+      threadId: "thread-1"
+    });
+    expect(setActiveThread).not.toHaveBeenCalled();
+    const fileSearchEditorAfterSwitchText = wrapper.get('[data-testid="file-search-editor"]').text();
+    expect(fileSearchEditorAfterSwitchText).toContain("/tmp/instrument");
+    expect(fileSearchEditorAfterSwitchText).toContain("Primary");
+  });
+
+  it("binds Files to the active worktree path even if the active thread points elsewhere", async () => {
+    const { default: WorkspaceLayout } = await import("../WorkspaceLayout.vue");
+    const snapshot = makeMultiWorktreeSnapshot();
+    snapshot.activeWorktreeId = "worktree-1";
+    snapshot.activeThreadId = "thread-2";
+    const getSnapshot = vi.fn<WorkspaceApi["getSnapshot"]>().mockResolvedValue(snapshot);
+
+    window.workspaceApi = {
+      getSnapshot,
+      changedFiles: vi.fn().mockResolvedValue([]),
+      isGitRepository: vi.fn().mockResolvedValue(true),
+      addProject: vi.fn(),
+      addWorktree: vi.fn(),
+      setActive: vi.fn(),
+      createThread: vi.fn(),
+      setActiveThread: vi.fn(),
+      deleteThread: vi.fn(),
+      renameThread: vi.fn(),
+      reorderThreads: vi.fn(),
+      startRun: vi.fn(),
+      sendRunInput: vi.fn(),
+      interruptRun: vi.fn(),
+      fileDiff: vi.fn(),
+      stageAll: vi.fn(),
+      discardAll: vi.fn(),
+      listFiles: vi.fn(),
+      searchFiles: vi.fn(),
+      readFile: vi.fn(),
+      writeFile: vi.fn(),
+      createFile: vi.fn(),
+      deleteFile: vi.fn(),
+      createFolder: vi.fn(),
+      deleteFolder: vi.fn(),
+      applyPatch: vi.fn(),
+      ptyCreate: vi.fn().mockResolvedValue({ buffer: "" }),
+      ptyWrite: vi.fn(),
+      ptyResize: vi.fn(),
+      ptyKill: vi.fn(),
+      onPtyData: vi.fn(() => () => {}),
+      pickRepoDirectory: vi.fn(),
+      onWorkspaceChanged: vi.fn(() => () => {}),
+      onWorkingTreeFilesChanged: vi.fn(() => () => {})
+    };
+
+    const wrapper = mount(WorkspaceLayout, {
+      global: {
+        plugins: [createPinia()]
+      }
+    });
+
+    await flushPromises();
+    const filesButton = wrapper.findAll("button").find((button) => button.text().includes("Files"));
+    expect(filesButton).toBeTruthy();
+    await filesButton!.trigger("click");
+    await flushPromises();
+
+    const fileSearchEditorText = wrapper.get('[data-testid="file-search-editor"]').text();
+    expect(fileSearchEditorText).toContain("/tmp/instrument");
+    expect(fileSearchEditorText).toContain("Primary");
+  });
+
+  it("cancels a dirty Files worktree switch before changing the active worktree", async () => {
+    const { default: WorkspaceLayout } = await import("../WorkspaceLayout.vue");
+    const snapshot = makeMultiWorktreeSnapshot();
+    const getSnapshot = vi.fn<WorkspaceApi["getSnapshot"]>().mockResolvedValue(snapshot);
+    const setActive = vi.fn<WorkspaceApi["setActive"]>().mockResolvedValue(undefined);
+    mockFileSearchConfirmContextSwitch.mockResolvedValueOnce(false);
+
+    window.workspaceApi = {
+      getSnapshot,
+      changedFiles: vi.fn().mockResolvedValue([]),
+      isGitRepository: vi.fn().mockResolvedValue(true),
+      addProject: vi.fn(),
+      addWorktree: vi.fn(),
+      setActive,
+      createThread: vi.fn(),
+      setActiveThread: vi.fn(),
+      deleteThread: vi.fn(),
+      renameThread: vi.fn(),
+      reorderThreads: vi.fn(),
+      startRun: vi.fn(),
+      sendRunInput: vi.fn(),
+      interruptRun: vi.fn(),
+      fileDiff: vi.fn(),
+      stageAll: vi.fn(),
+      discardAll: vi.fn(),
+      listFiles: vi.fn(),
+      searchFiles: vi.fn(),
+      readFile: vi.fn(),
+      writeFile: vi.fn(),
+      createFile: vi.fn(),
+      deleteFile: vi.fn(),
+      createFolder: vi.fn(),
+      deleteFolder: vi.fn(),
+      applyPatch: vi.fn(),
+      ptyCreate: vi.fn().mockResolvedValue({ buffer: "" }),
+      ptyWrite: vi.fn(),
+      ptyResize: vi.fn(),
+      ptyKill: vi.fn(),
+      onPtyData: vi.fn(() => () => {}),
+      pickRepoDirectory: vi.fn(),
+      onWorkspaceChanged: vi.fn(() => () => {}),
+      onWorkingTreeFilesChanged: vi.fn(() => () => {})
+    };
+
+    const wrapper = mount(WorkspaceLayout, {
+      global: {
+        plugins: [createPinia()]
+      }
+    });
+
+    await flushPromises();
+    const filesButton = wrapper.findAll("button").find((button) => button.text().includes("Files"));
+    expect(filesButton).toBeTruthy();
+    await filesButton!.trigger("click");
+    await flushPromises();
+
+    await wrapper.get('[data-testid="launcher-pick-worktree-1"]').trigger("click");
+    await flushPromises();
+
+    expect(mockFileSearchConfirmContextSwitch).toHaveBeenCalledWith("/tmp/instrument");
+    expect(setActive).not.toHaveBeenCalled();
+    const fileSearchEditorText = wrapper.get('[data-testid="file-search-editor"]').text();
+    expect(fileSearchEditorText).toContain("/tmp/instrument-feature-a");
+    expect(fileSearchEditorText).toContain("feature-a");
+  });
+
+  it("restores lastActiveThreadId when manually switching worktrees and falls back to the first thread otherwise", async () => {
+    const { default: WorkspaceLayout } = await import("../WorkspaceLayout.vue");
+    const initialSnapshot = makeMultiWorktreeSnapshot();
+    initialSnapshot.worktrees[0] = {
+      ...initialSnapshot.worktrees[0]!,
+      lastActiveThreadId: null
+    };
+    initialSnapshot.activeWorktreeId = "worktree-1";
+    initialSnapshot.activeThreadId = "thread-1";
+    const afterSwitchToWorktree2: WorkspaceSnapshot = {
+      ...initialSnapshot,
+      activeWorktreeId: "worktree-2",
+      activeThreadId: "thread-2"
+    };
+    const afterSwitchBackToWorktree1: WorkspaceSnapshot = {
+      ...initialSnapshot,
+      activeWorktreeId: "worktree-1",
+      activeThreadId: "thread-1"
+    };
+    const getSnapshot = vi
+      .fn<WorkspaceApi["getSnapshot"]>()
+      .mockResolvedValueOnce(initialSnapshot)
+      .mockResolvedValueOnce(afterSwitchToWorktree2)
+      .mockResolvedValueOnce(afterSwitchBackToWorktree1);
+    const setActive = vi.fn<WorkspaceApi["setActive"]>().mockResolvedValue(undefined);
+
+    window.workspaceApi = {
+      getSnapshot,
+      changedFiles: vi.fn().mockResolvedValue([]),
+      isGitRepository: vi.fn().mockResolvedValue(true),
+      addProject: vi.fn(),
+      addWorktree: vi.fn(),
+      setActive,
+      createThread: vi.fn(),
+      setActiveThread: vi.fn(),
+      deleteThread: vi.fn(),
+      renameThread: vi.fn(),
+      reorderThreads: vi.fn(),
+      startRun: vi.fn(),
+      sendRunInput: vi.fn(),
+      interruptRun: vi.fn(),
+      fileDiff: vi.fn(),
+      stageAll: vi.fn(),
+      discardAll: vi.fn(),
+      listFiles: vi.fn(),
+      searchFiles: vi.fn(),
+      readFile: vi.fn(),
+      writeFile: vi.fn(),
+      createFile: vi.fn(),
+      deleteFile: vi.fn(),
+      createFolder: vi.fn(),
+      deleteFolder: vi.fn(),
+      applyPatch: vi.fn(),
+      ptyCreate: vi.fn().mockResolvedValue({ buffer: "" }),
+      ptyWrite: vi.fn(),
+      ptyResize: vi.fn(),
+      ptyKill: vi.fn(),
+      onPtyData: vi.fn(() => () => {}),
+      pickRepoDirectory: vi.fn(),
+      onWorkspaceChanged: vi.fn(() => () => {}),
+      onWorkingTreeFilesChanged: vi.fn(() => () => {})
+    };
+
+    const wrapper = mount(WorkspaceLayout, {
+      global: {
+        plugins: [createPinia()]
+      }
+    });
+
+    await flushPromises();
+    await wrapper.get('[data-testid="launcher-pick-worktree-2"]').trigger("click");
+    await flushPromises();
+    await wrapper.get('[data-testid="launcher-pick-worktree-1"]').trigger("click");
+    await flushPromises();
+
+    expect(setActive).toHaveBeenNthCalledWith(1, {
+      projectId: "project-1",
+      worktreeId: "worktree-2",
+      threadId: "thread-2"
+    });
+    expect(setActive).toHaveBeenNthCalledWith(2, {
+      projectId: "project-1",
+      worktreeId: "worktree-1",
+      threadId: "thread-1"
+    });
+  });
+
   it("hides the Git Diff tab and shows a no-Git empty state when the worktree is not a repository", async () => {
     const { default: WorkspaceLayout } = await import("../WorkspaceLayout.vue");
     const getSnapshot = vi.fn<WorkspaceApi["getSnapshot"]>().mockResolvedValue(makeSnapshot("Codex CLI"));
@@ -752,4 +1404,5 @@ describe("WorkspaceLayout", () => {
 
     confirmSpy.mockRestore();
   });
+
 });

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { RunStatus, Thread, ThreadAgent, Worktree } from "@shared/domain";
+import type { WorkspaceThreadContext } from "@/stores/workspaceStore";
 import { Plus } from "lucide-vue-next";
 import { computed, ref, watch } from "vue";
 import BranchPicker from "@/components/BranchPicker.vue";
@@ -13,6 +14,22 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import Button from "@/components/ui/Button.vue";
 import { titleWithShortcut } from "@/keybindings/registry";
 
+const PRIMARY_FALLBACK_UI_KEY = "__sidebar-primary__";
+
+type SidebarContextGroup = {
+  uiKey: string;
+  worktreeId: string | null;
+  worktree: Worktree | null;
+  title: string;
+  branch: string | null;
+  baseBranch: string | null;
+  path: string | null;
+  threads: Thread[];
+  isStale: boolean;
+  isPrimary: boolean;
+  isActive: boolean;
+};
+
 const props = withDefaults(
   defineProps<{
     threads: Thread[];
@@ -24,6 +41,10 @@ const props = withDefaults(
     threadsNeedingAttention?: ReadonlySet<string>;
     /** Non-default worktrees (thread groups). */
     threadGroups?: Worktree[];
+    /** Store-derived grouped contexts, ordered with Primary first. */
+    threadContexts?: WorkspaceThreadContext[];
+    /** Active worktree label shown in the top bar when collapsed. */
+    contextLabel?: string | null;
     /** ID of the default worktree — threads with this worktreeId are "ungrouped". */
     defaultWorktreeId?: string | null;
     /** Worktree IDs whose path no longer exists on disk. */
@@ -38,6 +59,8 @@ const props = withDefaults(
     runStatusByThreadId: undefined,
     threadsNeedingAttention: undefined,
     threadGroups: () => [],
+    threadContexts: undefined,
+    contextLabel: null,
     defaultWorktreeId: null,
     staleWorktreeIds: () => new Set(),
     showBranchPicker: false,
@@ -62,36 +85,165 @@ const emit = defineEmits<{
 
 const createButtonRef = ref<InstanceType<typeof ThreadCreateButton> | null>(null);
 
-const ungroupedThreads = computed(() => {
-  if (!props.defaultWorktreeId) return props.threads;
-  return props.threads.filter((t) => t.worktreeId === props.defaultWorktreeId);
-});
-
-const groupData = computed(() => {
-  return (props.threadGroups ?? []).map((wt) => ({
-    worktree: wt,
-    threads: props.threads.filter((t) => t.worktreeId === wt.id),
-    isStale: props.staleWorktreeIds?.has(wt.id) ?? false
-  }));
-});
-
 const collapsedGroups = ref<Set<string>>(new Set());
+const groupCollapseHistory = ref<Map<string, boolean>>(new Map());
 const openCollapsedGroupId = ref<string | null>(null);
 
 function toggleGroup(worktreeId: string): void {
   const next = new Set(collapsedGroups.value);
+  let isCollapsed: boolean;
   if (next.has(worktreeId)) {
     next.delete(worktreeId);
+    isCollapsed = false;
   } else {
     next.add(worktreeId);
+    isCollapsed = true;
   }
   collapsedGroups.value = next;
+  const history = new Map(groupCollapseHistory.value);
+  history.set(worktreeId, isCollapsed);
+  groupCollapseHistory.value = history;
 }
 
 const renderedThreads = ref<Thread[]>([...props.threads]);
 const draggedThreadId = ref<string | null>(null);
 const dragOverThreadId = ref<string | null>(null);
 const dropCompleted = ref(false);
+
+function renderedThreadsForWorktree(worktreeId: string): Thread[] {
+  return renderedThreads.value.filter((thread) => thread.worktreeId === worktreeId);
+}
+
+function mergeContextThreadsWithExtras(context: WorkspaceThreadContext): Thread[] {
+  const canonicalThreadIds = new Set(context.threads.map((thread) => thread.id));
+  const visibleSameWorktreeThreads = renderedThreads.value.filter(
+    (thread) => thread.worktreeId === context.worktreeId
+  );
+  const missingCanonicalThreads = context.threads.filter(
+    (thread) => !visibleSameWorktreeThreads.some((visibleThread) => visibleThread.id === thread.id)
+  );
+
+  return [
+    ...visibleSameWorktreeThreads,
+    ...missingCanonicalThreads.filter((thread) => canonicalThreadIds.has(thread.id))
+  ];
+}
+
+function hasActiveThreadInWorktree(worktreeId: string): boolean {
+  return renderedThreads.value.some(
+    (thread) => thread.id === props.activeThreadId && thread.worktreeId === worktreeId
+  );
+}
+
+const contextGroups = computed<SidebarContextGroup[]>(() => {
+  if (props.threadContexts?.length) {
+    const contextGroups = props.threadContexts.map((context) => ({
+      uiKey: context.worktreeId,
+      worktreeId: context.worktreeId,
+      worktree: context.worktree,
+      title: context.displayLabel,
+      branch: context.worktree.branch,
+      baseBranch: context.worktree.baseBranch,
+      path: context.worktree.path,
+      threads: mergeContextThreadsWithExtras(context),
+      isStale: props.staleWorktreeIds?.has(context.worktreeId) ?? false,
+      isPrimary: context.isDefault,
+      isActive: hasActiveThreadInWorktree(context.worktreeId)
+    }));
+
+    const coveredThreadIds = new Set(
+      contextGroups.flatMap((group) => group.threads.map((thread) => thread.id))
+    );
+    const fallbackGroups = renderedThreads.value
+      .filter((thread) => !coveredThreadIds.has(thread.id))
+      .reduce<SidebarContextGroup[]>((groups, thread) => {
+        const existingGroup = groups.find((group) => group.worktreeId === thread.worktreeId);
+        if (existingGroup) {
+          existingGroup.threads.push(thread);
+          existingGroup.isActive ||= thread.id === props.activeThreadId;
+          return groups;
+        }
+
+        groups.push({
+          uiKey: thread.worktreeId,
+          worktreeId: thread.worktreeId,
+          worktree: null,
+          title: thread.worktreeId === props.defaultWorktreeId ? "Primary" : thread.worktreeId,
+          branch: null,
+          baseBranch: null,
+          path: null,
+          threads: [thread],
+          isStale: props.staleWorktreeIds?.has(thread.worktreeId) ?? false,
+          isPrimary: thread.worktreeId === props.defaultWorktreeId,
+          isActive: thread.id === props.activeThreadId
+        });
+
+        return groups;
+      }, []);
+
+    const fallbackPrimaryGroups = fallbackGroups.filter((group) => group.isPrimary);
+    const fallbackLinkedGroups = fallbackGroups.filter((group) => !group.isPrimary);
+
+    return [...fallbackPrimaryGroups, ...contextGroups, ...fallbackLinkedGroups];
+  }
+
+  const linkedWorktreeIds = new Set((props.threadGroups ?? []).map((group) => group.id));
+  const primaryThreads = props.defaultWorktreeId
+    ? renderedThreadsForWorktree(props.defaultWorktreeId)
+    : renderedThreads.value.filter((thread) => !linkedWorktreeIds.has(thread.worktreeId));
+  const groups: SidebarContextGroup[] = [];
+
+  if (
+    props.defaultWorktreeId !== null ||
+    primaryThreads.length > 0 ||
+    (props.threadGroups?.length ?? 0) === 0
+  ) {
+    groups.push({
+      uiKey: props.defaultWorktreeId ?? PRIMARY_FALLBACK_UI_KEY,
+      worktreeId: props.defaultWorktreeId,
+      worktree: null,
+      title: "Primary",
+      branch: null,
+      baseBranch: null,
+      path: null,
+      threads: primaryThreads,
+      isStale: false,
+      isPrimary: true,
+      isActive: primaryThreads.some((thread) => thread.id === props.activeThreadId)
+    });
+  }
+
+  for (const worktree of props.threadGroups ?? []) {
+    const groupThreads = renderedThreadsForWorktree(worktree.id);
+    groups.push({
+      uiKey: worktree.id,
+      worktreeId: worktree.id,
+      worktree,
+      title: worktree.name,
+      branch: worktree.branch,
+      baseBranch: worktree.baseBranch,
+      path: worktree.path,
+      threads: groupThreads,
+      isStale: props.staleWorktreeIds?.has(worktree.id) ?? false,
+      isPrimary: false,
+      isActive: groupThreads.some((thread) => thread.id === props.activeThreadId)
+    });
+  }
+
+  return groups;
+});
+
+const activeContextWorktreeId = computed(
+  () => contextGroups.value.find((group) => group.isActive)?.uiKey ?? null
+);
+
+const effectiveCollapsedGroups = computed(() => {
+  const next = new Set(collapsedGroups.value);
+  if (activeContextWorktreeId.value !== null) {
+    next.delete(activeContextWorktreeId.value);
+  }
+  return next;
+});
 
 function getThreadIds(threads: Thread[]): string[] {
   return threads.map((thread) => thread.id);
@@ -103,11 +255,6 @@ function hasVisibleOrderChanged(): boolean {
 
   return currentIds.some((threadId, index) => threadId !== originalIds[index]);
 }
-
-const ungroupedRenderedThreads = computed(() => {
-  if (!props.defaultWorktreeId) return renderedThreads.value;
-  return renderedThreads.value.filter((t) => t.worktreeId === props.defaultWorktreeId);
-});
 
 watch(
   () => props.threads,
@@ -125,6 +272,36 @@ watch(
       openCollapsedGroupId.value = null;
     }
   }
+);
+
+watch(
+  contextGroups,
+  (groups) => {
+    const next = new Set<string>();
+
+    for (const group of groups) {
+      if (groupCollapseHistory.value.has(group.uiKey)) {
+        if (groupCollapseHistory.value.get(group.uiKey) === true) {
+          next.add(group.uiKey);
+        }
+        continue;
+      }
+
+      if (!group.isActive && (props.activeThreadId ? true : !group.isPrimary)) {
+        next.add(group.uiKey);
+      }
+    }
+
+    collapsedGroups.value = next;
+
+    if (
+      openCollapsedGroupId.value !== null &&
+      !groups.some((group) => group.uiKey === openCollapsedGroupId.value)
+    ) {
+      openCollapsedGroupId.value = null;
+    }
+  },
+  { immediate: true }
 );
 
 function moveThread(threadId: string, targetThreadId: string): void {
@@ -262,6 +439,7 @@ defineExpose({ openNewThreadMenu });
   >
     <ThreadTopBar
       :collapsed="collapsed"
+      :context-label="contextLabel"
       @collapse="emit('collapse')"
       @expand="emit('expand')"
     />
@@ -283,47 +461,18 @@ defineExpose({ openNewThreadMenu });
       </template>
     </section>
     <div v-else class="min-h-0 flex-1 overflow-y-auto pb-3 pt-3">
-      <!-- Ungrouped threads -->
-      <ul class="space-y-0.5 px-2">
-        <li
-          v-for="thread in ungroupedRenderedThreads"
-          :key="thread.id"
-          :data-testid="`thread-list-item-${thread.id}`"
-          @dragenter.prevent="handleDragEnter(thread.id)"
-          @dragover="handleDragOver"
-          @drop="handleDrop(thread.id, $event)"
-        >
-          <ThreadRow
-            data-testid="thread-row"
-            :thread="thread"
-            :collapsed="collapsed"
-            :is-active="thread.id === activeThreadId"
-            :run-status="runStatusByThreadId?.[thread.id] ?? null"
-            :needs-attention="threadsNeedingAttention?.has(thread.id) ?? false"
-            :is-dragging="thread.id === draggedThreadId"
-            :is-drag-target="draggedThreadId !== null && thread.id === dragOverThreadId"
-            @dragstart="handleDragStart(thread.id, $event)"
-            @dragend="handleDragEnd"
-            @keyboard-reorder="handleKeyboardReorder(thread.id, $event)"
-            @select="emit('select', thread.id)"
-            @remove="emit('remove', thread.id)"
-            @rename="(title) => emit('rename', thread.id, title)"
-          />
-        </li>
-      </ul>
-
-      <!-- Thread groups -->
       <div
-        v-for="(group, groupIndex) in groupData"
-        :key="group.worktree.id"
-        :class="groupIndex > 0 || ungroupedRenderedThreads.length > 0 ? 'mt-2' : ''"
+        v-for="(group, groupIndex) in contextGroups"
+        :key="group.uiKey"
+        :data-testid="`thread-group-section-${group.uiKey}`"
+        :class="groupIndex > 0 ? 'mt-2' : ''"
       >
         <template v-if="collapsed">
           <div class="px-2">
             <HoverCard :open-delay="0" :close-delay="0">
               <Popover
-                :open="openCollapsedGroupId === group.worktree.id"
-                @update:open="setCollapsedGroupPopoverOpen(group.worktree.id, $event)"
+                :open="openCollapsedGroupId === group.uiKey"
+                @update:open="setCollapsedGroupPopoverOpen(group.uiKey, $event)"
               >
                 <HoverCardTrigger as-child>
                   <PopoverTrigger as-child>
@@ -339,10 +488,10 @@ defineExpose({ openNewThreadMenu });
                           : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground',
                         group.isStale ? 'text-destructive/80' : ''
                       ]"
-                      :aria-label="`Worktree ${group.worktree.name}`"
-                      :aria-expanded="openCollapsedGroupId === group.worktree.id"
+                      :aria-label="group.isPrimary ? `Context ${group.title}` : `Worktree ${group.title}`"
+                      :aria-expanded="openCollapsedGroupId === group.uiKey"
                     >
-                      <span aria-hidden="true">🌳</span>
+                      <span aria-hidden="true">{{ group.isPrimary ? "•" : "🌳" }}</span>
                     </Button>
                   </PopoverTrigger>
                 </HoverCardTrigger>
@@ -353,23 +502,25 @@ defineExpose({ openNewThreadMenu });
                   class="max-w-[min(22rem,calc(100vw-2rem))] border-border px-2.5 py-2 text-left text-xs"
                 >
                   <div class="font-medium leading-snug text-popover-foreground">
-                    {{ group.worktree.name }}
+                    {{ group.title }}
                   </div>
-                  <div class="mt-1 break-all font-normal leading-snug text-[11px] text-muted-foreground">
-                    {{ group.worktree.path }}
+                  <div
+                    v-if="group.path"
+                    class="mt-1 break-all font-normal leading-snug text-[11px] text-muted-foreground"
+                  >
+                    {{ group.path }}
                   </div>
-                  <div class="mt-1.5 space-y-0.5 font-normal text-[11px] leading-snug text-muted-foreground">
+                  <div
+                    v-if="group.branch || group.baseBranch"
+                    class="mt-1.5 space-y-0.5 font-normal text-[11px] leading-snug text-muted-foreground"
+                  >
                     <div>
                       Branch:
-                      <span class="text-foreground">{{ group.worktree.branch }}</span>
+                      <span class="text-foreground">{{ group.branch }}</span>
                     </div>
                     <div>
                       Source branch:
-                      <span class="text-foreground">{{
-                        group.worktree.baseBranch?.trim()
-                          ? group.worktree.baseBranch
-                          : "—"
-                      }}</span>
+                      <span class="text-foreground">{{ group.baseBranch?.trim() ? group.baseBranch : "—" }}</span>
                     </div>
                   </div>
                 </HoverCardContent>
@@ -381,24 +532,26 @@ defineExpose({ openNewThreadMenu });
                 >
                   <div class="flex flex-col gap-1 border-b border-border px-2 pb-2 pt-1 text-xs">
                     <div class="flex items-center gap-2 font-medium">
-                      <span aria-hidden="true">🌳</span>
-                      <span class="min-w-0 truncate">{{ group.worktree.name }}</span>
+                      <span aria-hidden="true">{{ group.isPrimary ? "•" : "🌳" }}</span>
+                      <span class="min-w-0 truncate">{{ group.title }}</span>
                     </div>
-                    <div class="break-all pl-7 text-[11px] font-normal leading-snug text-muted-foreground">
-                      {{ group.worktree.path }}
+                    <div
+                      v-if="group.path"
+                      class="break-all pl-7 text-[11px] font-normal leading-snug text-muted-foreground"
+                    >
+                      {{ group.path }}
                     </div>
-                    <div class="flex flex-col gap-0.5 pl-7 text-[11px] text-muted-foreground">
+                    <div
+                      v-if="group.branch || group.baseBranch"
+                      class="flex flex-col gap-0.5 pl-7 text-[11px] text-muted-foreground"
+                    >
                       <div>
                         Branch:
-                        <span class="text-foreground">{{ group.worktree.branch }}</span>
+                        <span class="text-foreground">{{ group.branch }}</span>
                       </div>
                       <div>
                         Source branch:
-                        <span class="text-foreground">{{
-                          group.worktree.baseBranch?.trim()
-                            ? group.worktree.baseBranch
-                            : "—"
-                        }}</span>
+                        <span class="text-foreground">{{ group.baseBranch?.trim() ? group.baseBranch : "—" }}</span>
                       </div>
                     </div>
                   </div>
@@ -412,13 +565,16 @@ defineExpose({ openNewThreadMenu });
                     v-else-if="group.threads.length === 0"
                     class="px-2 pt-2 pb-1.5 text-xs text-muted-foreground"
                   >
-                    No threads in this worktree
+                    No threads in this context
                   </div>
                   <ul v-else class="space-y-0.5 pt-2">
                     <li
                       v-for="thread in group.threads"
                       :key="thread.id"
                       :data-testid="`thread-list-item-${thread.id}`"
+                      @dragenter.prevent="handleDragEnter(thread.id)"
+                      @dragover="handleDragOver"
+                      @drop="handleDrop(thread.id, $event)"
                     >
                       <ThreadRow
                         data-testid="thread-row"
@@ -426,6 +582,11 @@ defineExpose({ openNewThreadMenu });
                         :is-active="thread.id === activeThreadId"
                         :run-status="runStatusByThreadId?.[thread.id] ?? null"
                         :needs-attention="threadsNeedingAttention?.has(thread.id) ?? false"
+                        :is-dragging="thread.id === draggedThreadId"
+                        :is-drag-target="draggedThreadId !== null && thread.id === dragOverThreadId"
+                        @dragstart="handleDragStart(thread.id, $event)"
+                        @dragend="handleDragEnd"
+                        @keyboard-reorder="handleKeyboardReorder(thread.id, $event)"
                         @select="handleCollapsedGroupSelect(thread.id)"
                         @remove="emit('remove', thread.id)"
                         @rename="(title) => emit('rename', thread.id, title)"
@@ -439,28 +600,38 @@ defineExpose({ openNewThreadMenu });
         </template>
         <template v-else>
           <ThreadGroupHeader
-            data-testid="thread-group-header"
-            :title="group.worktree.name"
-            :branch="group.worktree.branch"
-            :base-branch="group.worktree.baseBranch"
-            :path="group.worktree.path"
+            :data-thread-group-id="group.worktreeId ?? undefined"
+            :title="group.title"
+            :context-badge-label="
+              group.isPrimary
+                ? group.isActive
+                  ? (contextLabel ?? group.title)
+                  : group.title
+                : null
+            "
+            :branch="group.branch"
+            :base-branch="group.baseBranch"
+            :path="group.path"
             :thread-count="group.threads.length"
             :is-stale="group.isStale"
-            :is-active="group.threads.some((t) => t.id === activeThreadId)"
-            :collapsed="collapsedGroups.has(group.worktree.id)"
-            @toggle="toggleGroup(group.worktree.id)"
-            @add-thread="emit('addThreadToGroup', group.worktree.id, $event)"
-            @delete="emit('deleteWorktreeGroup', group.worktree.id)"
+            :is-active="group.isActive"
+            :collapsed="effectiveCollapsedGroups.has(group.uiKey)"
+            :is-primary="group.isPrimary"
+            :show-actions="!group.isPrimary"
+            @toggle="toggleGroup(group.uiKey)"
+            @add-thread="group.worktreeId !== null && emit('addThreadToGroup', group.worktreeId, $event)"
+            @delete="group.worktreeId !== null && emit('deleteWorktreeGroup', group.worktreeId)"
           />
 
           <WorktreeStaleCallout
-            v-if="group.isStale && group.threads.length > 0 && !collapsedGroups.has(group.worktree.id)"
-            :branch="group.worktree.branch"
-            @delete="emit('deleteWorktreeGroup', group.worktree.id)"
+            v-if="!group.isPrimary && group.worktreeId !== null && group.isStale && group.threads.length > 0 && !effectiveCollapsedGroups.has(group.uiKey)"
+            :branch="group.branch ?? ''"
+            @delete="emit('deleteWorktreeGroup', group.worktreeId)"
           />
 
           <ul
-            v-show="!collapsedGroups.has(group.worktree.id)"
+            :data-testid="`thread-group-threads-${group.uiKey}`"
+            v-show="!effectiveCollapsedGroups.has(group.uiKey)"
             class="space-y-0.5 px-2 pt-2"
             :class="'pl-3'"
           >
@@ -468,6 +639,9 @@ defineExpose({ openNewThreadMenu });
               v-for="thread in group.threads"
               :key="thread.id"
               :data-testid="`thread-list-item-${thread.id}`"
+              @dragenter.prevent="handleDragEnter(thread.id)"
+              @dragover="handleDragOver"
+              @drop="handleDrop(thread.id, $event)"
             >
               <ThreadRow
                 data-testid="thread-row"

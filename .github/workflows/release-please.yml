@@ -65,4 +65,4 @@ jobs:
             echo "::error::Missing apps/desktop version from release-please outputs"
             exit 1
           fi
-          gh workflow run release.yml --repo "${{ github.repository }}" --ref "v${VERSION}"
+          gh workflow run release.yml --repo "${{ github.repository }}" --ref "v${VERSION}" -f release_as="v${VERSION}"

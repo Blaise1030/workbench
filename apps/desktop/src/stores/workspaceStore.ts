@@ -1,6 +1,56 @@
 import { defineStore } from "pinia";
 import type { Project, Thread, Worktree } from "@shared/domain";
 
+export interface WorkspaceThreadContext {
+  worktreeId: string;
+  worktree: Worktree;
+  displayLabel: string;
+  isDefault: boolean;
+  threads: Thread[];
+}
+
+export interface WorkspaceContextBadge {
+  worktreeId: string;
+  displayLabel: string;
+  isDefault: boolean;
+  threadCount: number;
+}
+
+function getActiveProjectWorktrees(state: {
+  worktrees: Worktree[];
+  activeProjectId: string | null;
+}): Worktree[] {
+  return state.worktrees.filter((worktree) => worktree.projectId === state.activeProjectId);
+}
+
+function orderProjectWorktrees(worktrees: Worktree[]): Worktree[] {
+  const defaultWorktree = worktrees.find((worktree) => worktree.isDefault);
+  const linkedWorktrees = worktrees.filter((worktree) => !worktree.isDefault);
+  return defaultWorktree ? [defaultWorktree, ...linkedWorktrees] : linkedWorktrees;
+}
+
+function worktreeDisplayLabel(worktree: Worktree): string {
+  return worktree.isDefault ? "Primary" : worktree.name;
+}
+
+function threadsForWorktree(threads: Thread[], worktreeId: string): Thread[] {
+  return threads.filter((thread) => thread.worktreeId === worktreeId);
+}
+
+function buildThreadContexts(state: {
+  worktrees: Worktree[];
+  threads: Thread[];
+  activeProjectId: string | null;
+}): WorkspaceThreadContext[] {
+  return orderProjectWorktrees(getActiveProjectWorktrees(state)).map((worktree) => ({
+    worktreeId: worktree.id,
+    worktree,
+    displayLabel: worktreeDisplayLabel(worktree),
+    isDefault: worktree.isDefault,
+    threads: threadsForWorktree(state.threads, worktree.id)
+  }));
+}
+
 export const useWorkspaceStore = defineStore("workspace", {
   state: () => ({
     projects: [] as Project[],
@@ -19,6 +69,26 @@ export const useWorkspaceStore = defineStore("workspace", {
     },
     activeThreads(state): Thread[] {
       return state.threads.filter((t) => t.worktreeId === state.activeWorktreeId);
+    },
+
+    /** Contexts for the active project, ordered with the default worktree first. */
+    threadContexts(state): WorkspaceThreadContext[] {
+      return buildThreadContexts(state);
+    },
+
+    /** Active worktree metadata for a compact badge in the layout or header. */
+    activeContextBadge(state): WorkspaceContextBadge | null {
+      const activeWorktree = state.worktrees.find((w) => w.id === state.activeWorktreeId);
+      if (!activeWorktree || activeWorktree.projectId !== state.activeProjectId) {
+        return null;
+      }
+
+      return {
+        worktreeId: activeWorktree.id,
+        displayLabel: worktreeDisplayLabel(activeWorktree),
+        isDefault: activeWorktree.isDefault,
+        threadCount: threadsForWorktree(state.threads, activeWorktree.id).length
+      };
     },
 
     /** All threads belonging to any worktree in the active project. */
@@ -40,31 +110,22 @@ export const useWorkspaceStore = defineStore("workspace", {
 
     /** Non-default worktrees for the active project (thread groups). */
     threadGroups(state): Worktree[] {
-      return state.worktrees.filter(
-        (w) => w.projectId === state.activeProjectId && !w.isDefault
-      );
+      return buildThreadContexts(state)
+        .filter((context) => !context.isDefault)
+        .map((context) => context.worktree);
     },
 
     /** Threads in the default worktree (ungrouped). */
     ungroupedThreads(state): Thread[] {
-      const defaultWt = state.worktrees.find(
-        (w) => w.projectId === state.activeProjectId && w.isDefault
-      );
-      if (!defaultWt) return [];
-      return state.threads.filter((t) => t.worktreeId === defaultWt.id);
+      return buildThreadContexts(state).find((context) => context.isDefault)?.threads ?? [];
     },
 
-    /** Threads grouped by non-default worktree id. */
+    /** Threads grouped by worktree id for the active project. */
     groupedThreadsByWorktree(state): Map<string, Thread[]> {
       const groups = new Map<string, Thread[]>();
-      const nonDefault = state.worktrees.filter(
-        (w) => w.projectId === state.activeProjectId && !w.isDefault
-      );
-      for (const wt of nonDefault) {
-        groups.set(
-          wt.id,
-          state.threads.filter((t) => t.worktreeId === wt.id)
-        );
+      for (const context of buildThreadContexts(state)) {
+        if (context.isDefault) continue;
+        groups.set(context.worktreeId, context.threads);
       }
       return groups;
     }

@@ -38,7 +38,9 @@ jobs:
           - os: macos-latest
             target: mac
             electron_builder_args: --mac
-            artifact_glob: apps/desktop/release/*.dmg
+            artifact_glob: |
+              apps/desktop/release/*.dmg
+              apps/desktop/release/*.yml
 
     runs-on: ${{ matrix.os }}
 
@@ -101,7 +103,7 @@ jobs:
         run: |
           set -euo pipefail
           TAG="${RELEASE_TAG}"
-          mapfile -t files < <(find artifacts -type f -name '*.dmg' | sort -u)
+          mapfile -t files < <(find artifacts -type f \( -name '*.dmg' -o -name '*.yml' \) | sort -u)
           if [ "${#files[@]}" -eq 0 ]; then
             echo "::error::No installer artifacts found under artifacts/"
             exit 1

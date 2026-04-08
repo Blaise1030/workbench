@@ -9,11 +9,13 @@ describe("ThreadTopBar", () => {
     wrapper?.unmount();
   });
 
-  it("shows product title and Alpha badge in header", () => {
-    wrapper = mount(ThreadTopBar);
+  it("shows WORKBENCH and Alpha badges in the expanded header", () => {
+    wrapper = mount(ThreadTopBar, { props: { contextLabel: "Primary" } });
     const brand = wrapper.get('[data-testid="thread-sidebar-brand"]');
-    expect(brand.text()).toContain("workbench");
-    expect(brand.text().toUpperCase()).toContain("ALPHA");
+    expect(brand.text()).toContain("WORKBENCH");
+    expect(brand.text()).toContain("Alpha");
+    expect(wrapper.get('[data-testid="thread-topbar-brand-badge"]').text()).toBe("WORKBENCH");
+    expect(wrapper.get('[data-testid="thread-sidebar-alpha-badge"]').text()).toBe("Alpha");
   });
 
   it("renders the collapse toggle beside the title when expanded", async () => {
@@ -35,6 +37,12 @@ describe("ThreadTopBar", () => {
   it("renders a slightly larger logo when collapsed", () => {
     wrapper = mount(ThreadTopBar, { props: { collapsed: true } });
     expect(wrapper.get('[data-testid="thread-sidebar-logo"]').classes()).toContain("size-8");
+  });
+
+  it("renders the active context label in collapsed mode", () => {
+    wrapper = mount(ThreadTopBar, { props: { collapsed: true, contextLabel: "feature-a" } });
+
+    expect(wrapper.get('[data-testid="thread-topbar-context-label"]').text()).toBe("feature-a");
   });
 
   it("does not render the add-thread control in the top bar", () => {

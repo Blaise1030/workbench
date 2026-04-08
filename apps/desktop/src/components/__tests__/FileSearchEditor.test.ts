@@ -123,6 +123,21 @@ describe("FileSearchEditor", () => {
     expect(wrapper.text()).not.toContain("FileSearchEditor.vue");
   });
 
+  it("renders the active context label in the workspace header", async () => {
+    listFiles.mockResolvedValue([]);
+
+    const wrapper = mount(FileSearchEditor, {
+      props: {
+        worktreePath: "/tmp/project",
+        worktreeLabel: "Primary"
+      }
+    });
+
+    await flushPromises();
+
+    expect(wrapper.get('[data-testid="file-editor-context-label"]').text()).toBe("Primary");
+  });
+
   it("refreshes file explorer when the refresh control is clicked", async () => {
     listFiles
       .mockResolvedValueOnce([{ relativePath: "src/App.vue", size: 11, modifiedAt: 1 }])
@@ -478,6 +493,96 @@ describe("FileSearchEditor", () => {
     } finally {
       wrapper.unmount();
     }
+  });
+
+  it("keeps the original save target when a dirty worktree switch is canceled", async () => {
+    listFiles.mockResolvedValue([{ relativePath: "src/one.ts", size: 7, modifiedAt: 1 }]);
+    readFile.mockResolvedValue("original");
+    writeFile.mockResolvedValue();
+
+    const wrapper = mount(FileSearchEditor, {
+      props: { worktreePath: "/tmp/project-a" },
+      attachTo: document.body
+    });
+
+    try {
+      await flushPromises();
+      await wrapper.get('[data-testid="file-node-src/one.ts"]').trigger("click");
+      await flushPromises();
+      await wrapper.get('[data-testid="file-editor"]').setValue("changed");
+
+      const confirmSwitch = (
+        wrapper.vm as unknown as {
+          confirmContextSwitch: (nextWorktreePath: string | null) => Promise<boolean>;
+        }
+      ).confirmContextSwitch("/tmp/project-b");
+      await flushPromises();
+
+      const cancel = document.querySelector(
+        '[data-testid="confirm-action-cancel"]'
+      ) as HTMLButtonElement;
+      expect(cancel).toBeTruthy();
+      cancel.click();
+
+      await expect(confirmSwitch).resolves.toBe(false);
+
+      await wrapper.get('[data-testid="save-file"]').trigger("click");
+      await flushPromises();
+
+      expect(writeFile).toHaveBeenCalledWith("/tmp/project-a", "src/one.ts", "changed");
+      expect(wrapper.get('[data-testid="file-editor-header"]').text()).toContain("src/one.ts");
+    } finally {
+      wrapper.unmount();
+    }
+  });
+
+  it("ignores stale file reads when a newer selection resolves later", async () => {
+    let resolveFirstRead: ((value: string) => void) | null = null;
+    let resolveSecondRead: ((value: string) => void) | null = null;
+
+    listFiles.mockResolvedValue([
+      { relativePath: "src/one.ts", size: 7, modifiedAt: 1 },
+      { relativePath: "src/two.ts", size: 7, modifiedAt: 2 }
+    ]);
+    readFile
+      .mockImplementationOnce(
+        () =>
+          new Promise<string>((resolve) => {
+            resolveFirstRead = resolve;
+          })
+      )
+      .mockImplementationOnce(
+        () =>
+          new Promise<string>((resolve) => {
+            resolveSecondRead = resolve;
+          })
+      );
+
+    const wrapper = mount(FileSearchEditor, {
+      props: { worktreePath: "/tmp/project" }
+    });
+
+    await flushPromises();
+    await wrapper.get('[data-testid="file-node-src/one.ts"]').trigger("click");
+    await nextTick();
+    await wrapper.get('[data-testid="file-node-src/two.ts"]').trigger("click");
+    await nextTick();
+
+    resolveSecondRead?.("two");
+    await flushPromises();
+
+    expect(wrapper.get('[data-testid="file-editor-header"]').text()).toContain("src/two.ts");
+    expect((wrapper.get('[data-testid="file-editor"]').element as HTMLTextAreaElement).value).toBe(
+      "two"
+    );
+
+    resolveFirstRead?.("one");
+    await flushPromises();
+
+    expect(wrapper.get('[data-testid="file-editor-header"]').text()).toContain("src/two.ts");
+    expect((wrapper.get('[data-testid="file-editor"]').element as HTMLTextAreaElement).value).toBe(
+      "two"
+    );
   });
 
   it("creates a file from the add control and opens it", async () => {
