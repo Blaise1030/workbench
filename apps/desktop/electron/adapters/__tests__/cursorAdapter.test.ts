@@ -28,3 +28,17 @@ describe("extractResumeIdFromStdout", () => {
     expect(extractResumeIdFromStdout('"session_id":"short"')).toBeNull();
   });
 });
+
+import { CursorCliAdapter } from "../cursorCliAdapter";
+
+describe("CursorCliAdapter", () => {
+  it("detects resume ID from output", () => {
+    const adapter = new CursorCliAdapter();
+    expect(adapter.detectResumeId("session_id: resumable-session-99")).toBe("resumable-session-99");
+  });
+
+  it("returns null for non-session output", () => {
+    const adapter = new CursorCliAdapter();
+    expect(adapter.detectResumeId("Running test suite...")).toBeNull();
+  });
+});
