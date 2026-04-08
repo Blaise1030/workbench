@@ -13,6 +13,11 @@ on:
   # Manual recovery, or chained from Release Please when tags are created with GITHUB_TOKEN
   # (those tag pushes do not trigger workflows — see `.github/workflows/release-please.yml`).
   workflow_dispatch:
+    inputs:
+      release_as:
+        description: Release tag to build and publish, for example v0.4.0
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -20,6 +25,9 @@ permissions:
 concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: true
+
+env:
+  RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.release_as || github.ref_name }}
 
 jobs:
   build:
@@ -31,14 +39,6 @@ jobs:
             target: mac
             electron_builder_args: --mac
             artifact_glob: apps/desktop/release/*.dmg
-          - os: windows-latest
-            target: win
-            electron_builder_args: --win
-            artifact_glob: apps/desktop/release/*.exe
-          - os: ubuntu-latest
-            target: linux
-            electron_builder_args: --linux
-            artifact_glob: apps/desktop/release/*.AppImage
 
     runs-on: ${{ matrix.os }}
 
@@ -50,17 +50,11 @@ jobs:
         shell: bash
         run: |
           PKG_VERSION=$(node -p "require('./apps/desktop/package.json').version")
-          TAG="${GITHUB_REF_NAME#v}"
+          TAG="${RELEASE_TAG#v}"
           if [ "$PKG_VERSION" != "$TAG" ]; then
-            echo "::error::Git tag $GITHUB_REF_NAME must match apps/desktop/package.json version (expected v${PKG_VERSION})"
+            echo "::error::Git tag $RELEASE_TAG must match apps/desktop/package.json version (expected v${PKG_VERSION})"
             exit 1
           fi
-
-      - name: Linux native build deps
-        if: matrix.os == 'ubuntu-latest'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends build-essential python3
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -106,8 +100,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          TAG="${GITHUB_REF_NAME}"
-          mapfile -t files < <(find artifacts -type f \( -name '*.dmg' -o -name '*.exe' -o -name '*.AppImage' \) | sort -u)
+          TAG="${RELEASE_TAG}"
+          mapfile -t files < <(find artifacts -type f -name '*.dmg' | sort -u)
           if [ "${#files[@]}" -eq 0 ]; then
             echo "::error::No installer artifacts found under artifacts/"
             exit 1
@@ -133,14 +127,14 @@ jobs:
       - name: Publish latest.json (stable URL for landing page)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITHUB_REF_NAME: ${{ github.ref_name }}
+          RELEASE_TAG: ${{ env.RELEASE_TAG }}
           GITHUB_REPOSITORY: ${{ github.repository }}
         shell: bash
         run: |
           set -euo pipefail
-          TAG="${GITHUB_REF_NAME}"
+          TAG="${RELEASE_TAG}"
           REPO="${GITHUB_REPOSITORY}"
-          mapfile -t files < <(find artifacts -type f \( -name '*.dmg' -o -name '*.exe' -o -name '*.AppImage' \) | sort -u)
+          mapfile -t files < <(find artifacts -type f -name '*.dmg' | sort -u)
           if [ "${#files[@]}" -eq 0 ]; then
             echo "::error::No installers found for latest.json"
             exit 1
@@ -165,10 +159,6 @@ jobs:
               lower = name.lower()
               if lower.endswith(".dmg"):
                   return "mac"
-              if lower.endswith(".exe"):
-                  return "windows"
-              if lower.endswith(".appimage"):
-                  return "linux"
               return None
 
           downloads = {}
