@@ -352,6 +352,67 @@ describe("WorkspaceStore", () => {
     expect(snapshot.worktrees.find((worktree) => worktree.id === "worktree-1")?.lastActiveThreadId).toBeNull();
   });
 
+  it("deletes a project and all app-owned records while promoting another active project", () => {
+    const baseDir = makeTempDir();
+    const store = new WorkspaceStore(baseDir);
+    store.migrate(NEW_SCHEMA);
+
+    store.upsertProject(makeProject({ id: "project-1", lastActiveWorktreeId: "worktree-1" }));
+    store.upsertProject(
+      makeProject({
+        id: "project-2",
+        name: "posthog-client",
+        repoPath: "/tmp/posthog-client",
+        lastActiveWorktreeId: "worktree-2"
+      })
+    );
+    store.upsertWorktree(makeWorktree({ id: "worktree-1", projectId: "project-1", isDefault: true }));
+    store.upsertWorktree(
+      makeWorktree({
+        id: "worktree-2",
+        projectId: "project-2",
+        path: "/tmp/posthog-client",
+        isDefault: true
+      })
+    );
+    store.upsertThread(makeThread({ id: "thread-1", projectId: "project-1", worktreeId: "worktree-1" }));
+    store.upsertThread(makeThread({ id: "thread-2", projectId: "project-2", worktreeId: "worktree-2" }));
+    store.upsertThreadSession(makeThreadSession({ threadId: "thread-1" }));
+    store.upsertThreadSession(
+      makeThreadSession({
+        threadId: "thread-2",
+        provider: "codex",
+        initialPrompt: "Second project prompt"
+      })
+    );
+
+    const db = new Database(path.join(baseDir, "workspace.db"));
+    insertRunWithEvent(db, "run-1", "thread-1");
+    insertRunWithEvent(db, "run-2", "thread-2");
+    db.close();
+
+    store.setActiveState("project-1", "worktree-1", "thread-1");
+    store.deleteProject("project-1");
+
+    const snapshot = store.getSnapshot();
+    expect(snapshot.projects.map((project) => project.id)).toEqual(["project-2"]);
+    expect(snapshot.worktrees.map((worktree) => worktree.id)).toEqual(["worktree-2"]);
+    expect(snapshot.threads.map((thread) => thread.id)).toEqual(["thread-2"]);
+    expect(snapshot.threadSessions.map((session) => session.threadId)).toEqual(["thread-2"]);
+    expect(snapshot.activeProjectId).toBe("project-2");
+    expect(snapshot.activeWorktreeId).toBe("worktree-2");
+    expect(snapshot.activeThreadId).toBe("thread-2");
+
+    const reopenedDb = new Database(path.join(baseDir, "workspace.db"));
+    expect(reopenedDb.prepare("SELECT COUNT(*) AS count FROM runs WHERE thread_id = 'thread-1'").get()).toEqual({
+      count: 0
+    });
+    expect(
+      reopenedDb.prepare("SELECT COUNT(*) AS count FROM run_events WHERE run_id = 'run-1'").get()
+    ).toEqual({ count: 0 });
+    reopenedDb.close();
+  });
+
   it("assigns deterministic sortOrder values for legacy rows during migration", () => {
     const baseDir = makeTempDir();
     const dbPath = path.join(baseDir, "workspace.db");

@@ -1,13 +1,16 @@
 <script setup lang="ts">
 import type { RunStatus, Thread, ThreadAgent, Worktree } from "@shared/domain";
 import { Plus } from "lucide-vue-next";
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, useId, watch } from "vue";
+import { computed, ref, watch } from "vue";
 import BranchPicker from "@/components/BranchPicker.vue";
 import ThreadCreateButton from "@/components/ThreadCreateButton.vue";
 import ThreadGroupHeader from "@/components/ThreadGroupHeader.vue";
 import ThreadRow from "@/components/ThreadRow.vue";
 import ThreadTopBar from "@/components/ThreadTopBar.vue";
 import WorktreeStaleCallout from "@/components/WorktreeStaleCallout.vue";
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import Button from "@/components/ui/Button.vue";
 import { titleWithShortcut } from "@/keybindings/registry";
 
 const props = withDefaults(
@@ -73,14 +76,7 @@ const groupData = computed(() => {
 });
 
 const collapsedGroups = ref<Set<string>>(new Set());
-const collapsedGroupTooltipId = `thread-group-collapsed-tooltip-${useId().replace(/:/g, "_")}`;
-const hoveredCollapsedGroupId = ref<string | null>(null);
-const focusedCollapsedGroupId = ref<string | null>(null);
 const openCollapsedGroupId = ref<string | null>(null);
-const collapsedGroupTooltipStyle = ref<Record<string, string>>({});
-const collapsedGroupPopoverStyle = ref<Record<string, string>>({});
-const collapsedGroupPopoverRef = ref<HTMLElement | null>(null);
-const collapsedGroupTriggerRefs = new Map<string, HTMLElement>();
 
 function toggleGroup(worktreeId: string): void {
   const next = new Set(collapsedGroups.value);
@@ -113,17 +109,6 @@ const ungroupedRenderedThreads = computed(() => {
   return renderedThreads.value.filter((t) => t.worktreeId === props.defaultWorktreeId);
 });
 
-const currentCollapsedTooltipGroup = computed(() => {
-  const activeId = hoveredCollapsedGroupId.value ?? focusedCollapsedGroupId.value;
-  if (!activeId || openCollapsedGroupId.value === activeId) return null;
-  return groupData.value.find((group) => group.worktree.id === activeId) ?? null;
-});
-
-const openCollapsedPopoverGroup = computed(() => {
-  if (!openCollapsedGroupId.value) return null;
-  return groupData.value.find((group) => group.worktree.id === openCollapsedGroupId.value) ?? null;
-});
-
 watch(
   () => props.threads,
   (threads) => {
@@ -134,19 +119,9 @@ watch(
 );
 
 watch(
-  [currentCollapsedTooltipGroup, openCollapsedPopoverGroup],
-  async () => {
-    await nextTick();
-    updateCollapsedGroupFloatingPositions();
-  }
-);
-
-watch(
   () => props.collapsed,
   (collapsed) => {
     if (!collapsed) {
-      hoveredCollapsedGroupId.value = null;
-      focusedCollapsedGroupId.value = null;
       openCollapsedGroupId.value = null;
     }
   }
@@ -268,72 +243,14 @@ function openNewThreadMenu(): void {
   createButtonRef.value?.openMenu();
 }
 
-function setCollapsedGroupTriggerRef(worktreeId: string, el: Element | null): void {
-  if (el instanceof HTMLElement) {
-    collapsedGroupTriggerRefs.set(worktreeId, el);
-  } else {
-    collapsedGroupTriggerRefs.delete(worktreeId);
-  }
-}
-
-function getCollapsedGroupTriggerRect(): DOMRect | null {
-  const worktreeId = openCollapsedGroupId.value ?? currentCollapsedTooltipGroup.value?.worktree.id ?? null;
-  if (!worktreeId) return null;
-  return collapsedGroupTriggerRefs.get(worktreeId)?.getBoundingClientRect() ?? null;
-}
-
-function updateCollapsedGroupFloatingPositions(): void {
-  const rect = getCollapsedGroupTriggerRect();
-  if (!rect) return;
-
-  collapsedGroupTooltipStyle.value = {
-    left: `${Math.round(rect.right + 8)}px`,
-    top: `${Math.round(rect.top + rect.height / 2)}px`
-  };
-  collapsedGroupPopoverStyle.value = {
-    left: `${Math.round(rect.right + 8)}px`,
-    top: `${Math.round(rect.top)}px`
-  };
-}
-
-function handleCollapsedGroupPointerDown(event: MouseEvent): void {
-  if (!openCollapsedGroupId.value) return;
-
-  const activeTrigger = collapsedGroupTriggerRefs.get(openCollapsedGroupId.value);
-  const target = event.target as Node;
-  if (activeTrigger?.contains(target) || collapsedGroupPopoverRef.value?.contains(target)) return;
-
-  openCollapsedGroupId.value = null;
-}
-
-function handleCollapsedGroupKeydown(event: KeyboardEvent): void {
-  if (event.key === "Escape") {
-    openCollapsedGroupId.value = null;
-  }
-}
-
-function toggleCollapsedGroupPopover(worktreeId: string): void {
-  openCollapsedGroupId.value = openCollapsedGroupId.value === worktreeId ? null : worktreeId;
-}
-
 function handleCollapsedGroupSelect(threadId: string): void {
   openCollapsedGroupId.value = null;
   emit("select", threadId);
 }
 
-onMounted(() => {
-  document.addEventListener("pointerdown", handleCollapsedGroupPointerDown);
-  document.addEventListener("keydown", handleCollapsedGroupKeydown);
-  window.addEventListener("resize", updateCollapsedGroupFloatingPositions);
-  window.addEventListener("scroll", updateCollapsedGroupFloatingPositions, true);
-});
-
-onBeforeUnmount(() => {
-  document.removeEventListener("pointerdown", handleCollapsedGroupPointerDown);
-  document.removeEventListener("keydown", handleCollapsedGroupKeydown);
-  window.removeEventListener("resize", updateCollapsedGroupFloatingPositions);
-  window.removeEventListener("scroll", updateCollapsedGroupFloatingPositions, true);
-});
+function setCollapsedGroupPopoverOpen(worktreeId: string, open: boolean): void {
+  openCollapsedGroupId.value = open ? worktreeId : openCollapsedGroupId.value === worktreeId ? null : openCollapsedGroupId.value;
+}
 
 defineExpose({ openNewThreadMenu });
 </script>
@@ -403,31 +320,121 @@ defineExpose({ openNewThreadMenu });
       >
         <template v-if="collapsed">
           <div class="px-2">
-            <button
-              :ref="(el) => setCollapsedGroupTriggerRef(group.worktree.id, el)"
-              type="button"
-              data-testid="thread-group-collapsed-trigger"
-              class="flex h-7 w-full items-center justify-center rounded-sm text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background"
-              :class="[
-                group.threads.some((t) => t.id === activeThreadId)
-                  ? 'bg-accent text-foreground'
-                  : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground',
-                group.isStale ? 'text-destructive/80' : ''
-              ]"
-              :aria-label="`Worktree ${group.worktree.name}`"
-              :aria-describedby="currentCollapsedTooltipGroup?.worktree.id === group.worktree.id
-                ? collapsedGroupTooltipId
-                : undefined"
-              :aria-expanded="openCollapsedGroupId === group.worktree.id"
-              aria-haspopup="dialog"
-              @mouseenter="hoveredCollapsedGroupId = group.worktree.id; updateCollapsedGroupFloatingPositions()"
-              @mouseleave="hoveredCollapsedGroupId = hoveredCollapsedGroupId === group.worktree.id ? null : hoveredCollapsedGroupId"
-              @focus="focusedCollapsedGroupId = group.worktree.id; updateCollapsedGroupFloatingPositions()"
-              @blur="focusedCollapsedGroupId = focusedCollapsedGroupId === group.worktree.id ? null : focusedCollapsedGroupId"
-              @click="toggleCollapsedGroupPopover(group.worktree.id)"
-            >
-              <span aria-hidden="true">🌳</span>
-            </button>
+            <HoverCard :open-delay="0" :close-delay="0">
+              <Popover
+                :open="openCollapsedGroupId === group.worktree.id"
+                @update:open="setCollapsedGroupPopoverOpen(group.worktree.id, $event)"
+              >
+                <HoverCardTrigger as-child>
+                  <PopoverTrigger as-child>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      data-testid="thread-group-collapsed-trigger"
+                      class="flex h-7 w-full items-center justify-center rounded-sm text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background"
+                      :class="[
+                        group.threads.some((t) => t.id === activeThreadId)
+                          ? 'bg-accent text-foreground'
+                          : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground',
+                        group.isStale ? 'text-destructive/80' : ''
+                      ]"
+                      :aria-label="`Worktree ${group.worktree.name}`"
+                      :aria-expanded="openCollapsedGroupId === group.worktree.id"
+                    >
+                      <span aria-hidden="true">🌳</span>
+                    </Button>
+                  </PopoverTrigger>
+                </HoverCardTrigger>
+                <HoverCardContent
+                  data-testid="thread-group-collapsed-tooltip"
+                  side="right"
+                  align="start"
+                  class="max-w-[min(22rem,calc(100vw-2rem))] border-border px-2.5 py-2 text-left text-xs"
+                >
+                  <div class="font-medium leading-snug text-popover-foreground">
+                    {{ group.worktree.name }}
+                  </div>
+                  <div class="mt-1 break-all font-normal leading-snug text-[11px] text-muted-foreground">
+                    {{ group.worktree.path }}
+                  </div>
+                  <div class="mt-1.5 space-y-0.5 font-normal text-[11px] leading-snug text-muted-foreground">
+                    <div>
+                      Branch:
+                      <span class="text-foreground">{{ group.worktree.branch }}</span>
+                    </div>
+                    <div>
+                      Source branch:
+                      <span class="text-foreground">{{
+                        group.worktree.baseBranch?.trim()
+                          ? group.worktree.baseBranch
+                          : "—"
+                      }}</span>
+                    </div>
+                  </div>
+                </HoverCardContent>
+                <PopoverContent
+                  data-testid="thread-group-collapsed-popover"
+                  side="right"
+                  align="start"
+                  class="w-[min(18rem,calc(100vw-1.5rem))] p-1.5"
+                >
+                  <div class="flex flex-col gap-1 border-b border-border px-2 pb-2 pt-1 text-xs">
+                    <div class="flex items-center gap-2 font-medium">
+                      <span aria-hidden="true">🌳</span>
+                      <span class="min-w-0 truncate">{{ group.worktree.name }}</span>
+                    </div>
+                    <div class="break-all pl-7 text-[11px] font-normal leading-snug text-muted-foreground">
+                      {{ group.worktree.path }}
+                    </div>
+                    <div class="flex flex-col gap-0.5 pl-7 text-[11px] text-muted-foreground">
+                      <div>
+                        Branch:
+                        <span class="text-foreground">{{ group.worktree.branch }}</span>
+                      </div>
+                      <div>
+                        Source branch:
+                        <span class="text-foreground">{{
+                          group.worktree.baseBranch?.trim()
+                            ? group.worktree.baseBranch
+                            : "—"
+                        }}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div
+                    v-if="group.isStale"
+                    class="px-2 pt-2 pb-1.5 text-xs text-destructive"
+                  >
+                    Worktree missing
+                  </div>
+                  <div
+                    v-else-if="group.threads.length === 0"
+                    class="px-2 pt-2 pb-1.5 text-xs text-muted-foreground"
+                  >
+                    No threads in this worktree
+                  </div>
+                  <ul v-else class="space-y-0.5 pt-2">
+                    <li
+                      v-for="thread in group.threads"
+                      :key="thread.id"
+                      :data-testid="`thread-list-item-${thread.id}`"
+                    >
+                      <ThreadRow
+                        data-testid="thread-row"
+                        :thread="thread"
+                        :is-active="thread.id === activeThreadId"
+                        :run-status="runStatusByThreadId?.[thread.id] ?? null"
+                        :needs-attention="threadsNeedingAttention?.has(thread.id) ?? false"
+                        @select="handleCollapsedGroupSelect(thread.id)"
+                        @remove="emit('remove', thread.id)"
+                        @rename="(title) => emit('rename', thread.id, title)"
+                      />
+                    </li>
+                  </ul>
+                </PopoverContent>
+              </Popover>
+            </HoverCard>
           </div>
         </template>
         <template v-else>
@@ -492,110 +499,15 @@ defineExpose({ openNewThreadMenu });
         :aria-label="'Add thread'"
         :title="titleWithShortcut('Add thread', 'newThreadMenu')"
         variant="outline"
-        class="w-full"
-        :size="collapsed ? 'icon-xs' : 'sm'"
+        :button-class="collapsed ? 'w-full' : ''"
+        :size="collapsed ? 'icon-xs' : 'lg'"
         data-testid="thread-sidebar-add-thread"
         @create-with-agent="emit('createWithAgent', $event)"
         @create-worktree-group="emit('showBranchPicker')"
       >
-        <Plus class="h-3.5 w-3.5" />          
+        <Plus :class="collapsed ? 'h-4 w-4' : 'h-5 w-5'" />
         <span v-if="!collapsed">Add thread</span>
       </ThreadCreateButton>
     </footer>
-    <Teleport to="body">
-      <div
-        v-if="currentCollapsedTooltipGroup"
-        :id="collapsedGroupTooltipId"
-        data-testid="thread-group-collapsed-tooltip"
-        role="tooltip"
-        class="pointer-events-none fixed z-[200] max-w-[min(22rem,calc(100vw-2rem))] -translate-y-1/2 rounded-md border border-border bg-popover px-2.5 py-2 text-left text-xs text-popover-foreground shadow-md"
-        :style="collapsedGroupTooltipStyle"
-      >
-        <div class="font-medium leading-snug text-popover-foreground">
-          {{ currentCollapsedTooltipGroup.worktree.name }}
-        </div>
-        <div class="mt-1 break-all font-normal leading-snug text-[11px] text-muted-foreground">
-          {{ currentCollapsedTooltipGroup.worktree.path }}
-        </div>
-        <div class="mt-1.5 space-y-0.5 font-normal text-[11px] leading-snug text-muted-foreground">
-          <div>
-            Branch:
-            <span class="text-foreground">{{ currentCollapsedTooltipGroup.worktree.branch }}</span>
-          </div>
-          <div>
-            Source branch:
-            <span class="text-foreground">{{
-              currentCollapsedTooltipGroup.worktree.baseBranch?.trim()
-                ? currentCollapsedTooltipGroup.worktree.baseBranch
-                : "—"
-            }}</span>
-          </div>
-        </div>
-      </div>
-      <div
-        v-if="openCollapsedPopoverGroup"
-        ref="collapsedGroupPopoverRef"
-        data-testid="thread-group-collapsed-popover"
-        role="dialog"
-        class="fixed z-[200] w-[min(18rem,calc(100vw-1.5rem))] rounded-md border border-border bg-popover p-1.5 text-popover-foreground shadow-md"
-        :style="collapsedGroupPopoverStyle"
-      >
-        <div
-          class="flex flex-col gap-1 border-b border-border px-2 pb-2 pt-1 text-xs"
-        >
-          <div class="flex items-center gap-2 font-medium">
-            <span aria-hidden="true">🌳</span>
-            <span class="min-w-0 truncate">{{ openCollapsedPopoverGroup.worktree.name }}</span>
-          </div>
-          <div class="break-all pl-7 text-[11px] font-normal leading-snug text-muted-foreground">
-            {{ openCollapsedPopoverGroup.worktree.path }}
-          </div>
-          <div class="flex flex-col gap-0.5 pl-7 text-[11px] text-muted-foreground">
-            <div>
-              Branch:
-              <span class="text-foreground">{{ openCollapsedPopoverGroup.worktree.branch }}</span>
-            </div>
-            <div>
-              Source branch:
-              <span class="text-foreground">{{
-                openCollapsedPopoverGroup.worktree.baseBranch?.trim()
-                  ? openCollapsedPopoverGroup.worktree.baseBranch
-                  : "—"
-              }}</span>
-            </div>
-          </div>
-        </div>
-        <div
-          v-if="openCollapsedPopoverGroup.isStale"
-          class="px-2 pt-2 pb-1.5 text-xs text-destructive"
-        >
-          Worktree missing
-        </div>
-        <div
-          v-else-if="openCollapsedPopoverGroup.threads.length === 0"
-          class="px-2 pt-2 pb-1.5 text-xs text-muted-foreground"
-        >
-          No threads in this worktree
-        </div>
-        <ul v-else class="space-y-0.5 pt-2">
-          <li
-            v-for="thread in openCollapsedPopoverGroup.threads"
-            :key="thread.id"
-            :data-testid="`thread-list-item-${thread.id}`"
-          >
-            <ThreadRow
-              data-testid="thread-row"
-              :thread="thread"
-              :is-active="thread.id === activeThreadId"
-              :run-status="runStatusByThreadId?.[thread.id] ?? null"
-              :needs-attention="threadsNeedingAttention?.has(thread.id) ?? false"
-              @select="handleCollapsedGroupSelect(thread.id)"
-              @remove="emit('remove', thread.id)"
-              @rename="(title) => emit('rename', thread.id, title)"
-            />
-          </li>
-        </ul>
-      </div>
-    </Teleport>
   </aside>
 </template>

@@ -3,6 +3,12 @@ import { Folder, GitBranch, PanelLeft, Search } from "lucide-vue-next";
 import { computed, nextTick, ref, watch } from "vue";
 import AgentIcon from "@/components/ui/AgentIcon.vue";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle
+} from "@/components/ui/dialog";
+import {
   parseLauncherQuery,
   searchLauncherCommands,
   searchLauncherRows,
@@ -262,24 +268,15 @@ function showSectionDividerAbove(i: number): boolean {
 </script>
 
 <template>
-  <Teleport to="body">
-    <div
-      v-if="open"
-      class="fixed inset-0 z-[300] flex items-start justify-center pt-[15vh] px-4"
-      role="dialog"
-      aria-modal="true"
+  <Dialog :open="open" @update:open="(next) => (open = next)">
+    <DialogContent
       aria-label="Workspace search"
+      class="workspace-launcher-panel top-[15vh] translate-y-0 p-0 text-popover-foreground"
     >
-      <button
-        type="button"
-        class="absolute inset-0 workspace-launcher-scrim"
-        aria-label="Close search"
-        @click="close"
-      />
-      <div
-        class="workspace-launcher-panel relative z-[301] flex w-full max-w-lg flex-col overflow-hidden rounded-lg text-popover-foreground"
-        @click.stop
-      >
+      <DialogHeader class="sr-only">
+        <DialogTitle>Workspace search</DialogTitle>
+      </DialogHeader>
+      <div class="relative z-[301] flex w-full max-w-lg flex-col overflow-hidden rounded-lg">
         <div class="flex items-center gap-2 border-b border-border px-3 py-2">
           <Search class="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
           <input
@@ -423,6 +420,6 @@ function showSectionDividerAbove(i: number): boolean {
           </div>
         </div>
       </div>
-    </div>
-  </Teleport>
+    </DialogContent>
+  </Dialog>
 </template>

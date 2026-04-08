@@ -1,8 +1,14 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from "vue";
-import BaseButton from "@/components/ui/BaseButton.vue";
+import Button from "@/components/ui/Button.vue";
 import Input from "@/components/ui/Input.vue";
-import NativeSelect from "@/components/ui/NativeSelect.vue";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from "@/components/ui/select";
 
 const props = defineProps<{
   projectId: string;
@@ -19,6 +25,12 @@ const branchInput = ref("");
 const baseBranch = ref("");
 
 const branchTrimmed = computed(() => branchInput.value.trim());
+const selectedBaseBranch = computed({
+  get: () => baseBranch.value,
+  set: (value: string) => {
+    baseBranch.value = value;
+  }
+});
 
 /** True when the typed name is a new branch (not an existing local branch name). */
 const isNewBranchName = computed(() => {
@@ -73,19 +85,24 @@ function handleCreate(): void {
     <!-- Base branch (only when creating a new branch name) -->
     <div v-if="isNewBranchName" class="mb-2">
       <label class="mb-1 block text-[10px] text-muted-foreground">Base branch</label>
-      <NativeSelect v-model="baseBranch">
-        <option v-for="branch in branches" :key="branch" :value="branch">{{ branch }}</option>
-      </NativeSelect>
+      <Select v-model="selectedBaseBranch">
+        <SelectTrigger class="h-8 w-full bg-background text-sm">
+          <SelectValue placeholder="Choose base branch" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem v-for="branch in branches" :key="branch" :value="branch">{{ branch }}</SelectItem>
+        </SelectContent>
+      </Select>
     </div>
 
     <!-- Actions -->
     <div class="flex justify-end gap-1.5">
-      <BaseButton type="button" variant="outline" size="xs" @click="emit('cancel')">
+      <Button type="button" variant="outline" size="xs" @click="emit('cancel')">
         Cancel
-      </BaseButton>
-      <BaseButton type="button" size="xs" :disabled="!canCreate" @click="handleCreate">
+      </Button>
+      <Button type="button" size="xs" :disabled="!canCreate" @click="handleCreate">
         Create
-      </BaseButton>
+      </Button>
     </div>
   </div>
 </template>

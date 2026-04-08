@@ -2,8 +2,15 @@
 import type { ThreadAgent } from "@shared/domain";
 import { THREAD_AGENT_BOOTSTRAP_COMMAND } from "@shared/threadAgentBootstrap";
 import { computed, nextTick, onBeforeUnmount, ref, watch } from "vue";
-import BaseButton from "@/components/ui/BaseButton.vue";
+import Button from "@/components/ui/Button.vue";
 import AgentIcon from "@/components/ui/AgentIcon.vue";
+import PillTabs, { type PillTabItem } from "@/components/ui/PillTabs.vue";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle
+} from "@/components/ui/dialog";
 import { useTerminalSoundSettings } from "@/composables/useTerminalSoundSettings";
 import { useColorScheme, type ColorSchemePreference } from "@/composables/useColorScheme";
 import { uiThemePresetLabel, useUiThemePreset } from "@/composables/useUiThemePreset";
@@ -37,6 +44,12 @@ const panelRef = ref<HTMLElement | null>(null);
 
 type SettingsSection = "agents" | "terminal" | "appearance" | "keyboard";
 const activeSection = ref<SettingsSection>("agents");
+const settingsSectionTabs: readonly PillTabItem[] = [
+  { value: "agents", label: "Agents" },
+  { value: "terminal", label: "Terminal" },
+  { value: "appearance", label: "Appearance" },
+  { value: "keyboard", label: "Keyboard" }
+];
 
 const settingsPanelAgentsId = "workspace-settings-panel-agents";
 const settingsPanelTerminalId = "workspace-settings-panel-terminal";
@@ -122,10 +135,6 @@ function close(): void {
   modelValue.value = false;
 }
 
-function onBackdropPointerDown(event: MouseEvent): void {
-  if (event.target === event.currentTarget) close();
-}
-
 function resetDraftToDefaults(): void {
   draft.value = { ...THREAD_AGENT_BOOTSTRAP_COMMAND };
 }
@@ -137,100 +146,19 @@ function save(): void {
 </script>
 
 <template>
-  <Teleport to="body">
-    <div
-      v-if="modelValue"
-      class="fixed inset-0 z-[300] flex items-start justify-center overflow-y-auto p-4 pt-[10vh] ui-glass-scrim"
-      role="presentation"
-      @pointerdown="onBackdropPointerDown"
+  <Dialog :open="modelValue" @update:open="(open) => (modelValue = open)">
+    <DialogContent
+      ref="panelRef"
+      aria-labelledby="workspace-settings-dialog-title"
+      class="ui-glass-panel top-[10vh] flex max-h-[min(85vh,calc(100dvh-2rem))] w-full max-w-xl translate-y-0 flex-col overflow-hidden p-0 text-card-foreground outline-none"
     >
-      <div
-        ref="panelRef"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="workspace-settings-dialog-title"
-        class="ui-glass-panel relative flex max-h-[min(85vh,calc(100dvh-2rem))] w-full max-w-xl flex-col overflow-hidden rounded-lg text-card-foreground outline-none"
-        tabindex="-1"
-        @pointerdown.stop
-      >
-        <div class="shrink-0 px-4 pt-4">
-          <h2 id="workspace-settings-dialog-title" class="text-base font-semibold">Settings</h2>
+      <DialogHeader class="shrink-0 px-4 pt-4">
+        <DialogTitle id="workspace-settings-dialog-title" class="text-base">Settings</DialogTitle>
 
-          <div
-            role="tablist"
-            aria-label="Settings sections"
-            class="mt-4 flex gap-1 border-b border-border"
-          >
-          <button
-            id="settings-tab-agents"
-            type="button"
-            role="tab"
-            :aria-selected="activeSection === 'agents'"
-            :tabindex="activeSection === 'agents' ? 0 : -1"
-            :aria-controls="settingsPanelAgentsId"
-            class="relative -mb-px border-b-2 px-3 pb-2.5 text-sm font-medium transition-colors focus-visible:z-10 focus-visible:rounded-t-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-            :class="
-              activeSection === 'agents'
-                ? 'border-primary text-foreground'
-                : 'border-transparent text-muted-foreground hover:text-foreground'
-            "
-            @click="activeSection = 'agents'"
-          >
-            Agents
-          </button>
-          <button
-            id="settings-tab-terminal"
-            type="button"
-            role="tab"
-            :aria-selected="activeSection === 'terminal'"
-            :tabindex="activeSection === 'terminal' ? 0 : -1"
-            :aria-controls="settingsPanelTerminalId"
-            class="relative -mb-px border-b-2 px-3 pb-2.5 text-sm font-medium transition-colors focus-visible:z-10 focus-visible:rounded-t-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-            :class="
-              activeSection === 'terminal'
-                ? 'border-primary text-foreground'
-                : 'border-transparent text-muted-foreground hover:text-foreground'
-            "
-            @click="activeSection = 'terminal'"
-          >
-            Terminal
-          </button>
-          <button
-            id="settings-tab-appearance"
-            type="button"
-            role="tab"
-            :aria-selected="activeSection === 'appearance'"
-            :tabindex="activeSection === 'appearance' ? 0 : -1"
-            :aria-controls="settingsPanelAppearanceId"
-            class="relative -mb-px border-b-2 px-3 pb-2.5 text-sm font-medium transition-colors focus-visible:z-10 focus-visible:rounded-t-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-            :class="
-              activeSection === 'appearance'
-                ? 'border-primary text-foreground'
-                : 'border-transparent text-muted-foreground hover:text-foreground'
-            "
-            @click="activeSection = 'appearance'"
-          >
-            Appearance
-          </button>
-          <button
-            id="settings-tab-keyboard"
-            type="button"
-            role="tab"
-            :aria-selected="activeSection === 'keyboard'"
-            :tabindex="activeSection === 'keyboard' ? 0 : -1"
-            :aria-controls="settingsPanelKeyboardId"
-            class="relative -mb-px border-b-2 px-3 pb-2.5 text-sm font-medium transition-colors focus-visible:z-10 focus-visible:rounded-t-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-            :class="
-              activeSection === 'keyboard'
-                ? 'border-primary text-foreground'
-                : 'border-transparent text-muted-foreground hover:text-foreground'
-            "
-            @click="activeSection = 'keyboard'"
-          >
-            Keyboard
-          </button>
-          </div>
+        <div class="mt-4 border-b border-border pb-1">
+          <PillTabs v-model="activeSection" aria-label="Settings sections" :tabs="settingsSectionTabs" />
         </div>
+      </DialogHeader>
 
         <div
           class="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4"
@@ -240,7 +168,7 @@ function save(): void {
             v-show="activeSection === 'agents'"
             :id="settingsPanelAgentsId"
             role="tabpanel"
-            aria-labelledby="settings-tab-agents"
+            aria-label="Agents settings"
           >
             <p class="text-sm text-muted-foreground">
               Command typed into the thread terminal when you start a new thread with each agent (then Enter is
@@ -272,7 +200,7 @@ function save(): void {
             v-show="activeSection === 'terminal'"
             :id="settingsPanelTerminalId"
             role="tabpanel"
-            aria-labelledby="settings-tab-terminal"
+            aria-label="Terminal settings"
           >
             <p class="text-sm text-muted-foreground">
               Short sounds when the integrated terminal needs your attention (bell character or output while you
@@ -316,7 +244,7 @@ function save(): void {
             v-show="activeSection === 'appearance'"
             :id="settingsPanelAppearanceId"
             role="tabpanel"
-            aria-labelledby="settings-tab-appearance"
+            aria-label="Appearance settings"
           >
             <p class="text-sm text-muted-foreground">
               Color mode and accent presets use the same design tokens as the rest of the app. Changes apply
@@ -414,7 +342,7 @@ function save(): void {
             v-show="activeSection === 'keyboard'"
             :id="settingsPanelKeyboardId"
             role="tabpanel"
-            aria-labelledby="settings-tab-keyboard"
+            aria-label="Keyboard settings"
           >
             <p class="text-sm text-muted-foreground">
               Shortcuts are disabled while this dialog is open. Most shortcuts are ignored when focus is in the
@@ -460,7 +388,7 @@ function save(): void {
           class="flex shrink-0 flex-wrap items-center gap-2 border-t border-border px-4 py-4"
           :class="activeSection === 'agents' ? 'justify-between' : 'justify-end'"
         >
-          <BaseButton
+          <Button
             v-if="activeSection === 'agents'"
             type="button"
             variant="ghost"
@@ -468,13 +396,12 @@ function save(): void {
             @click="resetDraftToDefaults"
           >
             Reset to app defaults
-          </BaseButton>
+          </Button>
           <div class="flex gap-2">
-            <BaseButton type="button" variant="outline" size="sm" @click="close"> Cancel </BaseButton>
-            <BaseButton type="button" size="sm" @click="save"> Save </BaseButton>
+            <Button type="button" variant="outline" size="sm" @click="close"> Cancel </Button>
+            <Button type="button" size="sm" @click="save"> Save </Button>
           </div>
         </div>
-      </div>
-    </div>
-  </Teleport>
+    </DialogContent>
+  </Dialog>
 </template>

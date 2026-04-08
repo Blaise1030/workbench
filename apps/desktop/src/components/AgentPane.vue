@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import BaseButton from "@/components/ui/BaseButton.vue";
+import Button from "@/components/ui/Button.vue";
+import Textarea from "@/components/ui/Textarea.vue";
 import TerminalPane from "@/components/TerminalPane.vue";
 
 const props = defineProps<{
@@ -32,10 +33,10 @@ const draftModel = computed({
       <div class="flex items-center justify-between gap-2">
         <h2 class="text-sm font-semibold">Agent</h2>
         <div class="flex items-center gap-2">
-          <BaseButton data-testid="agent-send-draft" type="button" size="sm" @click="emit('sendDraft')">
+          <Button data-testid="agent-send-draft" type="button" size="sm" @click="emit('sendDraft')">
             Send
-          </BaseButton>
-          <BaseButton
+          </Button>
+          <Button
             data-testid="agent-discard-draft"
             type="button"
             variant="outline"
@@ -43,7 +44,7 @@ const draftModel = computed({
             @click="emit('discardDraft')"
           >
             Discard
-          </BaseButton>
+          </Button>
         </div>
       </div>
     </header>
@@ -51,7 +52,7 @@ const draftModel = computed({
     <div class="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden p-3">
       <label class="flex min-h-0 flex-1 flex-col gap-2 text-xs">
         <span class="font-medium text-muted-foreground">Draft</span>
-        <textarea
+        <Textarea
           v-model="draftModel"
           class="min-h-28 flex-1 rounded-md border border-input bg-background px-3 py-2 font-mono text-xs outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           spellcheck="false"

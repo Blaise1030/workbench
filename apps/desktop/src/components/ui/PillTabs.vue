@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import Button from "@/components/ui/Button.vue";
 import { buttonSizeClassMap } from "@/components/ui/button";
 
 export type PillTabItem = {
@@ -13,7 +14,7 @@ export type PillTabItem = {
   activeClass?: string;
 };
 
-/** Matches `buttonSizeClassMap.xs` — shared tab trigger metrics with BaseButton `size="xs"`. */
+/** Matches `buttonSizeClassMap.xs` — shared tab trigger metrics with Button `size="xs"`. */
 const tabTriggerSizeClass = buttonSizeClassMap.xs;
 
 const props = withDefaults(
@@ -63,40 +64,40 @@ function onTabKeydown(event: KeyboardEvent, index: number) {
     class="flex min-w-0 max-w-full flex-nowrap select-none items-center gap-1 overflow-x-auto overflow-y-hidden px-1.5 py-0.5 [scrollbar-width:thin]"
   >
     <template v-for="(tab, index) in tabs" :key="tab.value">
-      <button
-        type="button"
-        role="tab"
-        :aria-selected="modelValue === tab.value"
-        :tabindex="modelValue === tab.value ? 0 : -1"
-        class="inline-flex max-w-full shrink-0 items-center justify-center gap-0.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background"
-        :class="[
-          tabTriggerSizeClass,
-          modelValue === tab.value
-            ? 'bg-muted font-medium text-foreground'
-            : 'text-muted-foreground hover:bg-muted/50',
-          modelValue === tab.value ? tab.activeClass : undefined
-        ]"
-        :title="tab.shortcutHint"
-        @click="select(tab.value)"
-        @keydown="onTabKeydown($event, index)"
-      >
-        <span class="min-w-0 truncate">{{ tab.label }}</span>
-        <span
-          v-if="tab.closable"
-          class="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-sm text-muted-foreground hover:bg-background/80 hover:text-foreground"
-          role="presentation"
+      <div class="inline-flex max-w-full shrink-0 items-center gap-0.5">
+        <Button
+          type="button"
+          variant="ghost"
+          role="tab"
+          :aria-selected="modelValue === tab.value"
+          :tabindex="modelValue === tab.value ? 0 : -1"
+          class="max-w-full transition-colors focus-visible:ring-offset-1"
+          :class="[
+            tabTriggerSizeClass,
+            modelValue === tab.value
+              ? 'bg-muted font-medium text-foreground'
+              : 'text-muted-foreground hover:bg-muted/50',
+            modelValue === tab.value ? tab.activeClass : undefined
+          ]"
+          :title="tab.shortcutHint"
+          @click="select(tab.value)"
+          @keydown="onTabKeydown($event, index)"
         >
-          <button
-            type="button"
-            class="flex h-full w-full items-center justify-center rounded-sm text-[10px] leading-none"
-            :aria-label="`Close ${tab.label}`"
-            tabindex="-1"
-            @click="onCloseClick($event, tab.value)"
-          >
-            ×
-          </button>
-        </span>
-      </button>
+          <span class="min-w-0 truncate">{{ tab.label }}</span>
+        </Button>
+        <Button
+          v-if="tab.closable"
+          type="button"
+          variant="ghost"
+          size="icon-xs"
+          class="h-4 w-4 shrink-0 rounded-sm p-0 text-muted-foreground hover:bg-background/80 hover:text-foreground"
+          :aria-label="`Close ${tab.label}`"
+          tabindex="-1"
+          @click="onCloseClick($event, tab.value)"
+        >
+          ×
+        </Button>
+      </div>
       <span
         v-if="tab.dividerAfter"
         class="mx-0.5 h-4 w-px shrink-0 self-center bg-border"

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref } from "vue";
-import BaseButton from "@/components/ui/BaseButton.vue";
+import Button from "@/components/ui/Button.vue";
 
 const filePath = ref("src/App.vue");
 const content = ref("");
@@ -20,7 +20,7 @@ const emit = defineEmits<{
       <input v-model="filePath" class="mb-2 w-full rounded-md border border-input px-2 py-1 text-xs" />
       <label class="mb-1 block text-xs text-muted-foreground">Content</label>
       <textarea v-model="content" class="h-20 w-full rounded-md border border-input px-2 py-1 text-xs"></textarea>
-      <BaseButton type="submit" size="sm" class="mt-2">Apply Patch</BaseButton>
+      <Button type="submit" size="sm" class="mt-2">Apply Patch</Button>
     </form>
   </section>
 </template>

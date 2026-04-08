@@ -18,7 +18,14 @@ import {
   Trash2,
   Undo2
 } from "lucide-vue-next";
-import BaseButton from "@/components/ui/BaseButton.vue";
+import Button from "@/components/ui/Button.vue";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger
+} from "@/components/ui/dropdown-menu";
 import type { RepoStatusEntry } from "@shared/ipc";
 import { looksLikeUnifiedDiff } from "@shared/diffPaths";
 import "diff2html/bundles/css/diff2html.min.css";
@@ -523,78 +530,58 @@ onBeforeUnmount(() => {
             </p>
           </div>
           <!-- Actions dropdown -->
-          <div class="relative shrink-0">
-            <BaseButton
-              size="xs"
-              variant="secondary"
-              class="h-6 gap-1 px-2 text-[10px]"
-              @click="actionsOpen = !actionsOpen"
-            >
-              Actions
-              <ChevronDown class="h-3 w-3" :class="actionsOpen ? 'rotate-180' : ''" aria-hidden="true" />
-            </BaseButton>
-            <div v-if="actionsOpen" class="fixed inset-0 z-40" @click="actionsOpen = false" />
-            <div
-              v-if="actionsOpen"
-              class="absolute right-0 top-full z-50 mt-1 min-w-[180px] rounded-md border border-border bg-popover p-1 shadow-md"
-            >
-              <!-- Selection actions -->
-              <button
-                type="button"
-                class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
+          <DropdownMenu v-model:open="actionsOpen">
+            <DropdownMenuTrigger as-child>
+              <Button
+                size="xs"
+                variant="secondary"
+                class="h-6 gap-1 px-2 text-[10px]"
+              >
+                Actions
+                <ChevronDown class="h-3 w-3" :class="actionsOpen ? 'rotate-180' : ''" aria-hidden="true" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" class="min-w-[180px]">
+              <DropdownMenuItem
                 :disabled="!canStageFromSelection"
-                @click="actionStageSelected(); actionsOpen = false"
+                class="text-xs"
+                @select="actionStageSelected"
               >
                 <Plus class="h-3 w-3 shrink-0" />
                 Stage Selected
-              </button>
-              <button
-                type="button"
-                class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
+              </DropdownMenuItem>
+              <DropdownMenuItem
                 :disabled="!canUnstageFromSelection"
-                @click="actionUnstageSelected(); actionsOpen = false"
+                class="text-xs"
+                @select="actionUnstageSelected"
               >
                 <Minus class="h-3 w-3 shrink-0" />
                 Unstage Selected
-              </button>
-              <button
-                type="button"
-                class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-destructive transition-colors hover:bg-destructive/10 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
+              </DropdownMenuItem>
+              <DropdownMenuItem
                 :disabled="!canDiscardFromSelection"
-                @click="actionDiscardSelected(); actionsOpen = false"
+                variant="destructive"
+                class="text-xs"
+                @select="actionDiscardSelected"
               >
                 <RotateCcw class="h-3 w-3 shrink-0" />
                 Discard Selected
-              </button>
-              <!-- Divider -->
-              <div class="my-1 h-px shrink-0 bg-border" role="separator" />
-              <!-- Bulk actions -->
-              <button
-                type="button"
-                class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-foreground transition-colors hover:bg-muted"
-                @click="emit('stageAll'); actionsOpen = false"
-              >
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem class="text-xs" @select="emit('stageAll')">
                 <ChevronsUp class="h-3 w-3 shrink-0" />
                 Stage All
-              </button>
-              <button
-                type="button"
-                class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-foreground transition-colors hover:bg-muted"
-                @click="emit('unstageAll'); actionsOpen = false"
-              >
+              </DropdownMenuItem>
+              <DropdownMenuItem class="text-xs" @select="emit('unstageAll')">
                 <ChevronsDown class="h-3 w-3 shrink-0" />
                 Unstage All
-              </button>
-              <button
-                type="button"
-                class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-destructive transition-colors hover:bg-destructive/10"
-                @click="emit('discardAll'); actionsOpen = false"
-              >
+              </DropdownMenuItem>
+              <DropdownMenuItem variant="destructive" class="text-xs" @select="emit('discardAll')">
                 <Trash2 class="h-3 w-3 shrink-0" />
                 Discard All
-              </button>
-            </div>
-          </div>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </header>
       <div
@@ -655,8 +642,10 @@ onBeforeUnmount(() => {
               ]"
               :style="{ top: `${metric.top}px`, height: `${metric.height}px` }"
             >
-              <button
+              <Button
                 type="button"
+                variant="ghost"
+                size="xs"
                 class="flex min-w-0 flex-1 items-center gap-1 px-2 py-0 text-left transition-colors"
                 :class="
                   selectedPath === metric.item.path && selectedScope === metric.item.scope
@@ -671,7 +660,7 @@ onBeforeUnmount(() => {
                   {{ metric.item.badge }}
                 </span>
                 <span class="min-w-0 flex-1 truncate font-mono text-[10px] leading-tight">{{ metric.item.path }}</span>
-              </button>
+              </Button>
               <label
                 class="flex shrink-0 cursor-pointer items-center border-l border-border/40 bg-background/30 px-1.5 dark:bg-background/15"
                 @click.stop
@@ -703,7 +692,7 @@ onBeforeUnmount(() => {
             v-if="scmFetchAvailable || scmPushAvailable"
             class="flex shrink-0 items-center gap-1"
           >
-            <BaseButton
+            <Button
               v-if="scmFetchAvailable"
               type="button"
               size="xs"
@@ -721,8 +710,8 @@ onBeforeUnmount(() => {
                 aria-hidden="true"
               />
               Fetch
-            </BaseButton>
-            <BaseButton
+            </Button>
+            <Button
               v-if="scmPushAvailable"
               type="button"
               size="xs"
@@ -741,7 +730,7 @@ onBeforeUnmount(() => {
                 aria-hidden="true"
               />
               Push
-            </BaseButton>
+            </Button>
           </div>
         </div>
 
@@ -754,8 +743,10 @@ onBeforeUnmount(() => {
             class="w-full resize-none rounded-none border-0 border-t border-border bg-background py-1.5 pb-10 pl-2 pr-7 font-mono text-[10px] leading-snug text-foreground placeholder:text-muted-foreground focus:outline-none"
             :class="commitExpanded ? 'min-h-[11rem]' : 'min-h-[4.5rem]'"
           />
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="icon-xs"
             class="absolute top-1 right-1 rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
             :title="commitExpanded ? 'Shrink editor' : 'Expand editor'"
             :aria-label="commitExpanded ? 'Shrink commit message editor' : 'Expand commit message editor'"
@@ -763,8 +754,8 @@ onBeforeUnmount(() => {
           >
             <Minimize2 v-if="commitExpanded" class="h-3 w-3" aria-hidden="true" />
             <Maximize2 v-else class="h-3 w-3" aria-hidden="true" />
-          </button>
-          <BaseButton
+          </Button>
+          <Button
             type="button"
             size="xs"
             variant="default"
@@ -775,7 +766,7 @@ onBeforeUnmount(() => {
           >
             <Loader2 v-if="scmCommitBusy" class="mr-1 h-3 w-3 animate-spin" aria-hidden="true" />
             Commit
-          </BaseButton>
+          </Button>
         </div>
       </footer>
     </aside>
@@ -796,7 +787,7 @@ onBeforeUnmount(() => {
             }}
           </p>
         </div>
-        <BaseButton
+        <Button
           v-if="selectedEntry"
           type="button"
           size="xs"
@@ -808,7 +799,7 @@ onBeforeUnmount(() => {
         >
           <FileText class="h-3 w-3 shrink-0" aria-hidden="true" />
           Go to file
-        </BaseButton>
+        </Button>
       </header>
 
       <div ref="diffHostRef" class="min-h-0 flex-1 overflow-auto">

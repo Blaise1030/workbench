@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, useAttrs } from "vue";
+import { computed, ref, useAttrs } from "vue";
 import { cn } from "@/lib/utils";
 
 defineOptions({ inheritAttrs: false });
@@ -14,6 +14,7 @@ const props = withDefaults(
 const model = defineModel<string>({ default: "" });
 
 const attrs = useAttrs();
+const inputRef = ref<HTMLInputElement | null>(null);
 
 const mergedClassName = computed(() =>
   cn(
@@ -26,10 +27,25 @@ const passthrough = computed(() => {
   const { class: _c, type: _t, ...rest } = attrs as Record<string, unknown>;
   return rest;
 });
+
+function focus(options?: FocusOptions): void {
+  inputRef.value?.focus(options);
+}
+
+function select(): void {
+  inputRef.value?.select();
+}
+
+defineExpose({
+  focus,
+  select,
+  element: inputRef
+});
 </script>
 
 <template>
   <input
+    ref="inputRef"
     v-model="model"
     data-slot="input"
     :type="props.type"

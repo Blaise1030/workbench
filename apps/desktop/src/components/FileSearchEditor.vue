@@ -10,13 +10,35 @@ import {
   Trash2
 } from "lucide-vue-next";
 import type { FileSummary } from "@shared/ipc";
-import BaseButton from "@/components/ui/BaseButton.vue";
-import FileTreeNode, {
-  type FileTreeContextCoords,
-  type FileTreeNodeData
-} from "@/components/FileTreeNode.vue";
+import Button from "@/components/ui/Button.vue";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger
+} from "@/components/ui/context-menu";
+import FileTreeNode, { type FileTreeNodeData } from "@/components/FileTreeNode.vue";
 import CodeMirrorEditor from "@/components/CodeMirrorEditor.vue";
+import Input from "@/components/ui/Input.vue";
 import PillTabs, { type PillTabItem } from "@/components/ui/PillTabs.vue";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle
+} from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
+} from "@/components/ui/dialog";
 import { renderMarkdownToHtml } from "@/lib/markdown";
 
 const props = withDefaults(
@@ -39,7 +61,7 @@ const workspaceHeaderLine = computed(() => {
   return label || basenameFromPath(props.worktreePath);
 });
 
-const searchInput = ref<HTMLInputElement | null>(null);
+const searchInput = ref<InstanceType<typeof Input> | null>(null);
 const query = ref("");
 const allFiles = ref<FileSummary[]>([]);
 const expandedFolders = ref<Set<string>>(new Set());
@@ -74,25 +96,28 @@ watch(sidebarCollapsed, (collapsed) => {
   }
 });
 
-type TreeContextMenuState =
-  | { x: number; y: number; variant: "pane" }
-  | { x: number; y: number; variant: "folder"; folderPath: string }
-  | { x: number; y: number; variant: "file"; filePath: string };
-
-const treeContextMenu = ref<TreeContextMenuState | null>(null);
-const ctxMenuRoot = ref<HTMLElement | null>(null);
 let disposeWorkspaceChanged: (() => void) | null = null;
 let disposeWorkingTreeFilesChanged: (() => void) | null = null;
 
 const newFileDialogOpen = ref(false);
 const newFilePathDraft = ref("");
-const newFilePathInputRef = ref<HTMLInputElement | null>(null);
+const newFilePathInputRef = ref<InstanceType<typeof Input> | null>(null);
 const newFileDialogFieldError = ref<string | null>(null);
 
 const newFolderDialogOpen = ref(false);
 const newFolderPathDraft = ref("");
-const newFolderPathInputRef = ref<HTMLInputElement | null>(null);
+const newFolderPathInputRef = ref<InstanceType<typeof Input> | null>(null);
 const newFolderDialogFieldError = ref<string | null>(null);
+
+type ConfirmActionState = {
+  title: string;
+  description: string;
+  confirmLabel: string;
+  variant?: "default" | "destructive";
+  resolve: (confirmed: boolean) => void;
+};
+
+const confirmAction = ref<ConfirmActionState | null>(null);
 
 const hasWorkspace = computed(() => Boolean(props.worktreePath));
 const dirty = computed(
@@ -272,23 +297,6 @@ function defaultExpandedFolders(files: FileSummary[]): Set<string> {
 const fileTree = computed(() => buildFileTree(allFiles.value));
 const visibleTree = computed(() => filterTreeNodes(fileTree.value, query.value));
 
-const contextMenuStyle = computed(() => {
-  const m = treeContextMenu.value;
-  if (!m) return {};
-  const pad = 8;
-  const menuW = 200;
-  const menuH = 140;
-  let x = m.x;
-  let y = m.y;
-  if (typeof window !== "undefined") {
-    x = Math.min(x, window.innerWidth - menuW - pad);
-    y = Math.min(y, window.innerHeight - menuH - pad);
-    x = Math.max(pad, x);
-    y = Math.max(pad, y);
-  }
-  return { left: `${x}px`, top: `${y}px` };
-});
-
 function getApi(): WorkspaceApi | null {
   return window.workspaceApi ?? null;
 }
@@ -331,14 +339,6 @@ function computeNewFolderDefaultValue(folderPathPrefix?: string): string {
       ? ""
       : "src";
   return folderHint === "" ? "new-folder" : `${folderHint}/new-folder`;
-}
-
-function onNewFileBackdropPointerDown(event: MouseEvent): void {
-  if (event.target === event.currentTarget) closeNewFileDialog();
-}
-
-function onNewFolderBackdropPointerDown(event: MouseEvent): void {
-  if (event.target === event.currentTarget) closeNewFolderDialog();
 }
 
 async function openNewFileDialog(folderPathPrefix?: string): Promise<void> {
@@ -438,44 +438,12 @@ function expandAncestorFolders(relativePath: string): void {
   expandedFolders.value = next;
 }
 
-function closeTreeContextMenu(): void {
-  treeContextMenu.value = null;
-}
-
-function handleTreePaneContextMenu(e: MouseEvent): void {
-  if (!hasWorkspace.value || isSearching.value) return;
-  if ((e.target as HTMLElement).closest("button")) return;
-  e.preventDefault();
-  treeContextMenu.value = { x: e.clientX, y: e.clientY, variant: "pane" };
-}
-
-function handleContextMenuFolder(payload: FileTreeContextCoords): void {
-  treeContextMenu.value = {
-    x: payload.clientX,
-    y: payload.clientY,
-    variant: "folder",
-    folderPath: payload.path
-  };
-}
-
-function handleContextMenuFile(payload: FileTreeContextCoords): void {
-  treeContextMenu.value = {
-    x: payload.clientX,
-    y: payload.clientY,
-    variant: "file",
-    filePath: payload.path
-  };
-}
-
-function onGlobalPointerDown(e: PointerEvent): void {
-  if (!treeContextMenu.value) return;
-  const t = e.target as Node | null;
-  if (t && ctxMenuRoot.value?.contains(t)) return;
-  closeTreeContextMenu();
-}
-
 function onGlobalKeydown(e: KeyboardEvent): void {
   if (e.key === "Escape") {
+    if (confirmAction.value) {
+      settleConfirmation(false);
+      return;
+    }
     if (newFileDialogOpen.value) {
       closeNewFileDialog();
       return;
@@ -484,7 +452,6 @@ function onGlobalKeydown(e: KeyboardEvent): void {
       closeNewFolderDialog();
       return;
     }
-    closeTreeContextMenu();
   }
 }
 
@@ -530,9 +497,27 @@ async function expandSidebar(): Promise<void> {
   await focusSearchInput();
 }
 
+function requestConfirmation(options: Omit<ConfirmActionState, "resolve">): Promise<boolean> {
+  return new Promise((resolve) => {
+    confirmAction.value = { ...options, resolve };
+  });
+}
+
+function settleConfirmation(confirmed: boolean): void {
+  const pending = confirmAction.value;
+  if (!pending) return;
+  confirmAction.value = null;
+  pending.resolve(confirmed);
+}
+
 async function confirmDiscardIfDirty(): Promise<boolean> {
   if (!dirty.value) return true;
-  return window.confirm("Discard unsaved changes?");
+  return requestConfirmation({
+    title: "Discard unsaved changes?",
+    description: "Your current edits will be lost if you continue.",
+    confirmLabel: "Discard changes",
+    variant: "destructive"
+  });
 }
 
 async function loadFileSummaries(): Promise<void> {
@@ -613,10 +598,18 @@ async function deleteFolderAtPath(relativePath: string): Promise<void> {
 
   const sel = selectedPath.value;
   const loseEdits = sel && pathIsUnderOrEqualFolder(relativePath, sel) && dirty.value;
-  const message = loseEdits
-    ? `Delete folder ${relativePath} and its contents? Unsaved changes to an open file inside will be lost.`
-    : `Delete folder ${relativePath} and its contents?`;
-  if (!window.confirm(message)) return;
+  if (
+    !(await requestConfirmation({
+      title: `Delete folder ${relativePath} and its contents?`,
+      description: loseEdits
+        ? "Unsaved changes to the open file inside this folder will be lost."
+        : "This permanently removes the folder and everything inside it.",
+      confirmLabel: "Delete folder",
+      variant: "destructive"
+    }))
+  ) {
+    return;
+  }
 
   error.value = null;
 
@@ -639,10 +632,18 @@ async function deleteFileAtPath(relativePath: string): Promise<void> {
 
   const isSelected = selectedPath.value === relativePath;
   const loseEdits = isSelected && dirty.value;
-  const message = loseEdits
-    ? `Delete ${relativePath}? Unsaved changes will be lost.`
-    : `Delete ${relativePath}?`;
-  if (!window.confirm(message)) return;
+  if (
+    !(await requestConfirmation({
+      title: `Delete ${relativePath}?`,
+      description: loseEdits
+        ? "Unsaved changes in this file will be lost."
+        : "This permanently removes the file from the worktree.",
+      confirmLabel: "Delete file",
+      variant: "destructive"
+    }))
+  ) {
+    return;
+  }
 
   error.value = null;
 
@@ -662,40 +663,20 @@ async function handleDeleteFile(): Promise<void> {
   await deleteFileAtPath(relativePath);
 }
 
-async function onCtxAddFile(): Promise<void> {
-  const m = treeContextMenu.value;
-  closeTreeContextMenu();
-  if (!m) return;
-  if (m.variant === "folder") {
-    await handleAddFile(m.folderPath);
-  } else if (m.variant === "pane") {
-    await handleAddFile();
-  }
+async function onCtxAddFile(folderPath?: string): Promise<void> {
+  await handleAddFile(folderPath);
 }
 
-async function onCtxAddFolder(): Promise<void> {
-  const m = treeContextMenu.value;
-  closeTreeContextMenu();
-  if (!m) return;
-  if (m.variant === "folder") {
-    await handleAddFolder(m.folderPath);
-  } else if (m.variant === "pane") {
-    await handleAddFolder();
-  }
+async function onCtxAddFolder(folderPath?: string): Promise<void> {
+  await handleAddFolder(folderPath);
 }
 
-async function onCtxDeleteFolder(): Promise<void> {
-  const m = treeContextMenu.value;
-  closeTreeContextMenu();
-  if (!m || m.variant !== "folder") return;
-  await deleteFolderAtPath(m.folderPath);
+async function onCtxDeleteFolder(folderPath: string): Promise<void> {
+  await deleteFolderAtPath(folderPath);
 }
 
-async function onCtxDeleteFile(): Promise<void> {
-  const m = treeContextMenu.value;
-  closeTreeContextMenu();
-  if (!m || m.variant !== "file") return;
-  await deleteFileAtPath(m.filePath);
+async function onCtxDeleteFile(filePath: string): Promise<void> {
+  await deleteFileAtPath(filePath);
 }
 
 async function handleSave(): Promise<void> {
@@ -769,7 +750,6 @@ onMounted(() => {
       void loadFileSummaries();
     });
   }
-  document.addEventListener("pointerdown", onGlobalPointerDown, true);
   document.addEventListener("keydown", onGlobalKeydown);
 });
 
@@ -778,7 +758,6 @@ onUnmounted(() => {
   disposeWorkspaceChanged = null;
   disposeWorkingTreeFilesChanged?.();
   disposeWorkingTreeFilesChanged = null;
-  document.removeEventListener("pointerdown", onGlobalPointerDown, true);
   document.removeEventListener("keydown", onGlobalKeydown);
 });
 
@@ -806,7 +785,7 @@ defineExpose({
         v-if="sidebarCollapsed"
         class="flex flex-col items-center gap-1 border-b border-border p-1"
       >
-        <BaseButton
+        <Button
           data-testid="file-search-sidebar-expand"
           variant="outline"
           size="icon-xs"
@@ -819,43 +798,29 @@ defineExpose({
         >
           <PanelLeftOpen class="h-3.5 w-3.5" aria-hidden="true" />
           <span class="sr-only">Show file explorer</span>
-        </BaseButton>
+        </Button>
       </div>
       <template v-else>
         <div
           data-testid="file-search-header"
           class="flex items-center gap-1 border-b border-border p-1"
-        >
-          <BaseButton
-            data-testid="file-search-sidebar-collapse"
-            variant="outline"
-            size="icon-xs"
-            class="shrink-0 px-1.5"
-            title="Hide file explorer"
-            aria-label="Hide file explorer"
-            :aria-expanded="true"
-            aria-controls="file-search-sidebar"
-            @click="collapseSidebar()"
-          >
-            <PanelLeftClose class="h-3.5 w-3.5" aria-hidden="true" />
-            <span class="sr-only">Hide file explorer</span>
-          </BaseButton>
+        >          
           <div class="relative min-w-0 flex-1 text-muted-foreground">
             <Search
               class="pointer-events-none absolute top-1/2 left-2.5 h-3.5 w-3.5 -translate-y-1/2"
             />
-            <input
+            <Input
               id="file-search"
               ref="searchInput"
               v-model="query"
               data-testid="file-search-input"
               type="text"
               placeholder="Search paths..."
-              class="h-7 w-full bg-muted min-w-0 rounded-md border border-input bg-background py-0.5 pr-2 pl-8 text-xs text-foreground transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-2 aria-invalid:ring-destructive/20 dark:bg-input/30 dark:disabled:bg-input/80 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40"
+              class="h-7 min-w-0 w-full rounded-md bg-background py-0.5 pr-2 pl-8 text-xs focus-visible:ring-2"
               :disabled="!hasWorkspace"
             />
           </div>
-          <BaseButton
+          <Button
             data-testid="refresh-file-explorer"
             variant="outline"
             size="icon-xs"
@@ -866,8 +831,8 @@ defineExpose({
           >
             <RefreshCw class="h-3.5 w-3.5" aria-hidden="true" />
             <span class="sr-only">Refresh file explorer</span>
-          </BaseButton>
-          <BaseButton
+          </Button>
+          <Button
             data-testid="add-file"
             variant="outline"
             size="icon-xs"
@@ -878,8 +843,8 @@ defineExpose({
           >
             <FilePlus class="h-3.5 w-3.5" aria-hidden="true" />
             <span class="sr-only">Add file</span>
-          </BaseButton>
-          <BaseButton
+          </Button>
+          <Button
             data-testid="add-folder"
             variant="outline"
             size="icon-xs"
@@ -890,44 +855,57 @@ defineExpose({
           >
             <FolderPlus class="h-3.5 w-3.5" aria-hidden="true" />
             <span class="sr-only">Add folder</span>
-          </BaseButton>
+          </Button>
         </div>
 
-        <div
-          data-testid="file-tree-scroll"
-          class="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto p-1.5"
-          @contextmenu="handleTreePaneContextMenu"
-        >
-          <p v-if="!hasWorkspace" class="px-1.5 py-2 text-xs text-muted-foreground">
-            Open a workspace to search and edit files.
-          </p>
-          <p v-else-if="isSearching" class="px-1.5 py-2 text-xs text-muted-foreground">
-            Loading files…
-          </p>
-          <p v-else-if="error" class="px-1.5 py-2 text-xs text-destructive">
-            {{ error }}
-          </p>
-          <p
-            v-else-if="visibleTree.length === 0"
-            class="px-1.5 py-2 text-xs text-muted-foreground"
-          >
-            No matching files.
-          </p>
-          <ul v-else class="space-y-0.5 text-xs">
-            <FileTreeNode
-              v-for="node in visibleTree"
-              :key="node.path"
-              :node="node"
-              :selected-path="selectedPath"
-              :expanded-folders="expandedFolders"
-              :force-expanded="hasActiveSearch"
-              @toggle-folder="handleToggleFolder"
-              @select-file="handleSelectFile"
-              @context-menu-folder="handleContextMenuFolder"
-              @context-menu-file="handleContextMenuFile"
-            />
-          </ul>
-        </div>
+        <ContextMenu>
+          <ContextMenuTrigger as-child>
+            <div
+              data-testid="file-tree-scroll"
+              class="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto p-1.5"
+            >
+              <p v-if="!hasWorkspace" class="px-1.5 py-2 text-xs text-muted-foreground">
+                Open a workspace to search and edit files.
+              </p>
+              <p v-else-if="isSearching" class="px-1.5 py-2 text-xs text-muted-foreground">
+                Loading files…
+              </p>
+              <p v-else-if="error" class="px-1.5 py-2 text-xs text-destructive">
+                {{ error }}
+              </p>
+              <p
+                v-else-if="visibleTree.length === 0"
+                class="px-1.5 py-2 text-xs text-muted-foreground"
+              >
+                No matching files.
+              </p>
+              <ul v-else class="space-y-0.5 text-xs">
+                <FileTreeNode
+                  v-for="node in visibleTree"
+                  :key="node.path"
+                  :node="node"
+                  :selected-path="selectedPath"
+                  :expanded-folders="expandedFolders"
+                  :force-expanded="hasActiveSearch"
+                  @toggle-folder="handleToggleFolder"
+                  @select-file="handleSelectFile"
+                  @add-file="onCtxAddFile"
+                  @add-folder="onCtxAddFolder"
+                  @delete-folder="onCtxDeleteFolder"
+                  @delete-file="onCtxDeleteFile"
+                />
+              </ul>
+            </div>
+          </ContextMenuTrigger>
+          <ContextMenuContent data-testid="file-tree-context-menu" class="min-w-[11rem]">
+            <ContextMenuItem data-testid="ctx-add-file" class="text-xs" @select="onCtxAddFile()">
+              Add file…
+            </ContextMenuItem>
+            <ContextMenuItem data-testid="ctx-add-folder" class="text-xs" @select="onCtxAddFolder()">
+              Add folder…
+            </ContextMenuItem>
+          </ContextMenuContent>
+        </ContextMenu>
       </template>
     </div>
 
@@ -967,7 +945,7 @@ defineExpose({
           aria-label="File actions"
           class="flex items-center gap-1"
         >
-          <BaseButton
+          <Button
             data-testid="revert-file"
             variant="outline"
             size="xs"
@@ -975,8 +953,8 @@ defineExpose({
             @click="handleRevert"
           >
             Revert
-          </BaseButton>
-          <BaseButton
+          </Button>
+          <Button
             data-testid="save-file"
             variant="default"
             size="xs"
@@ -984,8 +962,8 @@ defineExpose({
             @click="handleSave"
           >
             Save
-          </BaseButton>
-          <BaseButton
+          </Button>
+          <Button
             data-testid="delete-file"
             variant="outline"
             size="xs"
@@ -996,7 +974,7 @@ defineExpose({
           >
             <Trash2 class="h-3.5 w-3.5" aria-hidden="true" />
             <span class="sr-only">Delete file</span>
-          </BaseButton>
+          </Button>
         </div>
       </header>
 
@@ -1058,181 +1036,130 @@ defineExpose({
       </div>
     </div>
 
-    <Teleport to="body">
-      <div
-        v-if="treeContextMenu"
-        ref="ctxMenuRoot"
-        data-testid="file-tree-context-menu"
-        class="fixed z-[200] min-w-[11rem] rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-md"
-        :style="contextMenuStyle"
-        role="menu"
-        @contextmenu.prevent
-      >
-        <template v-if="treeContextMenu.variant === 'folder' || treeContextMenu.variant === 'pane'">
-          <button
-            type="button"
-            role="menuitem"
-            data-testid="ctx-add-file"
-            class="flex w-full rounded-sm px-2 py-1.5 text-left text-xs hover:bg-muted"
-            @click="onCtxAddFile"
-          >
-            Add file…
-          </button>
-          <button
-            type="button"
-            role="menuitem"
-            data-testid="ctx-add-folder"
-            class="flex w-full rounded-sm px-2 py-1.5 text-left text-xs hover:bg-muted"
-            @click="onCtxAddFolder"
-          >
-            Add folder…
-          </button>
-        </template>
-        <template v-if="treeContextMenu.variant === 'folder'">
-          <button
-            type="button"
-            role="menuitem"
-            data-testid="ctx-delete-folder"
-            class="flex w-full rounded-sm px-2 py-1.5 text-left text-xs text-destructive hover:bg-destructive/10"
-            @click="onCtxDeleteFolder"
-          >
-            Delete folder
-          </button>
-        </template>
-        <template v-if="treeContextMenu.variant === 'file'">
-          <button
-            type="button"
-            role="menuitem"
-            data-testid="ctx-delete-file"
-            class="flex w-full rounded-sm px-2 py-1.5 text-left text-xs text-destructive hover:bg-destructive/10"
-            @click="onCtxDeleteFile"
-          >
-            Delete file
-          </button>
-        </template>
-      </div>
-    </Teleport>
-
-    <Teleport to="body">
-      <div
-        v-if="newFileDialogOpen"
-        data-testid="new-file-dialog"
-        class="fixed inset-0 z-[210] flex items-start justify-center overflow-y-auto p-4 pt-[15vh] ui-glass-scrim"
-        role="presentation"
-        @pointerdown="onNewFileBackdropPointerDown"
-      >
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="new-file-dialog-title"
-          class="ui-glass-panel relative w-full max-w-md rounded-lg p-4 text-card-foreground outline-none"
-          tabindex="-1"
-          @pointerdown.stop
-        >
-          <h2 id="new-file-dialog-title" class="text-sm font-semibold">New file</h2>
-          <p class="mt-1 text-xs text-muted-foreground">
+    <Dialog :open="newFileDialogOpen" @update:open="(open) => (!open ? closeNewFileDialog() : undefined)">
+      <DialogContent data-testid="new-file-dialog" class="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle id="new-file-dialog-title" class="text-sm">New file</DialogTitle>
+          <DialogDescription class="text-xs">
             Path relative to the workspace (use <span class="font-mono">/</span> for folders).
-          </p>
-          <form class="mt-4 space-y-3" @submit.prevent="submitNewFile">
-            <div>
-              <label for="new-file-path-input" class="sr-only">File path</label>
-              <input
-                id="new-file-path-input"
-                ref="newFilePathInputRef"
-                v-model="newFilePathDraft"
-                data-testid="new-file-path-input"
-                type="text"
-                autocomplete="off"
-                spellcheck="false"
-                class="h-9 w-full rounded-md border border-input bg-background px-2.5 text-xs text-foreground outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50"
-                placeholder="e.g. src/components/MyFile.ts"
-              />
-              <p
-                v-if="newFileDialogFieldError"
-                data-testid="new-file-dialog-error"
-                class="mt-1.5 text-xs text-destructive"
-              >
-                {{ newFileDialogFieldError }}
-              </p>
-            </div>
-            <div class="flex justify-end gap-2">
-              <BaseButton
-                type="button"
-                data-testid="new-file-cancel"
-                variant="outline"
-                size="xs"
-                @click="closeNewFileDialog"
-              >
-                Cancel
-              </BaseButton>
-              <BaseButton type="submit" data-testid="new-file-confirm" variant="default" size="xs">
-                Create
-              </BaseButton>
-            </div>
-          </form>
-        </div>
-      </div>
-    </Teleport>
+          </DialogDescription>
+        </DialogHeader>
+        <form class="space-y-3" @submit.prevent="submitNewFile">
+          <div>
+            <label for="new-file-path-input" class="sr-only">File path</label>
+            <Input
+              id="new-file-path-input"
+              ref="newFilePathInputRef"
+              v-model="newFilePathDraft"
+              data-testid="new-file-path-input"
+              type="text"
+              autocomplete="off"
+              spellcheck="false"
+              class="h-9 w-full rounded-md bg-background px-2.5 text-xs focus-visible:ring-2"
+              placeholder="e.g. src/components/MyFile.ts"
+            />
+            <p
+              v-if="newFileDialogFieldError"
+              data-testid="new-file-dialog-error"
+              class="mt-1.5 text-xs text-destructive"
+            >
+              {{ newFileDialogFieldError }}
+            </p>
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              data-testid="new-file-cancel"
+              variant="outline"
+              size="xs"
+              @click="closeNewFileDialog"
+            >
+              Cancel
+            </Button>
+            <Button type="submit" data-testid="new-file-confirm" variant="default" size="xs">
+              Create
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
 
-    <Teleport to="body">
-      <div
-        v-if="newFolderDialogOpen"
-        data-testid="new-folder-dialog"
-        class="fixed inset-0 z-[210] flex items-start justify-center overflow-y-auto p-4 pt-[15vh] ui-glass-scrim"
-        role="presentation"
-        @pointerdown="onNewFolderBackdropPointerDown"
-      >
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="new-folder-dialog-title"
-          class="ui-glass-panel relative w-full max-w-md rounded-lg p-4 text-card-foreground outline-none"
-          tabindex="-1"
-          @pointerdown.stop
-        >
-          <h2 id="new-folder-dialog-title" class="text-sm font-semibold">New folder</h2>
-          <p class="mt-1 text-xs text-muted-foreground">
+    <Dialog :open="newFolderDialogOpen" @update:open="(open) => (!open ? closeNewFolderDialog() : undefined)">
+      <DialogContent data-testid="new-folder-dialog" class="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle id="new-folder-dialog-title" class="text-sm">New folder</DialogTitle>
+          <DialogDescription class="text-xs">
             Path relative to the workspace (nested folders are created as needed).
-          </p>
-          <form class="mt-4 space-y-3" @submit.prevent="submitNewFolder">
-            <div>
-              <label for="new-folder-path-input" class="sr-only">Folder path</label>
-              <input
-                id="new-folder-path-input"
-                ref="newFolderPathInputRef"
-                v-model="newFolderPathDraft"
-                data-testid="new-folder-path-input"
-                type="text"
-                autocomplete="off"
-                spellcheck="false"
-                class="h-9 w-full rounded-md border border-input bg-background px-2.5 text-xs text-foreground outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50"
-                placeholder="e.g. src/components/MyFolder"
-              />
-              <p
-                v-if="newFolderDialogFieldError"
-                data-testid="new-folder-dialog-error"
-                class="mt-1.5 text-xs text-destructive"
-              >
-                {{ newFolderDialogFieldError }}
-              </p>
-            </div>
-            <div class="flex justify-end gap-2">
-              <BaseButton
-                type="button"
-                data-testid="new-folder-cancel"
-                variant="outline"
-                size="xs"
-                @click="closeNewFolderDialog"
-              >
-                Cancel
-              </BaseButton>
-              <BaseButton type="submit" data-testid="new-folder-confirm" variant="default" size="xs">
-                Create
-              </BaseButton>
-            </div>
-          </form>
-        </div>
-      </div>
-    </Teleport>
+          </DialogDescription>
+        </DialogHeader>
+        <form class="space-y-3" @submit.prevent="submitNewFolder">
+          <div>
+            <label for="new-folder-path-input" class="sr-only">Folder path</label>
+            <Input
+              id="new-folder-path-input"
+              ref="newFolderPathInputRef"
+              v-model="newFolderPathDraft"
+              data-testid="new-folder-path-input"
+              type="text"
+              autocomplete="off"
+              spellcheck="false"
+              class="h-9 w-full rounded-md bg-background px-2.5 text-xs focus-visible:ring-2"
+              placeholder="e.g. src/components/MyFolder"
+            />
+            <p
+              v-if="newFolderDialogFieldError"
+              data-testid="new-folder-dialog-error"
+              class="mt-1.5 text-xs text-destructive"
+            >
+              {{ newFolderDialogFieldError }}
+            </p>
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              data-testid="new-folder-cancel"
+              variant="outline"
+              size="xs"
+              @click="closeNewFolderDialog"
+            >
+              Cancel
+            </Button>
+            <Button type="submit" data-testid="new-folder-confirm" variant="default" size="xs">
+              Create
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+
+    <AlertDialog :open="confirmAction !== null">
+      <AlertDialogContent data-testid="confirm-action-dialog">
+        <AlertDialogHeader>
+          <AlertDialogTitle>{{ confirmAction?.title }}</AlertDialogTitle>
+          <AlertDialogDescription>{{ confirmAction?.description }}</AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel
+            data-testid="confirm-action-cancel"
+            class="inline-flex h-6 items-center justify-center rounded-[min(var(--radius-md),10px)] border px-2 text-xs font-medium"
+            @click="settleConfirmation(false)"
+          >
+            Cancel
+          </AlertDialogCancel>
+          <AlertDialogAction
+            data-testid="confirm-action-confirm"
+            class="inline-flex h-6 items-center justify-center rounded-[min(var(--radius-md),10px)] px-2 text-xs font-medium"
+            :class="
+              confirmAction?.variant === 'destructive'
+                ? 'bg-destructive text-destructive-foreground'
+                : 'bg-primary text-primary-foreground'
+            "
+            @click="settleConfirmation(true)"
+          >
+            {{ confirmAction?.confirmLabel ?? "Continue" }}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   </section>
 </template>

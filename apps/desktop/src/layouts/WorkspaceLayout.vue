@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, useId, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { Plus, Settings } from "lucide-vue-next";
-import BaseButton from "@/components/ui/BaseButton.vue";
+import Button from "@/components/ui/Button.vue";
 import SourceControlPanel from "@/components/SourceControlPanel.vue";
 import PillTabs, { type PillTabItem } from "@/components/ui/PillTabs.vue";
 import ProjectTabs from "@/components/ProjectTabs.vue";
@@ -13,6 +13,7 @@ import WorkspaceLauncherModal from "@/components/WorkspaceLauncherModal.vue";
 import ThreadCreateButton from "@/components/ThreadCreateButton.vue";
 import BranchPicker from "@/components/BranchPicker.vue";
 import ThreadSidebar from "@/components/ThreadSidebar.vue";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAgentBootstrapCommands } from "@/composables/useAgentBootstrapCommands";
 import {
   loadTerminalLayout,
@@ -33,6 +34,7 @@ import type {
   CreateThreadInput,
   DeleteThreadInput,
   FileDiffScope,
+  RemoveProjectInput,
   ReorderThreadsInput,
   RepoScmSnapshot,
   RepoStatusEntry,
@@ -204,57 +206,7 @@ function addShellTerminal(): void {
   centerTab.value = `shell:${id}`;
 }
 
-const addTerminalWrapRef = ref<HTMLElement | null>(null);
-const addTerminalTooltipHover = ref(false);
-const addTerminalTooltipFocused = ref(false);
-const addTerminalTooltipStyle = ref<Record<string, string>>({});
-const addTerminalTooltipId = `add-terminal-tooltip-${useId().replace(/:/g, "_")}`;
 const addTerminalTooltipText = titleWithShortcut("Add terminal", "addTerminal");
-const showAddTerminalTooltip = computed(
-  () => addTerminalTooltipHover.value || addTerminalTooltipFocused.value
-);
-
-function updateAddTerminalTooltipPosition(): void {
-  const el = addTerminalWrapRef.value;
-  if (!el) return;
-  const rect = el.getBoundingClientRect();
-  addTerminalTooltipStyle.value = {
-    left: `${Math.round(rect.left + rect.width / 2)}px`,
-    top: `${Math.round(rect.bottom + 6)}px`,
-    transform: "translateX(-50%)"
-  };
-}
-
-let removeAddTerminalTooltipListeners: (() => void) | null = null;
-
-function bindAddTerminalTooltipListeners(): void {
-  removeAddTerminalTooltipListeners?.();
-  const handler = (): void => {
-    if (showAddTerminalTooltip.value) updateAddTerminalTooltipPosition();
-  };
-  window.addEventListener("resize", handler);
-  window.addEventListener("scroll", handler, true);
-  removeAddTerminalTooltipListeners = () => {
-    window.removeEventListener("resize", handler);
-    window.removeEventListener("scroll", handler, true);
-  };
-}
-
-function unbindAddTerminalTooltipListeners(): void {
-  removeAddTerminalTooltipListeners?.();
-  removeAddTerminalTooltipListeners = null;
-}
-
-watch(showAddTerminalTooltip, (show) => {
-  if (show) {
-    void nextTick(() => {
-      updateAddTerminalTooltipPosition();
-      bindAddTerminalTooltipListeners();
-    });
-  } else {
-    unbindAddTerminalTooltipListeners();
-  }
-});
 
 async function onCenterTabClose(tabValue: string): Promise<void> {
   if (!tabValue.startsWith("shell:")) return;
@@ -612,6 +564,19 @@ async function handleSelectProject(projectId: string): Promise<void> {
   const fallbackThreadId =
     workspace.worktrees.find((worktree) => worktree.id === fallbackWorktreeId)?.lastActiveThreadId ?? null;
   await api.setActive({ projectId, worktreeId: fallbackWorktreeId, threadId: fallbackThreadId });
+  await refreshSnapshot();
+  await refreshRepoStatus();
+}
+
+async function handleRemoveProject(projectId: string): Promise<void> {
+  const api = getApi();
+  if (!api?.removeProject) return;
+  const project = workspace.projects.find((entry) => entry.id === projectId);
+  if (!project) return;
+  const confirmed = window.confirm(`Remove ${project.name} from workspace tabs?`);
+  if (!confirmed) return;
+  const payload: RemoveProjectInput = { projectId };
+  await api.removeProject(payload);
   await refreshSnapshot();
   await refreshRepoStatus();
 }
@@ -1088,7 +1053,6 @@ let worktreeHealthInterval: ReturnType<typeof setInterval> | null = null;
 
 onBeforeUnmount(() => {
   if (worktreeHealthInterval) clearInterval(worktreeHealthInterval);
-  unbindAddTerminalTooltipListeners();
   disposeOpenWorkspaceSettings?.();
   disposeOpenWorkspaceSettings = null;
   disposeWorkspaceChanged?.();
@@ -1182,7 +1146,7 @@ watch(
       class="pointer-events-none absolute top-2 right-2 z-10"
     >
       <div class="pointer-events-auto flex items-center gap-1">
-        <BaseButton
+        <Button
           type="button"
           variant="outline"
           size="icon-xs"
@@ -1191,7 +1155,7 @@ watch(
           @click="handleConfigureCommands"
         >
           <Settings class="h-3.5 w-3.5" />
-        </BaseButton>
+        </Button>
         <ThemeToggle />
       </div>
     </div>
@@ -1213,6 +1177,7 @@ watch(
       :active-project-id="workspace.activeProjectId"
       :project-ids-needing-attention="projectIdsNeedingAttention"
       @select="handleSelectProject"
+      @remove="handleRemoveProject"
       @create="handleCreateProject"
       @configure-commands="handleConfigureCommands"
     />
@@ -1238,9 +1203,9 @@ watch(
           }}
         </p>
       </div>
-      <BaseButton v-if="workspace.projects.length === 0" type="button" @click="handleCreateProject">
+      <Button v-if="workspace.projects.length === 0" type="button" @click="handleCreateProject">
         Add workspace
-      </BaseButton>
+      </Button>
     </section>
 
     <section v-else class="grid min-h-0 flex-1" :style="{ gridTemplateColumns: layoutColumns }">
@@ -1282,12 +1247,13 @@ watch(
           :active-project-id="workspace.activeProjectId"
           :project-ids-needing-attention="projectIdsNeedingAttention"
           @select="handleSelectProject"
+          @remove="handleRemoveProject"
           @create="handleCreateProject"
           @configure-commands="handleConfigureCommands"
         />
         <div
           v-if="activeWorktreeHasThreads"
-          class="flex min-h-0 min-w-0 shrink-0 items-center justify-start gap-1 overflow-hidden py-1 pr-1 pl-0.5"
+          class="flex min-h-0 min-w-0 shrink-0 items-center justify-start gap-1 overflow-hidden py-0.5 pr-1 pl-0.5"
         >
           <PillTabs
             v-model="centerTabModel"
@@ -1296,32 +1262,28 @@ watch(
             aria-label="Center panel"
             @tab-close="onCenterTabClose"
           />
-          <div
-            ref="addTerminalWrapRef"
-            class="inline-flex shrink-0 items-center"
-            @mouseenter="
-              addTerminalTooltipHover = true;
-              updateAddTerminalTooltipPosition();
-            "
-            @mouseleave="addTerminalTooltipHover = false"
-          >
-            <BaseButton
-              type="button"
-              variant="outline"
-              size="xs"
-              class="shrink-0 border-border bg-transparent shadow-none hover:bg-muted/50 dark:border-input dark:bg-transparent dark:hover:bg-input/40"
-              aria-label="Add terminal"
-              :aria-describedby="showAddTerminalTooltip ? addTerminalTooltipId : undefined"
-              @focus="addTerminalTooltipFocused = true; updateAddTerminalTooltipPosition()"
-              @blur="addTerminalTooltipFocused = false"
-              @click="addShellTerminal"
-            >
-              <span class="inline-flex items-center gap-1.5">
-                <span class="text-sm leading-none shrink-0" aria-hidden="true">💻</span>
-                <span>Add terminal</span>
-              </span>
-            </BaseButton>
-          </div>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger as-child>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  class="shrink-0 border-border bg-transparent shadow-none hover:bg-muted/50 dark:border-input dark:bg-transparent dark:hover:bg-input/40"
+                  aria-label="Add terminal"
+                  @click="addShellTerminal"
+                >
+                  <span class="inline-flex items-center gap-1.5">
+                    <span class="text-sm leading-none shrink-0" aria-hidden="true">💻</span>
+                    <span>Add terminal</span>
+                  </span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent data-testid="add-terminal-tooltip">
+                {{ addTerminalTooltipText }}
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         </div>
         <div
           v-if="activeWorktreeHasThreads && hasGitRepository === false"
@@ -1338,9 +1300,9 @@ watch(
             </div>
           </div>
           <div class="flex flex-wrap items-center gap-2 pl-9">
-            <BaseButton v-if="getApi()?.initGitRepository" type="button" size="sm" @click="handleInitializeGit">
+            <Button v-if="getApi()?.initGitRepository" type="button" size="sm" @click="handleInitializeGit">
               Initialize Git
-            </BaseButton>
+            </Button>
             <p v-else class="text-xs text-muted-foreground">
               Run <code class="rounded bg-muted px-1 py-0.5 font-mono text-[0.8rem]">git init</code> in the terminal
               in this workspace.
@@ -1460,18 +1422,5 @@ watch(
     />
 
     <AgentCommandsSettingsDialog v-model="agentCommandsSettingsOpen" :commands="commands" @save="onSaveAgentCommands" />
-
-    <Teleport to="body">
-      <div
-        v-if="showAddTerminalTooltip && activeWorktreeHasThreads"
-        :id="addTerminalTooltipId"
-        data-testid="add-terminal-tooltip"
-        role="tooltip"
-        class="pointer-events-none fixed z-[200] max-w-[min(20rem,calc(100vw-1.5rem))] rounded-md border border-border bg-popover px-2 py-1.5 text-center text-xs font-medium text-popover-foreground shadow-md"
-        :style="addTerminalTooltipStyle"
-      >
-        {{ addTerminalTooltipText }}
-      </div>
-    </Teleport>
   </main>
 </template>

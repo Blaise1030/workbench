@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { CircleAlert, CircleCheck, X } from "lucide-vue-next";
+import Button from "@/components/ui/Button.vue";
 import type { ToastRecord } from "@/stores/toastStore";
 import { normalizeToastVariant, useToastStore } from "@/stores/toastStore";
 
@@ -38,15 +39,17 @@ const toastRole = computed(() => (isSuccess.value ? "status" : "alert"));
     :role="toastRole"
     :aria-labelledby="`toast-title-${toast.id}`"
   >
-    <button
+    <Button
       type="button"
+      variant="ghost"
+      size="icon"
       class="absolute top-2 right-2 rounded p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
       aria-label="Dismiss notification"
       @click="toastStore.dismiss(toast.id)"
     >
       <span class="sr-only">Dismiss</span>
       <X class="h-4 w-4" aria-hidden="true" stroke-width="2" />
-    </button>
+    </Button>
     <div class="flex gap-3">
       <div
         v-if="isSuccess"

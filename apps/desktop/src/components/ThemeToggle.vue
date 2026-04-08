@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { Laptop, Moon, Sun } from "lucide-vue-next";
-import BaseButton from "@/components/ui/BaseButton.vue";
+import Button from "@/components/ui/Button.vue";
 import type { ButtonSize, ButtonVariant } from "@/components/ui/button";
 import { useColorScheme, type ColorSchemePreference } from "@/composables/useColorScheme";
 
@@ -28,7 +28,7 @@ const title = computed(() => `${label.value} (click to change)`);
 </script>
 
 <template>
-  <BaseButton
+  <Button
     type="button"
     :variant="props.variant"
     :size="props.size"
@@ -39,5 +39,5 @@ const title = computed(() => `${label.value} (click to change)`);
     <Sun v-if="preference === 'light'" class="h-3.5 w-3.5" aria-hidden="true" />
     <Moon v-else-if="preference === 'dark'" class="h-3.5 w-3.5" aria-hidden="true" />
     <Laptop v-else class="h-3.5 w-3.5" aria-hidden="true" />
-  </BaseButton>
+  </Button>
 </template>

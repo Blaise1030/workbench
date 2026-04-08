@@ -3,7 +3,7 @@ import { defineComponent, h, nextTick } from "vue";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import FileSearchEditor from "../FileSearchEditor.vue";
 
-vi.mock("@/components/ui/BaseButton.vue", () => ({
+vi.mock("@/components/ui/Button.vue", () => ({
   default: { template: "<button v-bind=\"$attrs\"><slot /></button>" }
 }));
 
@@ -278,6 +278,28 @@ describe("FileSearchEditor", () => {
     expect(wrapper.text()).not.toContain("FileSearchEditor.vue");
   });
 
+  it("left-aligns file tree row labels", async () => {
+    listFiles.mockResolvedValue([
+      { relativePath: "src/App.vue", size: 11, modifiedAt: 1 },
+      { relativePath: "src/features/FileSearchEditor.vue", size: 11, modifiedAt: 2 }
+    ]);
+
+    const wrapper = mount(FileSearchEditor, {
+      props: { worktreePath: "/tmp/project" }
+    });
+
+    await flushPromises();
+
+    expect(wrapper.get('[data-testid="folder-toggle-src"]').classes()).toContain("justify-start");
+
+    await wrapper.get('[data-testid="folder-toggle-src/features"]').trigger("click");
+    await flushPromises();
+
+    expect(wrapper.get('[data-testid="file-node-src/features/FileSearchEditor.vue"]').classes()).toContain(
+      "justify-start"
+    );
+  });
+
   it("filters the preloaded summaries client-side while preserving ancestor folders", async () => {
     listFiles.mockResolvedValue([
       { relativePath: "src/App.vue", size: 11, modifiedAt: 1 },
@@ -420,29 +442,42 @@ describe("FileSearchEditor", () => {
     expect(wrapper.find('[data-testid="file-editor"]').exists()).toBe(true);
   });
 
-  it("asks for confirmation before switching files when the current draft is dirty", async () => {
+  it("opens a discard dialog before switching files when the current draft is dirty", async () => {
     listFiles.mockResolvedValue([
       { relativePath: "src/one.ts", size: 7, modifiedAt: 1 },
       { relativePath: "src/two.ts", size: 7, modifiedAt: 2 },
       { relativePath: "src/nested/three.ts", size: 9, modifiedAt: 3 }
     ]);
     readFile.mockResolvedValue("content");
-    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
 
     const wrapper = mount(FileSearchEditor, {
-      props: { worktreePath: "/tmp/project" }
+      props: { worktreePath: "/tmp/project" },
+      attachTo: document.body
     });
 
-    await flushPromises();
-    await wrapper.get('[data-testid="file-node-src/one.ts"]').trigger("click");
-    await flushPromises();
-    await wrapper.get('[data-testid="file-editor"]').setValue("changed");
+    try {
+      await flushPromises();
+      await wrapper.get('[data-testid="file-node-src/one.ts"]').trigger("click");
+      await flushPromises();
+      await wrapper.get('[data-testid="file-editor"]').setValue("changed");
 
-    await wrapper.get('[data-testid="file-node-src/two.ts"]').trigger("click");
-    await flushPromises();
+      await wrapper.get('[data-testid="file-node-src/two.ts"]').trigger("click");
+      await flushPromises();
 
-    expect(confirmSpy).toHaveBeenCalledWith("Discard unsaved changes?");
-    expect(readFile).toHaveBeenCalledTimes(1);
+      const dialog = document.querySelector('[data-testid="confirm-action-dialog"]');
+      expect(dialog).toBeTruthy();
+      expect(dialog?.textContent).toContain("Discard unsaved changes?");
+
+      const cancel = document.querySelector('[data-testid="confirm-action-cancel"]') as HTMLButtonElement;
+      expect(cancel).toBeTruthy();
+      cancel.click();
+      await flushPromises();
+
+      expect(readFile).toHaveBeenCalledTimes(1);
+      expect(wrapper.get('[data-testid="file-editor-header"]').text()).toContain("src/one.ts");
+    } finally {
+      wrapper.unmount();
+    }
   });
 
   it("creates a file from the add control and opens it", async () => {
@@ -486,30 +521,41 @@ describe("FileSearchEditor", () => {
     }
   });
 
-  it("deletes the selected file after confirmation", async () => {
+  it("deletes the selected file only after confirming in the dialog", async () => {
     listFiles
       .mockResolvedValueOnce([{ relativePath: "src/one.ts", size: 1, modifiedAt: 1 }])
       .mockResolvedValueOnce([]);
     readFile.mockResolvedValue("x");
     deleteFile.mockResolvedValue();
-    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
 
     const wrapper = mount(FileSearchEditor, {
-      props: { worktreePath: "/tmp/project" }
+      props: { worktreePath: "/tmp/project" },
+      attachTo: document.body
     });
 
-    await flushPromises();
-    await wrapper.get('[data-testid="file-node-src/one.ts"]').trigger("click");
-    await flushPromises();
-    await wrapper.get('[data-testid="delete-file"]').trigger("click");
-    await flushPromises();
+    try {
+      await flushPromises();
+      await wrapper.get('[data-testid="file-node-src/one.ts"]').trigger("click");
+      await flushPromises();
+      await wrapper.get('[data-testid="delete-file"]').trigger("click");
+      await flushPromises();
 
-    expect(confirmSpy).toHaveBeenCalledWith("Delete src/one.ts?");
-    expect(deleteFile).toHaveBeenCalledWith("/tmp/project", "src/one.ts");
-    expect(listFiles).toHaveBeenCalledTimes(2);
-    expect(wrapper.text()).toContain("No file selected");
+      expect(deleteFile).not.toHaveBeenCalled();
+      expect(document.querySelector('[data-testid="confirm-action-dialog"]')?.textContent).toContain(
+        "Delete src/one.ts?"
+      );
 
-    confirmSpy.mockRestore();
+      const confirm = document.querySelector('[data-testid="confirm-action-confirm"]') as HTMLButtonElement;
+      expect(confirm).toBeTruthy();
+      confirm.click();
+      await flushPromises();
+
+      expect(deleteFile).toHaveBeenCalledWith("/tmp/project", "src/one.ts");
+      expect(listFiles).toHaveBeenCalledTimes(2);
+      expect(wrapper.text()).toContain("No file selected");
+    } finally {
+      wrapper.unmount();
+    }
   });
 
   it("opens the tree pane context menu to add a file", async () => {
@@ -605,12 +651,11 @@ describe("FileSearchEditor", () => {
     }
   });
 
-  it("deletes a file from the file row context menu without selecting it first", async () => {
+  it("deletes a file from the file row context menu only after confirming", async () => {
     listFiles
       .mockResolvedValueOnce([{ relativePath: "src/only.ts", size: 1, modifiedAt: 1 }])
       .mockResolvedValueOnce([]);
     deleteFile.mockResolvedValue();
-    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
 
     const wrapper = mount(FileSearchEditor, {
       props: { worktreePath: "/tmp/project" },
@@ -632,14 +677,16 @@ describe("FileSearchEditor", () => {
       (del as HTMLButtonElement).click();
       await flushPromises();
 
-      expect(confirmSpy).toHaveBeenCalledWith("Delete src/only.ts?");
+      const confirm = document.querySelector('[data-testid="confirm-action-confirm"]') as HTMLButtonElement;
+      expect(confirm).toBeTruthy();
+      confirm.click();
+      await flushPromises();
+
       expect(deleteFile).toHaveBeenCalledWith("/tmp/project", "src/only.ts");
       expect(wrapper.text()).toContain("No file selected");
     } finally {
       wrapper.unmount();
     }
-
-    confirmSpy.mockRestore();
   });
 
   it("creates a folder from the add-folder control", async () => {
@@ -680,7 +727,7 @@ describe("FileSearchEditor", () => {
     }
   });
 
-  it("deletes a folder from the folder context menu after confirmation", async () => {
+  it("deletes a folder from the folder context menu only after confirming", async () => {
     listFiles
       .mockResolvedValueOnce([
         { relativePath: "src", kind: "directory", size: 0, modifiedAt: 1 },
@@ -688,7 +735,6 @@ describe("FileSearchEditor", () => {
       ])
       .mockResolvedValueOnce([]);
     deleteFolder.mockResolvedValue();
-    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
 
     const wrapper = mount(FileSearchEditor, {
       props: { worktreePath: "/tmp/project" },
@@ -710,13 +756,18 @@ describe("FileSearchEditor", () => {
       (del as HTMLButtonElement).click();
       await flushPromises();
 
-      expect(confirmSpy).toHaveBeenCalledWith("Delete folder src and its contents?");
+      const dialog = document.querySelector('[data-testid="confirm-action-dialog"]');
+      expect(dialog?.textContent).toContain("Delete folder src and its contents?");
+
+      const confirm = document.querySelector('[data-testid="confirm-action-confirm"]') as HTMLButtonElement;
+      expect(confirm).toBeTruthy();
+      confirm.click();
+      await flushPromises();
+
       expect(deleteFolder).toHaveBeenCalledWith("/tmp/project", "src");
       expect(listFiles).toHaveBeenCalledTimes(2);
     } finally {
       wrapper.unmount();
     }
-
-    confirmSpy.mockRestore();
   });
 });

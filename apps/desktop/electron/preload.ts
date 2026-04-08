@@ -21,6 +21,7 @@ function resolveRepoRootFromWebkitFile(file: File): string {
 contextBridge.exposeInMainWorld("workspaceApi", {
   getSnapshot: () => ipcRenderer.invoke(IPC_CHANNELS.workspaceGetSnapshot),
   addProject: (payload: unknown) => ipcRenderer.invoke(IPC_CHANNELS.workspaceAddProject, payload),
+  removeProject: (payload: unknown) => ipcRenderer.invoke(IPC_CHANNELS.workspaceRemoveProject, payload),
   addWorktree: (payload: unknown) => ipcRenderer.invoke(IPC_CHANNELS.workspaceAddWorktree, payload),
   setActive: (payload: unknown) => ipcRenderer.invoke(IPC_CHANNELS.workspaceSetActive, payload),
   createThread: (payload: unknown) => ipcRenderer.invoke(IPC_CHANNELS.workspaceCreateThread, payload),

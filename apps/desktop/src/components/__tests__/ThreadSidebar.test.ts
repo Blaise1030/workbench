@@ -141,6 +141,21 @@ describe("ThreadSidebar", () => {
     expect(wrapper.get('[aria-label="Add thread"]').text()).toContain("Add thread");
   });
 
+  it("renders a larger add-thread button in the footer when expanded", () => {
+    wrapper = mount(ThreadSidebar, {
+      props: {
+        threads,
+        activeThreadId: "t1"
+      }
+    });
+
+    const button = wrapper.get('[aria-label="Add thread"]');
+    expect(button.attributes("data-size")).toBe("lg");
+    expect(button.classes()).toContain("h-11");
+    expect(button.classes()).toContain("rounded-2xl");
+    expect(button.classes()).toContain("text-base");
+  });
+
   it("renders an icon-only add-thread button in the footer when collapsed", () => {
     wrapper = mount(ThreadSidebar, {
       props: {
@@ -174,18 +189,25 @@ describe("ThreadSidebar", () => {
   });
 
   it("emits remove with threadId when a ThreadRow emits remove", async () => {
-    wrapper = mount(ThreadSidebar, { props: { threads, activeThreadId: "t1" } });
+    wrapper = mount(ThreadSidebar, { attachTo: document.body, props: { threads, activeThreadId: "t1" } });
     await hoverFirstThreadRow(wrapper);
     await wrapper.get('[data-testid="thread-menu-trigger"]').trigger("click");
-    await wrapper.get('[data-testid="thread-delete"]').trigger("click");
+    await nextTick();
+    document
+      .querySelector('[data-testid="thread-delete"]')
+      ?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     expect(wrapper.emitted("remove")).toEqual([["t1"]]);
   });
 
   it("emits rename with threadId and new title when a ThreadRow emits rename", async () => {
-    wrapper = mount(ThreadSidebar, { props: { threads, activeThreadId: "t1" } });
+    wrapper = mount(ThreadSidebar, { attachTo: document.body, props: { threads, activeThreadId: "t1" } });
     await hoverFirstThreadRow(wrapper);
     await wrapper.get('[data-testid="thread-menu-trigger"]').trigger("click");
-    await wrapper.get('[data-testid="thread-rename"]').trigger("click");
+    await nextTick();
+    document
+      .querySelector('[data-testid="thread-rename"]')
+      ?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    await nextTick();
     const input = wrapper.get('[data-testid="thread-rename-input"]');
     await input.setValue("Renamed");
     await input.trigger("keydown", { key: "Enter" });
@@ -471,7 +493,7 @@ describe("ThreadSidebar", () => {
     expect(wrapper.text()).not.toContain("Delete group & threads");
   });
 
-  it("shows a tooltip for collapsed worktree groups on hover", async () => {
+  it("uses the worktree name on the collapsed group trigger", async () => {
     const worktree: Worktree = {
       id: "w-feat",
       projectId: "p1",
@@ -508,13 +530,9 @@ describe("ThreadSidebar", () => {
       attachTo: document.body
     });
 
-    expect(document.querySelector('[data-testid="thread-group-collapsed-tooltip"]')).toBeNull();
-
-    await wrapper.get('[data-testid="thread-group-collapsed-trigger"]').trigger("mouseenter");
-
-    expect(
-      document.querySelector('[data-testid="thread-group-collapsed-tooltip"]')?.textContent
-    ).toContain("feat/auth");
+    expect(wrapper.get('[data-testid="thread-group-collapsed-trigger"]').attributes("aria-label")).toBe(
+      "Worktree feat/auth"
+    );
   });
 
   it("opens a popover thread list for collapsed worktree groups on click", async () => {

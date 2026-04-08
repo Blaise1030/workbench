@@ -1,7 +1,6 @@
 <script setup lang="ts">
-import { computed, useAttrs } from "vue";
+import Button from "@/components/ui/Button.vue";
 import {
-  buttonClass,
   defaultButtonSize,
   defaultButtonVariant,
   type ButtonSize,
@@ -10,7 +9,7 @@ import {
 
 type NativeButtonType = "button" | "submit" | "reset";
 
-const props = withDefaults(
+withDefaults(
   defineProps<{
     variant?: ButtonVariant;
     size?: ButtonSize;
@@ -24,28 +23,10 @@ const props = withDefaults(
     disabled: false
   }
 );
-
-const attrs = useAttrs();
-
-const mergedClassName = computed(() => {
-  return buttonClass({
-    variant: props.variant,
-    size: props.size,
-    className: typeof attrs.class === "string" ? attrs.class : undefined
-  });
-});
 </script>
 
 <template>
-  <button
-    v-bind="attrs"
-    data-slot="button"
-    :data-variant="props.variant"
-    :data-size="props.size"
-    :type="props.type"
-    :disabled="props.disabled"
-    :class="mergedClassName"
-  >
+  <Button v-bind="$props" v-bind="$attrs">
     <slot />
-  </button>
+  </Button>
 </template>

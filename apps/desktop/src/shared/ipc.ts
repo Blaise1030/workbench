@@ -3,6 +3,7 @@ import type { Project, Thread, ThreadSession, ThreadAgent, Worktree } from "./do
 export const IPC_CHANNELS = {
   workspaceGetSnapshot: "workspace:getSnapshot",
   workspaceAddProject: "workspace:addProject",
+  workspaceRemoveProject: "workspace:removeProject",
   workspaceAddWorktree: "workspace:addWorktree",
   workspaceSetActive: "workspace:setActive",
   workspaceCreateThread: "workspace:createThread",
@@ -85,6 +86,10 @@ export interface AddProjectInput {
   name: string;
   repoPath: string;
   defaultBranch?: string;
+}
+
+export interface RemoveProjectInput {
+  projectId: string;
 }
 
 export interface CreateWorktreeGroupInput {

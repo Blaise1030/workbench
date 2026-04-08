@@ -1,17 +1,29 @@
 <script setup lang="ts">
 import type { RunStatus, Thread } from "@shared/domain";
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, useId, watch } from "vue";
+import { computed, nextTick, ref } from "vue";
 import { GripVertical, MoreHorizontal, Pencil, Trash2 } from "lucide-vue-next";
 import AgentIcon from "@/components/ui/AgentIcon.vue";
+import Button from "@/components/ui/Button.vue";
+import Input from "@/components/ui/Input.vue";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger
+} from "@/components/ui/dropdown-menu";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger
+} from "@/components/ui/tooltip";
 
 const props = withDefaults(
   defineProps<{
     thread: Thread;
     isActive: boolean;
-    /** Icon-only row (narrow sidebar). */
     collapsed?: boolean;
     runStatus?: RunStatus | null;
-    /** Terminal needed attention (bell / background output) while this thread was not in view. */
     needsAttention?: boolean;
     isDragging?: boolean;
     isDragTarget?: boolean;
@@ -31,20 +43,12 @@ const emit = defineEmits<{
 const menuOpen = ref(false);
 const rowHovered = ref(false);
 const handleFocused = ref(false);
-const collapsedButtonFocused = ref(false);
 const isEditing = ref(false);
 const editValue = ref("");
-const menuRootRef = ref<HTMLElement | null>(null);
-const editInputRef = ref<HTMLInputElement | null>(null);
-const collapsedButtonRef = ref<HTMLButtonElement | null>(null);
-const collapsedTooltipStyle = ref<Record<string, string>>({});
-const collapsedTooltipId = `thread-collapsed-tooltip-${useId().replace(/:/g, "_")}`;
+const editInputRef = ref<InstanceType<typeof Input> | null>(null);
 
 const showThreadMenu = computed(
   () => !props.collapsed && !isEditing.value && (rowHovered.value || menuOpen.value)
-);
-const showCollapsedTooltip = computed(
-  () => props.collapsed && !isEditing.value && (rowHovered.value || collapsedButtonFocused.value)
 );
 
 const iconClass = computed(() => {
@@ -52,17 +56,13 @@ const iconClass = computed(() => {
     return "animate-pulse text-blue-600 dark:text-blue-400";
   }
   switch (props.runStatus) {
-    case "running":     return "animate-pulse text-foreground";
+    case "running": return "animate-pulse text-foreground";
     case "needsReview": return "animate-pulse text-orange-500";
-    case "done":        return "text-green-500";
-    case "failed":      return "text-red-500";
-    default:            return "text-muted-foreground";
+    case "done": return "text-green-500";
+    case "failed": return "text-red-500";
+    default: return "text-muted-foreground";
   }
 });
-
-function toggleMenu(): void {
-  menuOpen.value = !menuOpen.value;
-}
 
 function closeMenu(): void {
   menuOpen.value = false;
@@ -107,49 +107,6 @@ function handleDragKeydown(event: KeyboardEvent): void {
     emit("keyboard-reorder", "down");
   }
 }
-
-function onDocumentPointerDown(event: MouseEvent): void {
-  if (!menuOpen.value) return;
-  if (menuRootRef.value && !menuRootRef.value.contains(event.target as Node)) {
-    closeMenu();
-  }
-}
-
-function onDocumentKeydown(event: KeyboardEvent): void {
-  if (event.key === "Escape") closeMenu();
-}
-
-function updateCollapsedTooltipPosition(): void {
-  const button = collapsedButtonRef.value;
-  if (!button) return;
-
-  const rect = button.getBoundingClientRect();
-  collapsedTooltipStyle.value = {
-    left: `${Math.round(rect.right + 8)}px`,
-    top: `${Math.round(rect.top + rect.height / 2)}px`
-  };
-}
-
-watch(showCollapsedTooltip, (visible) => {
-  if (!visible) return;
-  void nextTick(() => {
-    updateCollapsedTooltipPosition();
-  });
-});
-
-onMounted(() => {
-  document.addEventListener("pointerdown", onDocumentPointerDown);
-  document.addEventListener("keydown", onDocumentKeydown);
-  window.addEventListener("resize", updateCollapsedTooltipPosition);
-  window.addEventListener("scroll", updateCollapsedTooltipPosition, true);
-});
-
-onBeforeUnmount(() => {
-  document.removeEventListener("pointerdown", onDocumentPointerDown);
-  document.removeEventListener("keydown", onDocumentKeydown);
-  window.removeEventListener("resize", updateCollapsedTooltipPosition);
-  window.removeEventListener("scroll", updateCollapsedTooltipPosition, true);
-});
 </script>
 
 <template>
@@ -165,15 +122,16 @@ onBeforeUnmount(() => {
     @mouseenter="rowHovered = true"
     @mouseleave="rowHovered = false"
   >
-    <button
+    <div
       v-if="!collapsed"
-      type="button"
       data-testid="thread-drag-handle"
       class="absolute right-6 top-1/2 z-10 flex h-4 w-4 -translate-y-1/2 items-center justify-center rounded text-muted-foreground transition-opacity hover:bg-accent hover:text-foreground active:cursor-grabbing focus:outline-none"
       :class="[
         props.isDragging ? 'cursor-grabbing opacity-100' : 'cursor-grab',
         rowHovered || props.isDragging || handleFocused ? 'opacity-100' : 'pointer-events-none opacity-0'
       ]"
+      role="button"
+      tabindex="0"
       draggable="true"
       aria-label="Reorder thread"
       @focus="handleFocused = true"
@@ -183,102 +141,92 @@ onBeforeUnmount(() => {
       @keydown="handleDragKeydown"
     >
       <GripVertical class="h-2.5 w-2.5" />
-    </button>
+    </div>
 
     <template v-if="collapsed && !isEditing">
-      <button
-        ref="collapsedButtonRef"
-        type="button"
-        data-testid="thread-select"
-        class="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background"
-        :aria-current="isActive ? 'true' : undefined"
-        :aria-label="thread.title"
-        :aria-describedby="showCollapsedTooltip ? collapsedTooltipId : undefined"
-        @click="emit('select')"
-        @focus="collapsedButtonFocused = true; updateCollapsedTooltipPosition()"
-        @blur="collapsedButtonFocused = false"
-      >
-        <AgentIcon :agent="thread.agent" :size="12" class="shrink-0" :class="iconClass" />
-      </button>
+      <TooltipProvider :delay-duration="0">
+        <Tooltip>
+          <TooltipTrigger as-child>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-xs"
+              data-testid="thread-select"
+              class="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background"
+              :aria-current="isActive ? 'true' : undefined"
+              :aria-label="thread.title"
+              @click="emit('select')"
+            >
+              <AgentIcon :agent="thread.agent" :size="12" class="shrink-0" :class="iconClass" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent
+            data-testid="thread-collapsed-tooltip"
+            side="right"
+            class="border border-border bg-popover px-2 py-1 font-medium text-popover-foreground shadow-md"
+          >
+            {{ thread.title }}
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
     </template>
     <template v-else>
       <AgentIcon :agent="thread.agent" :size="12" class="shrink-0" :class="iconClass" />
 
-      <button
+      <Button
         v-if="!isEditing"
         data-testid="thread-select"
         type="button"
-        class="min-w-0 flex-1 cursor-pointer truncate text-left text-xs leading-none"
+        variant="ghost"
+        size="xs"
+        class="min-w-0 flex-1 cursor-pointer justify-start truncate text-left text-xs leading-none"
         @click="emit('select')"
       >
         {{ thread.title }}
-      </button>
-      <input
+      </Button>
+      <Input
         v-else
         ref="editInputRef"
         v-model="editValue"
         data-testid="thread-rename-input"
         type="text"
-        class="min-w-0 flex-1 rounded border border-border bg-background px-1 text-xs leading-none outline-none"
+        class="min-w-0 flex-1 rounded border border-border bg-background px-1 text-xs leading-none"
         @keydown="handleRenameKeydown"
         @blur="cancelRename"
       />
     </template>
 
-    <div
+    <DropdownMenu
       v-if="showThreadMenu"
-      ref="menuRootRef"
-      class="relative flex h-5 w-5 shrink-0 items-center justify-center"
+      v-model:open="menuOpen"
     >
-      <button
-        type="button"
-        data-testid="thread-menu-trigger"
-        class="flex h-full w-full items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground"
-        aria-label="Thread actions"
-        aria-haspopup="menu"
-        :aria-expanded="menuOpen"
-        @click.stop="toggleMenu"
-      >
-        <MoreHorizontal class="h-2.5 w-2.5" stroke-width="2" />
-      </button>
-      <div
-        v-if="menuOpen"
-        class="absolute right-0 top-full z-50 mt-0.5 min-w-[8rem] rounded-md bg-popover p-1"
-        role="menu"
-      >
-        <button
+      <DropdownMenuTrigger as-child>
+        <Button
           type="button"
-          role="menuitem"
-          data-testid="thread-rename"
-          class="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs hover:bg-accent"
-          @click="startRename"
+          variant="ghost"
+          size="icon-xs"
+          data-testid="thread-menu-trigger"
+          class="flex h-5 w-5 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground"
+          aria-label="Thread actions"
         >
+          <MoreHorizontal class="h-2.5 w-2.5" stroke-width="2" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" class="min-w-[8rem]">
+        <DropdownMenuItem data-testid="thread-rename" class="text-xs" @select="startRename">
           <Pencil class="h-3 w-3 shrink-0" />
           Rename
-        </button>
-        <button
-          type="button"
-          role="menuitem"
+        </DropdownMenuItem>
+        <DropdownMenuItem
           data-testid="thread-delete"
-          class="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs text-destructive hover:bg-accent"
-          @click="handleDelete"
+          variant="destructive"
+          class="text-xs"
+          @select="handleDelete"
         >
           <Trash2 class="h-3 w-3 shrink-0" />
           Delete
-        </button>
-      </div>
-    </div>
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   </div>
-  <Teleport to="body">
-    <div
-      v-if="showCollapsedTooltip"
-      :id="collapsedTooltipId"
-      data-testid="thread-collapsed-tooltip"
-      role="tooltip"
-      class="pointer-events-none fixed z-[200] -translate-y-1/2 whitespace-nowrap rounded-md border border-border bg-popover px-2 py-1 text-xs font-medium text-popover-foreground shadow-md"
-      :style="collapsedTooltipStyle"
-    >
-      {{ thread.title }}
-    </div>
-  </Teleport>
 </template>

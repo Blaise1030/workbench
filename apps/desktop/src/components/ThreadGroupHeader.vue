@@ -1,9 +1,15 @@
 <script setup lang="ts">
 import type { ThreadAgent } from "@shared/domain";
 import { ChevronDown, ChevronRight, EllipsisVertical, Plus, Trash2 } from "lucide-vue-next";
-import { computed, onBeforeUnmount, onMounted, ref } from "vue";
+import { computed, ref } from "vue";
 import ThreadCreateButton from "@/components/ThreadCreateButton.vue";
-import BaseButton from "@/components/ui/BaseButton.vue";
+import Button from "@/components/ui/Button.vue";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger
+} from "@/components/ui/dropdown-menu";
 
 const props = defineProps<{
   /** Worktree display name (not the Git branch string). */
@@ -33,21 +39,6 @@ const emit = defineEmits<{
 }>();
 
 const menuOpen = ref(false);
-const menuRef = ref<HTMLElement | null>(null);
-
-function toggleMenu(e: Event): void {
-  e.stopPropagation();
-  menuOpen.value = !menuOpen.value;
-}
-
-function handleClickOutside(e: MouseEvent): void {
-  if (menuOpen.value && menuRef.value && !menuRef.value.contains(e.target as Node)) {
-    menuOpen.value = false;
-  }
-}
-
-onMounted(() => document.addEventListener("mousedown", handleClickOutside));
-onBeforeUnmount(() => document.removeEventListener("mousedown", handleClickOutside));
 </script>
 
 <template>
@@ -91,36 +82,27 @@ onBeforeUnmount(() => document.removeEventListener("mousedown", handleClickOutsi
             <Plus class="h-3.5 w-3.5" />
           </ThreadCreateButton>
         </span>
-        <div ref="menuRef" class="relative flex h-6 items-center">
-          <BaseButton
-            type="button"
-            variant="ghost"
-            size="icon-xs"
-            class="shrink-0 text-muted-foreground"
-            :aria-expanded="menuOpen"
-            aria-haspopup="menu"
-            aria-label="Thread group actions"
-            title="Group actions"
-            @click.stop="toggleMenu"
-          >
-            <EllipsisVertical class="h-3.5 w-3.5" />
-          </BaseButton>
-          <div
-            v-if="menuOpen"
-            class="absolute right-0 top-full z-50 mt-0.5 w-max rounded-md border border-border bg-popover p-1 shadow-md"
-            role="menu"
-          >
-            <button
+        <DropdownMenu v-model:open="menuOpen">
+          <DropdownMenuTrigger as-child @click.stop>
+            <Button
               type="button"
-              role="menuitem"
-              class="flex items-center gap-2 whitespace-nowrap rounded px-2 py-1.5 text-left text-sm text-destructive hover:bg-accent"
-              @click.stop="emit('delete'); menuOpen = false"
+              variant="ghost"
+              size="icon-xs"
+              class="shrink-0 text-muted-foreground"
+              :aria-expanded="menuOpen"
+              aria-label="Thread group actions"
+              title="Group actions"
             >
+              <EllipsisVertical class="h-3.5 w-3.5" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" class="w-max">
+            <DropdownMenuItem variant="destructive" @select="emit('delete')">
               <Trash2 class="h-3.5 w-3.5" />
               Delete group
-            </button>
-          </div>
-        </div>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </span>
     </span>
   </div>

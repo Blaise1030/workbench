@@ -2,7 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch, watchEffect } from "vue";
 import { html as diffToHtml } from "diff2html";
 import { ColorSchemeType } from "diff2html/lib/types";
-import BaseButton from "@/components/ui/BaseButton.vue";
+import Button from "@/components/ui/Button.vue";
 import { titleWithShortcut } from "@/keybindings/registry";
 import { looksLikeUnifiedDiff, pathsFromUnifiedDiff } from "@shared/diffPaths";
 import "diff2html/bundles/css/diff2html.min.css";
@@ -294,7 +294,7 @@ onBeforeUnmount(() => {
             </span>
           </div>
           <div class="ml-auto flex flex-wrap gap-2">
-            <BaseButton
+            <Button
               v-if="queuedReviewCountValue > 0"
               size="sm"
               variant="secondary"
@@ -303,8 +303,8 @@ onBeforeUnmount(() => {
               @click="emitOpenInAgents"
             >
               Open in Agents
-            </BaseButton>
-            <BaseButton
+            </Button>
+            <Button
               v-if="queuedReviewCountValue > 0"
               size="sm"
               variant="secondary"
@@ -313,22 +313,22 @@ onBeforeUnmount(() => {
               @click="emit('clearReviewItems')"
             >
               Clear review items
-            </BaseButton>
-            <BaseButton
+            </Button>
+            <Button
               size="sm"
               variant="secondary"
               class="border-0 shadow-none focus-visible:!border-transparent focus-visible:!outline-none focus-visible:!ring-0 focus-visible:!ring-offset-0"
               :title="titleWithShortcut('Stage all', 'stageAllDiff')"
               @click="emit('stageAll')"
-              >Stage All</BaseButton
+              >Stage All</Button
             >
-            <BaseButton
+            <Button
               size="sm"
               variant="destructive"
               class="border-0 shadow-none focus-visible:!border-transparent focus-visible:!outline-none focus-visible:!ring-0 focus-visible:!ring-offset-0"
               title="Discard all changes in this worktree (no keyboard shortcut)"
               @click="emit('discardAll')"
-              >Discard All</BaseButton
+              >Discard All</Button
             >
           </div>
         </header>
@@ -339,8 +339,10 @@ onBeforeUnmount(() => {
           <div
             class="flex py-2 flex-wrap items-center gap-x-2 gap-y-2 border-b border-border py-0 pl-5 pr-3"
           >
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="sm"
               class="inline-flex py-2 min-w-0 flex-1 items-center gap-2 rounded-[min(var(--radius-md),12px)] pl-2 pr-2.5 text-left text-[0.8rem] font-medium leading-none text-foreground hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
               :aria-expanded="changedFilesExpanded"
               aria-controls="diff-changed-files-list"
@@ -352,24 +354,24 @@ onBeforeUnmount(() => {
                 aria-hidden="true"
               />
               <span>Changed files</span>
-            </button>
+            </Button>
             <div class="flex shrink-0 flex-wrap items-center justify-end gap-2">
-              <BaseButton
+              <Button
                 size="sm"
                 variant="secondary"
                 class="border-0 shadow-none focus-visible:!border-transparent focus-visible:!outline-none focus-visible:!ring-0 focus-visible:!ring-offset-0"
                 :disabled="checkedPaths.length === 0"
                 @click="emitStageSelected"
-                >Stage selected</BaseButton
+                >Stage selected</Button
               >
-              <BaseButton
+              <Button
                 size="sm"
                 variant="destructive"
                 class="border-0 shadow-none focus-visible:!border-transparent focus-visible:!outline-none focus-visible:!ring-0 focus-visible:!ring-offset-0"
                 :disabled="checkedPaths.length === 0"
                 title="Discard changes to selected files (no keyboard shortcut)"
                 @click="emitDiscardSelected"
-                >Discard selected</BaseButton
+                >Discard selected</Button
               >
               <label class="flex h-7 cursor-pointer items-center gap-1.5 pr-0.5">
                 <input
@@ -417,7 +419,7 @@ onBeforeUnmount(() => {
           >
             <span class="text-4xl leading-none" aria-hidden="true">{{ diffEmptyVisual.emoji }}</span>
             <p class="max-w-xs text-sm text-muted-foreground">{{ diffEmptyVisual.caption }}</p>
-            <BaseButton
+            <Button
               type="button"
               variant="outline"
               size="sm"
@@ -426,7 +428,7 @@ onBeforeUnmount(() => {
               @click="emitOpenInAgents"
             >
               Open in Agents
-            </BaseButton>
+            </Button>
           </div>
           <div v-if="diffEmptyVisual.showRaw" class="shrink-0 border-t border-border p-2">
             <pre
@@ -439,9 +441,11 @@ onBeforeUnmount(() => {
       <template v-else>
         <div class="p-2">
           <div class="overflow-hidden rounded-md border border-border bg-background shadow-sm">
-            <button
+            <Button
               v-if="summaryLabelText"
               type="button"
+              variant="ghost"
+              size="sm"
               class="flex w-full items-center gap-2 border-0 border-b border-border bg-muted/40 px-3 py-2 text-left text-sm font-medium hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-0"
               :aria-expanded="!rawCollapsed"
               @click="rawCollapsed = !rawCollapsed"
@@ -452,7 +456,7 @@ onBeforeUnmount(() => {
                 :class="rawCollapsed ? '-rotate-90' : ''"
                 aria-hidden="true"
               />
-            </button>
+            </Button>
             <pre
               v-show="!rawCollapsed || !summaryLabelText"
               class="m-0 bg-background p-3 whitespace-pre-wrap font-mono"

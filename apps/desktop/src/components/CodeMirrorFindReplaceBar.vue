@@ -12,12 +12,14 @@ import {
   selectMatches,
   setSearchQuery
 } from "@codemirror/search";
+import Button from "@/components/ui/Button.vue";
+import Input from "@/components/ui/Input.vue";
 
 const props = defineProps<{
   editorView: EditorView;
 }>();
 
-const findInputRef = ref<HTMLInputElement | null>(null);
+const findInputRef = ref<InstanceType<typeof Input> | null>(null);
 const findText = ref("");
 const replaceText = ref("");
 const matchCase = ref(false);
@@ -87,7 +89,7 @@ defineExpose({ syncFromView });
 <template>
   <div class="cm-find-replace-bar rounded-lg border border-border bg-transparent p-2.5 text-xs text-foreground shadow-none">
     <div class="flex flex-wrap items-center gap-x-2 gap-y-1.5">
-      <input
+      <Input
         ref="findInputRef"
         v-model="findText"
         type="search"
@@ -96,32 +98,35 @@ defineExpose({ syncFromView });
         placeholder="Find"
         aria-label="Find"
         main-field="true"
-        class="h-7 min-w-[10rem] flex-1 rounded-md border border-input bg-background px-2.5 text-xs text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        class="h-7 min-w-[10rem] flex-1 rounded-md bg-background px-2.5 text-xs focus-visible:ring-2"
         @input="commit"
         @change="commit"
         @keydown.enter="handleFindEnter"
       />
-      <button
+      <Button
         type="button"
-        class="h-7 shrink-0 rounded-md border border-border bg-background px-2.5 text-xs font-medium text-foreground hover:bg-muted/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        variant="outline"
+        size="xs"
         @click="findNext(props.editorView)"
       >
         next
-      </button>
-      <button
+      </Button>
+      <Button
         type="button"
-        class="h-7 shrink-0 rounded-md border border-border bg-background px-2.5 text-xs font-medium text-foreground hover:bg-muted/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        variant="outline"
+        size="xs"
         @click="findPrevious(props.editorView)"
       >
         previous
-      </button>
-      <button
+      </Button>
+      <Button
         type="button"
-        class="h-7 shrink-0 rounded-md border border-border bg-background px-2.5 text-xs font-medium text-foreground hover:bg-muted/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        variant="outline"
+        size="xs"
         @click="selectMatches(props.editorView)"
       >
         all
-      </button>
+      </Button>
       <label class="flex cursor-pointer items-center gap-1.5 whitespace-nowrap text-muted-foreground">
         <input
           v-model="matchCase"
@@ -149,41 +154,44 @@ defineExpose({ syncFromView });
         />
         by word
       </label>
-      <button
+      <Button
         type="button"
-        class="ml-auto flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-transparent text-base leading-none text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        class="ml-auto text-base leading-none text-muted-foreground"
+        variant="ghost"
+        size="icon-xs"
         aria-label="Close"
         @click="onClose"
       >
         ×
-      </button>
+      </Button>
     </div>
     <div v-if="showReplace" class="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1.5">
-      <input
+      <Input
         v-model="replaceText"
         type="text"
         name="replace"
         autocomplete="off"
         placeholder="Replace"
         aria-label="Replace"
-        class="h-7 min-w-[10rem] flex-1 rounded-md border border-input bg-background px-2.5 text-xs text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        class="h-7 min-w-[10rem] flex-1 rounded-md bg-background px-2.5 text-xs focus-visible:ring-2"
         @input="commit"
         @change="commit"
       />
-      <button
+      <Button
         type="button"
-        class="h-7 shrink-0 rounded-md border border-primary bg-primary px-2.5 text-xs font-medium text-primary-foreground hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        size="xs"
         @click="replaceNext(props.editorView)"
       >
         replace
-      </button>
-      <button
+      </Button>
+      <Button
         type="button"
-        class="h-7 shrink-0 rounded-md border border-border bg-background px-2.5 text-xs font-medium text-foreground hover:bg-muted/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        variant="outline"
+        size="xs"
         @click="replaceAll(props.editorView)"
       >
         replace all
-      </button>
+      </Button>
     </div>
   </div>
 </template>

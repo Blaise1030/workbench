@@ -72,6 +72,10 @@ export class WorkspaceService {
     return project;
   }
 
+  removeProject(projectId: string): void {
+    this.store.deleteProject(projectId);
+  }
+
   addWorktree(projectId: string, branch: string, worktreePath: string, isDefault = false): Worktree {
     const now = new Date().toISOString();
     const worktree: Worktree = {

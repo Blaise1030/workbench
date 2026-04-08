@@ -477,6 +477,31 @@ describe("WorkspaceService.listBranches", () => {
   });
 });
 
+describe("WorkspaceService.removeProject", () => {
+  it("deletes the project from workspace state only", () => {
+    const deleteProject = vi.fn();
+    const store = {
+      getSnapshot: vi.fn(),
+      upsertProject: vi.fn(),
+      setActiveState: vi.fn(),
+      upsertWorktree: vi.fn(),
+      upsertThread: vi.fn(),
+      deleteThread: vi.fn(),
+      renameThread: vi.fn(),
+      getThread: vi.fn(),
+      nextThreadSortOrder: vi.fn(),
+      reorderThreads: vi.fn(),
+      deleteWorktreeGroup: vi.fn(),
+      deleteProject
+    };
+    const service = new WorkspaceService(store as never);
+
+    service.removeProject("project-1");
+
+    expect(deleteProject).toHaveBeenCalledWith("project-1");
+  });
+});
+
 describe("WorkspaceService thread ordering", () => {
   it("assigns the next sort order when creating a thread", () => {
     const upsertThread = vi.fn();

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { AlertTriangle } from "lucide-vue-next";
-import BaseButton from "@/components/ui/BaseButton.vue";
+import Button from "@/components/ui/Button.vue";
 
 defineProps<{
   branch: string;
@@ -24,7 +24,7 @@ const emit = defineEmits<{
           was removed outside the app.
         </p>
         <div class="flex">
-          <BaseButton
+          <Button
             data-testid="worktree-stale-delete"
             type="button"
             variant="destructive"
@@ -32,7 +32,7 @@ const emit = defineEmits<{
             @click="emit('delete')"
           >
             Delete group &amp; threads
-          </BaseButton>
+          </Button>
         </div>
       </div>
     </div>

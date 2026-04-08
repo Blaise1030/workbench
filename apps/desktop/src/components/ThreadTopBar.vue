@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { PanelLeftClose, PanelLeftOpen } from "lucide-vue-next";
 import Badge from "@/components/ui/Badge.vue";
-import BaseButton from "@/components/ui/BaseButton.vue";
+import Button from "@/components/ui/Button.vue";
 import WorkbenchLogoMark from "@/components/WorkbenchLogoMark.vue";
 import { APP_DISPLAY_NAME } from "@/constants/appMeta";
 import { titleWithShortcut } from "@/keybindings/registry";
@@ -25,11 +25,13 @@ const emit = defineEmits<{
 <template>
   <header
     v-if="collapsed"
-    class="flex shrink-0 select-none flex-col items-center gap-2 px-1 py-3"
+    class="flex shrink-0 select-none flex-col items-center gap-2 px-1"
   >
     <span class="sr-only">{{ title }} Alpha</span>
-    <WorkbenchLogoMark variant="md" />
-    <BaseButton
+    <div class="min-h-11 flex items-center">
+      <WorkbenchLogoMark variant="md" />
+    </div>
+    <Button
       type="button"
       size="icon-xs"
       variant="outline"
@@ -39,9 +41,9 @@ const emit = defineEmits<{
       @click="emit('expand')"
     >
       <PanelLeftOpen class="h-3.5 w-3.5" />
-    </BaseButton>
+    </Button>
   </header>
-  <header v-else class="flex shrink-0 select-none items-center gap-1 px-3 py-2.5">
+  <header v-else class="flex min-h-11 shrink-0 select-none items-center gap-2 px-3">
     <h2
       class="relative m-0 flex min-w-0 flex-1 flex-nowrap items-center gap-1 overflow-hidden p-0 text-foreground"
       data-testid="thread-sidebar-brand"
@@ -59,7 +61,7 @@ const emit = defineEmits<{
           Alpha
         </Badge>
     </h2>
-    <BaseButton
+    <Button
       type="button"
       size="icon-xs"
       variant="outline"
@@ -69,6 +71,6 @@ const emit = defineEmits<{
       @click="emit('collapse')"
     >
       <PanelLeftClose class="h-3.5 w-3.5" />
-    </BaseButton>
+    </Button>
   </header>
 </template>

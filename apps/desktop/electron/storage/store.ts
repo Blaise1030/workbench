@@ -140,6 +140,77 @@ export class WorkspaceStore {
       .run({ ...project, lastActiveWorktreeId: project.lastActiveWorktreeId ?? null });
   }
 
+  deleteProject(projectId: string): void {
+    const tx = this.db.transaction((targetProjectId: string) => {
+      const remainingProjects = this.db
+        .prepare(
+          `SELECT id
+           FROM projects
+           WHERE id != ?
+           ORDER BY updated_at DESC, id ASC`
+        )
+        .all(targetProjectId) as Array<{ id: string }>;
+      const nextProjectId = remainingProjects[0]?.id ?? null;
+      const nextWorktreeId = nextProjectId
+        ? (
+            this.db
+              .prepare(
+                `SELECT id
+                 FROM worktrees
+                 WHERE project_id = ?
+                 ORDER BY is_default DESC, updated_at DESC, id ASC
+                 LIMIT 1`
+              )
+              .get(nextProjectId) as { id: string } | undefined
+          )?.id ?? null
+        : null;
+      const nextThreadId = nextWorktreeId
+        ? (
+            this.db
+              .prepare(
+                `SELECT id
+                 FROM threads
+                 WHERE worktree_id = ?
+                 ORDER BY sort_order ASC, created_at ASC, id ASC
+                 LIMIT 1`
+              )
+              .get(nextWorktreeId) as { id: string } | undefined
+          )?.id ?? null
+        : null;
+
+      this.db
+        .prepare("UPDATE projects SET last_active_worktree_id = NULL WHERE last_active_worktree_id IN (SELECT id FROM worktrees WHERE project_id = ?)")
+        .run(targetProjectId);
+      this.db
+        .prepare("UPDATE app_state SET active_project_id = ?, active_worktree_id = ?, active_thread_id = ? WHERE id = 1")
+        .run(nextProjectId, nextWorktreeId, nextThreadId);
+      this.db
+        .prepare(
+          `DELETE FROM run_events
+           WHERE run_id IN (
+             SELECT r.id
+             FROM runs r
+             INNER JOIN threads t ON t.id = r.thread_id
+             WHERE t.project_id = ?
+           )`
+        )
+        .run(targetProjectId);
+      this.db
+        .prepare(
+          `DELETE FROM runs
+           WHERE thread_id IN (SELECT id FROM threads WHERE project_id = ?)`
+        )
+        .run(targetProjectId);
+      this.db
+        .prepare("DELETE FROM thread_sessions WHERE thread_id IN (SELECT id FROM threads WHERE project_id = ?)")
+        .run(targetProjectId);
+      this.db.prepare("DELETE FROM threads WHERE project_id = ?").run(targetProjectId);
+      this.db.prepare("DELETE FROM worktrees WHERE project_id = ?").run(targetProjectId);
+      this.db.prepare("DELETE FROM projects WHERE id = ?").run(targetProjectId);
+    });
+    tx(projectId);
+  }
+
   upsertWorktree(worktree: Worktree): void {
     this.db
       .prepare(

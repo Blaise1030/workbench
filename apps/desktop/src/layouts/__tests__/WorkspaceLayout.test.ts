@@ -6,7 +6,7 @@ import type { WorkspaceSnapshot } from "@shared/ipc";
 vi.mock("@/components/ProjectTabs.vue", () => ({
   default: {
     props: ["projects"],
-    emits: ["select", "create", "configureCommands"],
+    emits: ["select", "create", "configureCommands", "remove"],
     template: `
       <div>
         <button
@@ -17,6 +17,15 @@ vi.mock("@/components/ProjectTabs.vue", () => ({
           @click="$emit('select', project.id)"
         >
           {{ project.name }}
+        </button>
+        <button
+          v-for="project in projects"
+          :key="'remove-' + project.id"
+          type="button"
+          :data-remove-project-id="project.id"
+          @click="$emit('remove', project.id)"
+        >
+          remove {{ project.name }}
         </button>
       </div>
     `
@@ -49,7 +58,7 @@ vi.mock("@/components/ui/PillTabs.vue", () => ({
     `
   }
 }));
-vi.mock("@/components/ui/BaseButton.vue", () => ({
+vi.mock("@/components/ui/Button.vue", () => ({
   default: { template: "<button><slot /></button>" }
 }));
 vi.mock("@/components/TerminalPane.vue", () => ({
@@ -593,5 +602,154 @@ describe("WorkspaceLayout", () => {
     expect(wrapper.find('[data-testid="workspace-no-git-empty-state"]').exists()).toBe(true);
     const gitDiffTab = wrapper.findAll("button").find((b) => b.text().includes("Git Diff"));
     expect(gitDiffTab).toBeUndefined();
+  });
+
+  it("confirms before removing a project from the workspace tabs and refreshes the snapshot", async () => {
+    const { default: WorkspaceLayout } = await import("../WorkspaceLayout.vue");
+    const initialSnapshot: WorkspaceSnapshot = {
+      ...makeSnapshot("Codex CLI"),
+      projects: [
+        {
+          id: "project-1",
+          name: "instrument",
+          repoPath: "/tmp/instrument",
+          status: "idle",
+          createdAt: "2026-04-06T00:00:00.000Z",
+          updatedAt: "2026-04-06T00:00:00.000Z"
+        },
+        {
+          id: "project-2",
+          name: "posthog-client",
+          repoPath: "/tmp/posthog-client",
+          status: "idle",
+          createdAt: "2026-04-06T00:00:00.000Z",
+          updatedAt: "2026-04-06T00:00:00.000Z"
+        }
+      ],
+      worktrees: [
+        {
+          id: "worktree-1",
+          projectId: "project-1",
+          name: "main",
+          branch: "main",
+          path: "/tmp/instrument",
+          isActive: true,
+          isDefault: true,
+          baseBranch: null,
+          lastActiveThreadId: "thread-1",
+          createdAt: "2026-04-06T00:00:00.000Z",
+          updatedAt: "2026-04-06T00:00:00.000Z"
+        },
+        {
+          id: "worktree-2",
+          projectId: "project-2",
+          name: "main",
+          branch: "main",
+          path: "/tmp/posthog-client",
+          isActive: true,
+          isDefault: true,
+          baseBranch: null,
+          lastActiveThreadId: "thread-2",
+          createdAt: "2026-04-06T00:00:00.000Z",
+          updatedAt: "2026-04-06T00:00:00.000Z"
+        }
+      ],
+      threads: [
+        {
+          id: "thread-1",
+          projectId: "project-1",
+          worktreeId: "worktree-1",
+          title: "Codex CLI",
+          agent: "codex",
+          sortOrder: 0,
+          createdAt: "2026-04-06T00:00:00.000Z",
+          updatedAt: "2026-04-06T00:00:00.000Z"
+        },
+        {
+          id: "thread-2",
+          projectId: "project-2",
+          worktreeId: "worktree-2",
+          title: "Other workspace",
+          agent: "codex",
+          sortOrder: 0,
+          createdAt: "2026-04-06T00:00:00.000Z",
+          updatedAt: "2026-04-06T00:00:00.000Z"
+        }
+      ],
+      threadSessions: [],
+      activeProjectId: "project-1",
+      activeWorktreeId: "worktree-1",
+      activeThreadId: "thread-1"
+    };
+    const afterRemovalSnapshot: WorkspaceSnapshot = {
+      ...initialSnapshot,
+      projects: [initialSnapshot.projects[1]],
+      worktrees: [initialSnapshot.worktrees[1]],
+      threads: [initialSnapshot.threads[1]],
+      activeProjectId: "project-2",
+      activeWorktreeId: "worktree-2",
+      activeThreadId: "thread-2"
+    };
+    const getSnapshot = vi
+      .fn<WorkspaceApi["getSnapshot"]>()
+      .mockResolvedValueOnce(initialSnapshot)
+      .mockResolvedValueOnce(afterRemovalSnapshot);
+    const removeProject = vi.fn<WorkspaceApi["removeProject"]>().mockResolvedValue(undefined);
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
+
+    window.workspaceApi = {
+      getSnapshot,
+      removeProject,
+      changedFiles: vi.fn().mockResolvedValue([]),
+      isGitRepository: vi.fn().mockResolvedValue(true),
+      addProject: vi.fn(),
+      addWorktree: vi.fn(),
+      setActive: vi.fn(),
+      createThread: vi.fn(),
+      reorderThreads: vi.fn(),
+      setActiveThread: vi.fn(),
+      deleteThread: vi.fn(),
+      renameThread: vi.fn(),
+      startRun: vi.fn(),
+      sendRunInput: vi.fn(),
+      interruptRun: vi.fn(),
+      fileDiff: vi.fn(),
+      stageAll: vi.fn(),
+      discardAll: vi.fn(),
+      listFiles: vi.fn(),
+      searchFiles: vi.fn(),
+      readFile: vi.fn(),
+      writeFile: vi.fn(),
+      createFile: vi.fn(),
+      deleteFile: vi.fn(),
+      createFolder: vi.fn(),
+      deleteFolder: vi.fn(),
+      applyPatch: vi.fn(),
+      ptyCreate: vi.fn().mockResolvedValue({ buffer: "" }),
+      ptyWrite: vi.fn(),
+      ptyResize: vi.fn(),
+      ptyKill: vi.fn(),
+      onPtyData: vi.fn(() => () => {}),
+      pickRepoDirectory: vi.fn(),
+      onWorkspaceChanged: vi.fn(() => () => {}),
+      onWorkingTreeFilesChanged: vi.fn(() => () => {})
+    };
+
+    const wrapper = mount(WorkspaceLayout, {
+      global: {
+        plugins: [createPinia()]
+      }
+    });
+
+    await flushPromises();
+    await wrapper.get('[data-remove-project-id="project-1"]').trigger("click");
+    await flushPromises();
+
+    expect(confirmSpy).toHaveBeenCalledWith("Remove instrument from workspace tabs?");
+    expect(removeProject).toHaveBeenCalledWith({ projectId: "project-1" });
+    expect(getSnapshot).toHaveBeenCalledTimes(2);
+    expect(wrapper.get('[data-testid="thread-sidebar"]').text()).toContain("Other workspace");
+
+    confirmSpy.mockRestore();
   });
 });

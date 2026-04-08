@@ -10,6 +10,7 @@ import {
   type DeleteThreadInput,
   type FileReadInput,
   type FileWriteInput,
+  type RemoveProjectInput,
   type RenameThreadInput,
   type ReorderThreadsInput
 } from "../src/shared/ipc.js";
@@ -110,6 +111,10 @@ function registerIpc(workspaceService: WorkspaceService): void {
     workspaceService.addWorktree(project.id, branch, payload.repoPath, true);
     emitWorkspaceDidChange();
     return workspaceService.getSnapshot();
+  });
+  ipcMain.handle(IPC_CHANNELS.workspaceRemoveProject, (_, payload: RemoveProjectInput) => {
+    workspaceService.removeProject(payload.projectId);
+    emitWorkspaceDidChange();
   });
   ipcMain.handle(IPC_CHANNELS.workspaceAddWorktree, (_, payload: AddWorktreeInput) => {
     workspaceService.addWorktree(payload.projectId, payload.branch, payload.worktreePath);
