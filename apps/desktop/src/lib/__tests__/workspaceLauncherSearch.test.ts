@@ -10,7 +10,6 @@ import {
 const baseThread = (partial: Partial<Thread> & Pick<Thread, "id" | "title" | "agent">): Thread => ({
   projectId: "p1",
   worktreeId: "wt1",
-  sortOrder: 0,
   createdAt: "",
   updatedAt: "",
   ...partial
@@ -115,6 +114,7 @@ describe("searchLauncherRows", () => {
 
 const sampleProject = (partial: Partial<Project> & Pick<Project, "id" | "name" | "repoPath">): Project => ({
   status: "idle",
+  tabOrder: 0,
   createdAt: "",
   updatedAt: "",
   ...partial

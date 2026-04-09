@@ -13,7 +13,7 @@ import type { Project, Thread, ThreadSession, Worktree } from "../../../src/shar
 import { WorkspaceStore } from "../store";
 
 const CURRENT_SCHEMA_PATH = path.resolve(__dirname, "..", "schema.sql");
-type StoreThread = Thread & { sortOrder: number };
+type StoreThread = Thread;
 type StoreThreadSession = ThreadSession;
 const LEGACY_THREADS_SCHEMA = `
 CREATE TABLE IF NOT EXISTS projects (
@@ -117,6 +117,7 @@ function makeProject(overrides: Partial<Project> = {}): Project {
     repoPath: "/tmp/instrument",
     status: "idle",
     lastActiveWorktreeId: null,
+    tabOrder: 0,
     createdAt: "2026-04-06T00:00:00.000Z",
     updatedAt: "2026-04-06T00:00:00.000Z",
     ...overrides
@@ -149,7 +150,6 @@ function makeThread(overrides: Partial<StoreThread> = {}): StoreThread {
     agent: "codex",
     createdAt: "2026-04-06T00:00:00.000Z",
     updatedAt: "2026-04-06T00:00:00.000Z",
-    sortOrder: 0,
     ...overrides
   };
 }
@@ -199,7 +199,7 @@ describe("WorkspaceStore", () => {
     // Temp directories are created per test case and cleaned up eagerly.
   });
 
-  it("returns threads ordered by sortOrder within a worktree", () => {
+  it("returns threads ordered by created time within a worktree (newest first)", () => {
     const baseDir = makeTempDir();
     const store = new WorkspaceStore(baseDir);
     store.migrate(NEW_SCHEMA);
@@ -207,115 +207,27 @@ describe("WorkspaceStore", () => {
 
     store.upsertThread(
       makeThread({
-        id: "thread-1",
-        title: "First inserted last",
-        sortOrder: 2,
+        id: "thread-a",
+        createdAt: "2026-04-06T00:01:00.000Z",
+        updatedAt: "2026-04-06T00:01:00.000Z"
+      })
+    );
+    store.upsertThread(
+      makeThread({
+        id: "thread-b",
+        createdAt: "2026-04-06T00:03:00.000Z",
         updatedAt: "2026-04-06T00:03:00.000Z"
       })
     );
     store.upsertThread(
       makeThread({
-        id: "thread-2",
-        title: "First in sidebar",
-        sortOrder: 0,
-        updatedAt: "2026-04-06T00:05:00.000Z"
-      })
-    );
-    store.upsertThread(
-      makeThread({
-        id: "thread-3",
-        title: "Second in sidebar",
-        sortOrder: 1,
-        updatedAt: "2026-04-06T00:01:00.000Z"
+        id: "thread-c",
+        createdAt: "2026-04-06T00:02:00.000Z",
+        updatedAt: "2026-04-06T00:02:00.000Z"
       })
     );
 
-    expect(store.getSnapshot().threads.map((thread) => thread.id)).toEqual([
-      "thread-2",
-      "thread-3",
-      "thread-1"
-    ]);
-  });
-
-  it("prepends sort order for new threads by shifting existing rows down", () => {
-    const baseDir = makeTempDir();
-    const store = new WorkspaceStore(baseDir);
-    store.migrate(NEW_SCHEMA);
-    seedBasicWorkspace(store);
-
-    store.upsertThread(makeThread({ id: "thread-a", sortOrder: 0 }));
-    store.upsertThread(makeThread({ id: "thread-b", sortOrder: 1 }));
-
-    const sort0 = store.prependThreadSortOrderForWorktree("worktree-1");
-    expect(sort0).toBe(0);
-    store.upsertThread(makeThread({ id: "thread-new", sortOrder: 0 }));
-
-    const threads = (store.getSnapshot().threads as Array<StoreThread>).map((t) => ({
-      id: t.id,
-      sortOrder: t.sortOrder
-    }));
-    expect(threads).toEqual([
-      { id: "thread-new", sortOrder: 0 },
-      { id: "thread-a", sortOrder: 1 },
-      { id: "thread-b", sortOrder: 2 }
-    ]);
-  });
-
-  it("reorders threads for a worktree and persists the new sortOrder", () => {
-    const baseDir = makeTempDir();
-    const store = new WorkspaceStore(baseDir);
-    store.migrate(NEW_SCHEMA);
-    seedBasicWorkspace(store);
-
-    store.upsertThread(makeThread({ id: "thread-1", sortOrder: 0 }));
-    store.upsertThread(makeThread({ id: "thread-2", sortOrder: 1 }));
-    store.upsertThread(makeThread({ id: "thread-3", sortOrder: 2 }));
-
-    (store as unknown as { reorderThreads(worktreeId: string, orderedThreadIds: string[]): void }).reorderThreads(
-      "worktree-1",
-      ["thread-3", "thread-1", "thread-2"]
-    );
-
-    const reopenedStore = new WorkspaceStore(baseDir);
-    reopenedStore.migrate(NEW_SCHEMA);
-
-    expect(
-      (reopenedStore.getSnapshot().threads as Array<StoreThread>).map(
-        (thread) => `${thread.id}:${thread.sortOrder}`
-      )
-    ).toEqual([
-      "thread-3:0",
-      "thread-1:1",
-      "thread-2:2"
-    ]);
-  });
-
-  it("rejects reorder payloads that are not a full permutation of the worktree threads", () => {
-    const baseDir = makeTempDir();
-    const store = new WorkspaceStore(baseDir);
-    store.migrate(NEW_SCHEMA);
-    seedBasicWorkspace(store);
-
-    store.upsertThread(makeThread({ id: "thread-1", sortOrder: 0 }));
-    store.upsertThread(makeThread({ id: "thread-2", sortOrder: 1 }));
-    store.upsertThread(makeThread({ id: "thread-3", sortOrder: 2 }));
-
-    const reorder = store as unknown as { reorderThreads(worktreeId: string, orderedThreadIds: string[]): void };
-    const before = (store.getSnapshot().threads as Array<StoreThread>).map((thread) => `${thread.id}:${thread.sortOrder}`);
-
-    expect(() => reorder.reorderThreads("worktree-1", ["thread-1", "thread-2"])).toThrow(
-      /full permutation/i
-    );
-    expect(() => reorder.reorderThreads("worktree-1", ["thread-1", "thread-1", "thread-2"])).toThrow(
-      /full permutation/i
-    );
-    expect(() => reorder.reorderThreads("worktree-1", ["thread-1", "thread-2", "thread-999"])).toThrow(
-      /full permutation/i
-    );
-
-    expect((store.getSnapshot().threads as Array<StoreThread>).map((thread) => `${thread.id}:${thread.sortOrder}`)).toEqual(
-      before
-    );
+    expect(store.getSnapshot().threads.map((t) => t.id)).toEqual(["thread-b", "thread-c", "thread-a"]);
   });
 
   it("restores the last selected thread when switching back to a worktree", () => {
@@ -342,7 +254,7 @@ describe("WorkspaceStore", () => {
     const store = new WorkspaceStore(baseDir);
     store.migrate(NEW_SCHEMA);
     store.upsertProject(makeProject({ id: "project-1" }));
-    store.upsertProject(makeProject({ id: "project-2", repoPath: "/tmp/other", name: "other" }));
+    store.upsertProject(makeProject({ id: "project-2", repoPath: "/tmp/other", name: "other", tabOrder: 1 }));
     store.upsertWorktree(makeWorktree({ id: "worktree-1", projectId: "project-1", branch: "main", name: "main" }));
     store.upsertWorktree(
       makeWorktree({ id: "worktree-2", projectId: "project-2", branch: "feature", name: "feature" })
@@ -358,6 +270,19 @@ describe("WorkspaceStore", () => {
     expect(snapshot.activeProjectId).toBe("project-1");
     expect(snapshot.activeWorktreeId).toBe("worktree-1");
     expect(snapshot.activeThreadId).toBe("thread-1");
+  });
+
+  it("reorders projects by tab_order", () => {
+    const baseDir = makeTempDir();
+    const store = new WorkspaceStore(baseDir);
+    store.migrate(NEW_SCHEMA);
+    store.upsertProject(makeProject({ id: "project-1", tabOrder: 0 }));
+    store.upsertProject(makeProject({ id: "project-2", repoPath: "/tmp/other", name: "other", tabOrder: 1 }));
+    expect(store.getSnapshot().projects.map((p) => p.id)).toEqual(["project-1", "project-2"]);
+    store.reorderProjects(["project-2", "project-1"]);
+    const after = store.getSnapshot().projects;
+    expect(after.map((p) => p.id)).toEqual(["project-2", "project-1"]);
+    expect(after.map((p) => p.tabOrder)).toEqual([0, 1]);
   });
 
   it("clears remembered worktree selection when the remembered thread is deleted", () => {
@@ -437,7 +362,7 @@ describe("WorkspaceStore", () => {
     reopenedDb.close();
   });
 
-  it("assigns deterministic sortOrder values for legacy rows during migration", () => {
+  it("orders legacy threads by created time after migration", () => {
     const baseDir = makeTempDir();
     const dbPath = path.join(baseDir, "workspace.db");
     createLegacyDatabase(dbPath);
@@ -463,14 +388,10 @@ describe("WorkspaceStore", () => {
     const store = new WorkspaceStore(baseDir);
     store.migrate(NEW_SCHEMA);
 
-    expect(
-      (store.getSnapshot().threads as Array<StoreThread>).map(
-        (thread) => `${thread.id}:${thread.sortOrder}`
-      )
-    ).toEqual([
-      "thread-a:0",
-      "thread-c:1",
-      "thread-b:2"
+    expect(store.getSnapshot().threads.map((thread) => thread.id)).toEqual([
+      "thread-b",
+      "thread-a",
+      "thread-c"
     ]);
   });
 
@@ -637,9 +558,9 @@ describe("WorkspaceStore", () => {
     store.upsertProject(makeProject());
     store.upsertWorktree(makeWorktree({ id: "wt-default", name: "main", branch: "main" }));
     store.upsertWorktree(makeWorktree({ id: "wt-feat", name: "feat/auth", branch: "feat/auth" }));
-    store.upsertThread(makeThread({ id: "t1", worktreeId: "wt-feat", sortOrder: 0 }));
-    store.upsertThread(makeThread({ id: "t2", worktreeId: "wt-feat", sortOrder: 1 }));
-    store.upsertThread(makeThread({ id: "t3", worktreeId: "wt-default", sortOrder: 0 }));
+    store.upsertThread(makeThread({ id: "t1", worktreeId: "wt-feat" }));
+    store.upsertThread(makeThread({ id: "t2", worktreeId: "wt-feat" }));
+    store.upsertThread(makeThread({ id: "t3", worktreeId: "wt-default" }));
     store.upsertThreadSession(makeThreadSession({ threadId: "t1" }));
     store.upsertThreadSession(makeThreadSession({ threadId: "t2", resumeId: "resume-456" }));
     store.upsertThreadSession(makeThreadSession({ threadId: "t3", resumeId: "resume-789" }));
@@ -673,7 +594,7 @@ describe("WorkspaceStore", () => {
     verifyDb.close();
   });
 
-  it("normalizes legacy duplicate sort orders and creates a unique worktree sort index during migration", () => {
+  it("drops legacy sort_order column and keeps threads ordered by created time", () => {
     const baseDir = makeTempDir();
     const dbPath = path.join(baseDir, "workspace.db");
     const legacyDb = new Database(dbPath);
@@ -701,18 +622,14 @@ describe("WorkspaceStore", () => {
     const store = new WorkspaceStore(baseDir);
     store.migrate(NEW_SCHEMA);
 
-    expect(
-      (store.getSnapshot().threads as Array<StoreThread>).map(
-        (thread) => `${thread.id}:${thread.sortOrder}`
-      )
-    ).toEqual([
-      "thread-a:0",
-      "thread-b:1",
-      "thread-c:2"
-    ]);
+    expect(store.getSnapshot().threads.map((thread) => thread.id)).toEqual(["thread-c", "thread-b", "thread-a"]);
 
-    const uniqueIndex = storeDbIndexInfo(store, "threads", "idx_threads_worktree_sort_order");
-    expect(uniqueIndex?.isUnique).toBe(1);
+    const sortOrderCol = (store as unknown as { db: InstanceType<typeof Database> }).db.prepare(
+      "SELECT 1 FROM pragma_table_info('threads') WHERE name = 'sort_order' LIMIT 1"
+    ).get();
+    expect(sortOrderCol).toBeUndefined();
+
+    expect(storeDbIndexInfo(store, "threads", "idx_threads_worktree_sort_order")).toBeUndefined();
   });
 });
 

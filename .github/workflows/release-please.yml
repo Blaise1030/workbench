@@ -1,5 +1,5 @@
 # Opens and updates release PRs from Conventional Commits; merges create a version tag.
-# The tag triggers `.github/workflows/release.yml`, which builds installers and publishes the GitHub Release.
+# `trigger-release` dispatches `.github/workflows/release.yml` (GITHUB_TOKEN tag pushes do not trigger workflows).
 #
 # If you see: "GitHub Actions is not permitted to create or approve pull requests":
 #   Repo → Settings → Actions → General → Workflow permissions:
@@ -7,10 +7,8 @@
 #   - Enable "Allow GitHub Actions to create and approve pull requests"
 #   https://docs.github.com/actions/how-to/use-workflows-and-actions/configure-workflow-permissions
 #
-# Or add repo secret RELEASE_PLEASE_TOKEN (fine-grained PAT: Contents + Pull requests + Issues read/write
-# on this repo; or classic PAT with `repo` scope) and this workflow will use it instead of GITHUB_TOKEN.
-# With GITHUB_TOKEN only, tag pushes from this workflow do not trigger other workflows; the
-# `trigger-release` job below dispatches the Release workflow in that case.
+# Pushes made with GITHUB_TOKEN do not trigger other workflows (including tag pushes), so the
+# `trigger-release` job dispatches the Release workflow after a workbench release is created.
 name: Release Please
 
 on:
@@ -38,19 +36,17 @@ jobs:
       - uses: googleapis/release-please-action@v4
         id: release
         with:
-          token: ${{ secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.GITHUB_TOKEN }}
           # Tags and changelog commits are created on this branch after a release PR merges.
           # Uses the GitHub default branch (main or master) so tags always track production.
           target-branch: ${{ github.event.repository.default_branch }}
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
 
-  # Pushes made with the default GITHUB_TOKEN do not trigger other workflows (including tag pushes).
-  # When no RELEASE_PLEASE_TOKEN is configured, dispatch Release so installers still build.
-  # If you use a PAT for release-please, the tag push triggers Release and this job is skipped.
+  # Dispatch Release so installers build (GITHUB_TOKEN tag pushes do not trigger workflows).
   trigger-release:
     needs: release-please
-    if: ${{ secrets.RELEASE_PLEASE_TOKEN == '' && (needs.release-please.outputs.workbench_release_created == 'true' || (needs.release-please.outputs.releases_created == 'true' && needs.release-please.outputs.workbench_version != '')) }}
+    if: ${{ needs.release-please.outputs.workbench_release_created == 'true' || (needs.release-please.outputs.releases_created == 'true' && needs.release-please.outputs.workbench_version != '') }}
     runs-on: ubuntu-latest
     permissions:
       actions: write

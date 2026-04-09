@@ -26,7 +26,7 @@ withDefaults(
 </script>
 
 <template>
-  <Button v-bind="$props" v-bind="$attrs">
+  <Button v-bind="{ ...$props, ...$attrs }">
     <slot />
   </Button>
 </template>

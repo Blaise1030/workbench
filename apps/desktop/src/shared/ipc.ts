@@ -4,10 +4,10 @@ export const IPC_CHANNELS = {
   workspaceGetSnapshot: "workspace:getSnapshot",
   workspaceAddProject: "workspace:addProject",
   workspaceRemoveProject: "workspace:removeProject",
+  workspaceReorderProjects: "workspace:reorderProjects",
   workspaceAddWorktree: "workspace:addWorktree",
   workspaceSetActive: "workspace:setActive",
   workspaceCreateThread: "workspace:createThread",
-  workspaceReorderThreads: "workspace:reorderThreads",
   workspaceSetActiveThread: "workspace:setActiveThread",
   workspaceDeleteThread: "workspace:deleteThread",
   workspaceRenameThread: "workspace:renameThread",
@@ -77,11 +77,6 @@ export interface CreateThreadInput {
   agent: ThreadAgent;
 }
 
-export interface ReorderThreadsInput {
-  worktreeId: string;
-  orderedThreadIds: string[];
-}
-
 export interface AddProjectInput {
   name: string;
   repoPath: string;
@@ -90,6 +85,11 @@ export interface AddProjectInput {
 
 export interface RemoveProjectInput {
   projectId: string;
+}
+
+export interface ReorderProjectsInput {
+  /** Full project tab order, left to right. */
+  orderedProjectIds: string[];
 }
 
 export interface CreateWorktreeGroupInput {

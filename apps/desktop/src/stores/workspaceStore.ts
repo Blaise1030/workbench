@@ -33,8 +33,17 @@ function worktreeDisplayLabel(worktree: Worktree): string {
   return worktree.isDefault ? "Primary" : worktree.name;
 }
 
+/** Newest threads first within a worktree. */
+function compareThreadSort(a: Thread, b: Thread): number {
+  const byCreated = b.createdAt.localeCompare(a.createdAt);
+  if (byCreated !== 0) return byCreated;
+  return a.id.localeCompare(b.id);
+}
+
 function threadsForWorktree(threads: Thread[], worktreeId: string): Thread[] {
-  return threads.filter((thread) => thread.worktreeId === worktreeId);
+  return threads
+    .filter((thread) => thread.worktreeId === worktreeId)
+    .sort(compareThreadSort);
 }
 
 function buildThreadContexts(state: {
@@ -68,7 +77,8 @@ export const useWorkspaceStore = defineStore("workspace", {
       return state.worktrees.find((w) => w.id === state.activeWorktreeId);
     },
     activeThreads(state): Thread[] {
-      return state.threads.filter((t) => t.worktreeId === state.activeWorktreeId);
+      if (!state.activeWorktreeId) return [];
+      return threadsForWorktree(state.threads, state.activeWorktreeId);
     },
 
     /** Contexts for the active project, ordered with the default worktree first. */
@@ -91,14 +101,19 @@ export const useWorkspaceStore = defineStore("workspace", {
       };
     },
 
-    /** All threads belonging to any worktree in the active project. */
+    /** All threads belonging to any worktree in the active project (primary group first, then newest-first per group). */
     activeProjectThreads(state): Thread[] {
-      const projectWorktreeIds = new Set(
-        state.worktrees
-          .filter((w) => w.projectId === state.activeProjectId)
-          .map((w) => w.id)
-      );
-      return state.threads.filter((t) => projectWorktreeIds.has(t.worktreeId));
+      const orderedWt = orderProjectWorktrees(getActiveProjectWorktrees(state));
+      const wtRank = new Map(orderedWt.map((w, i) => [w.id, i]));
+
+      return state.threads
+        .filter((t) => wtRank.has(t.worktreeId))
+        .sort((a, b) => {
+          const ra = wtRank.get(a.worktreeId) ?? 0;
+          const rb = wtRank.get(b.worktreeId) ?? 0;
+          if (ra !== rb) return ra - rb;
+          return compareThreadSort(a, b);
+        });
     },
 
     /** The default worktree for the active project (main checkout). */
@@ -150,28 +165,12 @@ export const useWorkspaceStore = defineStore("workspace", {
       this.activeThreadId = threadId;
     },
     /** Immediate UI update; call refreshSnapshot after IPC so server state wins. */
-    reorderThreadsLocal(worktreeId: string, orderedThreadIds: string[]): void {
-      const orderedThreads = orderedThreadIds
-        .map((threadId) =>
-          this.threads.find((thread) => thread.worktreeId === worktreeId && thread.id === threadId)
-        )
-        .filter((thread): thread is Thread => thread !== undefined);
-      let nextOrderedIndex = 0;
-
-      this.threads = this.threads.map((thread) => {
-        if (thread.worktreeId !== worktreeId) return thread;
-        const nextThread = orderedThreads[nextOrderedIndex];
-        nextOrderedIndex += 1;
-        return nextThread ?? thread;
-      });
-    },
-    /** Immediate UI update; call refreshSnapshot after IPC so server state wins. */
     removeThreadLocal(threadId: string): void {
       const wasActive = this.activeThreadId === threadId;
       this.threads = this.threads.filter((t) => t.id !== threadId);
-      if (wasActive) {
+      if (wasActive && this.activeWorktreeId) {
         this.activeThreadId =
-          this.threads.find((t) => t.worktreeId === this.activeWorktreeId)?.id ?? null;
+          threadsForWorktree(this.threads, this.activeWorktreeId)[0]?.id ?? null;
       }
     }
   }

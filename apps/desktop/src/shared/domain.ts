@@ -19,6 +19,8 @@ export interface Project {
   repoPath: string;
   status: RunStatus | "idle";
   lastActiveWorktreeId?: string | null;
+  /** Lower values appear first (left) in the project tab strip. */
+  tabOrder: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -43,7 +45,6 @@ export interface Thread {
   worktreeId: string;
   title: string;
   agent: ThreadAgent;
-  sortOrder: number;
   createdAt: string;
   updatedAt: string;
 }

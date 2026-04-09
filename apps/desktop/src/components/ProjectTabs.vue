@@ -33,6 +33,8 @@ const props = withDefaults(
 const emit = defineEmits<{
   select: [projectId: string];
   remove: [projectId: string];
+  /** New left-to-right order after drag-and-drop. */
+  reorder: [orderedProjectIds: string[]];
   create: [];
   configureCommands: [];
 }>();
@@ -56,7 +58,8 @@ const tabInactiveInteractive =
 const newTabBtnClass =
   "flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-transparent text-zinc-600 transition-colors hover:bg-zinc-300/60 hover:text-zinc-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-200 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100 dark:focus-visible:ring-offset-zinc-950";
 
-const tabItemClass = "group relative flex max-w-[14rem] shrink-0 items-stretch";
+const tabItemClass =
+  "group relative flex max-w-[14rem] shrink-0 cursor-grab items-stretch active:cursor-grabbing";
 
 const tabButtonClass =
   "inline-flex min-w-0 flex-1 items-center gap-1.5 rounded-lg border border-transparent px-2.5 py-0.5 text-left text-xs font-medium whitespace-nowrap text-zinc-600 transition-[color,background-color] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-200 dark:text-zinc-400 dark:focus-visible:ring-offset-zinc-950";
@@ -66,6 +69,48 @@ const tabCloseButtonClass =
 
 const ptyWorktreeIds = ref<Set<string>>(new Set());
 const terminalStatusLoading = ref(false);
+
+const draggingProjectId = ref<string | null>(null);
+
+function reorderProjectIds(fromIndex: number, toIndex: number): string[] {
+  if (fromIndex === toIndex) return props.projects.map((p) => p.id);
+  const ids = props.projects.map((p) => p.id);
+  const [moved] = ids.splice(fromIndex, 1);
+  ids.splice(toIndex, 0, moved);
+  return ids;
+}
+
+function onTabDragStart(projectId: string, event: DragEvent): void {
+  draggingProjectId.value = projectId;
+  event.dataTransfer?.setData("text/plain", projectId);
+  if (event.dataTransfer) {
+    event.dataTransfer.effectAllowed = "move";
+  }
+}
+
+function onTabDragOver(event: DragEvent): void {
+  event.preventDefault();
+  if (event.dataTransfer) {
+    event.dataTransfer.dropEffect = "move";
+  }
+}
+
+function onTabDrop(targetIndex: number, event: DragEvent): void {
+  event.preventDefault();
+  const id = event.dataTransfer?.getData("text/plain") || draggingProjectId.value;
+  draggingProjectId.value = null;
+  if (!id) return;
+  const fromIndex = props.projects.findIndex((p) => p.id === id);
+  if (fromIndex < 0) return;
+  const next = reorderProjectIds(fromIndex, targetIndex);
+  const same =
+    next.length === props.projects.length && next.every((pid, i) => pid === props.projects[i]?.id);
+  if (!same) emit("reorder", next);
+}
+
+function onTabDragEnd(): void {
+  draggingProjectId.value = null;
+}
 
 function projectWorktrees(projectId: string): Worktree[] {
   return props.worktrees.filter((worktree) => worktree.projectId === projectId);
@@ -162,7 +207,19 @@ function onRemoveClick(projectId: string, event: MouseEvent): void {
         :close-delay="0"
         @update:open="(open) => onProjectHoverOpenChange(open)"
       >
-        <div :class="tabItemClass">
+        <div
+          :class="[
+            tabItemClass,
+            draggingProjectId === project.id ? 'opacity-60' : ''
+          ]"
+          draggable="true"
+          title="Drag to reorder tabs"
+          :data-testid="`project-tab-row-${project.id}`"
+          @dragstart="onTabDragStart(project.id, $event)"
+          @dragover="onTabDragOver"
+          @drop="onTabDrop(projectIndex, $event)"
+          @dragend="onTabDragEnd"
+        >
           <HoverCardTrigger as-child>
             <Button
               type="button"
@@ -192,6 +249,7 @@ function onRemoveClick(projectId: string, event: MouseEvent): void {
             type="button"
             variant="ghost"
             size="icon-xs"
+            draggable="false"
             :data-testid="`remove-project-tab-${project.id}`"
             :class="[
               tabCloseButtonClass,

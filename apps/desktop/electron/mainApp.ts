@@ -12,7 +12,7 @@ import {
   type FileWriteInput,
   type RemoveProjectInput,
   type RenameThreadInput,
-  type ReorderThreadsInput
+  type ReorderProjectsInput
 } from "../src/shared/ipc.js";
 import type { ThreadAgent } from "../src/shared/domain.js";
 import { DiffService } from "./services/diffService.js";
@@ -117,6 +117,10 @@ function registerIpc(workspaceService: WorkspaceService): void {
     workspaceService.removeProject(payload.projectId);
     emitWorkspaceDidChange();
   });
+  ipcMain.handle(IPC_CHANNELS.workspaceReorderProjects, (_, payload: ReorderProjectsInput) => {
+    workspaceService.reorderProjects(payload.orderedProjectIds);
+    emitWorkspaceDidChange();
+  });
   ipcMain.handle(IPC_CHANNELS.workspaceAddWorktree, (_, payload: AddWorktreeInput) => {
     workspaceService.addWorktree(payload.projectId, payload.branch, payload.worktreePath);
     emitWorkspaceDidChange();
@@ -145,10 +149,6 @@ function registerIpc(workspaceService: WorkspaceService): void {
   });
   ipcMain.handle(IPC_CHANNELS.workspaceRenameThread, (_, payload: RenameThreadInput) => {
     workspaceService.renameThread(payload.threadId, payload.title);
-    emitWorkspaceDidChange();
-  });
-  ipcMain.handle(IPC_CHANNELS.workspaceReorderThreads, (_, payload: ReorderThreadsInput) => {
-    workspaceService.reorderThreads(payload.worktreeId, payload.orderedThreadIds);
     emitWorkspaceDidChange();
   });
   ipcMain.handle(IPC_CHANNELS.workspaceCreateWorktreeGroup, async (_, payload: CreateWorktreeGroupInput) => {

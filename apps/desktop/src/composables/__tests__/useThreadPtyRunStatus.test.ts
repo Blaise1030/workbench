@@ -15,7 +15,6 @@ const thread = (id: string, agent: ThreadAgent = "claude"): Thread => ({
   worktreeId: "wt1",
   title: `${id} title`,
   agent,
-  sortOrder: 0,
   createdAt: "",
   updatedAt: ""
 });

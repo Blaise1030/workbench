@@ -10,6 +10,7 @@ function makeSnapshot() {
       name: "instrument",
       repoPath: "/tmp/instrument",
       status: "idle",
+      tabOrder: 0,
       createdAt: "2026-04-07T00:00:00.000Z",
       updatedAt: "2026-04-07T00:00:00.000Z"
     }
@@ -62,7 +63,6 @@ function makeSnapshot() {
       worktreeId: "worktree-default",
       title: "Codex CLI · main",
       agent: "codex",
-      sortOrder: 0,
       createdAt: "2026-04-07T00:00:00.000Z",
       updatedAt: "2026-04-07T00:00:00.000Z"
     },
@@ -72,7 +72,6 @@ function makeSnapshot() {
       worktreeId: "worktree-feature",
       title: "Claude Code · auth",
       agent: "claude",
-      sortOrder: 0,
       createdAt: "2026-04-07T00:01:00.000Z",
       updatedAt: "2026-04-07T00:01:00.000Z"
     },
@@ -82,7 +81,6 @@ function makeSnapshot() {
       worktreeId: "worktree-feature",
       title: "Gemini CLI · review",
       agent: "gemini",
-      sortOrder: 1,
       createdAt: "2026-04-07T00:02:00.000Z",
       updatedAt: "2026-04-07T00:02:00.000Z"
     },
@@ -92,7 +90,6 @@ function makeSnapshot() {
       worktreeId: "worktree-refactor",
       title: "Cursor · cleanup",
       agent: "cursor",
-      sortOrder: 0,
       createdAt: "2026-04-07T00:03:00.000Z",
       updatedAt: "2026-04-07T00:03:00.000Z"
     }
@@ -131,8 +128,8 @@ describe("workspaceStore", () => {
     store.hydrate(makeSnapshot());
 
     expect(store.groupedThreadsByWorktree.get("worktree-feature")?.map((thread) => thread.id)).toEqual([
-      "thread-feature-1",
-      "thread-feature-2"
+      "thread-feature-2",
+      "thread-feature-1"
     ]);
     expect(store.groupedThreadsByWorktree.get("worktree-refactor")?.map((thread) => thread.id)).toEqual([
       "thread-refactor-1"

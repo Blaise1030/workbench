@@ -12,10 +12,10 @@ interface WorkspaceApi {
   getSnapshot: () => Promise<unknown>;
   addProject: (payload: unknown) => Promise<unknown>;
   removeProject?: (payload: { projectId: string }) => Promise<void>;
+  reorderProjects?: (payload: { orderedProjectIds: string[] }) => Promise<void>;
   addWorktree: (payload: unknown) => Promise<unknown>;
   setActive: (payload: { projectId: string | null; worktreeId: string | null; threadId: string | null }) => Promise<void>;
   createThread: (payload: unknown) => Promise<unknown>;
-  reorderThreads: (payload: { worktreeId: string; orderedThreadIds: string[] }) => Promise<void>;
   setActiveThread: (threadId: string) => Promise<unknown>;
   deleteThread: (payload: { threadId: string }) => Promise<void>;
   renameThread: (payload: { threadId: string; title: string }) => Promise<void>;

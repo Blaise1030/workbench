@@ -9,26 +9,6 @@ async function hoverFirstThreadRow(wrapper: ReturnType<typeof mount>): Promise<v
   await wrapper.get('[data-testid="thread-row"]').trigger("mouseenter");
 }
 
-function createDragData(): {
-  dropEffect: string;
-  effectAllowed: string;
-  setData: (format: string, value: string) => void;
-  getData: (format: string) => string;
-} {
-  const values = new Map<string, string>();
-
-  return {
-    dropEffect: "move",
-    effectAllowed: "move",
-    setData(format: string, value: string) {
-      values.set(format, value);
-    },
-    getData(format: string) {
-      return values.get(format) ?? "";
-    }
-  };
-}
-
 describe("ThreadSidebar", () => {
   let wrapper: ReturnType<typeof mount<typeof ThreadSidebar>>;
 
@@ -43,34 +23,32 @@ describe("ThreadSidebar", () => {
       worktreeId: "w1",
       title: "Codex CLI · test",
       agent: "codex",
-      sortOrder: 0,
       createdAt: "2026-04-05T00:00:00.000Z",
       updatedAt: "2026-04-05T00:00:00.000Z"
     }
   ];
 
-  const reorderedThreads: Thread[] = [
-    threads[0],
-    {
-      id: "t2",
-      projectId: "p1",
-      worktreeId: "w1",
-      title: "Claude Code · docs",
-      agent: "claude",
-      sortOrder: 1,
-      createdAt: "2026-04-05T00:01:00.000Z",
-      updatedAt: "2026-04-05T00:01:00.000Z"
-    },
+  /** Same three threads as `activeProjectThreads` / layout: newest `createdAt` first. */
+  const threeThreadsNewestFirst: Thread[] = [
     {
       id: "t3",
       projectId: "p1",
       worktreeId: "w1",
       title: "Gemini CLI · review",
       agent: "gemini",
-      sortOrder: 2,
       createdAt: "2026-04-05T00:02:00.000Z",
       updatedAt: "2026-04-05T00:02:00.000Z"
-    }
+    },
+    {
+      id: "t2",
+      projectId: "p1",
+      worktreeId: "w1",
+      title: "Claude Code · docs",
+      agent: "claude",
+      createdAt: "2026-04-05T00:01:00.000Z",
+      updatedAt: "2026-04-05T00:01:00.000Z"
+    },
+    threads[0]
   ];
 
   function makeThreadContext(worktree: Worktree, contextThreads: Thread[]): WorkspaceThreadContext {
@@ -86,7 +64,7 @@ describe("ThreadSidebar", () => {
   it("shows icon-only thread rows when collapsed", () => {
     wrapper = mount(ThreadSidebar, {
       props: {
-        threads: reorderedThreads,
+        threads: threeThreadsNewestFirst,
         activeThreadId: "t1",
         collapsed: true
       }
@@ -95,13 +73,12 @@ describe("ThreadSidebar", () => {
     expect(wrapper.attributes("data-thread-sidebar-collapsed")).toBe("true");
     expect(wrapper.findAll('[data-testid="thread-select"]')).toHaveLength(0);
     expect(wrapper.findAll('[data-testid="thread-group-collapsed-trigger"]')).toHaveLength(1);
-    expect(wrapper.findAll('[data-testid="thread-drag-handle"]')).toHaveLength(0);
   });
 
   it("supports collapsed primary fallback popover without a default worktree id", async () => {
     wrapper = mount(ThreadSidebar, {
       props: {
-        threads: reorderedThreads,
+        threads: threeThreadsNewestFirst,
         activeThreadId: "t1",
         collapsed: true,
         threadGroups: []
@@ -121,7 +98,7 @@ describe("ThreadSidebar", () => {
   it("renders the expand toggle in the top bar when collapsed", async () => {
     wrapper = mount(ThreadSidebar, {
       props: {
-        threads: reorderedThreads,
+        threads: threeThreadsNewestFirst,
         activeThreadId: "t1",
         collapsed: true
       }
@@ -135,7 +112,7 @@ describe("ThreadSidebar", () => {
   it("renders the collapse toggle in the top bar when expanded", async () => {
     wrapper = mount(ThreadSidebar, {
       props: {
-        threads: reorderedThreads,
+        threads: threeThreadsNewestFirst,
         activeThreadId: "t1"
       }
     });
@@ -247,150 +224,19 @@ describe("ThreadSidebar", () => {
     expect(wrapper.emitted("rename")).toEqual([["t1", "Renamed"]]);
   });
 
-  it("preserves the provided thread order on initial render", () => {
+  it("lists threads newest-first (matches workspace store ordering)", () => {
     wrapper = mount(ThreadSidebar, {
       props: {
-        threads: reorderedThreads,
+        threads: threeThreadsNewestFirst,
         activeThreadId: "t1"
       }
     });
 
     expect(wrapper.findAll('[data-testid="thread-select"]').map((node) => node.text())).toEqual([
-      "Codex CLI · test",
-      "Claude Code · docs",
-      "Gemini CLI · review"
-    ]);
-  });
-
-  it("renders a local reordered list during drag interaction", async () => {
-    wrapper = mount(ThreadSidebar, {
-      props: {
-        threads: reorderedThreads,
-        activeThreadId: "t1"
-      }
-    });
-
-    const dragRows = wrapper.findAll('[data-testid="thread-row"]');
-    const dragHandles = wrapper.findAll('[data-testid="thread-drag-handle"]');
-    const dataTransfer = createDragData();
-
-    expect(dragHandles).toHaveLength(3);
-    expect(dragRows[0]!.attributes("draggable")).toBeUndefined();
-    expect(dragHandles[0]!.attributes("draggable")).toBe("true");
-    expect(dragHandles[0]!.classes()).toContain("absolute");
-    expect(dragHandles[0]!.classes()).toContain("right-6");
-    expect(dragRows[0]!.classes()).not.toContain("pl-9");
-    expect(dragHandles[0]!.classes()).toContain("opacity-0");
-    expect(dragHandles[0]!.classes()).toContain("pointer-events-none");
-
-    await dragRows[0]!.trigger("mouseenter");
-
-    expect(dragHandles[0]!.classes()).toContain("opacity-100");
-    expect(dragHandles[0]!.classes()).not.toContain("pointer-events-none");
-
-    await dragHandles[0]!.trigger("dragstart", { dataTransfer });
-    await dragRows[2]!.trigger("dragenter", { dataTransfer });
-
-    expect(wrapper.findAll('[data-testid="thread-select"]').map((node) => node.text())).toEqual([
-      "Claude Code · docs",
       "Gemini CLI · review",
+      "Claude Code · docs",
       "Codex CLI · test"
     ]);
-  });
-
-  it("reorders from the drag handle with keyboard controls", async () => {
-    wrapper = mount(ThreadSidebar, {
-      props: {
-        threads: reorderedThreads,
-        activeThreadId: "t1"
-      }
-    });
-
-    const dragHandles = wrapper.findAll('[data-testid="thread-drag-handle"]');
-
-    await dragHandles[1]!.trigger("keydown", { key: "ArrowDown" });
-
-    expect(wrapper.emitted("reorder")).toEqual([
-      [{ worktreeId: "w1", orderedThreadIds: ["t1", "t3", "t2"] }]
-    ]);
-    expect(wrapper.findAll('[data-testid="thread-select"]').map((node) => node.text())).toEqual([
-      "Codex CLI · test",
-      "Gemini CLI · review",
-      "Claude Code · docs"
-    ]);
-  });
-
-  it("emits reorder with the final visible ids on drop", async () => {
-    wrapper = mount(ThreadSidebar, {
-      props: {
-        threads: reorderedThreads,
-        activeThreadId: "t1"
-      }
-    });
-
-    const dragRows = wrapper.findAll('[data-testid="thread-row"]');
-    const dragHandles = wrapper.findAll('[data-testid="thread-drag-handle"]');
-    const dataTransfer = createDragData();
-
-    await dragHandles[0]!.trigger("dragstart", { dataTransfer });
-    await dragRows[2]!.trigger("dragenter", { dataTransfer });
-    await dragRows[2]!.trigger("drop", { dataTransfer });
-    await dragHandles[0]!.trigger("dragend", { dataTransfer });
-
-    expect(wrapper.emitted("reorder")).toEqual([
-      [{ worktreeId: "w1", orderedThreadIds: ["t2", "t3", "t1"] }]
-    ]);
-    expect(wrapper.findAll('[data-testid="thread-select"]').map((node) => node.text())).toEqual([
-      "Claude Code · docs",
-      "Gemini CLI · review",
-      "Codex CLI · test"
-    ]);
-  });
-
-  it("reorders on drop even if dragenter did not fire for the final target", async () => {
-    wrapper = mount(ThreadSidebar, {
-      props: {
-        threads: reorderedThreads,
-        activeThreadId: "t1"
-      }
-    });
-
-    const dragRows = wrapper.findAll('[data-testid="thread-row"]');
-    const dragHandles = wrapper.findAll('[data-testid="thread-drag-handle"]');
-    const dataTransfer = createDragData();
-
-    await dragHandles[0]!.trigger("dragstart", { dataTransfer });
-    await dragRows[2]!.trigger("drop", { dataTransfer });
-    await dragHandles[0]!.trigger("dragend", { dataTransfer });
-
-    expect(wrapper.emitted("reorder")).toEqual([
-      [{ worktreeId: "w1", orderedThreadIds: ["t2", "t3", "t1"] }]
-    ]);
-    expect(wrapper.findAll('[data-testid="thread-select"]').map((node) => node.text())).toEqual([
-      "Claude Code · docs",
-      "Gemini CLI · review",
-      "Codex CLI · test"
-    ]);
-  });
-
-  it("does not emit reorder for a no-op drag and drop", async () => {
-    wrapper = mount(ThreadSidebar, {
-      props: {
-        threads: reorderedThreads,
-        activeThreadId: "t1"
-      }
-    });
-
-    const dragRows = wrapper.findAll('[data-testid="thread-row"]');
-    const dragHandles = wrapper.findAll('[data-testid="thread-drag-handle"]');
-    const dataTransfer = createDragData();
-
-    await dragHandles[1]!.trigger("dragstart", { dataTransfer });
-    await dragRows[1]!.trigger("dragenter", { dataTransfer });
-    await dragRows[1]!.trigger("drop", { dataTransfer });
-    await dragHandles[1]!.trigger("dragend", { dataTransfer });
-
-    expect(wrapper.emitted("reorder")).toBeUndefined();
   });
 
   it("renders threads grouped by worktree with group headers", () => {
@@ -401,7 +247,6 @@ describe("ThreadSidebar", () => {
         worktreeId: "w-default",
         title: "Ungrouped thread",
         agent: "claude",
-        sortOrder: 0,
         createdAt: "2026-04-07T00:00:00Z",
         updatedAt: "2026-04-07T00:00:00Z"
       }
@@ -413,7 +258,6 @@ describe("ThreadSidebar", () => {
         worktreeId: "w-feat",
         title: "Grouped thread",
         agent: "codex",
-        sortOrder: 0,
         createdAt: "2026-04-07T00:01:00Z",
         updatedAt: "2026-04-07T00:01:00Z"
       }
@@ -480,7 +324,6 @@ describe("ThreadSidebar", () => {
       worktreeId: "w-default",
       title: "Primary thread",
       agent: "claude",
-      sortOrder: 0,
       createdAt: "2026-04-07T00:00:00Z",
       updatedAt: "2026-04-07T00:00:00Z"
     };
@@ -490,7 +333,6 @@ describe("ThreadSidebar", () => {
       worktreeId: "w-feat",
       title: "Grouped thread",
       agent: "codex",
-      sortOrder: 1,
       createdAt: "2026-04-07T00:01:00Z",
       updatedAt: "2026-04-07T00:01:00Z"
     };
@@ -573,7 +415,6 @@ describe("ThreadSidebar", () => {
       worktreeId: "w-default",
       title: "Primary thread",
       agent: "claude",
-      sortOrder: 0,
       createdAt: "2026-04-07T00:00:00Z",
       updatedAt: "2026-04-07T00:00:00Z"
     } satisfies Thread;
@@ -583,7 +424,6 @@ describe("ThreadSidebar", () => {
       worktreeId: "w-feat",
       title: "Grouped thread",
       agent: "codex",
-      sortOrder: 1,
       createdAt: "2026-04-07T00:01:00Z",
       updatedAt: "2026-04-07T00:01:00Z"
     } satisfies Thread;
@@ -642,7 +482,6 @@ describe("ThreadSidebar", () => {
       worktreeId: "w-default",
       title: "Primary thread",
       agent: "claude",
-      sortOrder: 0,
       createdAt: "2026-04-07T00:00:00Z",
       updatedAt: "2026-04-07T00:00:00Z"
     };
@@ -652,7 +491,6 @@ describe("ThreadSidebar", () => {
       worktreeId: "w-feat",
       title: "Grouped thread",
       agent: "codex",
-      sortOrder: 1,
       createdAt: "2026-04-07T00:01:00Z",
       updatedAt: "2026-04-07T00:01:00Z"
     };
@@ -684,7 +522,7 @@ describe("ThreadSidebar", () => {
     expect(wrapper.find('[data-testid="thread-group-threads-w-feat"]').isVisible()).toBe(true);
   });
 
-  it("uses local rendered order for grouped contexts when threadContexts are provided", async () => {
+  it("renders grouped threadContexts in the order supplied (newest-first from the store)", () => {
     const defaultWorktree: Worktree = {
       id: "w-default",
       projectId: "p1",
@@ -717,52 +555,42 @@ describe("ThreadSidebar", () => {
       worktreeId: "w-default",
       title: "Primary thread",
       agent: "claude",
-      sortOrder: 0,
       createdAt: "2026-04-07T00:00:00Z",
       updatedAt: "2026-04-07T00:00:00Z"
     };
-    const groupedThreads: Thread[] = [
-      {
-        id: "t2",
-        projectId: "p1",
-        worktreeId: "w-feat",
-        title: "Grouped thread A",
-        agent: "codex",
-        sortOrder: 1,
-        createdAt: "2026-04-07T00:01:00Z",
-        updatedAt: "2026-04-07T00:01:00Z"
-      },
+    const groupedThreadsNewestFirst: Thread[] = [
       {
         id: "t3",
         projectId: "p1",
         worktreeId: "w-feat",
         title: "Grouped thread B",
         agent: "gemini",
-        sortOrder: 2,
         createdAt: "2026-04-07T00:02:00Z",
         updatedAt: "2026-04-07T00:02:00Z"
+      },
+      {
+        id: "t2",
+        projectId: "p1",
+        worktreeId: "w-feat",
+        title: "Grouped thread A",
+        agent: "codex",
+        createdAt: "2026-04-07T00:01:00Z",
+        updatedAt: "2026-04-07T00:01:00Z"
       }
     ];
 
     wrapper = mount(ThreadSidebar, {
       props: {
-        threads: [primaryThread, ...groupedThreads],
+        threads: [primaryThread, ...groupedThreadsNewestFirst],
         activeThreadId: "t2",
         threadContexts: [
           makeThreadContext(defaultWorktree, [primaryThread]),
-          makeThreadContext(linkedWorktree, groupedThreads)
+          makeThreadContext(linkedWorktree, groupedThreadsNewestFirst)
         ],
         threadGroups: [linkedWorktree],
         defaultWorktreeId: "w-default"
       }
     });
-
-    const dragRows = wrapper.findAll('[data-testid="thread-row"]');
-    const dragHandles = wrapper.findAll('[data-testid="thread-drag-handle"]');
-    const dataTransfer = createDragData();
-
-    await dragHandles[1]!.trigger("dragstart", { dataTransfer });
-    await dragRows[2]!.trigger("dragenter", { dataTransfer });
 
     expect(
       wrapper
@@ -772,7 +600,7 @@ describe("ThreadSidebar", () => {
     ).toEqual(["Grouped thread B", "Grouped thread A"]);
   });
 
-  it("keeps extra same-worktree threads visible in local rendered order", () => {
+  it("keeps extra same-worktree threads visible in front of context threads", () => {
     const defaultWorktree: Worktree = {
       id: "w-default",
       projectId: "p1",
@@ -805,7 +633,6 @@ describe("ThreadSidebar", () => {
       worktreeId: "w-default",
       title: "Primary thread",
       agent: "claude",
-      sortOrder: 0,
       createdAt: "2026-04-07T00:00:00Z",
       updatedAt: "2026-04-07T00:00:00Z"
     };
@@ -815,7 +642,6 @@ describe("ThreadSidebar", () => {
       worktreeId: "w-feat",
       title: "Grouped thread A",
       agent: "codex",
-      sortOrder: 1,
       createdAt: "2026-04-07T00:01:00Z",
       updatedAt: "2026-04-07T00:01:00Z"
     };
@@ -825,7 +651,6 @@ describe("ThreadSidebar", () => {
       worktreeId: "w-feat",
       title: "Grouped thread B",
       agent: "gemini",
-      sortOrder: 2,
       createdAt: "2026-04-07T00:02:00Z",
       updatedAt: "2026-04-07T00:02:00Z"
     };
@@ -835,18 +660,17 @@ describe("ThreadSidebar", () => {
       worktreeId: "w-feat",
       title: "Hidden same-worktree thread",
       agent: "claude",
-      sortOrder: 3,
       createdAt: "2026-04-07T00:03:00Z",
       updatedAt: "2026-04-07T00:03:00Z"
     };
 
     wrapper = mount(ThreadSidebar, {
       props: {
-        threads: [primaryThread, groupedThreadOutsideContext, groupedThreadA, groupedThreadB],
+        threads: [primaryThread, groupedThreadOutsideContext, groupedThreadB, groupedThreadA],
         activeThreadId: "t2",
         threadContexts: [
           makeThreadContext(defaultWorktree, [primaryThread]),
-          makeThreadContext(linkedWorktree, [groupedThreadA, groupedThreadB])
+          makeThreadContext(linkedWorktree, [groupedThreadB, groupedThreadA])
         ],
         threadGroups: [linkedWorktree],
         defaultWorktreeId: "w-default"
@@ -858,7 +682,7 @@ describe("ThreadSidebar", () => {
         .find('[data-testid="thread-group-threads-w-feat"]')
         .findAll('[data-testid="thread-select"]')
         .map((node) => node.text())
-    ).toEqual(["Hidden same-worktree thread", "Grouped thread A", "Grouped thread B"]);
+    ).toEqual(["Hidden same-worktree thread", "Grouped thread B", "Grouped thread A"]);
   });
 
   it("appends fallback groups for threads whose worktree is missing from threadContexts entirely", () => {
@@ -894,7 +718,6 @@ describe("ThreadSidebar", () => {
       worktreeId: "w-default",
       title: "Primary thread",
       agent: "claude",
-      sortOrder: 0,
       createdAt: "2026-04-07T00:00:00Z",
       updatedAt: "2026-04-07T00:00:00Z"
     };
@@ -904,7 +727,6 @@ describe("ThreadSidebar", () => {
       worktreeId: "w-feat",
       title: "Grouped thread",
       agent: "codex",
-      sortOrder: 1,
       createdAt: "2026-04-07T00:01:00Z",
       updatedAt: "2026-04-07T00:01:00Z"
     };
@@ -914,7 +736,6 @@ describe("ThreadSidebar", () => {
       worktreeId: "w-untracked",
       title: "Recovered fallback thread",
       agent: "gemini",
-      sortOrder: 2,
       createdAt: "2026-04-07T00:02:00Z",
       updatedAt: "2026-04-07T00:02:00Z"
     };
@@ -961,7 +782,6 @@ describe("ThreadSidebar", () => {
       worktreeId: "w-default",
       title: "Primary thread",
       agent: "claude",
-      sortOrder: 0,
       createdAt: "2026-04-07T00:00:00Z",
       updatedAt: "2026-04-07T00:00:00Z"
     };
@@ -971,7 +791,6 @@ describe("ThreadSidebar", () => {
       worktreeId: "w-feat",
       title: "Grouped thread",
       agent: "codex",
-      sortOrder: 1,
       createdAt: "2026-04-07T00:01:00Z",
       updatedAt: "2026-04-07T00:01:00Z"
     };
@@ -1026,7 +845,6 @@ describe("ThreadSidebar", () => {
       worktreeId: "w-default",
       title: "Primary thread",
       agent: "claude",
-      sortOrder: 0,
       createdAt: "2026-04-07T00:00:00Z",
       updatedAt: "2026-04-07T00:00:00Z"
     };
@@ -1036,7 +854,6 @@ describe("ThreadSidebar", () => {
       worktreeId: "w-feat",
       title: "Grouped thread",
       agent: "codex",
-      sortOrder: 1,
       createdAt: "2026-04-07T00:01:00Z",
       updatedAt: "2026-04-07T00:01:00Z"
     };
@@ -1111,7 +928,6 @@ describe("ThreadSidebar", () => {
       worktreeId: "w-default",
       title: "Primary thread",
       agent: "claude",
-      sortOrder: 0,
       createdAt: "2026-04-07T00:00:00Z",
       updatedAt: "2026-04-07T00:00:00Z"
     };
@@ -1121,7 +937,6 @@ describe("ThreadSidebar", () => {
       worktreeId: "w-feat",
       title: "Grouped thread",
       agent: "codex",
-      sortOrder: 1,
       createdAt: "2026-04-07T00:01:00Z",
       updatedAt: "2026-04-07T00:01:00Z"
     };
@@ -1181,7 +996,7 @@ describe("ThreadSidebar", () => {
     ).toBe("none");
   });
 
-  it("preserves reorder hooks inside collapsed grouped popovers", async () => {
+  it("lists threads in collapsed group popovers without drag handles", async () => {
     const worktree: Worktree = {
       id: "w-feat",
       projectId: "p1",
@@ -1202,7 +1017,6 @@ describe("ThreadSidebar", () => {
         worktreeId: "w-feat",
         title: "Grouped thread A",
         agent: "codex",
-        sortOrder: 0,
         createdAt: "2026-04-07T00:01:00Z",
         updatedAt: "2026-04-07T00:01:00Z"
       },
@@ -1212,7 +1026,6 @@ describe("ThreadSidebar", () => {
         worktreeId: "w-feat",
         title: "Grouped thread B",
         agent: "gemini",
-        sortOrder: 1,
         createdAt: "2026-04-07T00:02:00Z",
         updatedAt: "2026-04-07T00:02:00Z"
       }
@@ -1233,17 +1046,10 @@ describe("ThreadSidebar", () => {
       .get('[data-testid="thread-group-section-w-feat"] [data-testid="thread-group-collapsed-trigger"]')
       .trigger("click");
 
-    const handles = document.querySelectorAll(
-      '[data-testid="thread-group-collapsed-popover"] [data-testid="thread-drag-handle"]'
-    );
-    expect(handles).toHaveLength(2);
-
-    handles[0]!.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
-    await nextTick();
-
-    expect(wrapper.emitted("reorder")).toEqual([
-      [{ worktreeId: "w-feat", orderedThreadIds: ["t3", "t2"] }]
-    ]);
+    const popover = document.querySelector('[data-testid="thread-group-collapsed-popover"]');
+    expect(popover).not.toBeNull();
+    expect(popover?.querySelectorAll('[data-testid="thread-drag-handle"]')).toHaveLength(0);
+    expect(popover?.querySelectorAll('[data-testid="thread-row"]')).toHaveLength(2);
   });
 
   it("hides stale worktree callouts when the sidebar is collapsed", () => {
@@ -1270,7 +1076,6 @@ describe("ThreadSidebar", () => {
             worktreeId: "w-feat",
             title: "Grouped thread",
             agent: "codex",
-            sortOrder: 0,
             createdAt: "2026-04-07T00:01:00Z",
             updatedAt: "2026-04-07T00:01:00Z"
           }
@@ -1311,7 +1116,6 @@ describe("ThreadSidebar", () => {
             worktreeId: "w-feat",
             title: "Grouped thread",
             agent: "codex",
-            sortOrder: 0,
             createdAt: "2026-04-07T00:01:00Z",
             updatedAt: "2026-04-07T00:01:00Z"
           }
@@ -1357,7 +1161,6 @@ describe("ThreadSidebar", () => {
             worktreeId: "w-feat",
             title: "Grouped thread",
             agent: "codex",
-            sortOrder: 0,
             createdAt: "2026-04-07T00:01:00Z",
             updatedAt: "2026-04-07T00:01:00Z"
           }
@@ -1401,7 +1204,6 @@ describe("ThreadSidebar", () => {
             worktreeId: "w-feat",
             title: "Grouped thread",
             agent: "codex",
-            sortOrder: 0,
             createdAt: "2026-04-07T00:01:00Z",
             updatedAt: "2026-04-07T00:01:00Z"
           }
@@ -1426,27 +1228,65 @@ describe("ThreadSidebar", () => {
     expect(document.querySelectorAll('[data-testid="thread-group-collapsed-popover"] [data-testid="thread-row"]')).toHaveLength(1);
   });
 
-  it("restores the original order and does not emit reorder when drag is canceled", async () => {
+  it("shows 12 threads with Show more, then full list with Show less", async () => {
+    const manyThreads: Thread[] = Array.from({ length: 13 }, (_, i) => ({
+      id: `t${i + 1}`,
+      projectId: "p1",
+      worktreeId: "w1",
+      title: `Thread ${i + 1}`,
+      agent: "claude",
+      createdAt: `2026-04-05T00:${String(i).padStart(2, "0")}:00.000Z`,
+      updatedAt: `2026-04-05T00:${String(i).padStart(2, "0")}:00.000Z`
+    }));
+
     wrapper = mount(ThreadSidebar, {
       props: {
-        threads: reorderedThreads,
-        activeThreadId: "t1"
+        threads: manyThreads,
+        activeThreadId: "t1",
+        defaultWorktreeId: "w1"
       }
     });
 
-    const dragRows = wrapper.findAll('[data-testid="thread-row"]');
-    const dragHandles = wrapper.findAll('[data-testid="thread-drag-handle"]');
-    const dataTransfer = createDragData();
+    const list = wrapper.get('[data-testid="thread-group-threads-w1"]');
+    expect(list.findAll('[data-testid="thread-row"]')).toHaveLength(12);
+    expect(wrapper.find('[data-testid="thread-group-show-more-w1"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="thread-group-show-less-w1"]').exists()).toBe(false);
 
-    await dragHandles[0]!.trigger("dragstart", { dataTransfer });
-    await dragRows[2]!.trigger("dragenter", { dataTransfer });
-    await dragHandles[0]!.trigger("dragend", { dataTransfer });
+    await wrapper.get('[data-testid="thread-group-show-more-w1"]').trigger("click");
+    await nextTick();
 
-    expect(wrapper.emitted("reorder")).toBeUndefined();
-    expect(wrapper.findAll('[data-testid="thread-select"]').map((node) => node.text())).toEqual([
-      "Codex CLI · test",
-      "Claude Code · docs",
-      "Gemini CLI · review"
-    ]);
+    expect(list.findAll('[data-testid="thread-row"]')).toHaveLength(13);
+    expect(wrapper.find('[data-testid="thread-group-show-more-w1"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="thread-group-show-less-w1"]').exists()).toBe(true);
+
+    await wrapper.get('[data-testid="thread-group-show-less-w1"]').trigger("click");
+    await nextTick();
+
+    expect(list.findAll('[data-testid="thread-row"]')).toHaveLength(12);
+    expect(wrapper.find('[data-testid="thread-group-show-more-w1"]').exists()).toBe(true);
+  });
+
+  it("auto-expands the thread list when the active thread is past the 12th row", async () => {
+    const manyThreads: Thread[] = Array.from({ length: 13 }, (_, i) => ({
+      id: `t${i + 1}`,
+      projectId: "p1",
+      worktreeId: "w1",
+      title: `Thread ${i + 1}`,
+      agent: "claude",
+      createdAt: `2026-04-05T00:${String(i).padStart(2, "0")}:00.000Z`,
+      updatedAt: `2026-04-05T00:${String(i).padStart(2, "0")}:00.000Z`
+    }));
+
+    wrapper = mount(ThreadSidebar, {
+      props: {
+        threads: manyThreads,
+        activeThreadId: "t13",
+        defaultWorktreeId: "w1"
+      }
+    });
+
+    const list = wrapper.get('[data-testid="thread-group-threads-w1"]');
+    expect(list.findAll('[data-testid="thread-row"]')).toHaveLength(13);
+    expect(wrapper.find('[data-testid="thread-group-show-less-w1"]').exists()).toBe(true);
   });
 });

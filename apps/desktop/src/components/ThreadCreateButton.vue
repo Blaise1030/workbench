@@ -484,7 +484,7 @@ defineExpose({ openMenu: openOverlay });
                   :class="
                     cn(
                       badgeVariants({ variant: 'secondary' }),
-                      'inline-flex h-7 max-w-[16rem] shrink-0 items-stretch gap-0.5 rounded-full border-border/60 bg-muted/70 py-0 pr-0.5 pl-1.5 text-xs shadow-none'
+                      'inline-flex h-7 max-w-none shrink-0 items-stretch gap-0.5 rounded-full border-border/60 bg-muted/70 py-0 pr-0.5 pl-1.5 text-xs shadow-none'
                     )
                   "
                   :title="a.path"
@@ -494,8 +494,8 @@ defineExpose({ openMenu: openOverlay });
                       class="shrink-0 text-[13px] leading-none"
                       aria-hidden="true"
                     >{{ attachmentEmoji(a.name, a.isImage) }}</span>
-                    <span class="min-w-0 truncate font-medium text-foreground">{{
-                      a.name
+                    <span class="whitespace-nowrap font-mono text-[11px] font-medium text-foreground">{{
+                      a.path
                     }}</span>
                   </span>
                   <Button
@@ -503,7 +503,7 @@ defineExpose({ openMenu: openOverlay });
                     variant="ghost"
                     size="icon-xs"
                     class="size-6 shrink-0 rounded-full text-muted-foreground hover:bg-background/80 hover:text-destructive"
-                    :aria-label="`Remove ${a.name}`"
+                    :aria-label="`Remove attached file ${a.path}`"
                     @click="removeFileAttachment(a.id)"
                   >
                     <X class="size-3" aria-hidden="true" />

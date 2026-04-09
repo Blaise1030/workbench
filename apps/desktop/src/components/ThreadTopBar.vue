@@ -3,7 +3,7 @@ import { PanelLeftClose, PanelLeftOpen } from "lucide-vue-next";
 import Badge from "@/components/ui/Badge.vue";
 import Button from "@/components/ui/Button.vue";
 import WorkbenchLogoMark from "@/components/WorkbenchLogoMark.vue";
-import { APP_BRAND_BADGE, APP_DISPLAY_NAME, APP_PRERELEASE_BADGE } from "@/constants/appMeta";
+import { APP_BRAND_BADGE, APP_PRERELEASE_BADGE } from "@/constants/appMeta";
 import { titleWithShortcut } from "@/keybindings/registry";
 
 withDefaults(
@@ -15,7 +15,7 @@ withDefaults(
     /** Active worktree label (Primary/linked name); sr-only when sidebar is collapsed. */
     contextLabel?: string | null;
   }>(),
-  { title: APP_DISPLAY_NAME, collapsed: false, contextLabel: null }
+  { title: APP_BRAND_BADGE, collapsed: false, contextLabel: null }
 );
 
 const emit = defineEmits<{
@@ -55,7 +55,7 @@ const emit = defineEmits<{
       <WorkbenchLogoMark variant="md" />
        <span
           class="font-app-brand-title block min-w-0 truncate text-base uppercase leading-none text-sidebar-foreground"
-          data-testid="app-title-a11y"
+          data-testid="thread-topbar-brand-badge"
         >{{ title }}</span>             
          <Badge
            variant="outline"

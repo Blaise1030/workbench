@@ -41,7 +41,6 @@ import type {
   DeleteThreadInput,
   FileDiffScope,
   RemoveProjectInput,
-  ReorderThreadsInput,
   RepoScmSnapshot,
   RepoStatusEntry,
   RenameThreadInput,
@@ -575,6 +574,13 @@ async function handleRemoveProject(projectId: string): Promise<void> {
   await refreshRepoStatus();
 }
 
+async function handleReorderProjects(orderedProjectIds: string[]): Promise<void> {
+  const api = getApi();
+  if (!api?.reorderProjects) return;
+  await api.reorderProjects({ orderedProjectIds });
+  await refreshSnapshot();
+}
+
 async function handleSelectWorktree(worktreeId: string): Promise<boolean> {
   const api = getApi();
   if (!api) return false;
@@ -684,25 +690,6 @@ async function handleRenameThread(threadId: string, newTitle: string): Promise<v
   const payload: RenameThreadInput = { threadId, title: newTitle };
   await api.renameThread(payload);
   await refreshSnapshot();
-}
-
-async function handleReorderThreads(payload: {
-  worktreeId: string;
-  orderedThreadIds: string[];
-}): Promise<void> {
-  const api = getApi();
-  const { worktreeId, orderedThreadIds } = payload;
-  if (!api || !worktreeId || orderedThreadIds.length === 0) return;
-
-  workspace.reorderThreadsLocal(worktreeId, orderedThreadIds);
-
-  try {
-    const reorderPayload: ReorderThreadsInput = { worktreeId, orderedThreadIds };
-    await api.reorderThreads(reorderPayload);
-    await refreshSnapshot();
-  } catch {
-    await refreshSnapshot();
-  }
 }
 
 async function handleAddThreadToGroup(worktreeId: string, payload: ThreadCreateWithAgentPayload): Promise<void> {
@@ -1247,6 +1234,7 @@ watch(
       :active-project-id="workspace.activeProjectId"
       @select="handleSelectProject"
       @remove="handleRemoveProject"
+      @reorder="handleReorderProjects"
       @create="handleCreateProject"
       @configure-commands="handleConfigureCommands"
     />
@@ -1289,6 +1277,7 @@ watch(
           :run-status-by-thread-id="ptyRunStatusByThreadId"
           :idle-attention-by-thread-id="ptyIdleAttentionByThreadId"
           :thread-groups="workspace.threadGroups"
+          :thread-contexts="workspace.threadContexts"
           :default-worktree-id="workspace.defaultWorktree?.id ?? null"
           :stale-worktree-ids="staleWorktreeIds"
           :show-branch-picker="showBranchPicker"
@@ -1300,7 +1289,6 @@ watch(
           @select="handleSelectThread"
           @remove="handleRemoveThread"
           @rename="handleRenameThread"
-          @reorder="handleReorderThreads"
           @collapse="threadsSidebarCollapsed = true"
           @expand="threadsSidebarCollapsed = false"
         />
@@ -1316,6 +1304,7 @@ watch(
           :active-project-id="workspace.activeProjectId"
           @select="handleSelectProject"
           @remove="handleRemoveProject"
+          @reorder="handleReorderProjects"
           @create="handleCreateProject"
           @configure-commands="handleConfigureCommands"
         />

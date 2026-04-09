@@ -162,6 +162,7 @@ function makeSnapshot(threadTitles: string | string[]): WorkspaceSnapshot {
         name: "instrument",
         repoPath: "/tmp/instrument",
         status: "idle",
+        tabOrder: 0,
         createdAt: "2026-04-06T00:00:00.000Z",
         updatedAt: "2026-04-06T00:00:00.000Z"
       }
@@ -185,7 +186,6 @@ function makeSnapshot(threadTitles: string | string[]): WorkspaceSnapshot {
       worktreeId: "worktree-1",
       title,
       agent: "codex",
-      sortOrder: index,
       createdAt: "2026-04-06T00:00:00.000Z",
       updatedAt: "2026-04-06T00:00:00.000Z"
     })),
@@ -203,6 +203,7 @@ function makeMultiWorktreeSnapshot(): WorkspaceSnapshot {
         name: "instrument",
         repoPath: "/tmp/instrument",
         status: "idle",
+        tabOrder: 0,
         createdAt: "2026-04-06T00:00:00.000Z",
         updatedAt: "2026-04-06T00:00:00.000Z",
         lastActiveWorktreeId: "worktree-1"
@@ -241,7 +242,6 @@ function makeMultiWorktreeSnapshot(): WorkspaceSnapshot {
         worktreeId: "worktree-1",
         title: "Primary thread",
         agent: "codex",
-        sortOrder: 0,
         createdAt: "2026-04-06T00:00:00.000Z",
         updatedAt: "2026-04-06T00:00:00.000Z"
       },
@@ -251,9 +251,8 @@ function makeMultiWorktreeSnapshot(): WorkspaceSnapshot {
         worktreeId: "worktree-2",
         title: "Feature thread",
         agent: "codex",
-        sortOrder: 1,
-        createdAt: "2026-04-06T00:00:00.000Z",
-        updatedAt: "2026-04-06T00:00:00.000Z"
+        createdAt: "2026-04-06T00:00:01.000Z",
+        updatedAt: "2026-04-06T00:00:01.000Z"
       },
       {
         id: "thread-3",
@@ -261,9 +260,8 @@ function makeMultiWorktreeSnapshot(): WorkspaceSnapshot {
         worktreeId: "worktree-2",
         title: "Second feature thread",
         agent: "codex",
-        sortOrder: 2,
-        createdAt: "2026-04-06T00:00:00.000Z",
-        updatedAt: "2026-04-06T00:00:00.000Z"
+        createdAt: "2026-04-06T00:00:02.000Z",
+        updatedAt: "2026-04-06T00:00:02.000Z"
       }
     ],
     activeProjectId: "project-1",
@@ -627,85 +625,6 @@ describe("WorkspaceLayout", () => {
     expect(wrapper.text()).toContain("Create your first thread");
   });
 
-  it("persists reordered active-worktree threads and then accepts the refreshed snapshot order", async () => {
-    const { default: WorkspaceLayout } = await import("../WorkspaceLayout.vue");
-    const initialSnapshot = makeSnapshot(["First", "Second"]);
-    const refreshedSnapshot = makeSnapshot(["Server Second", "Server First"]);
-    const getSnapshot = vi
-      .fn<WorkspaceApi["getSnapshot"]>()
-      .mockResolvedValueOnce(initialSnapshot)
-      .mockResolvedValueOnce(refreshedSnapshot);
-    const changedFiles = vi.fn<WorkspaceApi["changedFiles"]>().mockResolvedValue([]);
-    let resolveReorder: (() => void) | undefined;
-    const reorderThreads = vi.fn<WorkspaceApi["reorderThreads"]>(
-      () =>
-        new Promise<void>((resolve) => {
-          resolveReorder = resolve;
-        })
-    );
-
-    window.workspaceApi = {
-      getSnapshot,
-      reorderThreads,
-      changedFiles,
-      isGitRepository: vi.fn().mockResolvedValue(true),
-      addProject: vi.fn(),
-      addWorktree: vi.fn(),
-      setActive: vi.fn(),
-      createThread: vi.fn(),
-      setActiveThread: vi.fn(),
-      deleteThread: vi.fn(),
-      renameThread: vi.fn(),
-      startRun: vi.fn(),
-      sendRunInput: vi.fn(),
-      interruptRun: vi.fn(),
-      fileDiff: vi.fn(),
-      stageAll: vi.fn(),
-      discardAll: vi.fn(),
-      listFiles: vi.fn(),
-      searchFiles: vi.fn(),
-      readFile: vi.fn(),
-      writeFile: vi.fn(),
-      createFile: vi.fn(),
-      deleteFile: vi.fn(),
-      createFolder: vi.fn(),
-      deleteFolder: vi.fn(),
-      applyPatch: vi.fn(),
-      ptyCreate: vi.fn().mockResolvedValue({ buffer: "" }),
-      ptyWrite: vi.fn(),
-      ptyResize: vi.fn(),
-      ptyKill: vi.fn(),
-      onPtyData: vi.fn(() => () => {}),
-      pickRepoDirectory: vi.fn(),
-      onWorkspaceChanged: vi.fn(() => () => {}),
-      onWorkingTreeFilesChanged: vi.fn(() => () => {})
-    };
-
-    const wrapper = mount(WorkspaceLayout, {
-      global: {
-        plugins: [createPinia()]
-      }
-    });
-
-    await flushPromises();
-    expect(wrapper.get('[data-testid="thread-sidebar"]').text()).toBe("First|Second");
-
-    await wrapper.get('[data-testid="thread-sidebar-reorder"]').trigger("click");
-    await flushPromises();
-
-    expect(reorderThreads).toHaveBeenCalledWith({
-      worktreeId: "worktree-1",
-      orderedThreadIds: ["thread-2", "thread-1"]
-    });
-    expect(wrapper.get('[data-testid="thread-sidebar"]').text()).toBe("Second|First");
-
-    resolveReorder?.();
-    await flushPromises();
-
-    expect(getSnapshot).toHaveBeenCalledTimes(2);
-    expect(wrapper.get('[data-testid="thread-sidebar"]').text()).toBe("Server Second|Server First");
-  });
-
   it("switches projects by asking the backend to restore the remembered worktree and thread", async () => {
     const { default: WorkspaceLayout } = await import("../WorkspaceLayout.vue");
     const snapshot = makeSnapshot("Codex CLI");
@@ -728,7 +647,6 @@ describe("WorkspaceLayout", () => {
       setActiveThread: vi.fn(),
       deleteThread: vi.fn(),
       renameThread: vi.fn(),
-      reorderThreads: vi.fn(),
       startRun: vi.fn(),
       sendRunInput: vi.fn(),
       interruptRun: vi.fn(),
@@ -793,7 +711,6 @@ describe("WorkspaceLayout", () => {
       setActiveThread: vi.fn(),
       deleteThread: vi.fn(),
       renameThread: vi.fn(),
-      reorderThreads: vi.fn(),
       startRun: vi.fn(),
       sendRunInput: vi.fn(),
       interruptRun: vi.fn(),
@@ -862,7 +779,6 @@ describe("WorkspaceLayout", () => {
       setActiveThread,
       deleteThread: vi.fn(),
       renameThread: vi.fn(),
-      reorderThreads: vi.fn(),
       startRun: vi.fn(),
       sendRunInput: vi.fn(),
       interruptRun: vi.fn(),
@@ -932,7 +848,6 @@ describe("WorkspaceLayout", () => {
       setActiveThread,
       deleteThread: vi.fn(),
       renameThread: vi.fn(),
-      reorderThreads: vi.fn(),
       startRun: vi.fn(),
       sendRunInput: vi.fn(),
       interruptRun: vi.fn(),
@@ -1006,7 +921,6 @@ describe("WorkspaceLayout", () => {
       setActiveThread: vi.fn(),
       deleteThread: vi.fn(),
       renameThread: vi.fn(),
-      reorderThreads: vi.fn(),
       startRun: vi.fn(),
       sendRunInput: vi.fn(),
       interruptRun: vi.fn(),
@@ -1067,7 +981,6 @@ describe("WorkspaceLayout", () => {
       setActiveThread: vi.fn(),
       deleteThread: vi.fn(),
       renameThread: vi.fn(),
-      reorderThreads: vi.fn(),
       startRun: vi.fn(),
       sendRunInput: vi.fn(),
       interruptRun: vi.fn(),
@@ -1152,7 +1065,6 @@ describe("WorkspaceLayout", () => {
       setActiveThread: vi.fn(),
       deleteThread: vi.fn(),
       renameThread: vi.fn(),
-      reorderThreads: vi.fn(),
       startRun: vi.fn(),
       sendRunInput: vi.fn(),
       interruptRun: vi.fn(),
@@ -1268,6 +1180,7 @@ describe("WorkspaceLayout", () => {
           name: "instrument",
           repoPath: "/tmp/instrument",
           status: "idle",
+          tabOrder: 0,
           createdAt: "2026-04-06T00:00:00.000Z",
           updatedAt: "2026-04-06T00:00:00.000Z"
         },
@@ -1276,6 +1189,7 @@ describe("WorkspaceLayout", () => {
           name: "posthog-client",
           repoPath: "/tmp/posthog-client",
           status: "idle",
+          tabOrder: 1,
           createdAt: "2026-04-06T00:00:00.000Z",
           updatedAt: "2026-04-06T00:00:00.000Z"
         }
@@ -1315,7 +1229,6 @@ describe("WorkspaceLayout", () => {
           worktreeId: "worktree-1",
           title: "Codex CLI",
           agent: "codex",
-          sortOrder: 0,
           createdAt: "2026-04-06T00:00:00.000Z",
           updatedAt: "2026-04-06T00:00:00.000Z"
         },
@@ -1325,7 +1238,6 @@ describe("WorkspaceLayout", () => {
           worktreeId: "worktree-2",
           title: "Other workspace",
           agent: "codex",
-          sortOrder: 0,
           createdAt: "2026-04-06T00:00:00.000Z",
           updatedAt: "2026-04-06T00:00:00.000Z"
         }
@@ -1360,7 +1272,6 @@ describe("WorkspaceLayout", () => {
       addWorktree: vi.fn(),
       setActive: vi.fn(),
       createThread: vi.fn(),
-      reorderThreads: vi.fn(),
       setActiveThread: vi.fn(),
       deleteThread: vi.fn(),
       renameThread: vi.fn(),

@@ -4,6 +4,7 @@ CREATE TABLE IF NOT EXISTS projects (
   repo_path TEXT NOT NULL,
   status TEXT NOT NULL,
   last_active_worktree_id TEXT,
+  tab_order INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
@@ -29,14 +30,11 @@ CREATE TABLE IF NOT EXISTS threads (
   worktree_id TEXT NOT NULL,
   title TEXT NOT NULL,
   agent TEXT NOT NULL,
-  sort_order INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
   FOREIGN KEY(project_id) REFERENCES projects(id),
   FOREIGN KEY(worktree_id) REFERENCES worktrees(id)
 );
-
-CREATE UNIQUE INDEX IF NOT EXISTS idx_threads_worktree_sort_order ON threads(worktree_id, sort_order);
 
 CREATE TABLE IF NOT EXISTS thread_sessions (
   thread_id TEXT PRIMARY KEY,

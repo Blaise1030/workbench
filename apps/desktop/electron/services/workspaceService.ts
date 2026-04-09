@@ -64,12 +64,17 @@ export class WorkspaceService {
       repoPath,
       status: "idle",
       lastActiveWorktreeId: null,
+      tabOrder: this.store.nextProjectTabOrder(),
       createdAt: now,
       updatedAt: now
     };
     this.store.upsertProject(project);
     this.store.setActiveState(project.id, null, null);
     return project;
+  }
+
+  reorderProjects(orderedProjectIds: string[]): void {
+    this.store.reorderProjects(orderedProjectIds);
   }
 
   removeProject(projectId: string): void {
@@ -104,7 +109,6 @@ export class WorkspaceService {
       worktreeId: input.worktreeId,
       title: input.title,
       agent: input.agent,
-      sortOrder: this.store.prependThreadSortOrderForWorktree(input.worktreeId),
       createdAt: now,
       updatedAt: now
     };
@@ -184,10 +188,6 @@ export class WorkspaceService {
 
   setActive(projectId: string | null, worktreeId: string | null, threadId: string | null): void {
     this.store.setActiveState(projectId, worktreeId, threadId);
-  }
-
-  reorderThreads(worktreeId: string, orderedThreadIds: string[]): void {
-    this.store.reorderThreads(worktreeId, orderedThreadIds);
   }
 
   async createWorktreeGroup(input: CreateWorktreeGroupInput): Promise<Worktree> {

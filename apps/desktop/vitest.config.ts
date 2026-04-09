@@ -14,6 +14,7 @@ export default defineConfig({
   test: {
     environment: "jsdom",
     globals: true,
+    setupFiles: [fileURLToPath(new URL("./src/test/setup.ts", import.meta.url))],
     include: ["src/**/*.test.ts", "electron/**/*.test.ts"]
   }
 });

@@ -90,6 +90,7 @@ describe("ProjectTabs", () => {
       name: "Project One",
       repoPath: "/tmp/project-one",
       status: "idle",
+      tabOrder: 0,
       createdAt: "2026-04-05T00:00:00.000Z",
       updatedAt: "2026-04-05T00:00:00.000Z"
     },
@@ -98,6 +99,7 @@ describe("ProjectTabs", () => {
       name: "Project Two",
       repoPath: "/tmp/project-two",
       status: "idle",
+      tabOrder: 1,
       createdAt: "2026-04-05T00:00:00.000Z",
       updatedAt: "2026-04-05T00:00:00.000Z"
     }
@@ -129,7 +131,6 @@ describe("ProjectTabs", () => {
             worktreeId: "w2",
             title: "Side thread",
             agent: "claude",
-            sortOrder: 0,
             createdAt: "2026-04-05T00:00:00.000Z",
             updatedAt: "2026-04-05T00:00:00.000Z"
           }
@@ -279,5 +280,26 @@ describe("ProjectTabs", () => {
 
     expect(document.querySelector('[role="tooltip"]')).toBeNull();
     wrapper.unmount();
+  });
+
+  it("emits reorder when a tab is dropped on another slot", async () => {
+    const wrapper = mount(ProjectTabs, {
+      props: {
+        projects,
+        worktrees: [],
+        activeProjectId: "proj-1"
+      }
+    });
+    const dt = {
+      setData: vi.fn(),
+      getData: vi.fn(() => "proj-2"),
+      effectAllowed: "move"
+    };
+    await wrapper.get('[data-testid="project-tab-row-proj-2"]').trigger("dragstart", { dataTransfer: dt });
+    await wrapper.get('[data-testid="project-tab-row-proj-1"]').trigger("drop", {
+      dataTransfer: dt,
+      preventDefault: vi.fn()
+    });
+    expect(wrapper.emitted("reorder")?.[0]).toEqual([["proj-2", "proj-1"]]);
   });
 });

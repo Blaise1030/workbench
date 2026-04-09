@@ -7,6 +7,16 @@ import type { WorkspaceSnapshot } from "../../src/shared/ipc.js";
 const DEFAULT_DB_FILE = "workspace.db";
 type DatabaseInstance = import("better-sqlite3").Database;
 
+type ThreadTableRow = {
+  id: string;
+  projectId: string;
+  worktreeId: string;
+  title: string;
+  agent: Thread["agent"];
+  createdAt: string;
+  updatedAt: string;
+};
+
 export class WorkspaceStore {
   private db: DatabaseInstance;
 
@@ -18,22 +28,28 @@ export class WorkspaceStore {
   }
 
   migrate(schemaSql: string): void {
-    const schemaWithoutThreadSortOrderIndex = schemaSql.replace(
-      /^\s*CREATE UNIQUE INDEX IF NOT EXISTS idx_threads_worktree_sort_order ON threads\(worktree_id, sort_order\);\s*$/m,
+    const schemaWithoutLegacyThreadSortIndex = schemaSql.replace(
+      /^\s*CREATE UNIQUE INDEX IF NOT EXISTS idx_threads_worktree_sort_order ON threads\(worktree_id, sort_order\)(?:\s+WHERE\s+sort_order\s+IS\s+NOT\s+NULL)?;\s*$/m,
       ""
     );
-    this.db.exec(schemaWithoutThreadSortOrderIndex);
+    this.db.exec(schemaWithoutLegacyThreadSortIndex);
     const hasLastActiveWorktreeId = this.db
       .prepare("SELECT 1 FROM pragma_table_info('projects') WHERE name = 'last_active_worktree_id' LIMIT 1")
       .get();
     if (!hasLastActiveWorktreeId) {
       this.db.prepare("ALTER TABLE projects ADD COLUMN last_active_worktree_id TEXT").run();
     }
-    const hasSortOrder = this.db
-      .prepare("SELECT 1 FROM pragma_table_info('threads') WHERE name = 'sort_order' LIMIT 1")
+    const hasTabOrder = this.db
+      .prepare("SELECT 1 FROM pragma_table_info('projects') WHERE name = 'tab_order' LIMIT 1")
       .get();
-    if (!hasSortOrder) {
-      this.db.prepare("ALTER TABLE threads ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0").run();
+    if (!hasTabOrder) {
+      this.db.prepare("ALTER TABLE projects ADD COLUMN tab_order INTEGER NOT NULL DEFAULT 0").run();
+      const legacyOrder = this.db
+        .prepare("SELECT id FROM projects ORDER BY updated_at DESC, id ASC")
+        .all() as Array<{ id: string }>;
+      for (let i = 0; i < legacyOrder.length; i++) {
+        this.db.prepare("UPDATE projects SET tab_order = ? WHERE id = ?").run(i, legacyOrder[i].id);
+      }
     }
     const hasIsDefault = this.db
       .prepare("SELECT 1 FROM pragma_table_info('worktrees') WHERE name = 'is_default' LIMIT 1")
@@ -64,15 +80,7 @@ export class WorkspaceStore {
     if (!hasLastActiveThreadId) {
       this.db.prepare("ALTER TABLE worktrees ADD COLUMN last_active_thread_id TEXT").run();
     }
-    const hasThreadSortOrderIndex = this.db
-      .prepare("SELECT 1 FROM pragma_index_list('threads') WHERE name = ? LIMIT 1")
-      .get("idx_threads_worktree_sort_order");
-    if (!hasThreadSortOrderIndex) {
-      this.backfillLegacyThreadSortOrders();
-      this.db
-        .prepare("CREATE UNIQUE INDEX idx_threads_worktree_sort_order ON threads(worktree_id, sort_order)")
-        .run();
-    }
+    this.migrateThreadsDropSortOrderIfNeeded();
     this.db
       .prepare(
         `UPDATE projects
@@ -118,40 +126,46 @@ export class WorkspaceStore {
       .run();
   }
 
-  /**
-   * Reserves sort_order 0 for a new thread by bumping existing rows (high → low) so the
-   * unique (worktree_id, sort_order) index is never violated.
-   */
-  prependThreadSortOrderForWorktree(worktreeId: string): number {
-    const tx = this.db.transaction((wtId: string) => {
-      const rows = this.db
-        .prepare(
-          `SELECT id FROM threads WHERE worktree_id = ?
-           ORDER BY sort_order DESC, created_at DESC, id DESC`
-        )
-        .all(wtId) as Array<{ id: string }>;
-      const bump = this.db.prepare(`UPDATE threads SET sort_order = sort_order + 1 WHERE id = ?`);
-      for (const row of rows) {
-        bump.run(row.id);
-      }
-    });
-    tx(worktreeId);
-    return 0;
-  }
-
   upsertProject(project: Project): void {
     this.db
       .prepare(
-        `INSERT INTO projects (id, name, repo_path, status, last_active_worktree_id, created_at, updated_at)
-         VALUES (@id, @name, @repoPath, @status, @lastActiveWorktreeId, @createdAt, @updatedAt)
+        `INSERT INTO projects (id, name, repo_path, status, last_active_worktree_id, tab_order, created_at, updated_at)
+         VALUES (@id, @name, @repoPath, @status, @lastActiveWorktreeId, @tabOrder, @createdAt, @updatedAt)
          ON CONFLICT(id) DO UPDATE SET
            name=excluded.name,
            repo_path=excluded.repo_path,
            status=excluded.status,
            last_active_worktree_id=excluded.last_active_worktree_id,
+           tab_order=excluded.tab_order,
            updated_at=excluded.updated_at`
       )
       .run({ ...project, lastActiveWorktreeId: project.lastActiveWorktreeId ?? null });
+  }
+
+  /** Next tab order for a new project (left of existing tabs, matching prior MRU-first ordering). */
+  nextProjectTabOrder(): number {
+    const row = this.db.prepare("SELECT MIN(tab_order) AS m FROM projects").get() as { m: number | null } | undefined;
+    const min = row?.m;
+    return min == null ? 0 : min - 1;
+  }
+
+  reorderProjects(orderedProjectIds: string[]): void {
+    const existing = this.db.prepare("SELECT id FROM projects").all() as Array<{ id: string }>;
+    const idSet = new Set(existing.map((r) => r.id));
+    if (orderedProjectIds.length !== idSet.size) {
+      throw new Error("reorderProjects: ordered list must include each project exactly once");
+    }
+    for (const id of orderedProjectIds) {
+      if (!idSet.has(id)) {
+        throw new Error(`reorderProjects: unknown project id ${id}`);
+      }
+    }
+    const tx = this.db.transaction((ids: string[]) => {
+      for (let i = 0; i < ids.length; i++) {
+        this.db.prepare("UPDATE projects SET tab_order = ? WHERE id = ?").run(i, ids[i]);
+      }
+    });
+    tx(orderedProjectIds);
   }
 
   deleteProject(projectId: string): void {
@@ -161,7 +175,7 @@ export class WorkspaceStore {
           `SELECT id
            FROM projects
            WHERE id != ?
-           ORDER BY updated_at DESC, id ASC`
+           ORDER BY tab_order ASC, id ASC`
         )
         .all(targetProjectId) as Array<{ id: string }>;
       const nextProjectId = remainingProjects[0]?.id ?? null;
@@ -180,16 +194,14 @@ export class WorkspaceStore {
         : null;
       const nextThreadId = nextWorktreeId
         ? (
-            this.db
-              .prepare(
-                `SELECT id
-                 FROM threads
-                 WHERE worktree_id = ?
-                 ORDER BY sort_order ASC, created_at ASC, id ASC
-                 LIMIT 1`
-              )
-              .get(nextWorktreeId) as { id: string } | undefined
-          )?.id ?? null
+            (
+              this.db
+                .prepare(
+                  `SELECT id FROM threads WHERE worktree_id = ? ORDER BY created_at DESC, id ASC LIMIT 1`
+                )
+                .get(nextWorktreeId) as { id: string } | undefined
+            )?.id ?? null
+          )
         : null;
 
       this.db
@@ -245,20 +257,26 @@ export class WorkspaceStore {
   }
 
   upsertThread(thread: Thread): void {
-    const sortOrder = thread.sortOrder ?? 0;
     this.db
       .prepare(
-        `INSERT INTO threads (id, project_id, worktree_id, title, agent, sort_order, created_at, updated_at)
-         VALUES (@id, @projectId, @worktreeId, @title, @agent, @sortOrder, @createdAt, @updatedAt)
+        `INSERT INTO threads (id, project_id, worktree_id, title, agent, created_at, updated_at)
+         VALUES (@id, @projectId, @worktreeId, @title, @agent, @createdAt, @updatedAt)
          ON CONFLICT(id) DO UPDATE SET
            project_id=excluded.project_id,
            worktree_id=excluded.worktree_id,
            title=excluded.title,
            agent=excluded.agent,
-           sort_order=excluded.sort_order,
            updated_at=excluded.updated_at`
       )
-      .run({ ...thread, sortOrder });
+      .run({
+        id: thread.id,
+        projectId: thread.projectId,
+        worktreeId: thread.worktreeId,
+        title: thread.title,
+        agent: thread.agent,
+        createdAt: thread.createdAt,
+        updatedAt: thread.updatedAt
+      });
   }
 
   upsertThreadSession(threadSession: ThreadSession): void {
@@ -348,35 +366,6 @@ export class WorkspaceStore {
       .all() as ThreadSession[];
   }
 
-  reorderThreads(worktreeId: string, orderedThreadIds: string[]): void {
-    const threadRows = this.db
-      .prepare("SELECT id FROM threads WHERE worktree_id = ? ORDER BY id ASC")
-      .all(worktreeId) as Array<{ id: string }>;
-    const existingThreadIds = threadRows.map((row) => row.id);
-    const existingThreadIdSet = new Set(existingThreadIds);
-    const orderedThreadIdSet = new Set(orderedThreadIds);
-    const duplicateCount = orderedThreadIds.length - orderedThreadIdSet.size;
-    const missingThreadIds = existingThreadIds.filter((threadId) => !orderedThreadIdSet.has(threadId));
-    const unexpectedThreadIds = orderedThreadIds.filter((threadId) => !existingThreadIdSet.has(threadId));
-    if (duplicateCount > 0 || missingThreadIds.length > 0 || unexpectedThreadIds.length > 0) {
-      throw new Error(
-        `orderedThreadIds must be a full permutation of the worktree's thread ids; missing=[${missingThreadIds.join(", ")}] unexpected=[${unexpectedThreadIds.join(", ")}] duplicates=${duplicateCount}`
-      );
-    }
-
-    const getMaxSortOrder = this.db.prepare("SELECT COALESCE(MAX(sort_order), -1) AS maxVal FROM threads WHERE worktree_id = ?");
-    const shiftSortOrder = this.db.prepare("UPDATE threads SET sort_order = sort_order + ? WHERE worktree_id = ?");
-    const updateSortOrder = this.db.prepare("UPDATE threads SET sort_order = ? WHERE worktree_id = ? AND id = ?");
-    const reorder = this.db.transaction((targetWorktreeId: string, threadIds: string[]) => {
-      const row = getMaxSortOrder.get(targetWorktreeId) as { maxVal: number };
-      shiftSortOrder.run(row.maxVal + 1, targetWorktreeId);
-      threadIds.forEach((threadId, index) => {
-        updateSortOrder.run(index, targetWorktreeId, threadId);
-      });
-    });
-    reorder(worktreeId, orderedThreadIds);
-  }
-
   deleteWorktreeGroup(worktreeId: string): void {
     const tx = this.db.transaction(() => {
       this.db
@@ -441,13 +430,12 @@ export class WorkspaceStore {
   }
 
   getThread(id: string): Thread | null {
-    return (
-      (this.db
-        .prepare(
-          "SELECT id, project_id AS projectId, worktree_id AS worktreeId, title, agent, sort_order AS sortOrder, created_at AS createdAt, updated_at AS updatedAt FROM threads WHERE id = ?"
-        )
-        .get(id) as Thread | undefined) ?? null
-    );
+    const row = this.db
+      .prepare(
+        "SELECT id, project_id AS projectId, worktree_id AS worktreeId, title, agent, created_at AS createdAt, updated_at AS updatedAt FROM threads WHERE id = ?"
+      )
+      .get(id) as ThreadTableRow | undefined;
+    return row ? WorkspaceStore.rowToThread(row) : null;
   }
 
   setActiveState(activeProjectId: string | null, activeWorktreeId: string | null, activeThreadId: string | null): void {
@@ -523,7 +511,7 @@ export class WorkspaceStore {
   getSnapshot(): WorkspaceSnapshot {
     const projects = this.db
       .prepare(
-        "SELECT id, name, repo_path AS repoPath, status, last_active_worktree_id AS lastActiveWorktreeId, created_at AS createdAt, updated_at AS updatedAt FROM projects ORDER BY updated_at DESC"
+        "SELECT id, name, repo_path AS repoPath, status, last_active_worktree_id AS lastActiveWorktreeId, tab_order AS tabOrder, created_at AS createdAt, updated_at AS updatedAt FROM projects ORDER BY tab_order ASC, id ASC"
       )
       .all() as Project[];
     const worktreeRows = this.db
@@ -532,11 +520,19 @@ export class WorkspaceStore {
       )
       .all() as Array<Omit<Worktree, "isActive" | "isDefault"> & { isActive: number | boolean; isDefault: number | boolean }>;
     const worktrees = worktreeRows.map((w) => ({ ...w, isActive: Boolean(w.isActive), isDefault: Boolean(w.isDefault), baseBranch: w.baseBranch ?? null })) as Worktree[];
-    const threads = this.db
+    const threadRows = this.db
       .prepare(
-        "SELECT id, project_id AS projectId, worktree_id AS worktreeId, title, agent, sort_order AS sortOrder, created_at AS createdAt, updated_at AS updatedAt FROM threads ORDER BY worktree_id ASC, sort_order ASC, created_at ASC, id ASC"
+        "SELECT id, project_id AS projectId, worktree_id AS worktreeId, title, agent, created_at AS createdAt, updated_at AS updatedAt FROM threads"
       )
-      .all() as Thread[];
+      .all() as ThreadTableRow[];
+    const threads = threadRows.map((row) => WorkspaceStore.rowToThread(row));
+    threads.sort((a, b) => {
+      const byWt = a.worktreeId.localeCompare(b.worktreeId);
+      if (byWt !== 0) return byWt;
+      const byCreated = b.createdAt.localeCompare(a.createdAt);
+      if (byCreated !== 0) return byCreated;
+      return a.id.localeCompare(b.id);
+    });
     const threadSessions = this.listThreadSessions();
     const active = this.db
       .prepare("SELECT active_project_id AS activeProjectId, active_worktree_id AS activeWorktreeId, active_thread_id AS activeThreadId FROM app_state WHERE id = 1")
@@ -553,23 +549,50 @@ export class WorkspaceStore {
     };
   }
 
-  private backfillLegacyThreadSortOrders(): void {
-    const rows = this.db
-      .prepare("SELECT id, worktree_id AS worktreeId FROM threads ORDER BY worktree_id ASC, sort_order ASC, created_at ASC, id ASC")
-      .all() as Array<{ id: string; worktreeId: string }>;
-    const updateThreadSortOrder = this.db.prepare("UPDATE threads SET sort_order = ? WHERE id = ?");
-    const assignSortOrders = this.db.transaction((threadRows: Array<{ id: string; worktreeId: string }>) => {
-      let activeWorktreeId: string | null = null;
-      let nextSortOrder = 0;
-      for (const row of threadRows) {
-        if (row.worktreeId !== activeWorktreeId) {
-          activeWorktreeId = row.worktreeId;
-          nextSortOrder = 0;
-        }
-        updateThreadSortOrder.run(nextSortOrder, row.id);
-        nextSortOrder += 1;
-      }
+  /** Legacy DBs: drop `sort_order` column and thread sort index; threads are ordered by `created_at` only. */
+  private migrateThreadsDropSortOrderIfNeeded(): void {
+    const col = this.db
+      .prepare("SELECT 1 FROM pragma_table_info('threads') WHERE name = 'sort_order' LIMIT 1")
+      .get();
+    if (!col) return;
+
+    this.db.exec("DROP INDEX IF EXISTS idx_threads_worktree_sort_order");
+    this.db.exec("PRAGMA foreign_keys = OFF");
+    const rebuild = this.db.transaction(() => {
+      this.db.exec(`
+        CREATE TABLE threads__no_sort (
+          id TEXT PRIMARY KEY,
+          project_id TEXT NOT NULL,
+          worktree_id TEXT NOT NULL,
+          title TEXT NOT NULL,
+          agent TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          FOREIGN KEY(project_id) REFERENCES projects(id),
+          FOREIGN KEY(worktree_id) REFERENCES worktrees(id)
+        )
+      `);
+      this.db.exec(`
+        INSERT INTO threads__no_sort (id, project_id, worktree_id, title, agent, created_at, updated_at)
+        SELECT id, project_id, worktree_id, title, agent, created_at, updated_at FROM threads
+      `);
+      this.db.exec("DROP TABLE threads");
+      this.db.exec("ALTER TABLE threads__no_sort RENAME TO threads");
+      this.db.exec("CREATE INDEX IF NOT EXISTS idx_threads_worktree_id ON threads(worktree_id)");
     });
-    assignSortOrders(rows);
+    rebuild();
+    this.db.exec("PRAGMA foreign_keys = ON");
+  }
+
+  private static rowToThread(row: ThreadTableRow): Thread {
+    return {
+      id: row.id,
+      projectId: row.projectId,
+      worktreeId: row.worktreeId,
+      title: row.title,
+      agent: row.agent,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt
+    };
   }
 }

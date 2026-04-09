@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { RunStatus, Thread } from "@shared/domain";
 import { computed, nextTick, ref } from "vue";
-import { GripVertical, MoreHorizontal, Pencil, Trash2 } from "lucide-vue-next";
+import { MoreHorizontal, Pencil, Trash2 } from "lucide-vue-next";
 import AgentIcon from "@/components/ui/AgentIcon.vue";
 import Button from "@/components/ui/Button.vue";
 import Input from "@/components/ui/Input.vue";
@@ -26,16 +26,11 @@ const props = withDefaults(
     runStatus?: RunStatus | null;
     /** PTY went idle in the background — row highlights until the user opens this thread. */
     needsIdleAttention?: boolean;
-    isDragging?: boolean;
-    isDragTarget?: boolean;
   }>(),
   { collapsed: false, needsIdleAttention: false }
 );
 
 const emit = defineEmits<{
-  (e: "dragstart", event: DragEvent): void;
-  (e: "dragend", event: DragEvent): void;
-  (e: "keyboard-reorder", direction: "up" | "down"): void;
   (e: "select"): void;
   (e: "remove"): void;
   (e: "rename", newTitle: string): void;
@@ -43,7 +38,6 @@ const emit = defineEmits<{
 
 const menuOpen = ref(false);
 const rowHovered = ref(false);
-const handleFocused = ref(false);
 const isEditing = ref(false);
 const editValue = ref("");
 const editInputRef = ref<InstanceType<typeof Input> | null>(null);
@@ -125,56 +119,23 @@ function handleDelete(): void {
   closeMenu();
   emit("remove");
 }
-
-function handleDragKeydown(event: KeyboardEvent): void {
-  if (event.key === "ArrowUp") {
-    event.preventDefault();
-    emit("keyboard-reorder", "up");
-  } else if (event.key === "ArrowDown") {
-    event.preventDefault();
-    emit("keyboard-reorder", "down");
-  }
-}
 </script>
 
 <template>
   <div
     data-testid="thread-row"
-    class="relative flex h-7 min-h-7 max-h-7 min-w-0 items-center gap-1.5 rounded-sm"
+    class="relative flex h-7 min-h-7 max-h-7 min-w-0 items-center gap-1.5 overflow-hidden rounded-sm"
     :class="[
       props.collapsed ? 'justify-center px-1.5' : 'pl-3 pr-2',
       props.needsIdleAttention
         ? 'bg-blue-500/12 ring-1 ring-blue-500/45 dark:bg-blue-400/14 dark:ring-blue-400/50'
         : isActive
           ? 'bg-accent'
-          : 'hover:bg-accent/50',
-      props.isDragging ? 'opacity-60' : '',
-      props.isDragTarget ? 'ring-1 ring-border/80' : ''
+          : 'hover:bg-accent/50'
     ]"
     @mouseenter="rowHovered = true"
     @mouseleave="rowHovered = false"
   >
-    <div
-      v-if="!collapsed"
-      data-testid="thread-drag-handle"
-      class="absolute right-6 top-1/2 z-10 flex h-4 w-4 -translate-y-1/2 items-center justify-center rounded text-muted-foreground transition-opacity hover:bg-accent hover:text-foreground active:cursor-grabbing focus:outline-none"
-      :class="[
-        props.isDragging ? 'cursor-grabbing opacity-100' : 'cursor-grab',
-        rowHovered || props.isDragging || handleFocused ? 'opacity-100' : 'pointer-events-none opacity-0'
-      ]"
-      role="button"
-      tabindex="0"
-      draggable="true"
-      aria-label="Reorder thread"
-      @focus="handleFocused = true"
-      @blur="handleFocused = false"
-      @dragstart="emit('dragstart', $event)"
-      @dragend="emit('dragend', $event)"
-      @keydown="handleDragKeydown"
-    >
-      <GripVertical class="h-2.5 w-2.5" />
-    </div>
-
     <template v-if="collapsed && !isEditing">
       <TooltipProvider :delay-duration="0">
         <Tooltip>
@@ -210,13 +171,13 @@ function handleDragKeydown(event: KeyboardEvent): void {
     </template>
     <template v-else>
       <template v-if="!isEditing">
-        <div class="min-w-0 flex-1 overflow-hidden">
+        <div class="flex w-full min-w-0 flex-1 flex-col overflow-hidden">
           <TooltipProvider :delay-duration="300">
             <Tooltip>
               <TooltipTrigger as-child>
                 <span
                   data-testid="thread-select"
-                  class="flex w-full min-w-0 cursor-pointer items-center gap-1.5 rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background"
+                  class="flex w-full min-w-0 cursor-pointer items-center gap-1.5 overflow-hidden rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background"
                   tabindex="0"
                   role="button"
                   :aria-current="isActive ? 'true' : undefined"
@@ -226,11 +187,13 @@ function handleDragKeydown(event: KeyboardEvent): void {
                   @keydown.space.prevent="emit('select')"
                 >
                   <AgentIcon :agent="thread.agent" :size="12" class="shrink-0" :class="iconClass" />
-                  <span
-                    data-testid="thread-title-truncated"
-                    class="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-left text-xs leading-none text-foreground"
-                  >
-                    {{ thread.title }}
+                  <span class="min-w-0 flex-1 basis-0 overflow-hidden">
+                    <span
+                      data-testid="thread-title-truncated"
+                      class="block w-full min-w-0 truncate text-left text-xs leading-none text-foreground"
+                    >
+                      {{ thread.title }}
+                    </span>
                   </span>
                 </span>
               </TooltipTrigger>

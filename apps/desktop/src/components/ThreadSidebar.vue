@@ -15,6 +15,9 @@ import { titleWithShortcut } from "@/keybindings/registry";
 
 const PRIMARY_FALLBACK_UI_KEY = "__sidebar-primary__";
 
+/** Max threads shown before "Show more"; expanding reveals the rest and a "Show less" control. */
+const THREAD_GROUP_PREVIEW_COUNT = 12;
+
 type SidebarContextGroup = {
   uiKey: string;
   worktreeId: string | null;
@@ -71,7 +74,6 @@ const emit = defineEmits<{
   select: [threadId: string];
   remove: [threadId: string];
   rename: [threadId: string, newTitle: string];
-  reorder: [payload: { worktreeId: string; orderedThreadIds: string[] }];
   createWorktreeGroup: [branch: string, baseBranch: string | null];
   cancelBranchPicker: [];
   showBranchPicker: [];
@@ -82,6 +84,8 @@ const emit = defineEmits<{
 
 const collapsedGroups = ref<Set<string>>(new Set());
 const groupCollapseHistory = ref<Map<string, boolean>>(new Map());
+/** Group uiKeys whose thread list is expanded past the preview count. */
+const threadListExpandedByGroupUiKey = ref<Set<string>>(new Set());
 const openCollapsedGroupId = ref<string | null>(null);
 const collapsedPopoverHoverCloseTimer = ref<ReturnType<typeof setTimeout> | null>(null);
 
@@ -162,32 +166,21 @@ function toggleGroup(worktreeId: string): void {
   groupCollapseHistory.value = history;
 }
 
-const renderedThreads = ref<Thread[]>([...props.threads]);
-const draggedThreadId = ref<string | null>(null);
-const dragOverThreadId = ref<string | null>(null);
-const dropCompleted = ref(false);
-
-function renderedThreadsForWorktree(worktreeId: string): Thread[] {
-  return renderedThreads.value.filter((thread) => thread.worktreeId === worktreeId);
+function threadsForWorktreeInProps(worktreeId: string): Thread[] {
+  return props.threads.filter((thread) => thread.worktreeId === worktreeId);
 }
 
 function mergeContextThreadsWithExtras(context: WorkspaceThreadContext): Thread[] {
-  const canonicalThreadIds = new Set(context.threads.map((thread) => thread.id));
-  const visibleSameWorktreeThreads = renderedThreads.value.filter(
-    (thread) => thread.worktreeId === context.worktreeId
+  const canonical = context.threads;
+  const canonicalIds = new Set(canonical.map((t) => t.id));
+  const extras = props.threads.filter(
+    (t) => t.worktreeId === context.worktreeId && !canonicalIds.has(t.id)
   );
-  const missingCanonicalThreads = context.threads.filter(
-    (thread) => !visibleSameWorktreeThreads.some((visibleThread) => visibleThread.id === thread.id)
-  );
-
-  return [
-    ...visibleSameWorktreeThreads,
-    ...missingCanonicalThreads.filter((thread) => canonicalThreadIds.has(thread.id))
-  ];
+  return [...extras, ...canonical];
 }
 
 function hasActiveThreadInWorktree(worktreeId: string): boolean {
-  return renderedThreads.value.some(
+  return props.threads.some(
     (thread) => thread.id === props.activeThreadId && thread.worktreeId === worktreeId
   );
 }
@@ -211,7 +204,7 @@ const contextGroups = computed<SidebarContextGroup[]>(() => {
     const coveredThreadIds = new Set(
       contextGroups.flatMap((group) => group.threads.map((thread) => thread.id))
     );
-    const fallbackGroups = renderedThreads.value
+    const fallbackGroups = props.threads
       .filter((thread) => !coveredThreadIds.has(thread.id))
       .reduce<SidebarContextGroup[]>((groups, thread) => {
         const existingGroup = groups.find((group) => group.worktreeId === thread.worktreeId);
@@ -246,8 +239,8 @@ const contextGroups = computed<SidebarContextGroup[]>(() => {
 
   const linkedWorktreeIds = new Set((props.threadGroups ?? []).map((group) => group.id));
   const primaryThreads = props.defaultWorktreeId
-    ? renderedThreadsForWorktree(props.defaultWorktreeId)
-    : renderedThreads.value.filter((thread) => !linkedWorktreeIds.has(thread.worktreeId));
+    ? threadsForWorktreeInProps(props.defaultWorktreeId)
+    : props.threads.filter((thread) => !linkedWorktreeIds.has(thread.worktreeId));
   const groups: SidebarContextGroup[] = [];
 
   if (
@@ -271,7 +264,7 @@ const contextGroups = computed<SidebarContextGroup[]>(() => {
   }
 
   for (const worktree of props.threadGroups ?? []) {
-    const groupThreads = renderedThreadsForWorktree(worktree.id);
+    const groupThreads = threadsForWorktreeInProps(worktree.id);
     groups.push({
       uiKey: worktree.id,
       worktreeId: worktree.id,
@@ -301,33 +294,6 @@ const effectiveCollapsedGroups = computed(() => {
   }
   return next;
 });
-
-function getThreadIds(threads: Thread[]): string[] {
-  return threads.map((thread) => thread.id);
-}
-
-/** Flat sidebar order restricted to one worktree (persisted order is per worktree). */
-function orderedThreadIdsForWorktree(worktreeId: string): string[] {
-  return renderedThreads.value
-    .filter((thread) => thread.worktreeId === worktreeId)
-    .map((thread) => thread.id);
-}
-
-function hasVisibleOrderChanged(): boolean {
-  const currentIds = getThreadIds(renderedThreads.value);
-  const originalIds = getThreadIds(props.threads);
-
-  return currentIds.some((threadId, index) => threadId !== originalIds[index]);
-}
-
-watch(
-  () => props.threads,
-  (threads) => {
-    if (draggedThreadId.value) return;
-    renderedThreads.value = [...threads];
-  },
-  { immediate: true }
-);
 
 watch(
   () => props.collapsed,
@@ -364,132 +330,71 @@ watch(
     ) {
       openCollapsedGroupId.value = null;
     }
+
+    const validKeys = new Set(groups.map((g) => g.uiKey));
+    const expandedNext = new Set(threadListExpandedByGroupUiKey.value);
+    let expandedChanged = false;
+    for (const key of [...expandedNext]) {
+      if (!validKeys.has(key)) {
+        expandedNext.delete(key);
+        expandedChanged = true;
+      }
+    }
+    if (expandedChanged) {
+      threadListExpandedByGroupUiKey.value = expandedNext;
+    }
   },
   { immediate: true }
 );
 
-function moveThread(threadId: string, targetThreadId: string): void {
-  if (threadId === targetThreadId) return;
+watch(
+  () => [props.activeThreadId, contextGroups.value] as const,
+  ([activeId, groups]) => {
+    if (!activeId) return;
+    for (const group of groups) {
+      const idx = group.threads.findIndex((t) => t.id === activeId);
+      if (idx >= THREAD_GROUP_PREVIEW_COUNT) {
+        if (!threadListExpandedByGroupUiKey.value.has(group.uiKey)) {
+          const next = new Set(threadListExpandedByGroupUiKey.value);
+          next.add(group.uiKey);
+          threadListExpandedByGroupUiKey.value = next;
+        }
+        return;
+      }
+    }
+  },
+  { immediate: true }
+);
 
-  const currentIndex = renderedThreads.value.findIndex((thread) => thread.id === threadId);
-  const targetIndex = renderedThreads.value.findIndex((thread) => thread.id === targetThreadId);
-
-  if (currentIndex === -1 || targetIndex === -1) return;
-
-  const next = [...renderedThreads.value];
-  const [thread] = next.splice(currentIndex, 1);
-
-  if (!thread) return;
-
-  next.splice(targetIndex, 0, thread);
-  renderedThreads.value = next;
+function isThreadListExpanded(uiKey: string): boolean {
+  return threadListExpandedByGroupUiKey.value.has(uiKey);
 }
 
-function moveThreadByOffset(threadId: string, offset: -1 | 1): boolean {
-  const currentIndex = renderedThreads.value.findIndex((thread) => thread.id === threadId);
-  if (currentIndex === -1) return false;
-
-  const targetIndex = currentIndex + offset;
-  if (targetIndex < 0 || targetIndex >= renderedThreads.value.length) return false;
-
-  const next = [...renderedThreads.value];
-  const [thread] = next.splice(currentIndex, 1);
-  if (!thread) return false;
-
-  next.splice(targetIndex, 0, thread);
-  renderedThreads.value = next;
-  return true;
+function expandThreadListForGroup(uiKey: string): void {
+  const next = new Set(threadListExpandedByGroupUiKey.value);
+  next.add(uiKey);
+  threadListExpandedByGroupUiKey.value = next;
 }
 
-function syncFromProps(): void {
-  renderedThreads.value = [...props.threads];
+function collapseThreadListForGroup(uiKey: string): void {
+  const next = new Set(threadListExpandedByGroupUiKey.value);
+  next.delete(uiKey);
+  threadListExpandedByGroupUiKey.value = next;
 }
 
-function handleDragStart(threadId: string, event: DragEvent): void {
-  dropCompleted.value = false;
-  draggedThreadId.value = threadId;
-  dragOverThreadId.value = threadId;
-  event.dataTransfer?.setData("text/plain", threadId);
-  if (event.dataTransfer) {
-    event.dataTransfer.effectAllowed = "move";
-  }
+function displayThreadsForGroup(group: SidebarContextGroup): Thread[] {
+  const n = group.threads.length;
+  if (n <= THREAD_GROUP_PREVIEW_COUNT) return group.threads;
+  if (isThreadListExpanded(group.uiKey)) return group.threads;
+  return group.threads.slice(0, THREAD_GROUP_PREVIEW_COUNT);
 }
 
-function handleDragEnter(targetThreadId: string): void {
-  if (!draggedThreadId.value) return;
-  moveThread(draggedThreadId.value, targetThreadId);
-  dragOverThreadId.value = targetThreadId;
+function showThreadListShowMore(group: SidebarContextGroup): boolean {
+  return group.threads.length > THREAD_GROUP_PREVIEW_COUNT && !isThreadListExpanded(group.uiKey);
 }
 
-function handleDragOver(event: DragEvent): void {
-  if (!draggedThreadId.value) return;
-  event.preventDefault();
-  if (event.dataTransfer) {
-    event.dataTransfer.dropEffect = "move";
-  }
-}
-
-function clearDragState(): void {
-  draggedThreadId.value = null;
-  dragOverThreadId.value = null;
-}
-
-function finishDrop(): void {
-  const draggedId = draggedThreadId.value;
-  if (!draggedId) return;
-
-  const worktreeId = renderedThreads.value.find((t) => t.id === draggedId)?.worktreeId ?? null;
-
-  if (hasVisibleOrderChanged() && worktreeId !== null) {
-    emit("reorder", {
-      worktreeId,
-      orderedThreadIds: orderedThreadIdsForWorktree(worktreeId)
-    });
-  } else {
-    syncFromProps();
-  }
-
-  draggedThreadId.value = null;
-  dragOverThreadId.value = null;
-}
-
-function cancelDrag(): void {
-  if (!draggedThreadId.value) return;
-  syncFromProps();
-  dropCompleted.value = false;
-  clearDragState();
-}
-
-function handleDrop(targetThreadId: string, event: DragEvent): void {
-  if (!draggedThreadId.value) return;
-  event.preventDefault();
-  if (dragOverThreadId.value !== targetThreadId) {
-    moveThread(draggedThreadId.value, targetThreadId);
-  }
-  dropCompleted.value = true;
-  finishDrop();
-}
-
-function handleDragEnd(): void {
-  if (dropCompleted.value) {
-    dropCompleted.value = false;
-    clearDragState();
-    return;
-  }
-  cancelDrag();
-}
-
-function handleKeyboardReorder(threadId: string, direction: "up" | "down"): void {
-  const moved = moveThreadByOffset(threadId, direction === "up" ? -1 : 1);
-  if (!moved || !hasVisibleOrderChanged()) return;
-
-  const worktreeId = renderedThreads.value.find((t) => t.id === threadId)?.worktreeId ?? null;
-  if (worktreeId === null) return;
-
-  emit("reorder", {
-    worktreeId,
-    orderedThreadIds: orderedThreadIdsForWorktree(worktreeId)
-  });
+function showThreadListShowLess(group: SidebarContextGroup): boolean {
+  return group.threads.length > THREAD_GROUP_PREVIEW_COUNT && isThreadListExpanded(group.uiKey);
 }
 
 function handleCollapsedGroupSelect(threadId: string): void {
@@ -614,14 +519,12 @@ function onFooterWorktreeToggle(): void {
                   >
                     No threads in this context
                   </div>
-                  <ul v-else class="space-y-0.5 pt-2">
+                  <ul v-else class="min-w-0 space-y-0.5 pt-2">
                     <li
-                      v-for="thread in group.threads"
+                      v-for="thread in displayThreadsForGroup(group)"
                       :key="thread.id"
+                      class="min-w-0"
                       :data-testid="`thread-list-item-${thread.id}`"
-                      @dragenter.prevent="handleDragEnter(thread.id)"
-                      @dragover="handleDragOver"
-                      @drop="handleDrop(thread.id, $event)"
                     >
                       <ThreadRow
                         data-testid="thread-row"
@@ -629,17 +532,42 @@ function onFooterWorktreeToggle(): void {
                         :is-active="thread.id === activeThreadId"
                         :needs-idle-attention="Boolean(idleAttentionByThreadId?.[thread.id])"
                         :run-status="runStatusByThreadId?.[thread.id] ?? null"
-                        :is-dragging="thread.id === draggedThreadId"
-                        :is-drag-target="draggedThreadId !== null && thread.id === dragOverThreadId"
-                        @dragstart="handleDragStart(thread.id, $event)"
-                        @dragend="handleDragEnd"
-                        @keyboard-reorder="handleKeyboardReorder(thread.id, $event)"
                         @select="handleCollapsedGroupSelect(thread.id)"
                         @remove="emit('remove', thread.id)"
                         @rename="(title) => emit('rename', thread.id, title)"
                       />
                     </li>
                   </ul>
+                  <div
+                    v-if="showThreadListShowMore(group)"
+                    class="flex justify-center px-2 pt-1 pb-0.5"
+                  >
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="xs"
+                      class="w-auto shrink-0"
+                      :data-testid="`thread-group-show-more-${group.uiKey}`"
+                      @click="expandThreadListForGroup(group.uiKey)"
+                    >
+                      Show more threads
+                    </Button>
+                  </div>
+                  <div
+                    v-if="showThreadListShowLess(group)"
+                    class="flex justify-center px-2 pt-1 pb-0.5"
+                  >
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="xs"
+                      class="w-auto shrink-0"
+                      :data-testid="`thread-group-show-less-${group.uiKey}`"
+                      @click="collapseThreadListForGroup(group.uiKey)"
+                    >
+                      Show less
+                    </Button>
+                  </div>
                 </div>
                 <div
                   v-if="worktreeIdForGroupAdd(group) !== null && !group.isStale"
@@ -696,16 +624,14 @@ function onFooterWorktreeToggle(): void {
           <ul
             :data-testid="`thread-group-threads-${group.uiKey}`"
             v-show="!effectiveCollapsedGroups.has(group.uiKey)"
-            class="space-y-0.5 px-2 pt-2"
+            class="min-w-0 space-y-0.5 px-2 pt-2"
             :class="'pl-3'"
           >
             <li
-              v-for="thread in group.threads"
+              v-for="thread in displayThreadsForGroup(group)"
               :key="thread.id"
+              class="min-w-0"
               :data-testid="`thread-list-item-${thread.id}`"
-              @dragenter.prevent="handleDragEnter(thread.id)"
-              @dragover="handleDragOver"
-              @drop="handleDrop(thread.id, $event)"
             >
               <ThreadRow
                 data-testid="thread-row"
@@ -714,17 +640,46 @@ function onFooterWorktreeToggle(): void {
                 :is-active="thread.id === activeThreadId"
                 :needs-idle-attention="Boolean(idleAttentionByThreadId?.[thread.id])"
                 :run-status="runStatusByThreadId?.[thread.id] ?? null"
-                :is-dragging="thread.id === draggedThreadId"
-                :is-drag-target="draggedThreadId !== null && thread.id === dragOverThreadId"
-                @dragstart="handleDragStart(thread.id, $event)"
-                @dragend="handleDragEnd"
-                @keyboard-reorder="handleKeyboardReorder(thread.id, $event)"
                 @select="emit('select', thread.id)"
                 @remove="emit('remove', thread.id)"
                 @rename="(title) => emit('rename', thread.id, title)"
               />
             </li>
           </ul>
+          <div
+            v-if="
+              showThreadListShowMore(group) && !effectiveCollapsedGroups.has(group.uiKey)
+            "
+            class="flex justify-center px-2 pt-1"
+          >
+            <Button
+              type="button"
+              variant="outline"
+              size="xs"
+              class="w-auto shrink-0"
+              :data-testid="`thread-group-show-more-${group.uiKey}`"
+              @click="expandThreadListForGroup(group.uiKey)"
+            >
+              Show more threads
+            </Button>
+          </div>
+          <div
+            v-if="
+              showThreadListShowLess(group) && !effectiveCollapsedGroups.has(group.uiKey)
+            "
+            class="flex justify-center px-2 pt-1"
+          >
+            <Button
+              type="button"
+              variant="outline"
+              size="xs"
+              class="w-auto shrink-0"
+              :data-testid="`thread-group-show-less-${group.uiKey}`"
+              @click="collapseThreadListForGroup(group.uiKey)"
+            >
+              Show less
+            </Button>
+          </div>
         </template>
       </div>
     </div>
