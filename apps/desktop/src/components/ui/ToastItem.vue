@@ -53,7 +53,6 @@ const toastRole = computed(() => (isSuccess.value ? "status" : "alert"));
     <div class="flex gap-3">
       <div
         v-if="isSuccess"
-        class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-chart-2/15 text-chart-2"
         aria-hidden="true"
       >
         <CircleCheck class="h-4 w-4 stroke-[2]" />
