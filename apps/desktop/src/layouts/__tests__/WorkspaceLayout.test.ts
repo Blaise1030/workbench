@@ -79,7 +79,7 @@ vi.mock("@/components/FileSearchEditor.vue", () => ({
         return Promise.resolve();
       }
     },
-    template: '<div data-testid="file-search-editor">{{ worktreePath }}<template v-if="contextLabel">|{{ contextLabel }}</template></div>'
+    template: '<div data-testid="file-search-editor">{{ worktreePath }}<template v-if="contextLabel && contextLabel !== \'Primary\'">|{{ contextLabel }}</template></div>'
   }
 }));
 vi.mock("@/components/ThreadCreateButton.vue", () => ({
@@ -402,7 +402,6 @@ describe("WorkspaceLayout", () => {
 
     const fileSearchEditorText = wrapper.get('[data-testid="file-search-editor"]').text();
     expect(fileSearchEditorText).toContain("/tmp/instrument");
-    expect(fileSearchEditorText).toContain("Primary");
     expect(wrapper.get('[data-testid="workspace-files-pane"]').classes()).toContain("border-t");
   });
 
@@ -900,7 +899,6 @@ describe("WorkspaceLayout", () => {
     expect(setActiveThread).not.toHaveBeenCalled();
     const fileSearchEditorAfterSwitchText = wrapper.get('[data-testid="file-search-editor"]').text();
     expect(fileSearchEditorAfterSwitchText).toContain("/tmp/instrument");
-    expect(fileSearchEditorAfterSwitchText).toContain("Primary");
   });
 
   it("binds Files to the active worktree path even if the active thread points elsewhere", async () => {
@@ -960,7 +958,6 @@ describe("WorkspaceLayout", () => {
 
     const fileSearchEditorText = wrapper.get('[data-testid="file-search-editor"]').text();
     expect(fileSearchEditorText).toContain("/tmp/instrument");
-    expect(fileSearchEditorText).toContain("Primary");
   });
 
   it("cancels a dirty Files worktree switch before changing the active worktree", async () => {

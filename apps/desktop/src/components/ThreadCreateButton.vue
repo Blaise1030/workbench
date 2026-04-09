@@ -201,15 +201,30 @@ function openOverlay(): void {
 }
 
 function pathFromFile(file: File): string {
-  const p = (file as File & { path?: string }).path;
-  return p && p.length > 0 ? p : file.name;
+  const getPath = window.workspaceApi?.getPathForFile;
+  if (getPath) {
+    try {
+      const p = getPath(file);
+      if (p && p.length > 0) return p;
+    } catch {
+      /* invalid / non-local file */
+    }
+  }
+  const legacy = (file as File & { path?: string }).path;
+  if (legacy && legacy.length > 0) return legacy;
+  return file.name;
+}
+
+function isImageFile(file: File): boolean {
+  if (file.type.startsWith("image/")) return true;
+  return /\.(png|jpe?g|gif|webp|bmp|svg|ico)$/i.test(file.name);
 }
 
 function addFilesFromList(files: FileList | File[]): void {
   for (const file of Array.from(files)) {
     const path = pathFromFile(file);
     const name = file.name;
-    const isImage = file.type.startsWith("image/");
+    const isImage = isImageFile(file);
     fileAttachments.value.push({
       id: crypto.randomUUID(),
       path,
@@ -238,15 +253,23 @@ function removeFileAttachment(id: string): void {
   fileAttachments.value.splice(i, 1);
 }
 
-function onDrop(e: DragEvent): void {
+function isFileDrag(dt: DataTransfer | null): boolean {
+  return dt ? [...dt.types].includes("Files") : false;
+}
+
+function onThreadCreateDragOver(e: DragEvent): void {
+  if (!isFileDrag(e.dataTransfer)) return;
+  e.preventDefault();
+  if (e.dataTransfer) e.dataTransfer.dropEffect = "copy";
+}
+
+function onThreadCreateDrop(e: DragEvent): void {
+  if (!isFileDrag(e.dataTransfer)) return;
+  e.preventDefault();
+  e.stopPropagation();
   const dt = e.dataTransfer;
   if (!dt?.files?.length) return;
   addFilesFromList(dt.files);
-}
-
-function onDragOver(e: DragEvent): void {
-  e.preventDefault();
-  if (e.dataTransfer) e.dataTransfer.dropEffect = "copy";
 }
 
 function buildFullPrompt(): string {
@@ -324,12 +347,12 @@ defineExpose({ openMenu: openOverlay });
       data-testid="thread-create-dialog"
       overlay-class="bg-background/50 backdrop-blur-sm duration-150 ease-out dark:bg-black/45"
       class="max-h-[min(92vh,44rem)] gap-0 overflow-y-auto border-0 bg-transparent p-3 shadow-none duration-150 ease-out sm:max-w-[min(100%-1rem,26rem)] md:max-w-xl"
+      @dragover="onThreadCreateDragOver"
+      @drop="onThreadCreateDrop"
     >
       <h1 class="text-2xl text-center py-2">Building something great ? 🛠️</h1>
       <Card
         class="gap-0 overflow-hidden rounded-2xl border border-border bg-card py-0 shadow-none ring-0"
-        @dragover="onDragOver"
-        @drop="onDrop"
       >        
         <CardContent class="relative p-0">          
           <DialogTitle id="thread-create-overlay-title" class="sr-only">New thread</DialogTitle>
@@ -472,8 +495,7 @@ defineExpose({ openMenu: openOverlay });
                 </div>
               </div>
             </div>
-            <div v-if="fileAttachments.length" class="space-y-1">
-              <p class="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Files</p>
+            <div v-if="fileAttachments.length">
               <div
                 class="flex flex-nowrap gap-1.5 overflow-x-auto overflow-y-hidden [scrollbar-width:thin]"
                 data-testid="thread-create-files-strip"
@@ -484,18 +506,17 @@ defineExpose({ openMenu: openOverlay });
                   :class="
                     cn(
                       badgeVariants({ variant: 'secondary' }),
-                      'inline-flex h-7 max-w-none shrink-0 items-stretch gap-0.5 rounded-full border-border/60 bg-muted/70 py-0 pr-0.5 pl-1.5 text-xs shadow-none'
+                      'inline-flex h-7 max-w-none shrink-0 items-center gap-0.5 rounded-full border-border/60 bg-muted/70 py-0 pl-1.5 pr-0.5 text-xs shadow-none'
                     )
                   "
                   :title="a.path"
                 >
                   <span class="flex min-w-0 flex-1 items-center gap-1.5">
-                    <span
-                      class="shrink-0 text-[13px] leading-none"
-                      aria-hidden="true"
-                    >{{ attachmentEmoji(a.name, a.isImage) }}</span>
-                    <span class="whitespace-nowrap font-mono text-[11px] font-medium text-foreground">{{
-                      a.path
+                    <span class="shrink-0 text-[13px] leading-none" aria-hidden="true">{{
+                      attachmentEmoji(a.name, a.isImage)
+                    }}</span>
+                    <span class="min-w-0 truncate font-mono text-[11px] font-medium text-foreground">{{
+                      a.isImage ? a.name : a.path
                     }}</span>
                   </span>
                   <Button

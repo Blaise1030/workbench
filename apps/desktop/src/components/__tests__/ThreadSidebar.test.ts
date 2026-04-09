@@ -198,6 +198,19 @@ describe("ThreadSidebar", () => {
     expect(wrapper.emitted("cancelBranchPicker")).toEqual([[]]);
   });
 
+  it("shows only one cancel control when the footer branch picker is open", () => {
+    wrapper = mount(ThreadSidebar, {
+      props: {
+        threads,
+        activeThreadId: "t1",
+        projectId: "p1",
+        showBranchPicker: true
+      }
+    });
+
+    expect(wrapper.findAll("button").filter((node) => node.text().trim() === "Cancel")).toHaveLength(1);
+  });
+
   it("emits remove with threadId when a ThreadRow emits remove", async () => {
     wrapper = mount(ThreadSidebar, { attachTo: document.body, props: { threads, activeThreadId: "t1" } });
     await hoverFirstThreadRow(wrapper);

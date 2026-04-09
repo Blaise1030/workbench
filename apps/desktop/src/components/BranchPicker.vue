@@ -108,12 +108,20 @@ function handleCreate(): void {
       </Select>
     </div>
 
-    <!-- Actions -->
-    <div class="flex justify-end gap-1.5">
-      <Button type="button" variant="outline" size="xs" @click="emit('cancel')">
-        Cancel
-      </Button>
-      <Button type="button" size="xs" :disabled="!canCreate" @click="handleCreate">
+    <!-- Actions: primary Create is full-width and large; optional Cancel sits above when not footer. -->
+    <div class="flex w-full flex-col gap-2">
+      <div v-if="props.variant !== 'footer'" class="flex justify-end">
+        <Button type="button" variant="outline" size="sm" @click="emit('cancel')">
+          Cancel
+        </Button>
+      </div>
+      <Button
+        type="button"
+        size="lg"
+        class="w-full"
+        :disabled="!canCreate"
+        @click="handleCreate"
+      >
         Create
       </Button>
     </div>

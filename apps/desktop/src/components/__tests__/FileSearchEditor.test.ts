@@ -123,19 +123,20 @@ describe("FileSearchEditor", () => {
     expect(wrapper.text()).not.toContain("FileSearchEditor.vue");
   });
 
-  it("renders the active context label in the workspace header", async () => {
+  it("does not show a context badge for the default Primary worktree", async () => {
     listFiles.mockResolvedValue([]);
 
     const wrapper = mount(FileSearchEditor, {
       props: {
         worktreePath: "/tmp/project",
-        worktreeLabel: "Primary"
+        worktreeLabel: "Primary",
+        contextLabel: "Primary"
       }
     });
 
     await flushPromises();
 
-    expect(wrapper.get('[data-testid="file-editor-context-label"]').text()).toBe("Primary");
+    expect(wrapper.find('[data-testid="file-editor-context-label"]').exists()).toBe(false);
   });
 
   it("refreshes file explorer when the refresh control is clicked", async () => {

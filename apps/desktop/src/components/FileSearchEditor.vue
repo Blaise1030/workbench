@@ -109,8 +109,10 @@ const workspaceHeaderLine = computed(() => {
 /** Prefer explicit context badge; fall back to worktree label for the compact badge. */
 const workspaceContextBadge = computed(() => {
   const c = props.contextLabel?.trim();
-  if (c) return c;
-  return props.worktreeLabel?.trim() || null;
+  const fallback = props.worktreeLabel?.trim() || null;
+  const raw = c || fallback;
+  if (!raw || raw === "Primary") return null;
+  return raw;
 });
 
 const searchInput = ref<InstanceType<typeof Input> | null>(null);
