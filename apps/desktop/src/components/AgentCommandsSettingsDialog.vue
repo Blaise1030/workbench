@@ -163,8 +163,13 @@ function save(): void {
       <DialogHeader class="shrink-0 px-4 pt-4">
         <DialogTitle id="workspace-settings-dialog-title" class="text-base">Settings</DialogTitle>
 
-        <div class="mt-4 border-b border-border pb-1">
-          <PillTabs v-model="activeSection" aria-label="Settings sections" :tabs="settingsSectionTabs" />
+        <div class="mt-4">
+          <PillTabs
+            v-model="activeSection"
+            aria-label="Settings sections"
+            :tabs="settingsSectionTabs"
+            size="default"
+          />
         </div>
       </DialogHeader>
 

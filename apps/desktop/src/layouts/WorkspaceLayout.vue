@@ -2,6 +2,7 @@
 import { computed, nextTick, onBeforeMount, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { Plus, Settings } from "lucide-vue-next";
 import Button from "@/components/ui/Button.vue";
+import Badge from "@/components/ui/Badge.vue";
 import SourceControlPanel from "@/components/SourceControlPanel.vue";
 import PillTabs, { type PillTabItem } from "@/components/ui/PillTabs.vue";
 import ProjectTabs from "@/components/ProjectTabs.vue";
@@ -13,7 +14,6 @@ import WorkspaceLauncherModal from "@/components/WorkspaceLauncherModal.vue";
 import ThreadCreateButton from "@/components/ThreadCreateButton.vue";
 import BranchPicker from "@/components/BranchPicker.vue";
 import ThreadSidebar from "@/components/ThreadSidebar.vue";
-import Badge from "@/components/ui/Badge.vue";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAgentBootstrapCommands } from "@/composables/useAgentBootstrapCommands";
 import {
@@ -1314,7 +1314,7 @@ watch(
         >
           <Badge variant="outline" class="ms-2 text-[10px] text-muted-foreground">
             {{ activeContextLabel }}
-          </Badge> 
+          </Badge>
           <div class="h-5 border-s ms-2" />
           <PillTabs
             v-model="centerTabModel"
@@ -1467,9 +1467,7 @@ watch(
           >
             <FileSearchEditor
               ref="fileSearchRef"
-              :context-label="activeContextLabel"
               :worktree-path="fileExplorerWorktree?.path ?? null"
-              :worktree-label="fileExplorerWorktree?.name ?? null"
             />
           </div>
         </div>

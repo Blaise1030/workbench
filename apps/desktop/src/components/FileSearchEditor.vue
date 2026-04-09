@@ -12,7 +12,6 @@ import {
 } from "lucide-vue-next";
 import type { FileSummary } from "@shared/ipc";
 import Button from "@/components/ui/Button.vue";
-import Badge from "@/components/ui/Badge.vue";
 import { badgeVariants } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import {
@@ -45,16 +44,9 @@ import {
 } from "@/components/ui/dialog";
 import { renderMarkdownToHtml } from "@/lib/markdown";
 
-const props = withDefaults(
-  defineProps<{
-    worktreePath: string | null;
-    /** Shown beside the file path in the editor header (active worktree name). */
-    worktreeLabel?: string | null;
-    /** Active worktree badge shown in the panel chrome. */
-    contextLabel?: string | null;
-  }>(),
-  { worktreeLabel: null, contextLabel: null }
-);
+const props = defineProps<{
+  worktreePath: string | null;
+}>();
 
 function basenameFromPath(absPath: string): string {
   const parts = absPath.split(/[/\\]/).filter(Boolean);
@@ -99,21 +91,6 @@ function fileEmojiForPath(relativePath: string): string {
   };
   return map[ext] ?? "📄";
 }
-
-const workspaceHeaderLine = computed(() => {
-  if (!props.worktreePath) return null;
-  const label = props.worktreeLabel?.trim();
-  return label || basenameFromPath(props.worktreePath);
-});
-
-/** Prefer explicit context badge; fall back to worktree label for the compact badge. */
-const workspaceContextBadge = computed(() => {
-  const c = props.contextLabel?.trim();
-  const fallback = props.worktreeLabel?.trim() || null;
-  const raw = c || fallback;
-  if (!raw || raw === "Primary") return null;
-  return raw;
-});
 
 const searchInput = ref<InstanceType<typeof Input> | null>(null);
 const query = ref("");
@@ -1010,25 +987,6 @@ defineExpose({
         <div
           class="flex min-w-0 flex-1 flex-nowrap items-center gap-2 overflow-x-auto overflow-y-hidden [scrollbar-width:thin]"
         >
-          <div
-            v-if="hasWorkspace"
-            data-testid="file-editor-workspace-context"
-            class="flex min-w-0 max-w-[min(18rem,calc(100vw-8rem))] shrink-0 items-center gap-1.5 text-[11px] text-muted-foreground"
-          >
-            <span class="shrink-0 font-medium text-muted-foreground/90">Workspace</span>
-            <span class="min-w-0 truncate" :title="workspaceHeaderLine ?? undefined">{{
-              workspaceHeaderLine
-            }}</span>
-            <Badge
-              v-if="workspaceContextBadge"
-              data-testid="file-editor-context-label"
-              variant="outline"
-              class="max-w-[8rem] shrink-0 truncate px-1.5 py-0 text-[10px] font-normal"
-              :title="workspaceContextBadge"
-            >
-              {{ workspaceContextBadge }}
-            </Badge>
-          </div>
           <template v-if="selectedPath">
             <span
               class="sr-only"

@@ -1,6 +1,10 @@
 <script setup lang="ts">
+import { computed } from "vue";
 import Button from "@/components/ui/Button.vue";
 import { buttonSizeClassMap } from "@/components/ui/button";
+
+/** Tab trigger height / typography; matches `Button` size tokens used for each pill. */
+export type PillTabSize = "xs" | "sm" | "default" | "lg";
 
 export type PillTabItem = {
   value: string;
@@ -16,16 +20,36 @@ export type PillTabItem = {
   activeClass?: string;
 };
 
-/** Matches `buttonSizeClassMap.xs` — shared tab trigger metrics with Button `size="xs"`. */
-const tabTriggerSizeClass = buttonSizeClassMap.xs;
-
 const props = withDefaults(
   defineProps<{
     modelValue: string;
     tabs: readonly PillTabItem[];
     ariaLabel?: string;
+    /** Larger values increase hit area and label size (default matches previous fixed `xs` look). */
+    size?: PillTabSize;
   }>(),
-  { ariaLabel: "Tabs" }
+  { ariaLabel: "Tabs", size: "xs" }
+);
+
+const tabTriggerSizeClass = computed(() => buttonSizeClassMap[props.size]);
+
+const tablistPaddingClass = computed(() => (props.size === "xs" ? "py-0.5" : "py-1"));
+
+const closeButtonSize = computed(() => {
+  switch (props.size) {
+    case "lg":
+      return "icon" as const;
+    case "default":
+      return "icon-sm" as const;
+    case "sm":
+      return "icon-sm" as const;
+    default:
+      return "icon-xs" as const;
+  }
+});
+
+const dividerClass = computed(() =>
+  props.size === "xs" ? "h-4" : props.size === "sm" ? "h-5" : "h-6"
 );
 
 const emit = defineEmits<{
@@ -63,7 +87,10 @@ function onTabKeydown(event: KeyboardEvent, index: number) {
     role="tablist"
     data-slot="button-group"
     :aria-label="ariaLabel"
-    class="flex min-w-0 max-w-full flex-nowrap select-none items-center gap-1 overflow-x-auto overflow-y-hidden px-1.5 py-0.5 [scrollbar-width:thin]"
+    :class="[
+      'flex min-w-0 max-w-full flex-nowrap select-none items-center gap-1 overflow-x-auto overflow-y-hidden px-1.5 [scrollbar-width:thin]',
+      tablistPaddingClass
+    ]"
   >
     <template v-for="(tab, index) in tabs" :key="tab.value">
       <div class="inline-flex max-w-full shrink-0 items-center gap-0.5">
@@ -98,8 +125,8 @@ function onTabKeydown(event: KeyboardEvent, index: number) {
           v-if="tab.closable"
           type="button"
           variant="ghost"
-          size="icon-xs"
-          class="h-4 w-4 shrink-0 rounded-sm p-0 text-muted-foreground hover:bg-background/80 hover:text-foreground"
+          :size="closeButtonSize"
+          class="shrink-0 rounded-sm p-0 text-muted-foreground hover:bg-background/80 hover:text-foreground"
           :aria-label="`Close ${tab.label}`"
           tabindex="-1"
           @click="onCloseClick($event, tab.value)"
@@ -109,7 +136,7 @@ function onTabKeydown(event: KeyboardEvent, index: number) {
       </div>
       <span
         v-if="tab.dividerAfter"
-        class="mx-0.5 h-4 w-px shrink-0 self-center bg-border"
+        :class="['mx-0.5 w-px shrink-0 self-center bg-border', dividerClass]"
         aria-hidden="true"
       />
     </template>

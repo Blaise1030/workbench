@@ -68,7 +68,7 @@ vi.mock("@/components/TerminalPane.vue", () => ({
 }));
 vi.mock("@/components/FileSearchEditor.vue", () => ({
   default: {
-    props: ["worktreePath", "contextLabel"],
+    props: ["worktreePath"],
     methods: {
       focusSearch() {},
       refreshFileExplorer() {},
@@ -79,7 +79,7 @@ vi.mock("@/components/FileSearchEditor.vue", () => ({
         return Promise.resolve();
       }
     },
-    template: '<div data-testid="file-search-editor">{{ worktreePath }}<template v-if="contextLabel && contextLabel !== \'Primary\'">|{{ contextLabel }}</template></div>'
+    template: '<div data-testid="file-search-editor">{{ worktreePath }}</div>'
   }
 }));
 vi.mock("@/components/ThreadCreateButton.vue", () => ({

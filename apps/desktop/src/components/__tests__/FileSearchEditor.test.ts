@@ -123,20 +123,16 @@ describe("FileSearchEditor", () => {
     expect(wrapper.text()).not.toContain("FileSearchEditor.vue");
   });
 
-  it("does not show a context badge for the default Primary worktree", async () => {
+  it("does not render workspace context in the file editor header", async () => {
     listFiles.mockResolvedValue([]);
 
     const wrapper = mount(FileSearchEditor, {
-      props: {
-        worktreePath: "/tmp/project",
-        worktreeLabel: "Primary",
-        contextLabel: "Primary"
-      }
+      props: { worktreePath: "/tmp/project" }
     });
 
     await flushPromises();
 
-    expect(wrapper.find('[data-testid="file-editor-context-label"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="file-editor-workspace-context"]').exists()).toBe(false);
   });
 
   it("refreshes file explorer when the refresh control is clicked", async () => {
@@ -207,32 +203,6 @@ describe("FileSearchEditor", () => {
 
     const header = wrapper.get('[data-testid="file-editor-header"]');
     expect(header.classes()).toContain("py-1.5");
-  });
-
-  it("shows workspace in the editor control row with worktree label", async () => {
-    listFiles.mockResolvedValue([]);
-
-    const wrapper = mount(FileSearchEditor, {
-      props: { worktreePath: "/tmp/project", worktreeLabel: "feature/auth" }
-    });
-
-    await flushPromises();
-
-    const ctx = wrapper.get('[data-testid="file-editor-workspace-context"]');
-    expect(ctx.text()).toContain("Workspace");
-    expect(ctx.text()).toContain("feature/auth");
-  });
-
-  it("shows workspace in the editor control row using path basename when label is omitted", async () => {
-    listFiles.mockResolvedValue([]);
-
-    const wrapper = mount(FileSearchEditor, {
-      props: { worktreePath: "/tmp/project" }
-    });
-
-    await flushPromises();
-
-    expect(wrapper.get('[data-testid="file-editor-workspace-context"]').text()).toContain("project");
   });
 
   it("renders the search bar row at the same compact header height", async () => {

@@ -346,11 +346,11 @@ defineExpose({ openMenu: openOverlay });
     <DialogContent
       data-testid="thread-create-dialog"
       overlay-class="bg-background/50 backdrop-blur-sm duration-150 ease-out dark:bg-black/45"
-      class="max-h-[min(92vh,44rem)] gap-0 overflow-y-auto border-0 bg-transparent p-3 shadow-none duration-150 ease-out sm:max-w-[min(100%-1rem,26rem)] md:max-w-xl"
+      class="top-[15vh] max-h-[min(92vh,44rem)] translate-y-0 gap-0 overflow-y-auto border-0 bg-transparent p-3 shadow-none duration-150 ease-out sm:max-w-[min(100%-1rem,26rem)] md:max-w-xl"
       @dragover="onThreadCreateDragOver"
       @drop="onThreadCreateDrop"
     >
-      <h1 class="text-2xl text-center py-2">Building something great ? 🛠️</h1>
+      <h1 class="mb-6 text-center text-2xl pt-2">Building something great ? 🛠️</h1>
       <Card
         class="gap-0 overflow-hidden rounded-2xl border border-border bg-card py-0 shadow-none ring-0"
       >        
