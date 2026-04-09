@@ -6,6 +6,7 @@ export function useToast(): {
   dismiss: (id: string) => void;
 } {
   const store = useToastStore();
+  store.hydratePersisted();
   return {
     error(title: string, description: string): string {
       return store.show({ title, description, variant: "error" });
