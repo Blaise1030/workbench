@@ -1,5 +1,5 @@
 import { defineStore } from "pinia";
-import type { Project, Thread, Worktree } from "@shared/domain";
+import type { Project, Thread, ThreadSession, Worktree } from "@shared/domain";
 
 export interface WorkspaceThreadContext {
   worktreeId: string;
@@ -65,6 +65,7 @@ export const useWorkspaceStore = defineStore("workspace", {
     projects: [] as Project[],
     worktrees: [] as Worktree[],
     threads: [] as Thread[],
+    threadSessions: [] as ThreadSession[],
     activeProjectId: null as string | null,
     activeWorktreeId: null as string | null,
     activeThreadId: null as string | null
@@ -143,13 +144,18 @@ export const useWorkspaceStore = defineStore("workspace", {
         groups.set(context.worktreeId, context.threads);
       }
       return groups;
-    }
+    },
+
+    /** Look up the persisted session record for a thread by its ID. */
+    threadSessionFor: (state) => (threadId: string): ThreadSession | undefined =>
+      state.threadSessions?.find((s) => s.threadId === threadId)
   },
   actions: {
     hydrate(snapshot: {
       projects: Project[];
       worktrees: Worktree[];
       threads: Thread[];
+      threadSessions: ThreadSession[];
       activeProjectId: string | null;
       activeWorktreeId: string | null;
       activeThreadId: string | null;
@@ -157,6 +163,7 @@ export const useWorkspaceStore = defineStore("workspace", {
       this.projects = snapshot.projects;
       this.worktrees = snapshot.worktrees;
       this.threads = snapshot.threads;
+      this.threadSessions = snapshot.threadSessions ?? [];
       this.activeProjectId = snapshot.activeProjectId;
       this.activeWorktreeId = snapshot.activeWorktreeId;
       this.activeThreadId = snapshot.activeThreadId;

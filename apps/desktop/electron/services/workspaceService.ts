@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import path from "node:path";
 import type { Project, Thread, Worktree } from "../../src/shared/domain.js";
+import { isValidResumeSessionId } from "../../src/shared/resumeSessionId.js";
 import type { CreateThreadInput, CreateWorktreeGroupInput, WorkspaceSnapshot } from "../../src/shared/ipc.js";
 import { WorkspaceStore } from "../storage/store.js";
 
@@ -187,21 +188,28 @@ export class WorkspaceService {
   }
 
   /**
-   * Persists the first detected provider resume/session id for a thread.
-   * Returns false if the thread is missing, or a resume id was already stored.
+   * Persists the detected provider resume/session id for a thread (e.g. from
+   * `cursor agent --resume=<uuid>`). Skips invalid strings. If a valid id is
+   * already stored, does nothing (including when the new id differs). If the
+   * stored id is missing or not a valid UUID, replaces it with the new valid id.
    */
   captureResumeId(threadId: string, resumeId: string): boolean {
     const thread = this.store.getThread(threadId);
     if (!thread) return false;
 
+    const trimmed = resumeId.trim();
+    if (!isValidResumeSessionId(trimmed)) return false;
+
     const existing = this.store.getThreadSession(threadId);
-    if (existing?.resumeId) return false;
+    const stored = existing?.resumeId?.trim() ?? "";
+    const hasValidStored = stored !== "" && isValidResumeSessionId(stored);
+    if (hasValidStored) return false;
 
     const now = new Date().toISOString();
     this.store.upsertThreadSession({
       threadId,
       provider: thread.agent,
-      resumeId,
+      resumeId: trimmed,
       initialPrompt: existing?.initialPrompt ?? null,
       titleCapturedAt: existing?.titleCapturedAt ?? null,
       launchMode: existing?.launchMode ?? "fresh",

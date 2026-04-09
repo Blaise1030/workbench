@@ -1,4 +1,5 @@
-import { extractResumeIdFromStdout } from "../adapters/resumeIdCapture.js";
+import { extractResumeIdFromStdout, RESUME_CAPTURE_TAIL_CHARS } from "../adapters/resumeIdCapture.js";
+import { isValidResumeSessionId } from "../../src/shared/resumeSessionId.js";
 import type { PtyService } from "../services/ptyService.js";
 import type { WorkspaceService } from "../services/workspaceService.js";
 import type { WorkspaceStore } from "../storage/store.js";
@@ -7,8 +8,6 @@ const CTRL_C_COUNT = 3;
 const BETWEEN_CTRL_C_MS = 90;
 const POLL_MS = 120;
 const MAX_WAIT_MS = 2600;
-const BUFFER_TAIL_CHARS = 48_000;
-
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -20,6 +19,40 @@ async function sendCtrlCRepeated(ptyService: PtyService, sessionId: string): Pro
       await sleep(BETWEEN_CTRL_C_MS);
     }
   }
+}
+
+function bufferTail(buffer: string): string {
+  return buffer.length > RESUME_CAPTURE_TAIL_CHARS
+    ? buffer.slice(-RESUME_CAPTURE_TAIL_CHARS)
+    : buffer;
+}
+
+/**
+ * Probe all live terminal instances by sending repeated Ctrl+C and scanning
+ * their output for `agent --resume <id>` hints.
+ */
+export async function collectResumeIdsFromActiveTerminals(ptyService: PtyService): Promise<string[]> {
+  const sessionIds = ptyService.listSessionIds();
+  if (sessionIds.length === 0) return [];
+
+  const found = new Set<string>();
+  await Promise.all(
+    sessionIds.map(async (sessionId) => {
+      await sendCtrlCRepeated(ptyService, sessionId);
+      const deadline = Date.now() + MAX_WAIT_MS;
+      while (Date.now() < deadline) {
+        await sleep(POLL_MS);
+        const { buffer } = ptyService.getBuffer(sessionId);
+        const tail = bufferTail(buffer);
+        const resumeId = extractResumeIdFromStdout(tail);
+        if (resumeId && isValidResumeSessionId(resumeId)) {
+          found.add(resumeId);
+          return;
+        }
+      }
+    })
+  );
+  return [...found];
 }
 
 /**
@@ -39,7 +72,7 @@ export async function captureResumeIdsBeforeQuit(
       if (!thread) return;
 
       const row = store.getThreadSession(sessionId);
-      if (row?.resumeId) return;
+      if (row?.resumeId && isValidResumeSessionId(row.resumeId)) return;
 
       await sendCtrlCRepeated(ptyService, sessionId);
 
@@ -47,7 +80,7 @@ export async function captureResumeIdsBeforeQuit(
       while (Date.now() < deadline) {
         await sleep(POLL_MS);
         const { buffer } = ptyService.getBuffer(sessionId);
-        const tail = buffer.length > BUFFER_TAIL_CHARS ? buffer.slice(-BUFFER_TAIL_CHARS) : buffer;
+        const tail = bufferTail(buffer);
         const resumeId = extractResumeIdFromStdout(tail);
         if (resumeId && workspaceService.captureResumeId(sessionId, resumeId)) {
           return;

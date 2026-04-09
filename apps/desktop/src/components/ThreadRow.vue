@@ -70,7 +70,8 @@ const statusDetail = computed((): string | null => {
 
 const rowAriaLabel = computed(() => {
   const d = statusDetail.value;
-  return d ? `${props.thread.title} — ${d}` : props.thread.title;
+  if (d) return `${props.thread.title} — ${d}`;
+  return props.thread.title;
 });
 
 const iconClass = computed(() => {

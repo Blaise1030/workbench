@@ -16,6 +16,8 @@ import BranchPicker from "@/components/BranchPicker.vue";
 import ThreadSidebar from "@/components/ThreadSidebar.vue";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAgentBootstrapCommands } from "@/composables/useAgentBootstrapCommands";
+import { threadAgentResumeCommand } from "@shared/threadAgentBootstrap";
+import { isValidResumeSessionId } from "@shared/resumeSessionId";
 import {
   loadTerminalLayout,
   resolveCenterTab,
@@ -224,6 +226,24 @@ async function onCenterTabClose(tabValue: string): Promise<void> {
 
 /** After creating a thread from the agent menu, run the agent’s bootstrap CLI once in that PTY. */
 const pendingAgentBootstrap = ref<{ threadId: string; command: string } | null>(null);
+
+/** If a thread has a stored resumeId and is in "resumable" state, auto-set its bootstrap command. */
+function maybeSetResumeBootstrap(threadId: string | null): void {
+  if (!threadId) return;
+  const thread = workspace.threads.find((t) => t.id === threadId);
+  if (!thread) return;
+  const session = workspace.threadSessionFor(threadId);
+  if (
+    !session?.resumeId ||
+    session.status !== "resumable" ||
+    !isValidResumeSessionId(session.resumeId)
+  ) return;
+  if (pendingAgentBootstrap.value?.threadId === threadId) return;
+  pendingAgentBootstrap.value = {
+    threadId,
+    command: threadAgentResumeCommand(thread.agent, session.resumeId)
+  };
+}
 const repoDirectoryInput = ref<HTMLInputElement | null>(null);
 let pendingRepoDirectoryResolve: ((value: string | null) => void) | null = null;
 let disposeWorkspaceChanged: (() => void) | null = null;
@@ -1081,6 +1101,7 @@ onBeforeMount(() => {
 
 onMounted(async () => {
   await refreshSnapshot();
+  maybeSetResumeBootstrap(workspace.activeThreadId);
   if (workspace.activeProjectId) {
     await syncWorktrees(workspace.activeProjectId);
   }
@@ -1124,6 +1145,7 @@ watch(
   (id) => {
     const pending = pendingAgentBootstrap.value;
     if (pending && id !== pending.threadId) pendingAgentBootstrap.value = null;
+    maybeSetResumeBootstrap(id);
   }
 );
 

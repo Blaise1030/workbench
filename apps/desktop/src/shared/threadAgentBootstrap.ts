@@ -19,3 +19,17 @@ export const THREAD_AGENT_BOOTSTRAP_COMMAND: Record<ThreadAgent, string> = {
    */
   cursor: "cursor agent"
 };
+
+/**
+ * Shell command to resume a previously interrupted agent session by its stored resume ID.
+ * The command is typed into the PTY shell (plus Enter) when re-opening a resumable thread.
+ */
+export function threadAgentResumeCommand(agent: ThreadAgent, resumeId: string): string {
+  switch (agent) {
+    case "claude":  return `claude --resume ${resumeId}`;
+    case "cursor":  return `cursor agent --resume=${resumeId}`;
+    /** Codex CLI uses `resume` as a subcommand, not `--resume`. */
+    case "codex":   return `codex resume ${resumeId}`;
+    case "gemini":  return `gemini --resume ${resumeId}`;
+  }
+}

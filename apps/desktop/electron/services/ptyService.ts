@@ -15,18 +15,23 @@ export class PtyService {
   private sessions = new Map<string, PtySession>();
   private pendingInputBySessionId = new Map<string, string>();
   private submittedInputListener: ((sessionId: string, input: string) => void) | null = null;
+  private sessionOutputListener: ((sessionId: string, outputChunk: string) => void) | null = null;
 
   setSubmittedInputListener(listener: ((sessionId: string, input: string) => void) | null): void {
     this.submittedInputListener = listener;
   }
 
+  setSessionOutputListener(listener: ((sessionId: string, outputChunk: string) => void) | null): void {
+    this.sessionOutputListener = listener;
+  }
+
   /**
    * @param sessionId Stable PTY key: thread id, or `__wt:${worktreeId}` when no thread is active.
    */
-  getOrCreate(sessionId: string, cwd: string, worktreeId: string): { buffer: string } {
+  getOrCreate(sessionId: string, cwd: string, worktreeId: string): { buffer: string; created: boolean } {
     const existing = this.sessions.get(sessionId);
     if (existing) {
-      return { buffer: existing.buffer };
+      return { buffer: existing.buffer, created: false };
     }
 
     const shell = process.env.SHELL ?? "/bin/zsh";
@@ -46,6 +51,7 @@ export class PtyService {
       if (Buffer.byteLength(session.buffer, "utf8") > MAX_BUFFER_BYTES) {
         session.buffer = session.buffer.slice(-MAX_BUFFER_BYTES);
       }
+      this.sessionOutputListener?.(sessionId, data);
       const payload = { sessionId, data };
       for (const win of BrowserWindow.getAllWindows()) {
         win.webContents.send(IPC_CHANNELS.terminalPtyData, payload);
@@ -56,7 +62,7 @@ export class PtyService {
       this.sessions.delete(sessionId);
     });
 
-    return { buffer: "" };
+    return { buffer: "", created: true };
   }
 
   write(sessionId: string, data: string): void {
@@ -102,6 +108,16 @@ export class PtyService {
       set.add(s.worktreeId);
     }
     return [...set];
+  }
+
+  /** Number of live integrated-terminal instances (agent + shell). */
+  getActiveSessionCount(): number {
+    return this.sessions.size;
+  }
+
+  /** Live integrated-terminal session ids (agent + shell/worktree). */
+  listSessionIds(): string[] {
+    return [...this.sessions.keys()];
   }
 
   private captureSubmittedInput(sessionId: string, data: string): void {

@@ -65,3 +65,30 @@
 		transform: none;
 	}
 }
+
+/* Generic section reveal — toggled via `.scroll-scale-in--visible` */
+.scroll-scale-in {
+	transform-origin: center top;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+	.scroll-scale-in {
+		opacity: 0;
+		transform: scale(0.97) translateY(8px);
+		transition:
+			opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1),
+			transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+	}
+
+	.scroll-scale-in.scroll-scale-in--visible {
+		opacity: 1;
+		transform: scale(1) translateY(0);
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.scroll-scale-in {
+		opacity: 1;
+		transform: none;
+	}
+}

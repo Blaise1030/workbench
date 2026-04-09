@@ -139,7 +139,7 @@ async function attachPty(): Promise<void> {
 
     terminal.reset();
 
-    const { buffer } = await api.ptyCreate(sessionId, props.cwd, props.worktreeId);
+    const { buffer, created } = await api.ptyCreate(sessionId, props.cwd, props.worktreeId);
     if (gen !== attachGeneration) return;
 
     activeSessionId.value = sessionId;
@@ -155,6 +155,7 @@ async function attachPty(): Promise<void> {
 
     const boot = props.pendingAgentBootstrap;
     if (
+      created === true &&
       boot &&
       boot.command.trim() &&
       sessionId === boot.threadId &&

@@ -21,15 +21,43 @@ import { FileService } from "./services/fileService.js";
 import { RunService } from "./services/runService.js";
 import { PtyService } from "./services/ptyService.js";
 import { createGitAdapter } from "./services/gitAdapter.js";
+import { shouldAllowAppClose } from "./lifecycle/closeConfirmation.js";
+import { buildCloseConfirmationDetail } from "./lifecycle/closeConfirmation.js";
 import { captureResumeIdsBeforeQuit } from "./lifecycle/quitResumeCapture.js";
+import { collectResumeIdsFromActiveTerminals } from "./lifecycle/quitResumeCapture.js";
+import { extractResumeIdFromStdout, RESUME_CAPTURE_TAIL_CHARS } from "./adapters/resumeIdCapture.js";
 import { WorkspaceService } from "./services/workspaceService.js";
 import { WorkspaceStore } from "./storage/store.js";
+
+/** Threads whose PTY we scan for resume IDs (stdout + submitted command lines). */
+const AGENTS_WITH_RESUME_CAPTURE: ThreadAgent[] = ["cursor", "claude", "codex", "gemini"];
 
 const runService = new RunService();
 const diffService = new DiffService();
 const editService = new EditService();
 const fileService = new FileService();
 const ptyService = new PtyService();
+let hasConfirmedClose = false;
+let closeConfirmationInFlight = false;
+
+async function promptForCloseConfirmation(): Promise<boolean> {
+  const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0];
+  const activeTerminalCount = ptyService.getActiveSessionCount();
+  const detectedResumeIds = await collectResumeIdsFromActiveTerminals(ptyService);
+  const opts = {
+    type: "warning" as const,
+    buttons: ["Cancel", "Confirm"],
+    defaultId: 1,
+    cancelId: 0,
+    title: "Confirm close",
+    message: "Are you sure you want to close the app?",
+    detail: buildCloseConfirmationDetail(activeTerminalCount, detectedResumeIds)
+  };
+  const { response } = win
+    ? await dialog.showMessageBox(win, opts)
+    : await dialog.showMessageBox(opts);
+  return response === 1;
+}
 
 /** Dev / unpackaged window icon; packaged apps use platform icons from electron-builder. */
 function devAppIconPath(): string | undefined {
@@ -89,6 +117,21 @@ function createMainWindow(): BrowserWindow {
   } else {
     void win.loadFile(path.join(__dirname, "../dist/index.html"));
   }
+  win.on("close", (event) => {
+    if (hasConfirmedClose) return;
+    event.preventDefault();
+    if (closeConfirmationInFlight) return;
+    closeConfirmationInFlight = true;
+    void shouldAllowAppClose(hasConfirmedClose, promptForCloseConfirmation)
+      .then((confirmed) => {
+        if (!confirmed) return;
+        hasConfirmedClose = true;
+        win.close();
+      })
+      .finally(() => {
+        closeConfirmationInFlight = false;
+      });
+  });
   return win;
 }
 
@@ -280,7 +323,32 @@ store.migrate(schemaSql);
 const gitAdapter = createGitAdapter();
 const workspaceService = new WorkspaceService(store, gitAdapter);
 ptyService.setSubmittedInputListener((sessionId, input) => {
-  if (workspaceService.maybeRenameThreadFromPrompt(sessionId, input)) {
+  let didChange = workspaceService.maybeRenameThreadFromPrompt(sessionId, input);
+  // Capture resume/session UUID from a submitted shell line (e.g. `gemini --resume <uuid>` Enter).
+  if (!sessionId.startsWith("__")) {
+    const thread = workspaceService.getSnapshot().threads.find((t) => t.id === sessionId);
+    if (thread && AGENTS_WITH_RESUME_CAPTURE.includes(thread.agent)) {
+      const fromLine = extractResumeIdFromStdout(input);
+      if (fromLine && workspaceService.captureResumeId(sessionId, fromLine)) {
+        didChange = true;
+      }
+    }
+  }
+  if (didChange) emitWorkspaceDidChange();
+});
+ptyService.setSessionOutputListener((sessionId) => {
+  // Thread-bound sessions use the thread id as PTY session key; ignore shell/worktree sessions.
+  if (sessionId.startsWith("__")) return;
+  const thread = workspaceService.getSnapshot().threads.find((t) => t.id === sessionId);
+  if (!thread || !AGENTS_WITH_RESUME_CAPTURE.includes(thread.agent)) return;
+  const { buffer } = ptyService.getBuffer(sessionId);
+  const tail =
+    buffer.length > RESUME_CAPTURE_TAIL_CHARS
+      ? buffer.slice(-RESUME_CAPTURE_TAIL_CHARS)
+      : buffer;
+  const resumeId = extractResumeIdFromStdout(tail);
+  if (!resumeId) return;
+  if (workspaceService.captureResumeId(sessionId, resumeId)) {
     emitWorkspaceDidChange();
   }
 });
@@ -291,14 +359,24 @@ let resumeCaptureOnQuitInFlight = false;
 app.on("before-quit", (event) => {
   if (allowQuitAfterResumeCapture) return;
   event.preventDefault();
-  if (resumeCaptureOnQuitInFlight) return;
-  resumeCaptureOnQuitInFlight = true;
-  void captureResumeIdsBeforeQuit(store, workspaceService, ptyService)
-    .catch((err) => console.error("[electron] resume capture on quit failed:", err))
+  if (closeConfirmationInFlight) return;
+  closeConfirmationInFlight = true;
+  void shouldAllowAppClose(hasConfirmedClose, promptForCloseConfirmation)
+    .then((confirmed) => {
+      if (!confirmed) return;
+      hasConfirmedClose = true;
+      if (resumeCaptureOnQuitInFlight) return;
+      resumeCaptureOnQuitInFlight = true;
+      void captureResumeIdsBeforeQuit(store, workspaceService, ptyService)
+        .catch((err) => console.error("[electron] resume capture on quit failed:", err))
+        .finally(() => {
+          allowQuitAfterResumeCapture = true;
+          resumeCaptureOnQuitInFlight = false;
+          app.quit();
+        });
+    })
     .finally(() => {
-      allowQuitAfterResumeCapture = true;
-      resumeCaptureOnQuitInFlight = false;
-      app.quit();
+      closeConfirmationInFlight = false;
     });
 });
 

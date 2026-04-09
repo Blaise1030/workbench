@@ -189,4 +189,5 @@ describe("ThreadRow", () => {
     await input.trigger("keydown", { key: "Enter" });
     expect(wrapper.emitted("rename")).toBeUndefined();
   });
+
 });

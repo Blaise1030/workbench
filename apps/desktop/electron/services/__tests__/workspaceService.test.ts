@@ -362,14 +362,14 @@ describe("WorkspaceService.captureResumeId", () => {
     };
     const service = new WorkspaceService(store as never);
 
-    const ok = service.captureResumeId("thread-1", "session-abc-123");
+    const ok = service.captureResumeId("thread-1", "cb1438da-39bb-4f7f-8108-510fe91963e1");
 
     expect(ok).toBe(true);
     expect(upsertThreadSession).toHaveBeenCalledWith(
       expect.objectContaining({
         threadId: "thread-1",
         provider: "cursor",
-        resumeId: "session-abc-123",
+        resumeId: "cb1438da-39bb-4f7f-8108-510fe91963e1",
         status: "resumable",
         launchMode: "fresh"
       })
@@ -391,7 +391,7 @@ describe("WorkspaceService.captureResumeId", () => {
       getThreadSession: vi.fn(() => ({
         threadId: "thread-1",
         provider: "codex" as const,
-        resumeId: "session-first",
+        resumeId: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
         initialPrompt: null,
         titleCapturedAt: null,
         launchMode: "fresh" as const,
@@ -404,7 +404,67 @@ describe("WorkspaceService.captureResumeId", () => {
     };
     const service = new WorkspaceService(store as never);
 
-    expect(service.captureResumeId("thread-1", "session-second")).toBe(false);
+    expect(service.captureResumeId("thread-1", "bbbbbbbb-cccc-dddd-eeee-ffffffffffff")).toBe(false);
+    expect(upsertThreadSession).not.toHaveBeenCalled();
+  });
+
+  it("replaces an invalid stored resumeId when a valid one is captured", () => {
+    const upsertThreadSession = vi.fn();
+    const store = {
+      getSnapshot: vi.fn(),
+      upsertProject: vi.fn(),
+      setActiveState: vi.fn(),
+      upsertWorktree: vi.fn(),
+      upsertThread: vi.fn(),
+      upsertThreadSession,
+      deleteThread: vi.fn(),
+      renameThread: vi.fn(),
+      getThread: vi.fn(() => buildThread({ agent: "cursor" })),
+      getThreadSession: vi.fn(() => ({
+        threadId: "thread-1",
+        provider: "cursor" as const,
+        resumeId: "session-abc-123",
+        initialPrompt: null,
+        titleCapturedAt: null,
+        launchMode: "fresh" as const,
+        status: "idle" as const,
+        lastActivityAt: "2026-04-06T00:00:00.000Z",
+        metadataJson: null,
+        createdAt: "2026-04-06T00:00:00.000Z",
+        updatedAt: "2026-04-06T00:00:00.000Z"
+      }))
+    };
+    const service = new WorkspaceService(store as never);
+
+    const ok = service.captureResumeId("thread-1", "cb1438da-39bb-4f7f-8108-510fe91963e1");
+
+    expect(ok).toBe(true);
+    expect(upsertThreadSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        threadId: "thread-1",
+        resumeId: "cb1438da-39bb-4f7f-8108-510fe91963e1",
+        status: "resumable"
+      })
+    );
+  });
+
+  it("returns false when resumeId is not a valid UUID-shaped session id", () => {
+    const upsertThreadSession = vi.fn();
+    const store = {
+      getSnapshot: vi.fn(),
+      upsertProject: vi.fn(),
+      setActiveState: vi.fn(),
+      upsertWorktree: vi.fn(),
+      upsertThread: vi.fn(),
+      upsertThreadSession,
+      deleteThread: vi.fn(),
+      renameThread: vi.fn(),
+      getThread: vi.fn(() => buildThread({ agent: "cursor" })),
+      getThreadSession: vi.fn(() => null)
+    };
+    const service = new WorkspaceService(store as never);
+
+    expect(service.captureResumeId("thread-1", "session-abc-123")).toBe(false);
     expect(upsertThreadSession).not.toHaveBeenCalled();
   });
 

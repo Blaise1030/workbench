@@ -48,7 +48,7 @@ interface WorkspaceApi {
   deleteFolder: (cwd: string, relativePath: string) => Promise<void>;
   applyPatch: (payload: unknown) => Promise<void>;
   /** @param sessionId Thread id or `__wt:${worktreeId}` when no thread is selected. */
-  ptyCreate: (sessionId: string, cwd: string, worktreeId: string) => Promise<{ buffer: string }>;
+  ptyCreate: (sessionId: string, cwd: string, worktreeId: string) => Promise<{ buffer: string; created?: boolean }>;
   ptyWrite: (sessionId: string, data: string) => Promise<void>;
   ptyResize: (sessionId: string, cols: number, rows: number) => Promise<void>;
   ptyKill: (sessionId: string) => Promise<void>;

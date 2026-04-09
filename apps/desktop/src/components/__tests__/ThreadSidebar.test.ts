@@ -1318,4 +1318,5 @@ describe("ThreadSidebar", () => {
     expect(list.findAll('[data-testid="thread-row"]')).toHaveLength(13);
     expect(wrapper.find('[data-testid="thread-group-show-less-w1"]').exists()).toBe(true);
   });
+
 });
