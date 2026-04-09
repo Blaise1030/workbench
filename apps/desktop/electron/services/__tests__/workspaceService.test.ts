@@ -345,6 +345,90 @@ describe("WorkspaceService.captureInitialPrompt", () => {
   });
 });
 
+describe("WorkspaceService.captureResumeId", () => {
+  it("persists resumeId and returns true on first call", () => {
+    const upsertThreadSession = vi.fn();
+    const store = {
+      getSnapshot: vi.fn(),
+      upsertProject: vi.fn(),
+      setActiveState: vi.fn(),
+      upsertWorktree: vi.fn(),
+      upsertThread: vi.fn(),
+      upsertThreadSession,
+      deleteThread: vi.fn(),
+      renameThread: vi.fn(),
+      getThread: vi.fn(() => buildThread({ agent: "cursor" })),
+      getThreadSession: vi.fn(() => null)
+    };
+    const service = new WorkspaceService(store as never);
+
+    const ok = service.captureResumeId("thread-1", "session-abc-123");
+
+    expect(ok).toBe(true);
+    expect(upsertThreadSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        threadId: "thread-1",
+        provider: "cursor",
+        resumeId: "session-abc-123",
+        status: "resumable",
+        launchMode: "fresh"
+      })
+    );
+  });
+
+  it("returns false when resumeId already exists", () => {
+    const upsertThreadSession = vi.fn();
+    const store = {
+      getSnapshot: vi.fn(),
+      upsertProject: vi.fn(),
+      setActiveState: vi.fn(),
+      upsertWorktree: vi.fn(),
+      upsertThread: vi.fn(),
+      upsertThreadSession,
+      deleteThread: vi.fn(),
+      renameThread: vi.fn(),
+      getThread: vi.fn(() => buildThread()),
+      getThreadSession: vi.fn(() => ({
+        threadId: "thread-1",
+        provider: "codex" as const,
+        resumeId: "session-first",
+        initialPrompt: null,
+        titleCapturedAt: null,
+        launchMode: "fresh" as const,
+        status: "resumable" as const,
+        lastActivityAt: "2026-04-06T00:00:00.000Z",
+        metadataJson: null,
+        createdAt: "2026-04-06T00:00:00.000Z",
+        updatedAt: "2026-04-06T00:00:00.000Z"
+      }))
+    };
+    const service = new WorkspaceService(store as never);
+
+    expect(service.captureResumeId("thread-1", "session-second")).toBe(false);
+    expect(upsertThreadSession).not.toHaveBeenCalled();
+  });
+
+  it("returns false when thread is missing", () => {
+    const upsertThreadSession = vi.fn();
+    const store = {
+      getSnapshot: vi.fn(),
+      upsertProject: vi.fn(),
+      setActiveState: vi.fn(),
+      upsertWorktree: vi.fn(),
+      upsertThread: vi.fn(),
+      upsertThreadSession,
+      deleteThread: vi.fn(),
+      renameThread: vi.fn(),
+      getThread: vi.fn(() => null),
+      getThreadSession: vi.fn(() => null)
+    };
+    const service = new WorkspaceService(store as never);
+
+    expect(service.captureResumeId("missing", "x")).toBe(false);
+    expect(upsertThreadSession).not.toHaveBeenCalled();
+  });
+});
+
 describe("WorkspaceService.createWorktreeGroup", () => {
   it("creates a worktree with isDefault false and baseBranch", async () => {
     const upsertWorktree = vi.fn();

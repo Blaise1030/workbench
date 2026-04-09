@@ -186,6 +186,34 @@ export class WorkspaceService {
     return result.renamed || result.captured;
   }
 
+  /**
+   * Persists the first detected provider resume/session id for a thread.
+   * Returns false if the thread is missing, or a resume id was already stored.
+   */
+  captureResumeId(threadId: string, resumeId: string): boolean {
+    const thread = this.store.getThread(threadId);
+    if (!thread) return false;
+
+    const existing = this.store.getThreadSession(threadId);
+    if (existing?.resumeId) return false;
+
+    const now = new Date().toISOString();
+    this.store.upsertThreadSession({
+      threadId,
+      provider: thread.agent,
+      resumeId,
+      initialPrompt: existing?.initialPrompt ?? null,
+      titleCapturedAt: existing?.titleCapturedAt ?? null,
+      launchMode: existing?.launchMode ?? "fresh",
+      status: "resumable",
+      lastActivityAt: existing?.lastActivityAt ?? now,
+      metadataJson: existing?.metadataJson ?? null,
+      createdAt: existing?.createdAt ?? now,
+      updatedAt: now
+    });
+    return true;
+  }
+
   setActive(projectId: string | null, worktreeId: string | null, threadId: string | null): void {
     this.store.setActiveState(projectId, worktreeId, threadId);
   }

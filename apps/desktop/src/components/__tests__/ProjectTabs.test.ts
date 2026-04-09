@@ -143,6 +143,7 @@ describe("ProjectTabs", () => {
     const tab = wrapper.get('[data-project-id="proj-2"]');
     expect(tab.attributes("data-needs-attention")).toBe("idle");
     expect(tab.classes().some((c) => c.includes("ring-blue"))).toBe(true);
+    expect(tab.classes().some((c) => c.includes("bg-blue-500/12"))).toBe(true);
   });
 
   it("emits create when plus button is clicked", async () => {

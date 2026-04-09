@@ -136,13 +136,14 @@ function projectAttentionLevel(projectId: string): "failed" | "review" | "idle" 
 function projectAttentionTabClass(projectId: string): string {
   const level = projectAttentionLevel(projectId);
   if (!level) return "";
+  const attentionBackground = "bg-blue-500/12 dark:bg-blue-400/18";
   switch (level) {
     case "failed":
-      return "ring-1 ring-red-500/55 ring-inset dark:ring-red-400/45";
+      return `${attentionBackground} ring-1 ring-red-500/55 ring-inset dark:ring-red-400/45`;
     case "review":
-      return "ring-1 ring-orange-500/55 ring-inset dark:ring-orange-400/45";
+      return `${attentionBackground} ring-1 ring-orange-500/55 ring-inset dark:ring-orange-400/45`;
     case "idle":
-      return "ring-1 ring-blue-500/55 ring-inset dark:ring-blue-400/45";
+      return `${attentionBackground} ring-1 ring-blue-500/55 ring-inset dark:ring-blue-400/45`;
     default:
       return "";
   }

@@ -411,6 +411,9 @@ function onFooterWorktreeToggle(): void {
   if (props.showBranchPicker) {
     emit("cancelBranchPicker");
   } else {
+    if (props.collapsed) {
+      emit("expand");
+    }
     emit("showBranchPicker");
   }
 }

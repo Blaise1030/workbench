@@ -198,6 +198,22 @@ describe("ThreadSidebar", () => {
     expect(wrapper.emitted("cancelBranchPicker")).toEqual([[]]);
   });
 
+  it("expands the sidebar before showing worktree form when collapsed footer button is clicked", async () => {
+    wrapper = mount(ThreadSidebar, {
+      props: {
+        threads,
+        activeThreadId: "t1",
+        collapsed: true,
+        projectId: "p1"
+      }
+    });
+
+    await wrapper.get('[data-testid="thread-sidebar-footer-worktree-toggle"]').trigger("click");
+
+    expect(wrapper.emitted("expand")).toEqual([[]]);
+    expect(wrapper.emitted("showBranchPicker")).toEqual([[]]);
+  });
+
   it("shows only one cancel control when the footer branch picker is open", () => {
     wrapper = mount(ThreadSidebar, {
       props: {

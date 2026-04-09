@@ -21,6 +21,7 @@ import { FileService } from "./services/fileService.js";
 import { RunService } from "./services/runService.js";
 import { PtyService } from "./services/ptyService.js";
 import { createGitAdapter } from "./services/gitAdapter.js";
+import { captureResumeIdsBeforeQuit } from "./lifecycle/quitResumeCapture.js";
 import { WorkspaceService } from "./services/workspaceService.js";
 import { WorkspaceStore } from "./storage/store.js";
 
@@ -284,6 +285,22 @@ ptyService.setSubmittedInputListener((sessionId, input) => {
   }
 });
 registerIpc(workspaceService);
+
+let allowQuitAfterResumeCapture = false;
+let resumeCaptureOnQuitInFlight = false;
+app.on("before-quit", (event) => {
+  if (allowQuitAfterResumeCapture) return;
+  event.preventDefault();
+  if (resumeCaptureOnQuitInFlight) return;
+  resumeCaptureOnQuitInFlight = true;
+  void captureResumeIdsBeforeQuit(store, workspaceService, ptyService)
+    .catch((err) => console.error("[electron] resume capture on quit failed:", err))
+    .finally(() => {
+      allowQuitAfterResumeCapture = true;
+      resumeCaptureOnQuitInFlight = false;
+      app.quit();
+    });
+});
 
 createMainWindow();
 app.on("activate", () => {

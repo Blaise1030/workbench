@@ -82,6 +82,19 @@ export class PtyService {
     return { buffer: this.sessions.get(sessionId)?.buffer ?? "" };
   }
 
+  /**
+   * Sends Ctrl+C (ETX) to the session, like the user interrupting the foreground job.
+   * Avoids `kill("SIGINT")` so Windows ConPTY behaves consistently.
+   */
+  interrupt(sessionId: string): void {
+    this.sessions.get(sessionId)?.pty.write("\x03");
+  }
+
+  /** Live integrated-terminal session ids that belong to agent threads (not `__…` worktree/shell keys). */
+  listAgentThreadSessionIds(): string[] {
+    return [...this.sessions.keys()].filter((id) => !id.startsWith("__"));
+  }
+
   /** Distinct worktree IDs that have at least one live integrated-terminal session. */
   listSessionWorktreeIds(): string[] {
     const set = new Set<string>();
