@@ -1342,7 +1342,7 @@ watch(
                   </span>
                 </Button>
               </TooltipTrigger>
-              <TooltipContent data-testid="add-terminal-tooltip">
+              <TooltipContent side="bottom" data-testid="add-terminal-tooltip">
                 {{ addTerminalTooltipText }}
               </TooltipContent>
             </Tooltip>
