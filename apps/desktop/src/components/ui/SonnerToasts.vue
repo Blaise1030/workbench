@@ -3,6 +3,7 @@ import { onBeforeUnmount, watch } from "vue";
 import { storeToRefs } from "pinia";
 import { Toaster, toast } from "vue-sonner";
 import { normalizeToastVariant, useToastStore } from "@/stores/toastStore";
+import 'vue-sonner/style.css'
 
 const toastStore = useToastStore();
 toastStore.hydratePersisted();
