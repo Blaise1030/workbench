@@ -47,7 +47,7 @@ import type {
   WorkspaceSnapshot
 } from "@shared/ipc";
 const workspace = useWorkspaceStore();
-const { terminalNotificationsEnabled } = useTerminalSoundSettings();
+const { terminalNotificationsEnabled, terminalActivitySensitivity } = useTerminalSoundSettings();
 /** Fixed policy: bell and background-output rules (settings UI removed). */
 const terminalBellSound = ref(true);
 const terminalBackgroundOutputSound = ref(false);
@@ -182,7 +182,8 @@ useTerminalAttentionSounds({
   visibleSessionId: visiblePtySessionId,
   notificationsEnabled: terminalNotificationsEnabled,
   bellEnabled: terminalBellSound,
-  backgroundEnabled: terminalBackgroundOutputSound
+  backgroundEnabled: terminalBackgroundOutputSound,
+  activitySensitivity: terminalActivitySensitivity
 });
 
 const {
@@ -191,7 +192,8 @@ const {
   clearIdleAttention: clearPtyIdleAttention
 } = useThreadPtyRunStatus(computed(() => workspace.threads), {
   visibleSessionId: visiblePtySessionId,
-  notificationsEnabled: terminalNotificationsEnabled
+  notificationsEnabled: terminalNotificationsEnabled,
+  activitySensitivity: terminalActivitySensitivity
 });
 
 function addShellTerminal(): void {

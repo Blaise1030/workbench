@@ -1,6 +1,7 @@
 import { onBeforeUnmount, onMounted, watch, type Ref } from "vue";
 import { decideTerminalAttentionChunk } from "@/terminal/attentionRules";
 import { playTerminalChirp } from "@/terminal/playTerminalChirp";
+import type { TerminalActivitySensitivity } from "@/terminal/activitySensitivity";
 
 /**
  * Subscribes once to `onPtyData`, plays attention chirp per spec (bell + optional one-shot background).
@@ -14,6 +15,7 @@ export function useTerminalAttentionSounds(opts: {
   notificationsEnabled: Ref<boolean>;
   bellEnabled: Ref<boolean>;
   backgroundEnabled: Ref<boolean>;
+  activitySensitivity: Ref<TerminalActivitySensitivity>;
 }): void {
   /** `true` = one-shot armed; `false` = disarmed until re-arm; missing = treat as armed. */
   const backgroundArmedBySession = new Map<string, boolean>();
@@ -63,7 +65,8 @@ export function useTerminalAttentionSounds(opts: {
         visibleSessionId,
         bellEnabled: opts.bellEnabled.value,
         backgroundEnabled: opts.backgroundEnabled.value,
-        backgroundArmed: armed
+        backgroundArmed: armed,
+        activitySensitivity: opts.activitySensitivity.value
       });
 
       if (decision.playSound && opts.notificationsEnabled.value) {

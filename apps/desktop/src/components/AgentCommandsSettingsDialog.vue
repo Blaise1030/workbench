@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/select";
 import { usePreferredThreadAgent } from "@/composables/usePreferredThreadAgent";
 import { useTerminalSoundSettings } from "@/composables/useTerminalSoundSettings";
+import type { TerminalActivitySensitivity } from "@/terminal/activitySensitivity";
 import { useColorScheme, type ColorSchemePreference } from "@/composables/useColorScheme";
 import { uiThemePresetLabel, useUiThemePreset } from "@/composables/useUiThemePreset";
 import {
@@ -97,7 +98,16 @@ const keyboardBindingsGrouped = computed(() => {
   }));
 });
 
-const { terminalNotificationsEnabled } = useTerminalSoundSettings();
+const { terminalNotificationsEnabled, terminalActivitySensitivity } = useTerminalSoundSettings();
+const TERMINAL_ACTIVITY_SENSITIVITY_OPTIONS: {
+  value: TerminalActivitySensitivity;
+  label: string;
+  hint: string;
+}[] = [
+  { value: "low", label: "Low", hint: "Any visible output counts as activity." },
+  { value: "medium", label: "Medium", hint: "Requires short text, ignores tiny blips." },
+  { value: "high", label: "High", hint: "Only substantial output counts as activity." }
+];
 
 let removeEscapeListener: (() => void) | null = null;
 
@@ -257,6 +267,37 @@ function save(): void {
               >
                 Enable notifications
               </label>
+            </div>
+            <div class="mt-4 space-y-1.5">
+              <label class="block text-sm font-medium text-foreground" for="settings-terminal-sensitivity">
+                Activity sensitivity
+              </label>
+              <p class="text-xs text-muted-foreground">
+                Controls when output is treated as activity for both idle highlighting and away-tab sounds.
+              </p>
+              <Select
+                id="settings-terminal-sensitivity"
+                :model-value="terminalActivitySensitivity"
+                @update:model-value="
+                  (v) => (terminalActivitySensitivity = v as TerminalActivitySensitivity)
+                "
+              >
+                <SelectTrigger class="h-9 w-full max-w-sm bg-background text-sm">
+                  <SelectValue placeholder="Choose sensitivity" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem
+                    v-for="opt in TERMINAL_ACTIVITY_SENSITIVITY_OPTIONS"
+                    :key="opt.value"
+                    :value="opt.value"
+                  >
+                    <span class="flex flex-col">
+                      <span>{{ opt.label }}</span>
+                      <span class="text-xs text-muted-foreground">{{ opt.hint }}</span>
+                    </span>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
 

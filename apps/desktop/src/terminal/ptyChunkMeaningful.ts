@@ -1,3 +1,8 @@
+import {
+  minMeaningfulCharsForSensitivity,
+  type TerminalActivitySensitivity
+} from "@/terminal/activitySensitivity";
+
 /**
  * Strip CSI / OSC noise so terminal reflow (e.g. after SIGWINCH from resize) does not count as agent output.
  * Matches the CSI pattern used in `electron/services/workspaceService.ts` for title stripping.
@@ -13,6 +18,13 @@ export function stripTerminalControlNoise(input: string): string {
 }
 
 /** True when the chunk has user-visible text, excluding bells and terminal control sequences. */
-export function hasMeaningfulPtyOutput(data: string): boolean {
-  return stripTerminalControlNoise(data).replace(/\s+/g, " ").trim().length > 0;
+export function hasMeaningfulPtyOutput(
+  data: string,
+  sensitivity: TerminalActivitySensitivity = "low"
+): boolean {
+  const cleaned = stripTerminalControlNoise(data)
+    .replace(/[\x00-\x1f\x7f]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  return cleaned.length >= minMeaningfulCharsForSensitivity(sensitivity);
 }

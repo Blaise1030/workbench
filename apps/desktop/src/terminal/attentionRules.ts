@@ -1,3 +1,8 @@
+import { hasMeaningfulPtyOutput } from "@/terminal/ptyChunkMeaningful";
+import type { TerminalActivitySensitivity } from "@/terminal/activitySensitivity";
+
+export type { TerminalActivitySensitivity } from "@/terminal/activitySensitivity";
+
 /** BEL / terminal bell character. */
 const BEL = "\x07";
 
@@ -5,9 +10,12 @@ export function chunkContainsBell(data: string): boolean {
   return data.includes(BEL);
 }
 
-/** True if the chunk contains any character other than BEL (for background-output rule). */
-export function chunkHasNonBellContent(data: string): boolean {
-  return data.replaceAll(BEL, "").length > 0;
+/** True if the chunk has meaningful non-BEL output for the chosen sensitivity. */
+export function chunkHasNonBellContent(
+  data: string,
+  sensitivity: TerminalActivitySensitivity = "low"
+): boolean {
+  return hasMeaningfulPtyOutput(data.replaceAll(BEL, ""), sensitivity);
 }
 
 /**
@@ -35,6 +43,7 @@ export type AttentionChunkInput = {
   backgroundEnabled: boolean;
   /** When false, background one-shot will not fire until re-armed. */
   backgroundArmed: boolean;
+  activitySensitivity: TerminalActivitySensitivity;
 };
 
 export type AttentionChunkResult = {
@@ -45,7 +54,7 @@ export type AttentionChunkResult = {
 
 export function decideTerminalAttentionChunk(input: AttentionChunkInput): AttentionChunkResult {
   const hasBell = chunkContainsBell(input.data);
-  const hasNonBell = chunkHasNonBellContent(input.data);
+  const hasNonBell = chunkHasNonBellContent(input.data, input.activitySensitivity);
   const inView = input.visibleSessionId != null && input.sessionId === input.visibleSessionId;
 
   const playBell = input.bellEnabled && hasBell && !inView;

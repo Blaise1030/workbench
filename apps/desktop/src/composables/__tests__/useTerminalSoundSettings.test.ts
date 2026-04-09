@@ -1,5 +1,6 @@
 import { describe, expect, it, beforeEach } from "vitest";
 import {
+  STORAGE_TERMINAL_ACTIVITY_SENSITIVITY,
   STORAGE_TERMINAL_NOTIFICATIONS_ENABLED,
   resetTerminalSoundSettingsForTests,
   useTerminalSoundSettings
@@ -12,8 +13,9 @@ describe("useTerminalSoundSettings", () => {
   });
 
   it("defaults to notifications on", () => {
-    const { terminalNotificationsEnabled } = useTerminalSoundSettings();
+    const { terminalNotificationsEnabled, terminalActivitySensitivity } = useTerminalSoundSettings();
     expect(terminalNotificationsEnabled.value).toBe(true);
+    expect(terminalActivitySensitivity.value).toBe("medium");
   });
 
   it("persists notifications master toggle", () => {
@@ -27,5 +29,18 @@ describe("useTerminalSoundSettings", () => {
     resetTerminalSoundSettingsForTests();
     const { terminalNotificationsEnabled } = useTerminalSoundSettings();
     expect(terminalNotificationsEnabled.value).toBe(false);
+  });
+
+  it("persists terminal activity sensitivity", () => {
+    const { terminalActivitySensitivity } = useTerminalSoundSettings();
+    terminalActivitySensitivity.value = "high";
+    expect(localStorage.getItem(STORAGE_TERMINAL_ACTIVITY_SENSITIVITY)).toBe("high");
+  });
+
+  it("reads stored activity sensitivity after reset", () => {
+    localStorage.setItem(STORAGE_TERMINAL_ACTIVITY_SENSITIVITY, "low");
+    resetTerminalSoundSettingsForTests();
+    const { terminalActivitySensitivity } = useTerminalSoundSettings();
+    expect(terminalActivitySensitivity.value).toBe("low");
   });
 });

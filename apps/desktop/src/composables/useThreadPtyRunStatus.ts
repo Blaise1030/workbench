@@ -3,6 +3,7 @@ import type { RunStatus, Thread, ThreadAgent } from "@shared/domain";
 import { detectRunStateFromChunk } from "@shared/agentRunStateFromChunk";
 import { playTerminalChirp } from "@/terminal/playTerminalChirp";
 import { hasMeaningfulPtyOutput } from "@/terminal/ptyChunkMeaningful";
+import type { TerminalActivitySensitivity } from "@/terminal/activitySensitivity";
 
 const IDLE_MS = 5000;
 
@@ -11,6 +12,8 @@ export type UseThreadPtyRunStatusOpts = {
   visibleSessionId: Ref<string | null>;
   /** When false, idle completion does not play the attention chirp (row may still highlight). */
   notificationsEnabled: Ref<boolean>;
+  /** Shared activity sensitivity used for both idle detection and terminal sounds. */
+  activitySensitivity: Ref<TerminalActivitySensitivity>;
 };
 
 /**
@@ -75,7 +78,7 @@ export function useThreadPtyRunStatus(
   }
 
   function applyChunk(threadId: string, agent: ThreadAgent, data: string): void {
-    if (!hasMeaningfulPtyOutput(data)) return;
+    if (!hasMeaningfulPtyOutput(data, opts.activitySensitivity.value)) return;
 
     clearIdleAttention(threadId);
 

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   chunkContainsBell,
   chunkHasNonBellContent,
+  type TerminalActivitySensitivity,
   decideTerminalAttentionChunk,
   visibleTerminalSessionId
 } from "../attentionRules";
@@ -19,15 +20,26 @@ describe("chunkContainsBell", () => {
 });
 
 describe("chunkHasNonBellContent", () => {
+  const low: TerminalActivitySensitivity = "low";
   it("is false for BEL only", () => {
-    expect(chunkHasNonBellContent("\x07")).toBe(false);
-    expect(chunkHasNonBellContent("\x07\x07")).toBe(false);
+    expect(chunkHasNonBellContent("\x07", low)).toBe(false);
+    expect(chunkHasNonBellContent("\x07\x07", low)).toBe(false);
   });
   it("is true when non-BEL follows BEL", () => {
-    expect(chunkHasNonBellContent("\x07a")).toBe(true);
+    expect(chunkHasNonBellContent("\x07a", low)).toBe(true);
   });
   it("is true when non-BELL precedes BEL", () => {
-    expect(chunkHasNonBellContent("a\x07")).toBe(true);
+    expect(chunkHasNonBellContent("a\x07", low)).toBe(true);
+  });
+  it("ignores cursor/reflow noise regardless of sensitivity", () => {
+    expect(chunkHasNonBellContent("\x1b[2J\x1b[H\x1b[?25h", "low")).toBe(false);
+    expect(chunkHasNonBellContent("\x1b[2J\x1b[H\x1b[?25h", "high")).toBe(false);
+  });
+  it("requires larger chunks at higher sensitivity", () => {
+    expect(chunkHasNonBellContent("ok", "low")).toBe(true);
+    expect(chunkHasNonBellContent("ok", "medium")).toBe(false);
+    expect(chunkHasNonBellContent("running...", "medium")).toBe(true);
+    expect(chunkHasNonBellContent("running...", "high")).toBe(false);
   });
 });
 
@@ -52,7 +64,8 @@ describe("decideTerminalAttentionChunk", () => {
     visibleSessionId: "s1" as string | null,
     bellEnabled: true,
     backgroundEnabled: true,
-    backgroundArmed: true
+    backgroundArmed: true,
+    activitySensitivity: "low" as TerminalActivitySensitivity
   };
 
   it("in-view + BEL: no sound (user is already on this tab)", () => {
@@ -125,5 +138,24 @@ describe("decideTerminalAttentionChunk", () => {
       bellEnabled: false
     });
     expect(r.playSound).toBe(false);
+  });
+
+  it("does not fire background sound for tiny output on medium/high sensitivity", () => {
+    const medium = decideTerminalAttentionChunk({
+      ...base,
+      data: "ok",
+      visibleSessionId: "other",
+      activitySensitivity: "medium"
+    });
+    const high = decideTerminalAttentionChunk({
+      ...base,
+      data: "running...",
+      visibleSessionId: "other",
+      activitySensitivity: "high"
+    });
+    expect(medium.playSound).toBe(false);
+    expect(medium.consumedBackgroundOneShot).toBe(false);
+    expect(high.playSound).toBe(false);
+    expect(high.consumedBackgroundOneShot).toBe(false);
   });
 });

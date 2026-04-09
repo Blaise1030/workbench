@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Thread, ThreadAgent } from "@shared/domain";
 import { useThreadPtyRunStatus } from "../useThreadPtyRunStatus";
 import * as chirp from "@/terminal/playTerminalChirp";
+import type { TerminalActivitySensitivity } from "@/terminal/attentionRules";
 
 vi.mock("@/terminal/playTerminalChirp", () => ({
   playTerminalChirp: vi.fn()
@@ -47,7 +48,8 @@ describe("useThreadPtyRunStatus", () => {
   function mountHarness(
     threads: Thread[],
     visibleSessionId: string | null,
-    notificationsEnabled = true
+    notificationsEnabled = true,
+    sensitivity: TerminalActivitySensitivity = "low"
   ): {
     vis: Ref<string | null>;
     runStatusByThreadId: Ref<Record<string, import("@shared/domain").RunStatus>>;
@@ -67,7 +69,8 @@ describe("useThreadPtyRunStatus", () => {
       setup() {
         const r = useThreadPtyRunStatus(threadsRef, {
           visibleSessionId: vis,
-          notificationsEnabled: notif
+          notificationsEnabled: notif,
+          activitySensitivity: ref(sensitivity)
         });
         bag.runStatusByThreadId = r.runStatusByThreadId;
         bag.idleAttentionByThreadId = r.idleAttentionByThreadId;
@@ -187,6 +190,24 @@ describe("useThreadPtyRunStatus", () => {
     await flushPromises();
 
     ptyHandler!("t-b", "\x1b[2J\x1b[H\x1b[?25h");
+    vi.advanceTimersByTime(5000);
+    await flushPromises();
+
+    expect(runStatusByThreadId.value["t-b"]).toBeUndefined();
+    expect(idleAttentionByThreadId.value["t-b"]).toBeUndefined();
+    expect(chirp.playTerminalChirp).not.toHaveBeenCalled();
+  });
+
+  it("uses sensitivity threshold before treating output as activity", async () => {
+    const { runStatusByThreadId, idleAttentionByThreadId } = mountHarness(
+      [thread("t-a"), thread("t-b")],
+      "t-a",
+      true,
+      "high"
+    );
+    await flushPromises();
+
+    ptyHandler!("t-b", "ok");
     vi.advanceTimersByTime(5000);
     await flushPromises();
 
