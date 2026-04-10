@@ -13,7 +13,8 @@ vi.mock("@/components/CodeMirrorEditor.vue", () => ({
     props: {
       modelValue: { type: String, default: "" },
       language: String,
-      ariaLabel: String
+      ariaLabel: String,
+      showLineNumbers: { type: Boolean, default: true }
     },
     emits: ["update:modelValue"],
     setup(props, { emit }) {
@@ -23,6 +24,7 @@ vi.mock("@/components/CodeMirrorEditor.vue", () => ({
           class: "file-editor-textarea",
           value: props.modelValue,
           "data-language": props.language ?? undefined,
+          "data-line-numbers": props.showLineNumbers ? "visible" : "hidden",
           "aria-label": props.ariaLabel ?? undefined,
           spellcheck: false,
           onInput: (e: Event) =>
@@ -34,6 +36,7 @@ vi.mock("@/components/CodeMirrorEditor.vue", () => ({
 
 describe("FileSearchEditor", () => {
   const listFiles = vi.fn<WorkspaceApi["listFiles"]>();
+  const searchFileContents = vi.fn<NonNullable<WorkspaceApi["searchFileContents"]>>();
   const readFile = vi.fn<WorkspaceApi["readFile"]>();
   const writeFile = vi.fn<WorkspaceApi["writeFile"]>();
   const createFile = vi.fn<WorkspaceApi["createFile"]>();
@@ -46,7 +49,10 @@ describe("FileSearchEditor", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     localStorage.removeItem("instrument.fileSearchSidebarCollapsed");
+    localStorage.removeItem("instrument.fileSearchEditorCollapsed");
+    localStorage.removeItem("instrument.fileSearchLineNumbersVisible");
     listFiles.mockReset();
+    searchFileContents.mockReset();
     readFile.mockReset();
     writeFile.mockReset();
     createFile.mockReset();
@@ -75,6 +81,7 @@ describe("FileSearchEditor", () => {
       discardAll: vi.fn(),
       listFiles,
       searchFiles: vi.fn(),
+      searchFileContents,
       readFile,
       writeFile,
       createFile,
@@ -184,7 +191,7 @@ describe("FileSearchEditor", () => {
     await flushPromises();
 
     const input = wrapper.get('[data-testid="file-search-input"]');
-    expect(input.classes()).toContain("h-7");
+    expect(input.classes()).toContain("h-8");
     expect(input.classes()).toContain("rounded-md");
     expect(input.classes()).toContain("border");
     expect(input.classes()).toContain("bg-background");
@@ -205,7 +212,7 @@ describe("FileSearchEditor", () => {
     expect(header.classes()).toContain("py-1.5");
   });
 
-  it("renders the search bar row at the same compact header height", async () => {
+  it("renders the file search header with padded, spaced layout", async () => {
     listFiles.mockResolvedValue([]);
 
     const wrapper = mount(FileSearchEditor, {
@@ -215,7 +222,8 @@ describe("FileSearchEditor", () => {
     await flushPromises();
 
     const header = wrapper.get('[data-testid="file-search-header"]');
-    expect(header.classes()).toContain("p-1");
+    expect(header.classes()).toContain("gap-1");
+    expect(header.classes()).toContain("px-2.5");
   });
 
   it("collapses and expands the file sidebar", async () => {
@@ -239,6 +247,53 @@ describe("FileSearchEditor", () => {
     await flushPromises();
 
     expect(wrapper.find('[data-testid="file-search-input"]').exists()).toBe(true);
+  });
+
+  it("collapses and expands the file editor body", async () => {
+    listFiles.mockResolvedValue([{ relativePath: "src/App.vue", size: 11, modifiedAt: 1 }]);
+    readFile.mockResolvedValue("const value = 1;\n");
+
+    const wrapper = mount(FileSearchEditor, {
+      props: { worktreePath: "/tmp/project" }
+    });
+
+    await flushPromises();
+    await wrapper.get('[data-testid="file-node-src/App.vue"]').trigger("click");
+    await flushPromises();
+
+    expect(wrapper.find('[data-testid="file-editor"]').exists()).toBe(true);
+
+    await wrapper.get('[data-testid="toggle-file-editor-body"]').trigger("click");
+    await flushPromises();
+
+    expect(wrapper.find('[data-testid="file-editor"]').exists()).toBe(false);
+    expect(wrapper.get('[data-testid="file-editor-collapsed-state"]').text()).toContain("Editor collapsed");
+
+    await wrapper.get('[data-testid="toggle-file-editor-body"]').trigger("click");
+    await flushPromises();
+
+    expect(wrapper.find('[data-testid="file-editor-collapsed-state"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="file-editor"]').exists()).toBe(true);
+  });
+
+  it("toggles CodeMirror line numbers", async () => {
+    listFiles.mockResolvedValue([{ relativePath: "src/App.vue", size: 11, modifiedAt: 1 }]);
+    readFile.mockResolvedValue("const value = 1;\n");
+
+    const wrapper = mount(FileSearchEditor, {
+      props: { worktreePath: "/tmp/project" }
+    });
+
+    await flushPromises();
+    await wrapper.get('[data-testid="file-node-src/App.vue"]').trigger("click");
+    await flushPromises();
+
+    expect(wrapper.get('[data-testid="file-editor"]').attributes("data-line-numbers")).toBe("visible");
+
+    await wrapper.get('[data-testid="toggle-line-numbers"]').trigger("click");
+    await flushPromises();
+
+    expect(wrapper.get('[data-testid="file-editor"]').attributes("data-line-numbers")).toBe("hidden");
   });
 
   it("toggles folders open and closed", async () => {
@@ -286,6 +341,31 @@ describe("FileSearchEditor", () => {
     );
   });
 
+  it("calls searchFileContents in Text mode after debounce", async () => {
+    listFiles.mockResolvedValue([
+      { relativePath: "src/App.vue", size: 11, modifiedAt: 1 },
+      { relativePath: "src/features/FileSearchEditor.vue", size: 11, modifiedAt: 2 }
+    ]);
+    searchFileContents.mockResolvedValue(["src/App.vue"]);
+
+    const wrapper = mount(FileSearchEditor, {
+      props: { worktreePath: "/tmp/project" }
+    });
+
+    await flushPromises();
+
+    const tabs = wrapper.findAll('[role="tab"]');
+    expect(tabs.length).toBeGreaterThanOrEqual(2);
+    await tabs[1]!.trigger("click");
+    await flushPromises();
+
+    await wrapper.get('[data-testid="file-search-input"]').setValue("hello");
+    await vi.advanceTimersByTimeAsync(400);
+    await flushPromises();
+
+    expect(searchFileContents).toHaveBeenCalledWith("/tmp/project", "hello");
+  });
+
   it("filters the preloaded summaries client-side while preserving ancestor folders", async () => {
     listFiles.mockResolvedValue([
       { relativePath: "src/App.vue", size: 11, modifiedAt: 1 },
@@ -305,6 +385,28 @@ describe("FileSearchEditor", () => {
     expect(wrapper.text()).toContain("features");
     expect(wrapper.text()).toContain("FileSearchEditor.vue");
     expect(wrapper.text()).not.toContain("App.vue");
+  });
+
+  it("allows collapsing folders while a path filter is active", async () => {
+    listFiles.mockResolvedValue([
+      { relativePath: "src/App.vue", size: 11, modifiedAt: 1 },
+      { relativePath: "src/features/FileSearchEditor.vue", size: 11, modifiedAt: 2 }
+    ]);
+
+    const wrapper = mount(FileSearchEditor, {
+      props: { worktreePath: "/tmp/project" }
+    });
+
+    await flushPromises();
+    await wrapper.get('[data-testid="file-search-input"]').setValue("file");
+    await flushPromises();
+
+    expect(wrapper.text()).toContain("FileSearchEditor.vue");
+
+    await wrapper.get('[data-testid="folder-toggle-src/features"]').trigger("click");
+    await flushPromises();
+
+    expect(wrapper.text()).not.toContain("FileSearchEditor.vue");
   });
 
   it("loads a file when a search result is selected", async () => {

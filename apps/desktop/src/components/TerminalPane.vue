@@ -288,6 +288,12 @@ watch(
     }
   }
 );
+
+function focusTerminal(): void {
+  terminal?.focus();
+}
+
+defineExpose({ focus: focusTerminal });
 </script>
 
 <template>

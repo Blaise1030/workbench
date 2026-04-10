@@ -422,3 +422,17 @@
     @apply bg-background text-foreground;
   }
 }
+
+/*
+ * vue-sonner defaults to z-index ~1e9; reka-ui Dialog/AlertDialog overlays use z-50. With that order,
+ * the toaster stacks above every modal and can steal clicks (especially when the toaster spans full
+ * width on narrow viewports). Keep toasts below modal layers and only receive events on the toasts.
+ */
+[data-sonner-toaster] {
+  z-index: 40 !important;
+  pointer-events: none;
+}
+
+[data-sonner-toaster] [data-sonner-toast] {
+  pointer-events: auto;
+}

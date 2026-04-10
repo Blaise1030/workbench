@@ -487,9 +487,11 @@ watch(
     const firstEntry = items.find((item) => item.kind === "entry");
     if (!firstEntry || firstEntry.kind !== "entry") return;
     await nextTick();
+    // Parent may apply selection in the same flush as repoStatus; avoid duplicate emits.
+    if (selectedEntry.value) return;
     selectEntry(firstEntry.path, firstEntry.scope);
   },
-  { immediate: true }
+  { immediate: true, flush: "post" }
 );
 
 onMounted(() => {

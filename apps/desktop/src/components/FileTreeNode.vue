@@ -22,12 +22,16 @@ export type FileTreeNodeData =
       children: FileTreeNodeData[];
     };
 
-const props = defineProps<{
-  node: FileTreeNodeData;
-  selectedPath: string | null;
-  expandedFolders: Set<string>;
-  forceExpanded: boolean;
-}>();
+const props = withDefaults(
+  defineProps<{
+    node: FileTreeNodeData;
+    selectedPath: string | null;
+    expandedFolders: Set<string>;
+    /** When true, folders ignore `expandedFolders` and always show children (used sparingly). */
+    forceExpanded?: boolean;
+  }>(),
+  { forceExpanded: false }
+);
 
 const emit = defineEmits<{
   toggleFolder: [path: string];
@@ -52,14 +56,14 @@ function isExpanded(path: string): boolean {
           type="button"
           variant="ghost"
           size="xs"
-          class="flex w-full items-center justify-start gap-1.5 rounded-md px-1.5 py-1 text-left text-xs text-foreground transition-colors hover:bg-muted"
+          class="flex w-full min-w-0 max-w-none items-center justify-start gap-1.5 rounded-md px-1.5 py-1 text-left text-xs text-foreground transition-colors hover:bg-muted"
           @click="emit('toggleFolder', node.path)"
         >
           <span class="w-3.5 shrink-0 text-center text-[10px] leading-none text-muted-foreground">
             {{ isExpanded(node.path) ? "▾" : "▸" }}
           </span>
           <span class="shrink-0 text-[13px] leading-none" aria-hidden="true">📁</span>
-          <span class="min-w-0 truncate font-medium">{{ node.name }}</span>
+          <span class="min-w-0 whitespace-nowrap font-medium">{{ node.name }}</span>
         </Button>
       </ContextMenuTrigger>
       <ContextMenuContent data-testid="file-tree-context-menu" class="min-w-[11rem]">
@@ -87,13 +91,13 @@ function isExpanded(path: string): boolean {
           type="button"
           variant="ghost"
           size="xs"
-          class="flex w-full items-center justify-start gap-1.5 rounded-md px-1.5 py-1 text-left text-xs transition-colors hover:bg-muted"
+          class="flex w-full min-w-0 max-w-none items-center justify-start gap-1.5 rounded-md px-1.5 py-1 text-left text-xs transition-colors hover:bg-muted"
           :class="selectedPath === node.path ? 'bg-muted text-foreground' : 'text-muted-foreground'"
           @click="emit('selectFile', node.path)"
         >
           <span class="w-3.5 shrink-0" aria-hidden="true" />
           <span class="shrink-0 text-[13px] leading-none" aria-hidden="true">📄</span>
-          <span class="min-w-0 truncate">{{ node.name }}</span>
+          <span class="min-w-0 whitespace-nowrap">{{ node.name }}</span>
         </Button>
       </ContextMenuTrigger>
       <ContextMenuContent data-testid="file-tree-context-menu" class="min-w-[11rem]">

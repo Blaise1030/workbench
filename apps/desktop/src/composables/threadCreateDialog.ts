@@ -17,14 +17,25 @@ export type ThreadCreateDialogOpenOptions =
 type Opener = (opts: ThreadCreateDialogOpenOptions) => void;
 
 let opener: Opener | null = null;
+/** Opens that ran before the layout host registered (e.g. very early click). */
+let pending: ThreadCreateDialogOpenOptions | null = null;
 
 export function registerThreadCreateDialogOpener(fn: Opener): () => void {
   opener = fn;
+  if (pending) {
+    const opts = pending;
+    pending = null;
+    fn(opts);
+  }
   return () => {
-    if (opener === fn) opener = null;
+    if (opener === fn) {
+      opener = null;
+      pending = null;
+    }
   };
 }
 
 export function openThreadCreateDialog(opts: ThreadCreateDialogOpenOptions): void {
-  opener?.(opts);
+  if (opener) opener(opts);
+  else pending = opts;
 }

@@ -402,7 +402,7 @@ describe("WorkspaceLayout", () => {
 
     const fileSearchEditorText = wrapper.get('[data-testid="file-search-editor"]').text();
     expect(fileSearchEditorText).toContain("/tmp/instrument");
-    expect(wrapper.get('[data-testid="workspace-files-pane"]').classes()).toContain("border-t");
+    expect(wrapper.find('[data-testid="overlay-shell-header"]').exists()).toBe(true);
   });
 
   it("renders the active context label in the Git Diff header", async () => {

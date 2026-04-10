@@ -1,8 +1,11 @@
 <script setup lang="ts">
+import { watchDebounced } from "@vueuse/core";
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import {
   FilePlus,
   FolderPlus,
+  Maximize2,
+  Minimize2,
   PanelLeftClose,
   PanelLeftOpen,
   RefreshCw,
@@ -94,7 +97,14 @@ function fileEmojiForPath(relativePath: string): string {
 
 const searchInput = ref<InstanceType<typeof Input> | null>(null);
 const query = ref("");
+/** `path`: filter by path; `content`: full-text search (main process). */
+const searchMode = ref<"path" | "content">("path");
 const allFiles = ref<FileSummary[]>([]);
+/** Relative paths whose file contents matched the last content search. */
+const contentMatchPaths = ref<string[]>([]);
+const contentSearchError = ref<string | null>(null);
+const isContentSearching = ref(false);
+let contentSearchSeq = 0;
 const expandedFolders = ref<Set<string>>(new Set());
 const selectedPath = ref<string | null>(null);
 const loadedContent = ref("");
@@ -105,23 +115,42 @@ const isSaving = ref(false);
 const error = ref<string | null>(null);
 
 const SIDEBAR_COLLAPSED_KEY = "instrument.fileSearchSidebarCollapsed";
+const EDITOR_COLLAPSED_KEY = "instrument.fileSearchEditorCollapsed";
+const LINE_NUMBERS_VISIBLE_KEY = "instrument.fileSearchLineNumbersVisible";
 
-const sidebarCollapsed = ref(
-  (() => {
-    try {
-      return (
-        typeof localStorage !== "undefined" &&
-        localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "1"
-      );
-    } catch {
-      return false;
-    }
-  })()
-);
+function readLocalStorageFlag(key: string, fallback = false): boolean {
+  try {
+    if (typeof localStorage === "undefined") return fallback;
+    const value = localStorage.getItem(key);
+    return value === null ? fallback : value === "1";
+  } catch {
+    return fallback;
+  }
+}
+
+const sidebarCollapsed = ref(readLocalStorageFlag(SIDEBAR_COLLAPSED_KEY));
+const editorCollapsed = ref(readLocalStorageFlag(EDITOR_COLLAPSED_KEY));
+const showLineNumbers = ref(readLocalStorageFlag(LINE_NUMBERS_VISIBLE_KEY, true));
 
 watch(sidebarCollapsed, (collapsed) => {
   try {
     localStorage.setItem(SIDEBAR_COLLAPSED_KEY, collapsed ? "1" : "0");
+  } catch {
+    /* ignore quota / private mode */
+  }
+});
+
+watch(editorCollapsed, (collapsed) => {
+  try {
+    localStorage.setItem(EDITOR_COLLAPSED_KEY, collapsed ? "1" : "0");
+  } catch {
+    /* ignore quota / private mode */
+  }
+});
+
+watch(showLineNumbers, (visible) => {
+  try {
+    localStorage.setItem(LINE_NUMBERS_VISIBLE_KEY, visible ? "1" : "0");
   } catch {
     /* ignore quota / private mode */
   }
@@ -156,8 +185,6 @@ const hasWorkspace = computed(() => Boolean(props.worktreePath));
 const dirty = computed(
   () => selectedPath.value !== null && draftContent.value !== loadedContent.value
 );
-const hasActiveSearch = computed(() => query.value.trim().length > 0);
-
 const isMarkdownFile = computed(() => {
   const p = selectedPath.value?.toLowerCase() ?? "";
   return p.endsWith(".md") || p.endsWith(".markdown");
@@ -170,10 +197,38 @@ const mdViewTabs = computed<PillTabItem[]>(() => [
   { value: "source", label: "Source" }
 ]);
 
+const codeMirrorRef = ref<InstanceType<typeof CodeMirrorEditor> | null>(null);
+
+const findInFileShortcutHint = computed(() =>
+  typeof navigator !== "undefined" && /Mac|iPhone|iPod|iPad/i.test(navigator.platform)
+    ? "⌘F"
+    : "Ctrl+F"
+);
+
+const canFindInFile = computed(
+  () =>
+    Boolean(selectedPath.value) &&
+    !editorCollapsed.value &&
+    !isLoadingFile.value &&
+    !(isMarkdownFile.value && mdViewMode.value === "read")
+);
+
+function openFindInFile(): void {
+  codeMirrorRef.value?.openFind();
+}
+
 const markdownHtml = computed(() => {
   if (!isMarkdownFile.value) return "";
   return renderMarkdownToHtml(draftContent.value);
 });
+
+/** Stable primitives for CodeMirror Markdown image previews (avoid resetting the editor each keystroke). */
+const markdownImageWorkspaceRoot = computed(() =>
+  isMarkdownFile.value && props.worktreePath ? props.worktreePath : null
+);
+const markdownImageFilePath = computed(() =>
+  isMarkdownFile.value && selectedPath.value ? selectedPath.value : null
+);
 
 /** Extension → CodeMirror language id (see `codemirrorLanguageExtensions.ts`). */
 const editorLanguage = computed(() => {
@@ -293,6 +348,37 @@ function buildFileTree(files: FileSummary[]): FileTreeNodeData[] {
   return sortNodes(roots);
 }
 
+function collectFilePathsFromTree(nodes: FileTreeNodeData[]): string[] {
+  const out: string[] = [];
+  for (const node of nodes) {
+    if (node.kind === "file") out.push(node.path);
+    else out.push(...collectFilePathsFromTree(node.children));
+  }
+  return out;
+}
+
+function ancestorFolderPathsForFile(relativePath: string): string[] {
+  const segments = relativePath.split("/").filter(Boolean);
+  if (segments.length <= 1) return [];
+  const out: string[] = [];
+  let acc = "";
+  for (let i = 0; i < segments.length - 1; i++) {
+    acc = acc ? `${acc}/${segments[i]}` : segments[i]!;
+    out.push(acc);
+  }
+  return out;
+}
+
+function ancestorFoldersForAllVisibleFiles(nodes: FileTreeNodeData[]): string[] {
+  const folders = new Set<string>();
+  for (const filePath of collectFilePathsFromTree(nodes)) {
+    for (const a of ancestorFolderPathsForFile(filePath)) {
+      folders.add(a);
+    }
+  }
+  return [...folders];
+}
+
 function filterTreeNodes(nodes: FileTreeNodeData[], queryText: string): FileTreeNodeData[] {
   const trimmedQuery = queryText.trim().toLowerCase();
   if (!trimmedQuery) return nodes;
@@ -327,8 +413,136 @@ function defaultExpandedFolders(files: FileSummary[]): Set<string> {
   return next;
 }
 
-const fileTree = computed(() => buildFileTree(allFiles.value));
-const visibleTree = computed(() => filterTreeNodes(fileTree.value, query.value));
+const summariesForTree = computed(() => {
+  const files = allFiles.value;
+  const q = query.value.trim();
+  if (!q) return files;
+  if (searchMode.value === "path") return files;
+
+  const matches = new Set(contentMatchPaths.value);
+  if (matches.size === 0) return [];
+
+  return files.filter((f) => {
+    if (f.kind === "directory") {
+      const p = f.relativePath;
+      const prefix = `${p}/`;
+      for (const m of matches) {
+        if (m === p || m.startsWith(prefix)) return true;
+      }
+      return false;
+    }
+    return matches.has(f.relativePath);
+  });
+});
+
+const fileTree = computed(() => buildFileTree(summariesForTree.value));
+
+const visibleTree = computed(() => {
+  if (!query.value.trim()) return fileTree.value;
+  if (searchMode.value === "content") return fileTree.value;
+  return filterTreeNodes(fileTree.value, query.value);
+});
+
+const searchModeTabs = computed<PillTabItem[]>(() => [
+  { value: "path", label: "Path" },
+  { value: "content", label: "Text" }
+]);
+
+const searchPlaceholder = computed(() =>
+  searchMode.value === "content" ? "Search text in files…" : "Search paths…"
+);
+
+/** Path mode: on first character of a search, expand only folders that lead to visible files (not every folder). */
+watch(query, (next, prev) => {
+  error.value = null;
+  if ((prev ?? "").trim().length > 0 || next.trim().length === 0) return;
+  if (searchMode.value !== "path") return;
+  const nextExpanded = new Set(expandedFolders.value);
+  for (const f of ancestorFoldersForAllVisibleFiles(visibleTree.value)) {
+    nextExpanded.add(f);
+  }
+  expandedFolders.value = nextExpanded;
+});
+
+/** Content mode: when results arrive, expand folders along matching files. */
+watch(
+  contentMatchPaths,
+  () => {
+    if (searchMode.value !== "content" || !query.value.trim()) return;
+    const nextExpanded = new Set(expandedFolders.value);
+    for (const f of ancestorFoldersForAllVisibleFiles(visibleTree.value)) {
+      nextExpanded.add(f);
+    }
+    expandedFolders.value = nextExpanded;
+  },
+  { flush: "post" }
+);
+
+/** Show loading immediately; `watchDebounced` clears it when the IPC call finishes. */
+watch(
+  [() => query.value, () => searchMode.value, () => props.worktreePath],
+  () => {
+    if (searchMode.value !== "content") {
+      contentMatchPaths.value = [];
+      contentSearchError.value = null;
+      isContentSearching.value = false;
+      contentSearchSeq += 1;
+      return;
+    }
+    if (!query.value.trim() || !props.worktreePath) {
+      contentMatchPaths.value = [];
+      contentSearchError.value = null;
+      isContentSearching.value = false;
+      contentSearchSeq += 1;
+      return;
+    }
+    isContentSearching.value = true;
+  },
+  { flush: "post" }
+);
+
+watchDebounced(
+  [() => query.value, () => searchMode.value, () => props.worktreePath],
+  async () => {
+    if (searchMode.value !== "content" || !props.worktreePath) {
+      return;
+    }
+    const q = query.value.trim();
+    if (!q) {
+      return;
+    }
+
+    const api = getApi();
+    const cwd = props.worktreePath;
+    const seq = ++contentSearchSeq;
+    contentSearchError.value = null;
+
+    if (!api.searchFileContents) {
+      contentMatchPaths.value = [];
+      contentSearchError.value = "Full-text search is not available in this build.";
+      if (seq === contentSearchSeq) {
+        isContentSearching.value = false;
+      }
+      return;
+    }
+
+    try {
+      const paths = await api.searchFileContents(cwd, q);
+      if (seq !== contentSearchSeq || props.worktreePath !== cwd) return;
+      contentMatchPaths.value = paths;
+    } catch (searchErr) {
+      if (seq !== contentSearchSeq || props.worktreePath !== cwd) return;
+      contentMatchPaths.value = [];
+      contentSearchError.value =
+        searchErr instanceof Error ? searchErr.message : "Could not search file contents.";
+    } finally {
+      if (seq === contentSearchSeq) {
+        isContentSearching.value = false;
+      }
+    }
+  },
+  { debounce: 320, flush: "post" }
+);
 
 function getApi(): WorkspaceApi | null {
   return window.workspaceApi ?? null;
@@ -503,13 +717,20 @@ async function handleCloseFileTab(): Promise<void> {
 function invalidatePendingFileRequests(): void {
   fileSummariesSeq += 1;
   openFileSeq += 1;
+  contentSearchSeq += 1;
   isSearching.value = false;
   isLoadingFile.value = false;
+  isContentSearching.value = false;
 }
 
 function resetState(): void {
   query.value = "";
+  searchMode.value = "path";
   allFiles.value = [];
+  contentMatchPaths.value = [];
+  contentSearchError.value = null;
+  isContentSearching.value = false;
+  contentSearchSeq += 1;
   expandedFolders.value = new Set();
   error.value = null;
   isSearching.value = false;
@@ -760,6 +981,14 @@ function handleRevert(): void {
   error.value = null;
 }
 
+function toggleEditorCollapsed(): void {
+  editorCollapsed.value = !editorCollapsed.value;
+}
+
+function toggleLineNumbers(): void {
+  showLineNumbers.value = !showLineNumbers.value;
+}
+
 function handleToggleFolder(path: string): void {
   const next = new Set(expandedFolders.value);
   if (next.has(path)) next.delete(path);
@@ -771,10 +1000,6 @@ async function confirmContextSwitch(nextWorktreePath: string | null): Promise<bo
   if (nextWorktreePath === props.worktreePath) return true;
   return confirmDiscardIfDirty();
 }
-
-watch(query, () => {
-  error.value = null;
-});
 
 watch(selectedPath, (path) => {
   if (path && /\.(md|markdown)$/i.test(path)) {
@@ -838,7 +1063,7 @@ defineExpose({
     <div
       id="file-search-sidebar"
       class="flex shrink-0 flex-col overflow-hidden border-r border-border transition-[width] duration-200 ease-out"
-      :class="sidebarCollapsed ? 'w-11' : 'w-72'"
+      :class="sidebarCollapsed ? 'w-11' : 'w-80'"
     >
       <div
         v-if="sidebarCollapsed"
@@ -862,9 +1087,9 @@ defineExpose({
       <template v-else>
         <div
           data-testid="file-search-header"
-          class="flex items-center gap-1 border-b border-border p-1"
-        >          
-          <div class="relative min-w-0 flex-1 text-muted-foreground">
+          class="flex flex-col gap-1 border-b border-border px-2.5 pt-2.5 pb-2"
+        >
+          <div class="relative min-w-0 text-muted-foreground">
             <Search
               class="pointer-events-none absolute top-1/2 left-2.5 h-3.5 w-3.5 -translate-y-1/2"
             />
@@ -874,65 +1099,81 @@ defineExpose({
               v-model="query"
               data-testid="file-search-input"
               type="text"
-              placeholder="Search paths..."
-              class="h-7 min-w-0 w-full rounded-md bg-background py-0.5 pr-2 pl-8 text-xs focus-visible:ring-2"
+              :placeholder="searchPlaceholder"
+              class="h-8 min-w-0 w-full rounded-md bg-background py-1 pr-2 pl-8 text-xs focus-visible:ring-2"
               :disabled="!hasWorkspace"
             />
           </div>
-          <Button
-            data-testid="refresh-file-explorer"
-            variant="outline"
-            size="icon-xs"
-            class="shrink-0 px-1.5"
-            :disabled="!hasWorkspace || isSearching"
-            :title="'Refresh file explorer'"
-            @click="loadFileSummaries"
-          >
-            <RefreshCw class="h-3.5 w-3.5" aria-hidden="true" />
-            <span class="sr-only">Refresh file explorer</span>
-          </Button>
-          <Button
-            data-testid="add-file"
-            variant="outline"
-            size="icon-xs"
-            class="shrink-0 px-1.5"
-            :disabled="!hasWorkspace"
-            :title="'Add file'"
-            @click="handleAddFile()"
-          >
-            <FilePlus class="h-3.5 w-3.5" aria-hidden="true" />
-            <span class="sr-only">Add file</span>
-          </Button>
-          <Button
-            data-testid="add-folder"
-            variant="outline"
-            size="icon-xs"
-            class="shrink-0 px-1.5"
-            :disabled="!hasWorkspace"
-            :title="'Add folder'"
-            @click="handleAddFolder()"
-          >
-            <FolderPlus class="h-3.5 w-3.5" aria-hidden="true" />
-            <span class="sr-only">Add folder</span>
-          </Button>
-          <Button
-            data-testid="file-search-sidebar-collapse"
-            variant="outline"
-            size="icon-xs"
-            class="shrink-0 px-1.5"
-            :title="'Hide file explorer'"
-            @click="collapseSidebar()"
-          >
-            <PanelLeftClose class="h-3.5 w-3.5" aria-hidden="true" />
-            <span class="sr-only">Hide file explorer</span>
-          </Button>
+          <div class="flex min-h-[1.75rem] flex-wrap items-center justify-between gap-x-2 gap-y-2">
+            <PillTabs
+              v-model="searchMode"
+              data-testid="file-search-mode-tabs"
+              size="sm"
+              class="min-w-0 flex-1 [&_[role=tablist]]:justify-start [&_[role=tablist]]:gap-1 [&_[role=tablist]]:px-0"
+              aria-label="File search mode"
+              :tabs="searchModeTabs"
+            />
+            <div
+              class="flex shrink-0 items-center gap-0.5 rounded-md border border-border/70 bg-muted/20 p-0.5"
+              role="toolbar"
+              aria-label="File explorer actions"
+            >
+              <Button
+                data-testid="refresh-file-explorer"
+                variant="ghost"
+                size="icon-xs"
+                class="size-7 shrink-0"
+                :disabled="!hasWorkspace || isSearching"
+                :title="'Refresh file explorer'"
+                @click="loadFileSummaries"
+              >
+                <RefreshCw class="h-3.5 w-3.5" aria-hidden="true" />
+                <span class="sr-only">Refresh file explorer</span>
+              </Button>
+              <Button
+                data-testid="add-file"
+                variant="ghost"
+                size="icon-xs"
+                class="size-7 shrink-0"
+                :disabled="!hasWorkspace"
+                :title="'Add file'"
+                @click="handleAddFile()"
+              >
+                <FilePlus class="h-3.5 w-3.5" aria-hidden="true" />
+                <span class="sr-only">Add file</span>
+              </Button>
+              <Button
+                data-testid="add-folder"
+                variant="ghost"
+                size="icon-xs"
+                class="size-7 shrink-0"
+                :disabled="!hasWorkspace"
+                :title="'Add folder'"
+                @click="handleAddFolder()"
+              >
+                <FolderPlus class="h-3.5 w-3.5" aria-hidden="true" />
+                <span class="sr-only">Add folder</span>
+              </Button>
+              <Button
+                data-testid="file-search-sidebar-collapse"
+                variant="ghost"
+                size="icon-xs"
+                class="size-7 shrink-0"
+                :title="'Hide file explorer'"
+                @click="collapseSidebar()"
+              >
+                <PanelLeftClose class="h-3.5 w-3.5" aria-hidden="true" />
+                <span class="sr-only">Hide file explorer</span>
+              </Button>
+            </div>
+          </div>
         </div>
 
         <ContextMenu>
           <ContextMenuTrigger as-child>
             <div
               data-testid="file-tree-scroll"
-              class="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto p-1.5"
+              class="min-h-0 min-w-0 flex-1 overflow-x-auto overflow-y-auto px-2 py-2 [scrollbar-width:thin]"
             >
               <p v-if="!hasWorkspace" class="px-1.5 py-2 text-xs text-muted-foreground">
                 Open a workspace to search and edit files.
@@ -942,6 +1183,36 @@ defineExpose({
               </p>
               <p v-else-if="error" class="px-1.5 py-2 text-xs text-destructive">
                 {{ error }}
+              </p>
+              <p
+                v-else-if="
+                  searchMode === 'content' &&
+                    query.trim() &&
+                    contentSearchError
+                "
+                class="px-1.5 py-2 text-xs text-destructive"
+              >
+                {{ contentSearchError }}
+              </p>
+              <p
+                v-else-if="
+                  searchMode === 'content' && query.trim() && isContentSearching
+                "
+                class="px-1.5 py-2 text-xs text-muted-foreground"
+              >
+                Searching file contents…
+              </p>
+              <p
+                v-else-if="
+                  searchMode === 'content' &&
+                    query.trim() &&
+                    !isContentSearching &&
+                    contentMatchPaths.length === 0 &&
+                    !contentSearchError
+                "
+                class="px-1.5 py-2 text-xs text-muted-foreground"
+              >
+                No files contain matching text.
               </p>
               <p
                 v-else-if="visibleTree.length === 0"
@@ -956,7 +1227,6 @@ defineExpose({
                   :node="node"
                   :selected-path="selectedPath"
                   :expanded-folders="expandedFolders"
-                  :force-expanded="hasActiveSearch"
                   @toggle-folder="handleToggleFolder"
                   @select-file="handleSelectFile"
                   @add-file="onCtxAddFile"
@@ -1047,6 +1317,44 @@ defineExpose({
           class="flex items-center gap-1"
         >
           <Button
+            data-testid="toggle-line-numbers"
+            variant="outline"
+            size="xs"
+            :disabled="!selectedPath"
+            :aria-pressed="showLineNumbers"
+            :title="showLineNumbers ? 'Hide line numbers' : 'Show line numbers'"
+            @click="toggleLineNumbers"
+          >
+            Lines
+          </Button>
+          <Button
+            data-testid="find-in-file"
+            variant="outline"
+            size="xs"
+            :disabled="!canFindInFile"
+            :title="`Find in file (${findInFileShortcutHint})`"
+            @click="openFindInFile"
+          >
+            Find
+          </Button>
+          <Button
+            data-testid="toggle-file-editor-body"
+            type="button"
+            variant="outline"
+            size="icon-xs"
+            class="px-1.5"
+            :disabled="!selectedPath"
+            :title="editorCollapsed ? 'Expand editor' : 'Collapse editor'"
+            :aria-label="editorCollapsed ? 'Expand editor' : 'Collapse editor'"
+            :aria-expanded="selectedPath ? !editorCollapsed : true"
+            aria-controls="file-editor-body"
+            @click="toggleEditorCollapsed"
+          >
+            <Maximize2 v-if="editorCollapsed" class="h-3.5 w-3.5" aria-hidden="true" />
+            <Minimize2 v-else class="h-3.5 w-3.5" aria-hidden="true" />
+            <span class="sr-only">{{ editorCollapsed ? "Expand editor" : "Collapse editor" }}</span>
+          </Button>
+          <Button
             data-testid="revert-file"
             variant="outline"
             size="xs"
@@ -1080,60 +1388,74 @@ defineExpose({
       </header>
 
       <div
+        id="file-editor-body"
         data-testid="file-editor-body"
         class="relative flex min-h-0 min-w-0 flex-1 flex-col"
       >
         <div
-          v-if="isMarkdownFile && selectedPath"
-          class="absolute top-2 right-3 z-20 rounded-lg border border-border/60 bg-background/95 p-0.5 shadow-sm backdrop-blur-sm supports-[backdrop-filter]:bg-background/80"
+          v-if="selectedPath && editorCollapsed"
+          data-testid="file-editor-collapsed-state"
+          class="flex min-h-[6rem] flex-1 items-center justify-center rounded-md bg-muted/10 px-4 py-6 text-xs text-muted-foreground"
         >
-          <PillTabs
-            v-model="mdViewMode"
-            class="min-w-0 shrink-0 [&_[role=tablist]]:px-0 [&_[role=tablist]]:py-0"
-            aria-label="Markdown view"
-            :tabs="mdViewTabs"
-          />
+          Editor collapsed.
         </div>
-        <p
-          v-if="error && selectedPath"
-          class="mb-2 px-4 pt-2 text-xs text-destructive"
-        >
-          {{ error }}
-        </p>
-        <div
-          v-if="!selectedPath"
-          data-testid="file-editor-empty-state"
-          class="flex min-h-[18rem] flex-1 flex-col items-center justify-center gap-3 rounded-md bg-background px-4 py-8 text-center"
-          role="status"
-          aria-live="polite"
-        >
-          <span class="select-none text-4xl leading-none" aria-hidden="true">📄</span>
-          <p class="max-w-xs text-xs text-muted-foreground">
-            Pick a file from the search results to view or edit it.
+        <template v-else>
+          <div
+            v-if="isMarkdownFile && selectedPath"
+            class="absolute top-2 right-3 z-20 rounded-lg border border-border/60 bg-background/95 p-0.5 shadow-sm backdrop-blur-sm supports-[backdrop-filter]:bg-background/80"
+          >
+            <PillTabs
+              v-model="mdViewMode"
+              class="min-w-0 shrink-0 [&_[role=tablist]]:px-0 [&_[role=tablist]]:py-0"
+              aria-label="Markdown view"
+              :tabs="mdViewTabs"
+            />
+          </div>
+          <p
+            v-if="error && selectedPath"
+            class="mb-2 px-4 pt-2 text-xs text-destructive"
+          >
+            {{ error }}
           </p>
-        </div>
-        <p
-          v-else-if="isLoadingFile"
-          class="px-4 pt-2 text-xs text-muted-foreground"
-        >
-          Loading file…
-        </p>
-        <div
-          v-else-if="isMarkdownFile && mdViewMode === 'read'"
-          data-testid="markdown-preview"
-          class="markdown-reader h-full min-h-[18rem] overflow-y-auto rounded-md bg-muted/10 px-3 py-3"
-          v-html="markdownHtml"
-        />
-        <CodeMirrorEditor
-          v-else
-          v-model="draftContent"
-          :language="editorLanguage"
-          :aria-label="
-            selectedPath
-              ? `Source code, ${editorLanguage ?? 'plain text'}, ${selectedPath}`
-              : undefined
-          "
-        />
+          <div
+            v-else-if="!selectedPath"
+            data-testid="file-editor-empty-state"
+            class="flex min-h-[18rem] flex-1 flex-col items-center justify-center gap-3 rounded-md bg-background px-4 py-8 text-center"
+            role="status"
+            aria-live="polite"
+          >
+            <span class="select-none text-4xl leading-none" aria-hidden="true">📄</span>
+            <p class="max-w-xs text-xs text-muted-foreground">
+              Pick a file from the search results to view or edit it.
+            </p>
+          </div>
+          <p
+            v-else-if="isLoadingFile"
+            class="px-4 pt-2 text-xs text-muted-foreground"
+          >
+            Loading file…
+          </p>
+          <div
+            v-else-if="isMarkdownFile && mdViewMode === 'read'"
+            data-testid="markdown-preview"
+            class="markdown-reader h-full min-h-[18rem] overflow-y-auto rounded-md bg-muted/10 px-3 py-3"
+            v-html="markdownHtml"
+          />
+          <CodeMirrorEditor
+            v-else
+            ref="codeMirrorRef"
+            v-model="draftContent"
+            :language="editorLanguage"
+            :show-line-numbers="showLineNumbers"
+            :markdown-workspace-root="markdownImageWorkspaceRoot"
+            :markdown-file-path="markdownImageFilePath"
+            :aria-label="
+              selectedPath
+                ? `Source code, ${editorLanguage ?? 'plain text'}, ${selectedPath}`
+                : undefined
+            "
+          />
+        </template>
       </div>
     </div>
 

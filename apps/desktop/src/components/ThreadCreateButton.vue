@@ -357,15 +357,15 @@ defineExpose({ openMenu: openOverlay });
         <CardContent class="relative p-0">          
           <DialogTitle id="thread-create-overlay-title" class="sr-only">New thread</DialogTitle>
           <DialogDescription class="sr-only">
-            Start a thread with a coding agent. Type slash for commands, at-sign for repo files or skills, attach
-            files with the paperclip, choose an agent, then press Enter or Start thread.
+            Start a thread with a coding agent. Attach files with the paperclip, choose an agent, then press Enter or
+            Start thread.
           </DialogDescription>
           <Textarea
             ref="promptInputRef"
             v-model="promptText"
             data-testid="thread-create-prompt-input"
             :rows="4"
-            placeholder="Ask anything. Type / for commands, @ for repo files or skills."
+            placeholder="I want to build ...."
             aria-label="Thread goal or prompt"
             class="min-h-[8.5rem] resize-none rounded-none border-0 bg-transparent px-4 py-4 text-[15px] leading-relaxed text-foreground shadow-none placeholder:text-muted-foreground focus-visible:ring-0"
             @input="onPromptInput"

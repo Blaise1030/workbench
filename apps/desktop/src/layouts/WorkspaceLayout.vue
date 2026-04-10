@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeMount, onBeforeUnmount, onMounted, ref, watch } from "vue";
-import { Plus, Settings } from "lucide-vue-next";
+import { ChevronDown, ChevronUp, Plus, Settings } from "lucide-vue-next";
 import Button from "@/components/ui/Button.vue";
 import Badge from "@/components/ui/Badge.vue";
 import SourceControlPanel from "@/components/SourceControlPanel.vue";
@@ -15,12 +15,23 @@ import ThreadCreateButton from "@/components/ThreadCreateButton.vue";
 import BranchPicker from "@/components/BranchPicker.vue";
 import ThreadSidebar from "@/components/ThreadSidebar.vue";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle
+} from "@/components/ui/alert-dialog";
 import { useAgentBootstrapCommands } from "@/composables/useAgentBootstrapCommands";
 import { threadAgentResumeCommand } from "@shared/threadAgentBootstrap";
 import { isValidResumeSessionId } from "@shared/resumeSessionId";
 import {
   loadTerminalLayout,
   resolveCenterTab,
+  resolveShellOverlayTab,
   saveTerminalLayout
 } from "@/composables/useTerminalLayoutPersistence";
 import { useTerminalAttentionSounds } from "@/composables/useTerminalAttentionSounds";
@@ -32,7 +43,7 @@ import {
   type ThreadCreateDialogOpenOptions
 } from "@/composables/threadCreateDialog";
 import { useWorkspaceKeybindings } from "@/composables/useWorkspaceKeybindings";
-import { formatShortcut, MOD_DIGIT_SLOT_CODES, titleWithShortcut } from "@/keybindings/registry";
+import { formatShortcut, MOD_DIGIT_SLOT_CODES, shortcutForId, titleWithShortcut } from "@/keybindings/registry";
 import { useWorkspaceStore } from "@/stores/workspaceStore";
 import { useThreadPtyRunStatus } from "@/composables/useThreadPtyRunStatus";
 import { visibleTerminalSessionId } from "@/terminal/attentionRules";
@@ -97,10 +108,95 @@ watch(threadsSidebarCollapsed, (collapsed) => {
     /* ignore quota / private mode */
   }
 });
-/** `agent` | `diff` | `shell:${uuid}` for each extra terminal. */
-const centerTab = ref<string>("agent");
+/** Top pills: Agent / Git Diff / Files (never `shell:*`). */
+const mainCenterTab = ref<"agent" | "diff" | "files">("agent");
+/** Lower overlay: thread agent vs extra shell tab. */
+const shellOverlayTab = ref<"agent" | `shell:${string}`>("agent");
 /** One UUID per integrated terminal tab (after Agent + Git Diff). */
 const shellSlotIds = ref<string[]>([]);
+/** Bottom terminal bar (tab strip for shells); toggled with ⌘J / Ctrl+J. */
+const terminalPanelOpen = ref(true);
+
+/** Upper / lower split between thread agent terminal and extra shell terminals (when lower pane is open). */
+const DEFAULT_AGENT_UPPER_FRACTION = 0.5;
+const MIN_AGENT_UPPER_FRACTION = 0.25;
+const MAX_AGENT_UPPER_FRACTION = 0.85;
+
+function clampAgentShellUpperFraction(f: number): number {
+  return Math.min(MAX_AGENT_UPPER_FRACTION, Math.max(MIN_AGENT_UPPER_FRACTION, f));
+}
+
+const agentUpperFraction = ref(DEFAULT_AGENT_UPPER_FRACTION);
+const splitContainerRef = ref<HTMLElement | null>(null);
+
+function onSplitResizePointerDown(e: PointerEvent): void {
+  if (e.button !== 0) return;
+  const container = splitContainerRef.value;
+  if (!container || !terminalPanelOpen.value) return;
+  const total = container.getBoundingClientRect().height;
+  if (total < 32) return;
+  const startY = e.clientY;
+  const startFrac = agentUpperFraction.value;
+
+  const onMove = (ev: PointerEvent): void => {
+    const dy = ev.clientY - startY;
+    const deltaFrac = dy / total;
+    // Drag down → more space for agent above the overlay; drag up → overlay grows
+    agentUpperFraction.value = clampAgentShellUpperFraction(startFrac + deltaFrac);
+  };
+  const onUp = (): void => {
+    window.removeEventListener("pointermove", onMove);
+    window.removeEventListener("pointerup", onUp);
+  };
+  window.addEventListener("pointermove", onMove);
+  window.addEventListener("pointerup", onUp);
+  e.preventDefault();
+}
+
+/** Main center pane (diff / files / agent) flex share when the lower terminal strip is open. */
+const mainCenterSplitFlexStyle = computed(() => {
+  if (!terminalPanelOpen.value) {
+    return { flex: "1 1 0%", minHeight: 0 };
+  }
+  return {
+    flex: `${agentUpperFraction.value} 1 0%`,
+    minHeight: 0
+  };
+});
+
+/** Lower shell pane flex share; keeps layout flow so it does not cover the Git commit area. */
+const shellOverlaySplitFlexStyle = computed(
+  () =>
+    ({
+      flex: `${1 - agentUpperFraction.value} 1 0%`,
+      minHeight: "7.5rem",
+      maxHeight: "85%"
+    }) as Record<string, string>
+);
+const pendingCloseShellTabValue = ref<string | null>(null);
+
+const pendingCloseShellLabel = computed(() => {
+  const v = pendingCloseShellTabValue.value;
+  if (!v?.startsWith("shell:")) return "this terminal";
+  const id = v.slice("shell:".length);
+  const idx = shellSlotIds.value.indexOf(id);
+  return idx >= 0 ? `Terminal ${idx + 1}` : "this terminal";
+});
+
+const agentTerminalPaneRef = ref<InstanceType<typeof TerminalPane> | null>(null);
+/**
+ * Function refs fire during render/mount; keep this registry non-reactive so storing pane
+ * instances does not feed back into WorkspaceLayout updates.
+ */
+const shellTerminalPaneRefs = new Map<string, InstanceType<typeof TerminalPane>>();
+
+function setShellTerminalPaneRef(slotId: string, el: unknown): void {
+  if (!el) {
+    shellTerminalPaneRefs.delete(slotId);
+    return;
+  }
+  shellTerminalPaneRefs.set(slotId, el as InstanceType<typeof TerminalPane>);
+}
 
 const threadSidebarRef = ref<InstanceType<typeof ThreadSidebar> | null>(null);
 const threadCreateHostRef = ref<InstanceType<typeof ThreadCreateButton> | null>(null);
@@ -126,13 +222,12 @@ const activeContextBadge = computed(() => workspace.activeContextBadge);
 const activeContextLabel = computed(() => activeContextBadge.value?.displayLabel ?? null);
 const projectDigitSlotCount = computed(() => Math.min(MOD_DIGIT_SLOT_CODES.length, workspace.projects.length));
 
-const centerPanelTabs = computed<PillTabItem[]>(() => {
-  const slots = shellSlotIds.value;
-  const projectSlots = projectDigitSlotCount.value;
+/** Top row: workspace views only (terminal sessions switch from the bottom terminal bar). */
+const topCenterPanelTabs = computed<PillTabItem[]>(() => {
   const tabs: PillTabItem[] = [
     {
       value: "agent",
-      label: "🤖 Agent",      
+      label: "🤖 Agent"
     }
   ];
   if (hasGitRepository.value === true) {
@@ -140,44 +235,58 @@ const centerPanelTabs = computed<PillTabItem[]>(() => {
   }
   tabs.push({
     value: "files",
-    label: "📄 Files",
-    dividerAfter: true
+    label: "📄 Files"
   });
-  tabs.push(
-    ...slots.map((id, i) => {
-      const slotIndex = projectSlots + i;
-      return {
-        value: `shell:${id}`,
-        label: `💻 Terminal ${i + 1}`,
-        closable: true,
-        shortcutHint:
-          slotIndex < MOD_DIGIT_SLOT_CODES.length
-            ? formatShortcut({ mod: true, code: MOD_DIGIT_SLOT_CODES[slotIndex] })
-            : undefined
-      };
-    })
-  );
   return tabs;
 });
 
-const centerTabModel = computed({
-  get: () => centerTab.value,
+/** Bottom bar: extra shell tabs only (thread agent has no pill — it is the default session). */
+const bottomTerminalBarTabs = computed<PillTabItem[]>(() => {
+  const slots = shellSlotIds.value;
+  const projectSlots = projectDigitSlotCount.value;
+  return slots.map((id, i) => {
+    // With the panel open, ⌘1…⌘n map to Terminal 1…n while focus is in a terminal; tooltips match.
+    // Otherwise digits follow projects first (⌘1… = projects, then shells).
+    const slotIndex = terminalPanelOpen.value ? i : projectSlots + i;
+    return {
+      value: `shell:${id}`,
+      label: `💻 Terminal ${i + 1}`,
+      closable: true,
+      shortcutHint:
+        slotIndex < MOD_DIGIT_SLOT_CODES.length
+          ? formatShortcut({ mod: true, code: MOD_DIGIT_SLOT_CODES[slotIndex] })
+          : undefined
+    };
+  });
+});
+
+const topCenterTabModel = computed({
+  get: () => mainCenterTab.value,
   set: (v: string) => {
-    centerTab.value = v;
+    if (v === "diff") mainCenterTab.value = "diff";
+    else if (v === "files") mainCenterTab.value = "files";
+    else mainCenterTab.value = "agent";
   }
 });
 
-/** PTY session id currently visible in the center panel, or `null` when Git Diff (or no session). */
+/** Bottom shell pills only; empty selection means thread agent shell is active. */
+const bottomShellTabModel = computed({
+  get: () => (shellOverlayTab.value.startsWith("shell:") ? shellOverlayTab.value : ""),
+  set: (v: string) => {
+    if (v.startsWith("shell:")) {
+      shellOverlayTab.value = v as `shell:${string}`;
+      terminalPanelOpen.value = true;
+    }
+  }
+});
+
+/** PTY session used for attention sounds: shell tab if selected, else thread agent. */
 const visiblePtySessionId = computed(() => {
-  const tab = centerTab.value;
   const wt = workspace.activeWorktreeId;
-  if (tab === "agent") {
-    return visibleTerminalSessionId(workspace.activeThreadId, wt);
+  if (shellOverlayTab.value.startsWith("shell:") && wt) {
+    return `__shell:${wt}:${shellOverlayTab.value.slice("shell:".length)}`;
   }
-  if (tab.startsWith("shell:") && wt) {
-    return `__shell:${wt}:${tab.slice("shell:".length)}`;
-  }
-  return null;
+  return visibleTerminalSessionId(workspace.activeThreadId, wt);
 });
 
 useTerminalAttentionSounds({
@@ -199,14 +308,20 @@ const {
 });
 
 function addShellTerminal(): void {
+  terminalPanelOpen.value = true;
   const id = crypto.randomUUID();
   shellSlotIds.value = [...shellSlotIds.value, id];
-  centerTab.value = `shell:${id}`;
+  shellOverlayTab.value = `shell:${id}`;
 }
 
 const addTerminalTooltipText = titleWithShortcut("Add terminal", "addTerminal");
 
-async function onCenterTabClose(tabValue: string): Promise<void> {
+function onCenterTabClose(tabValue: string): void {
+  if (!tabValue.startsWith("shell:")) return;
+  pendingCloseShellTabValue.value = tabValue;
+}
+
+async function performCloseShellTab(tabValue: string): Promise<void> {
   if (!tabValue.startsWith("shell:")) return;
   const slotId = tabValue.slice("shell:".length);
   const api = getApi();
@@ -219,8 +334,52 @@ async function onCenterTabClose(tabValue: string): Promise<void> {
     }
   }
   shellSlotIds.value = shellSlotIds.value.filter((s) => s !== slotId);
-  if (centerTab.value === tabValue) {
-    centerTab.value = "agent";
+  if (shellOverlayTab.value === tabValue) {
+    shellOverlayTab.value = "agent";
+  }
+}
+
+function confirmCloseShellTerminal(): void {
+  const tabValue = pendingCloseShellTabValue.value;
+  pendingCloseShellTabValue.value = null;
+  if (tabValue) void performCloseShellTab(tabValue);
+}
+
+function cancelCloseShellTerminal(): void {
+  pendingCloseShellTabValue.value = null;
+}
+
+function focusActiveTerminal(): void {
+  void nextTick(() => {
+    if (shellOverlayTab.value.startsWith("shell:")) {
+      const id = shellOverlayTab.value.slice("shell:".length);
+      shellTerminalPaneRefs.get(id)?.focus?.();
+    } else {
+      agentTerminalPaneRef.value?.focus?.();
+    }
+  });
+}
+
+/** With the lower panel open and extra shells present, default selection to Terminal 1 (not agent). */
+function selectFirstShellTerminalIfPanelOpen(): void {
+  if (!terminalPanelOpen.value) return;
+  const slots = shellSlotIds.value;
+  if (slots.length === 0) return;
+  if (mainCenterTab.value !== "agent") return;
+  shellOverlayTab.value = `shell:${slots[0]!}`;
+}
+
+function openTerminalOverlayPanel(): void {
+  terminalPanelOpen.value = true;
+  selectFirstShellTerminalIfPanelOpen();
+}
+
+function toggleTerminalPanelFromShortcut(): void {
+  const next = !terminalPanelOpen.value;
+  terminalPanelOpen.value = next;
+  if (next) {
+    selectFirstShellTerminalIfPanelOpen();
+    focusActiveTerminal();
   }
 }
 
@@ -651,7 +810,8 @@ function resolveNewThreadTitle(payload: ThreadCreateWithAgentPayload, agent: Thr
 
 async function handleCreateThreadWithAgent(payload: ThreadCreateWithAgentPayload): Promise<void> {
   const { agent, prompt } = payload;
-  centerTab.value = "agent";
+  mainCenterTab.value = "agent";
+  terminalPanelOpen.value = true;
   const api = getApi();
   const defaultWorktreeId = workspace.defaultWorktree?.id;
   if (!api || !workspace.activeProjectId || !defaultWorktreeId) return;
@@ -716,7 +876,7 @@ async function handleRenameThread(threadId: string, newTitle: string): Promise<v
 
 async function handleAddThreadToGroup(worktreeId: string, payload: ThreadCreateWithAgentPayload): Promise<void> {
   const { agent, prompt } = payload;
-  centerTab.value = "agent";
+  mainCenterTab.value = "agent";
   const api = getApi();
   if (!api || !workspace.activeProjectId) return;
   const title = resolveNewThreadTitle(payload, agent);
@@ -745,10 +905,21 @@ function applyThreadCreateOpen(opts: ThreadCreateDialogOpenOptions): void {
     threadCreateSubmitTarget.value = { kind: "group", worktreeId: opts.worktreeId };
     threadCreateDestinationLabel.value = opts.destinationContextLabel ?? null;
   }
-  void nextTick(() => {
-    threadCreateHostRef.value?.openMenu();
-  });
+  /** Host ref is set after child mount; retry so openMenu is not dropped on early ticks. */
+  const tryOpen = (attempt = 0): void => {
+    const host = threadCreateHostRef.value;
+    if (host) {
+      host.openMenu();
+      return;
+    }
+    if (attempt >= 10) return;
+    void nextTick(() => tryOpen(attempt + 1));
+  };
+  void nextTick(() => tryOpen(0));
 }
+
+/** Register early so `openThreadCreateDialog` works before the rest of setup finishes (and after HMR of this module). */
+const disposeThreadCreateDialog = registerThreadCreateDialogOpener(applyThreadCreateOpen);
 
 function openAddThreadFromToolbarOrEmpty(): void {
   openThreadCreateDialog({
@@ -816,7 +987,7 @@ async function checkWorktreeHealth(): Promise<void> {
 }
 
 async function handleSelectThread(threadId: string): Promise<void> {
-  centerTab.value = "agent";
+  mainCenterTab.value = "agent";
   const api = getApi();
   if (!api) return;
   const targetThread = workspace.threads.find((thread) => thread.id === threadId);
@@ -961,14 +1132,14 @@ async function handleScmCommit(): Promise<void> {
   }
 }
 
-async function handleSelectScmEntry(payload: { path: string; scope: "staged" | "unstaged" }): Promise<void> {
+function handleSelectScmEntry(payload: { path: string; scope: "staged" | "unstaged" }): void {
   selectedScmPath.value = payload.path;
   selectedScmScope.value = payload.scope;
-  await loadSelectedDiff();
+  void loadSelectedDiff();
 }
 
 async function handleScmOpenFileInEditor(path: string): Promise<void> {
-  centerTab.value = "files";
+  mainCenterTab.value = "files";
   await nextTick();
   await fileSearchRef.value?.openWorkspaceFile(path);
 }
@@ -1009,7 +1180,7 @@ function openNewThreadMenuFromShortcut(): void {
 }
 
 function focusFileSearchShortcut(): void {
-  centerTab.value = "files";
+  mainCenterTab.value = "files";
   void nextTick(() => {
     fileSearchRef.value?.focusSearch();
   });
@@ -1049,7 +1220,7 @@ async function onLauncherPickFile(payload: {
     if (!switched) return;
   }
 
-  centerTab.value = "files";
+  mainCenterTab.value = "files";
   await nextTick();
   await fileSearchRef.value?.openWorkspaceFile(payload.relativePath);
 }
@@ -1068,22 +1239,27 @@ useWorkspaceKeybindings(
   {
     workspaceUiActive: () => hasActiveWorkspace.value,
     settingsOpen: () => agentCommandsSettingsOpen.value,
-    centerTab: () => centerTab.value,
+    centerTab: () => mainCenterTab.value,
     projectIds: () => workspace.projects.map((p) => p.id),
     shellSlotIds: () => shellSlotIds.value,
+    terminalPanelOpen: () => terminalPanelOpen.value,
     scmActionsAvailable: () => hasGitRepository.value === true,
     launcherConsumesNavShortcuts: () => workspaceLauncherOpen.value,
     onSelectProject: (projectId) => {
       void handleSelectProject(projectId);
     },
     onSelectCenterTab: (tab) => {
-      centerTab.value = tab;
+      if (tab.startsWith("shell:")) {
+        shellOverlayTab.value = tab as `shell:${string}`;
+        terminalPanelOpen.value = true;
+      }
     },
     onPrevThread: goPrevThread,
     onNextThread: goNextThread,
     onToggleSidebar: toggleThreadsSidebar,
     onOpenNewThreadMenu: openNewThreadMenuFromShortcut,
     onAddTerminal: addShellTerminal,
+    onToggleTerminalPanel: toggleTerminalPanelFromShortcut,
     onFocusFileSearch: focusFileSearchShortcut,
     onToggleWorkspaceLauncher: toggleWorkspaceLauncher,
     onStageAllDiff: () => {
@@ -1093,11 +1269,6 @@ useWorkspaceKeybindings(
   },
   keybindingsEnabled
 );
-
-let disposeThreadCreateDialog: (() => void) | null = null;
-onBeforeMount(() => {
-  disposeThreadCreateDialog = registerThreadCreateDialogOpener(applyThreadCreateOpen);
-});
 
 onMounted(async () => {
   await refreshSnapshot();
@@ -1129,8 +1300,7 @@ onMounted(async () => {
 let worktreeHealthInterval: ReturnType<typeof setInterval> | null = null;
 
 onBeforeUnmount(() => {
-  disposeThreadCreateDialog?.();
-  disposeThreadCreateDialog = null;
+  disposeThreadCreateDialog();
   if (worktreeHealthInterval) clearInterval(worktreeHealthInterval);
   disposeOpenWorkspaceSettings?.();
   disposeOpenWorkspaceSettings = null;
@@ -1154,20 +1324,37 @@ watch(
   async (wt, prev) => {
     if (!wt) {
       shellSlotIds.value = [];
-      centerTab.value = "agent";
+      mainCenterTab.value = "agent";
+      shellOverlayTab.value = "agent";
       hasGitRepository.value = null;
     } else if (prev !== wt) {
       hasGitRepository.value = null;
       const saved = loadTerminalLayout(wt);
       if (saved) {
         shellSlotIds.value = saved.shellSlotIds;
-        centerTab.value = resolveCenterTab(saved.centerTab, saved.shellSlotIds);
+        const resolvedMain = resolveCenterTab(saved.centerTab, saved.shellSlotIds);
+        if (resolvedMain.startsWith("shell:")) {
+          mainCenterTab.value = "agent";
+          shellOverlayTab.value = resolveShellOverlayTab(resolvedMain, saved.shellSlotIds);
+        } else {
+          mainCenterTab.value = resolvedMain as "agent" | "diff" | "files";
+          shellOverlayTab.value = saved.shellOverlayTab
+            ? resolveShellOverlayTab(saved.shellOverlayTab, saved.shellSlotIds)
+            : "agent";
+        }
+        if (typeof saved.terminalPanelOpen === "boolean") {
+          terminalPanelOpen.value = saved.terminalPanelOpen;
+        }
+        if (typeof saved.agentShellSplitUpperFraction === "number") {
+          agentUpperFraction.value = clampAgentShellUpperFraction(saved.agentShellSplitUpperFraction);
+        }
       } else if (prev != null) {
         shellSlotIds.value = [];
-        if (centerTab.value.startsWith("shell:")) {
-          centerTab.value = "agent";
+        if (shellOverlayTab.value.startsWith("shell:")) {
+          shellOverlayTab.value = "agent";
         }
       }
+      selectFirstShellTerminalIfPanelOpen();
     }
     await refreshRepoStatus();
   },
@@ -1175,27 +1362,35 @@ watch(
 );
 
 watch(
-  [centerTab, shellSlotIds, () => workspace.activeWorktreeId],
+  [
+    mainCenterTab,
+    shellOverlayTab,
+    shellSlotIds,
+    terminalPanelOpen,
+    agentUpperFraction,
+    () => workspace.activeWorktreeId
+  ],
   () => {
     const wt = workspace.activeWorktreeId;
     if (!wt) return;
     saveTerminalLayout(wt, {
-      centerTab: centerTab.value,
-      shellSlotIds: [...shellSlotIds.value]
+      centerTab: mainCenterTab.value,
+      shellOverlayTab: shellOverlayTab.value,
+      shellSlotIds: [...shellSlotIds.value],
+      terminalPanelOpen: terminalPanelOpen.value,
+      agentShellSplitUpperFraction: agentUpperFraction.value
     });
-  },
-  { deep: true }
+  }
 );
 
 watch(shellSlotIds, (ids) => {
-  const tab = centerTab.value;
-  if (!tab.startsWith("shell:")) return;
-  const slotId = tab.slice("shell:".length);
-  if (!ids.includes(slotId)) centerTab.value = "agent";
+  if (!shellOverlayTab.value.startsWith("shell:")) return;
+  const slotId = shellOverlayTab.value.slice("shell:".length);
+  if (!ids.includes(slotId)) shellOverlayTab.value = "agent";
 });
 
 watch(
-  () => centerTab.value,
+  () => mainCenterTab.value,
   (tab, prevTab) => {
     if (tab === "diff") void refreshRepoStatus();
     if (tab === "files" && prevTab !== "files") {
@@ -1209,13 +1404,15 @@ watch(
 );
 
 watch(
-  () => [centerTab.value, hasGitRepository.value] as const,
+  () => [mainCenterTab.value, hasGitRepository.value] as const,
   ([tab, git]) => {
-    if (tab === "diff" && git !== true) {
-      centerTab.value = "agent";
+    // Only leave Git Diff when we know there is no repo. While `null` (loading), switching away
+    // fights async refresh and can contribute to recursive update / focus churn.
+    if (tab === "diff" && git === false) {
+      mainCenterTab.value = "agent";
     }
   },
-  { flush: "sync" }
+  { flush: "post" }
 );
 </script>
 
@@ -1334,41 +1531,18 @@ watch(
         />
         <div
           v-if="activeWorktreeHasThreads"
-          class="flex min-h-0 min-w-0 shrink-0 items-center justify-start gap-1 overflow-hidden py-0.5 pr-1 pl-0.5"
+          class="flex min-h-0 min-w-0 shrink-0 items-center gap-1 overflow-hidden border-b border-border bg-muted/25 py-px pr-1 pl-0.5"
         >
-          <Badge variant="outline" class="ms-2 text-[10px] text-muted-foreground">
+          <Badge variant="outline" class="ms-2 shrink-0 text-[10px] text-muted-foreground">
             {{ activeContextLabel }}
           </Badge>
-          <div class="h-5 border-s ms-2" />
+          <div class="h-5 shrink-0 border-s ms-2" aria-hidden="true" />
           <PillTabs
-            v-model="centerTabModel"
-            class="min-w-0 flex-1"
-            :tabs="centerPanelTabs"
+            v-model="topCenterTabModel"
+            class="min-w-0 flex-[1_1_0%] basis-0"
+            :tabs="topCenterPanelTabs"
             aria-label="Center panel"
-            @tab-close="onCenterTabClose"
           />
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger as-child>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  class="shrink-0 border-border bg-transparent shadow-none hover:bg-muted/50 dark:border-input dark:bg-transparent dark:hover:bg-input/40"
-                  aria-label="Add terminal"
-                  @click="addShellTerminal"
-                >
-                  <span class="inline-flex items-center gap-1.5">
-                    <span class="text-sm leading-none shrink-0" aria-hidden="true">💻</span>
-                    <span>Add terminal</span>
-                  </span>
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom" data-testid="add-terminal-tooltip">
-                {{ addTerminalTooltipText }}
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
         </div>
         <div
           v-if="activeWorktreeHasThreads && hasGitRepository === false"
@@ -1425,75 +1599,190 @@ watch(
               </span>
             </Button>
           </section>
-          <div
-            v-else
-            v-show="centerTab === 'agent'"
-            class="flex min-h-0 flex-1 flex-col overflow-hidden"
-          >
-            <TerminalPane
-              pty-kind="agent"
-              :worktree-id="workspace.activeWorktreeId ?? ''"
-              :thread-id="workspace.activeThreadId ?? ''"
-              :cwd="workspace.activeWorktree?.path ?? ''"
-              :pending-agent-bootstrap="pendingAgentBootstrap"
-              @bootstrap-consumed="onTerminalBootstrapConsumed"
-            />
-          </div>
-          <div
-            v-for="slotId in shellSlotIds"
-            :key="slotId"
-            v-show="centerTab === `shell:${slotId}`"
-            class="flex min-h-0 flex-1 flex-col overflow-hidden"
-          >
-            <TerminalPane
-              pty-kind="shell"
-              :shell-slot-id="slotId"
-              :worktree-id="workspace.activeWorktreeId ?? ''"
-              :thread-id="workspace.activeThreadId ?? ''"
-              :cwd="workspace.activeWorktree?.path ?? ''"
-            />
-          </div>
-          <div v-show="centerTab === 'diff'" class="flex min-h-0 flex-1 flex-col overflow-hidden">
-          <SourceControlPanel
-              v-if="hasGitRepository"
-              v-model:commit-message="scmCommitMessage"
-              :context-label="activeContextLabel"
-              :repo-status="repoStatus"
-              :branch-line="scmBranchLine"
-              :last-commit-subject="scmMeta.lastCommitSubject"
-              :scm-fetch-available="scmFetchAvailable"
-              :scm-push-available="scmPushAvailable"
-              :scm-commit-available="scmCommitAvailable"
-              :scm-fetch-busy="scmFetchBusy"
-              :scm-push-busy="scmPushBusy"
-              :scm-commit-busy="scmCommitBusy"
-              :selected-path="selectedScmPath"
-              :selected-scope="selectedScmScope"
-              :selected-diff="selectedDiff"
-              :diff-loading="selectedDiffLoading"
-              @select-entry="handleSelectScmEntry"
-              @stage-all="handleStageAll"
-              @unstage-all="handleUnstageAll"
-              @discard-all="handleDiscardAll"
-              @stage-paths="handleStageSelected"
-              @unstage-paths="handleUnstageSelected"
-              @discard-paths="handleDiscardSelected"
-              @fetch="handleScmFetch"
-              @push="handleScmPush"
-              @commit="handleScmCommit"
-              @open-file-in-editor="handleScmOpenFileInEditor"
-            />
-          </div>
-          <div
-            v-show="centerTab === 'files'"
-            data-testid="workspace-files-pane"
-            class="flex min-h-0 flex-1 flex-col overflow-hidden border-t border-border"
-          >
-            <FileSearchEditor
-              ref="fileSearchRef"
-              :worktree-path="fileExplorerWorktree?.path ?? null"
-            />
-          </div>
+          <template v-else>
+            <div class="flex min-h-0 flex-1 flex-col overflow-hidden">
+              <div ref="splitContainerRef" class="flex min-h-0 flex-1 flex-col overflow-hidden">
+                <div
+                  class="flex min-h-0 flex-col overflow-hidden border-b border-border bg-card"
+                  :style="mainCenterSplitFlexStyle"
+                >
+                  <div v-show="mainCenterTab === 'diff'" class="flex min-h-0 flex-1 flex-col overflow-hidden">
+                    <SourceControlPanel
+                      v-if="hasGitRepository"
+                      v-model:commit-message="scmCommitMessage"
+                      :context-label="activeContextLabel"
+                      :repo-status="repoStatus"
+                      :branch-line="scmBranchLine"
+                      :last-commit-subject="scmMeta.lastCommitSubject"
+                      :scm-fetch-available="scmFetchAvailable"
+                      :scm-push-available="scmPushAvailable"
+                      :scm-commit-available="scmCommitAvailable"
+                      :scm-fetch-busy="scmFetchBusy"
+                      :scm-push-busy="scmPushBusy"
+                      :scm-commit-busy="scmCommitBusy"
+                      :selected-path="selectedScmPath"
+                      :selected-scope="selectedScmScope"
+                      :selected-diff="selectedDiff"
+                      :diff-loading="selectedDiffLoading"
+                      @select-entry="handleSelectScmEntry"
+                      @stage-all="handleStageAll"
+                      @unstage-all="handleUnstageAll"
+                      @discard-all="handleDiscardAll"
+                      @stage-paths="handleStageSelected"
+                      @unstage-paths="handleUnstageSelected"
+                      @discard-paths="handleDiscardSelected"
+                      @fetch="handleScmFetch"
+                      @push="handleScmPush"
+                      @commit="handleScmCommit"
+                      @open-file-in-editor="handleScmOpenFileInEditor"
+                    />
+                  </div>
+                  <div
+                    v-show="mainCenterTab === 'files'"
+                    data-testid="workspace-files-pane"
+                    class="flex min-h-0 flex-1 flex-col overflow-hidden"
+                  >
+                    <FileSearchEditor
+                      ref="fileSearchRef"
+                      :worktree-path="fileExplorerWorktree?.path ?? null"
+                    />
+                  </div>
+                  <div v-show="mainCenterTab === 'agent'" class="flex min-h-0 flex-1 flex-col overflow-hidden">
+                    <TerminalPane
+                      ref="agentTerminalPaneRef"
+                      pty-kind="agent"
+                      :worktree-id="workspace.activeWorktreeId ?? ''"
+                      :thread-id="workspace.activeThreadId ?? ''"
+                      :cwd="workspace.activeWorktree?.path ?? ''"
+                      :pending-agent-bootstrap="pendingAgentBootstrap"
+                      @bootstrap-consumed="onTerminalBootstrapConsumed"
+                    />
+                  </div>
+                </div>
+                  <div
+                    v-show="terminalPanelOpen"
+                    class="pointer-events-auto flex min-h-0 flex-col overflow-hidden border-t border-border bg-card shadow-[0_-6px_24px_rgba(0,0,0,0.08)] ring-1 ring-border/60 dark:shadow-[0_-8px_32px_rgba(0,0,0,0.45)]"
+                    :style="shellOverlaySplitFlexStyle"
+                  >
+                    <div
+                      class="flex h-1 shrink-0 cursor-row-resize touch-none items-center justify-center border-b border-border bg-muted/40 hover:bg-muted/80"
+                      role="separator"
+                      aria-orientation="horizontal"
+                      aria-label="Resize overlay terminal height"
+                      data-testid="terminal-bar-resize-handle"
+                      @pointerdown="onSplitResizePointerDown"
+                    >
+                      <span class="h-0.5 w-8 rounded-full bg-border" aria-hidden="true" />
+                    </div>
+                    <div
+                      class="flex shrink-0 items-center gap-1 overflow-hidden border-b border-border bg-muted/25 px-1.5 py-px sm:px-2"
+                      role="toolbar"
+                      aria-label="Shell terminals"
+                      data-testid="overlay-shell-header"
+                    >
+                      <div
+                        class="flex min-h-0 min-w-0 flex-1 items-center gap-1 overflow-hidden"
+                        data-testid="overlay-shell-header-actions"
+                      >
+                        <PillTabs
+                          v-model="bottomShellTabModel"
+                          class="min-w-0 flex-1"
+                          :tabs="bottomTerminalBarTabs"
+                          size="sm"
+                          aria-label="Terminal sessions"
+                          @tab-close="onCenterTabClose"
+                        />
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger as-child>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                class="shrink-0 border-border bg-transparent shadow-none hover:bg-muted/50 dark:border-input dark:bg-transparent dark:hover:bg-input/40"
+                                aria-label="Add terminal"
+                                @click="addShellTerminal"
+                              >
+                                <span class="inline-flex items-center gap-1.5">
+                                  <span class="text-sm leading-none shrink-0" aria-hidden="true">💻</span>
+                                  <span>Add terminal</span>
+                                </span>
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent side="top" data-testid="add-terminal-tooltip">
+                              {{ addTerminalTooltipText }}
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger as-child>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon-sm"
+                                class="shrink-0 text-muted-foreground"
+                                :aria-label="titleWithShortcut('Hide overlay terminals', 'toggleTerminalPanel')"
+                                @click="terminalPanelOpen = false"
+                              >
+                                <ChevronDown class="h-4 w-4" aria-hidden="true" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent side="top">
+                              {{ titleWithShortcut("Hide overlay terminals", "toggleTerminalPanel") }}
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      </div>
+                    </div>
+                    <div class="flex min-h-0 flex-1 flex-col overflow-hidden bg-muted/15">
+                      <div
+                        v-for="slotId in shellSlotIds"
+                        :key="slotId"
+                        v-show="shellOverlayTab === `shell:${slotId}`"
+                        class="flex min-h-0 flex-1 flex-col overflow-hidden"
+                      >
+                        <TerminalPane
+                          :ref="(el) => setShellTerminalPaneRef(slotId, el)"
+                          pty-kind="shell"
+                          :shell-slot-id="slotId"
+                          :worktree-id="workspace.activeWorktreeId ?? ''"
+                          :thread-id="workspace.activeThreadId ?? ''"
+                          :cwd="workspace.activeWorktree?.path ?? ''"
+                        />
+                      </div>
+                      <div
+                        v-if="shellSlotIds.length === 0"
+                        class="flex min-h-0 flex-1 flex-col items-center justify-center px-4 text-center text-sm text-muted-foreground"
+                      >
+                        Add a terminal to open a second shell in this overlay.
+                      </div>
+                      <div
+                        v-else-if="shellOverlayTab === 'agent'"
+                        class="flex min-h-0 flex-1 flex-col items-center justify-center px-4 text-center text-sm text-muted-foreground"
+                      >
+                        Select Terminal 1… or add another terminal.
+                      </div>
+                    </div>
+                  </div>
+                <button
+                  v-if="!terminalPanelOpen"
+                  type="button"
+                  class="pointer-events-auto flex w-full shrink-0 items-center justify-center gap-2 border-t border-border bg-card py-1 text-xs font-medium text-muted-foreground hover:bg-muted/50"
+                  :title="titleWithShortcut('Show lower terminals', 'toggleTerminalPanel')"
+                  :aria-label="titleWithShortcut('Show lower terminals', 'toggleTerminalPanel')"
+                  @click="openTerminalOverlayPanel"
+                >
+                  <ChevronUp class="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                  <span>Terminals</span>
+                  <kbd
+                    class="pointer-events-none rounded border border-border/80 bg-muted/40 px-1 py-px font-mono text-[10px] font-normal text-muted-foreground tabular-nums"
+                    >{{ shortcutForId("toggleTerminalPanel") }}</kbd
+                  >
+                </button>
+              </div>
+              </div>
+          </template>
         </div>
       </section>
     </section>
@@ -1522,5 +1811,25 @@ watch(
       :commands="commands"
       @save="onSaveAgentSettings"
     />
+
+    <AlertDialog
+      :open="pendingCloseShellTabValue !== null"
+      @update:open="(open: boolean) => { if (!open) cancelCloseShellTerminal() }"
+    >
+      <AlertDialogContent data-testid="close-terminal-confirm-dialog">
+        <AlertDialogHeader>
+          <AlertDialogTitle>Close {{ pendingCloseShellLabel }}?</AlertDialogTitle>
+          <AlertDialogDescription>
+            The shell session for this tab will end. You can add a new terminal tab later ({{
+              shortcutForId("addTerminal")
+            }}).
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel type="button" @click="cancelCloseShellTerminal">Cancel</AlertDialogCancel>
+          <AlertDialogAction type="button" @click="confirmCloseShellTerminal">Close terminal</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   </main>
 </template>

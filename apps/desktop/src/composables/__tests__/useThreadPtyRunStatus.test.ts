@@ -198,6 +198,22 @@ describe("useThreadPtyRunStatus", () => {
     expect(chirp.playTerminalChirp).not.toHaveBeenCalled();
   });
 
+  it("ignores carriage-return loading redraws so they do not schedule idle chirps", async () => {
+    const { runStatusByThreadId, idleAttentionByThreadId } = mountHarness(
+      [thread("t-a"), thread("t-b")],
+      "t-a"
+    );
+    await flushPromises();
+
+    ptyHandler!("t-b", "Loading...\r");
+    vi.advanceTimersByTime(5000);
+    await flushPromises();
+
+    expect(runStatusByThreadId.value["t-b"]).toBeUndefined();
+    expect(idleAttentionByThreadId.value["t-b"]).toBeUndefined();
+    expect(chirp.playTerminalChirp).not.toHaveBeenCalled();
+  });
+
   it("uses sensitivity threshold before treating output as activity", async () => {
     const { runStatusByThreadId, idleAttentionByThreadId } = mountHarness(
       [thread("t-a"), thread("t-b")],

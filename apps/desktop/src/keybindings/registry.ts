@@ -11,6 +11,7 @@ export type KeybindingId =
   | "toggleThreadSidebar"
   | "newThreadMenu"
   | "addTerminal"
+  | "toggleTerminalPanel"
   | "focusFileSearch"
   | "workspaceLauncher"
   | "stageAllDiff"
@@ -79,7 +80,8 @@ function codeToDisplayLabel(code: string): string {
     KeyS: "S",
     KeyF: "F",
     KeyK: "K",
-    KeyN: "N"
+    KeyN: "N",
+    KeyJ: "J"
   };
   return map[code] ?? code.replace(/^Key/, "");
 }
@@ -91,7 +93,7 @@ export const KEYBINDING_DEFINITIONS: KeybindingDefinition[] = [
     category: "Navigation",
     shortcut: mod("Digit1"),
     notes:
-      "⌘1–⌘9 / Ctrl+1–9: first select open projects in order, then terminal tabs. Agent, Git Diff, and Files have no ⌘-number shortcut."
+      "⌘1–⌘9 / Ctrl+1–9: first select open projects in order, then terminal tabs. With the bottom terminal panel open and focus in a terminal, ⌘1–⌘9 switch Terminal 1…n only. Agent, Git Diff, and Files have no ⌘-number shortcut."
   },
   {
     id: "prevThread",
@@ -125,6 +127,12 @@ export const KEYBINDING_DEFINITIONS: KeybindingDefinition[] = [
     label: "Add terminal tab",
     category: "Navigation",
     shortcut: mod("Backquote", { shift: true })
+  },
+  {
+    id: "toggleTerminalPanel",
+    label: "Show or hide terminal bar",
+    category: "Navigation",
+    shortcut: mod("KeyJ")
   },
   {
     id: "focusFileSearch",

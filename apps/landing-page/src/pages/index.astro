@@ -1,11 +1,6 @@
 ---
 import "../styles/global.css";
-import {
-	GITHUB_API_LATEST_RELEASE_URL,
-	GITHUB_REPO_URL,
-	LATEST_RELEASE_JSON_URL,
-	LATEST_RELEASE_PAGE_URL,
-} from "../constants/releases";
+import { LATEST_RELEASE_JSON_URL, LATEST_RELEASE_PAGE_URL } from "../constants/releases";
 import claudeSymbolSvg from "../../../desktop/src/assets/claude-ai-symbol.svg?raw";
 
 /** Same as `apps/desktop/src/constants/appMeta.ts` — threads panel header title */
@@ -57,7 +52,7 @@ const claudePathD = pathDFromSvg(claudeSymbolSvg);
 	</head>
 	<body class="relative overflow-x-hidden">
 		<header class="bg-transparent">
-			<div class="mx-auto flex max-w-5xl items-center justify-between gap-4 px-6 py-2.5">
+			<div class="mx-auto flex max-w-5xl items-center px-6 py-2.5">
 				<a href="/" class="flex min-w-0 flex-1 items-center gap-1 overflow-hidden" aria-label={`${APP_DISPLAY_NAME} home`}>
 					<h2
 						class="relative m-0 flex min-w-0 flex-1 flex-nowrap items-center gap-1 overflow-hidden p-0 text-zinc-900"
@@ -88,13 +83,6 @@ const claudePathD = pathDFromSvg(claudeSymbolSvg);
 							Alpha
 						</span>
 					</h2>
-				</a>
-				<a
-					href={GITHUB_REPO_URL}
-					class="shrink-0 text-sm font-medium text-zinc-500 transition hover:text-zinc-900"
-					rel="noopener noreferrer"
-				>
-					GitHub <span aria-hidden="true" class="opacity-70">↗</span>
 				</a>
 			</div>
 		</header>
@@ -346,22 +334,9 @@ const claudePathD = pathDFromSvg(claudeSymbolSvg);
 			<hr class="border-zinc-100" />
 		</div>
 
-		<!-- Open source callout -->
-		<section class="scroll-scale-in mx-auto max-w-5xl px-6 py-16 text-center">
-			<p class="text-sm text-zinc-500">
-				workbench is <a href={GITHUB_REPO_URL} class="font-medium text-zinc-900 underline underline-offset-2 hover:no-underline" rel="noopener noreferrer">open source</a>.
-				Inspect the code, self-host, or contribute.
-			</p>
-		</section>
-
 		<footer class="border-t border-zinc-200/80 bg-white py-10">
-			<div class="mx-auto flex max-w-5xl flex-col items-center justify-between gap-4 px-6 text-sm text-zinc-500 md:flex-row">
+			<div class="mx-auto max-w-5xl px-6 text-center text-sm text-zinc-500 md:text-left">
 				<p>© {new Date().getFullYear()} workbench</p>
-				<div class="flex gap-6">
-					<a href={GITHUB_REPO_URL} class="text-zinc-500 transition hover:text-zinc-900" rel="noopener noreferrer">
-						GitHub
-					</a>
-				</div>
 			</div>
 		</footer>
 

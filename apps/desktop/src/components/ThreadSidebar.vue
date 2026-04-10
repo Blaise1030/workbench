@@ -125,6 +125,11 @@ function onCollapsedPopoverPointerLeave(): void {
 function worktreeIdForGroupAdd(group: SidebarContextGroup): string | null {
   if (group.worktreeId !== null) return group.worktreeId;
   if (group.isPrimary && props.defaultWorktreeId) return props.defaultWorktreeId;
+  // Primary row can use uiKey fallback while worktreeId is null; threads still carry worktreeId.
+  if (group.isPrimary && group.threads.length > 0) {
+    const fromThread = group.threads[0]?.worktreeId;
+    if (fromThread) return fromThread;
+  }
   return null;
 }
 
@@ -143,6 +148,13 @@ function openNewThreadInCollapsedGroup(group: SidebarContextGroup): void {
     target: "worktreeGroup",
     worktreeId: id,
     destinationContextLabel: threadDestinationLabelForGroup(group)
+  });
+}
+
+function openNewThreadInActiveWorkspace(): void {
+  openThreadCreateDialog({
+    target: "activeWorktree",
+    destinationContextLabel: props.contextLabel?.trim() || null
   });
 }
 
@@ -436,9 +448,22 @@ function onFooterWorktreeToggle(): void {
       :class="collapsed ? 'px-1' : 'px-3'"
     >
       <template v-if="!collapsed">
-        <h3 class="text-center text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">
-          No threads
-        </h3>
+        <div class="flex flex-col items-center gap-3 text-center">
+          <h3 class="text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">No threads</h3>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            class="w-full max-w-[12rem]"
+            aria-label="Add thread"
+            :title="titleWithShortcut('Add thread', 'newThreadMenu')"
+            data-testid="thread-sidebar-empty-add-thread"
+            @click="openNewThreadInActiveWorkspace"
+          >
+            <Plus class="h-4 w-4" />
+            <span>Add thread</span>
+          </Button>
+        </div>
       </template>
     </section>
     <div v-else class="min-h-0 flex-1 overflow-y-auto pb-3 pt-3">
@@ -687,7 +712,7 @@ function onFooterWorktreeToggle(): void {
       </div>
     </div>
     <footer
-      class="shrink-0 w-full border-t border-border p-2"
+      class="shrink-0 w-full p-2"
       :class="collapsed ? 'flex flex-col items-stretch gap-2' : 'flex flex-col gap-2'"
     >
       <BranchPicker

@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { indentWithTab } from "@codemirror/commands";
-import { indentUnit } from "@codemirror/language";
-import { search, searchKeymap } from "@codemirror/search";
+import { foldGutter, foldKeymap, indentUnit } from "@codemirror/language";
+import { openSearchPanel, search, searchKeymap } from "@codemirror/search";
 import { EditorState, type Extension } from "@codemirror/state";
 import type { EditorView, Panel, ViewUpdate } from "@codemirror/view";
-import { EditorView as CMEditorView, keymap } from "@codemirror/view";
+import { EditorView as CMEditorView, keymap, lineNumbers } from "@codemirror/view";
 import { minimalSetup } from "codemirror";
 import { languageExtensionsFor } from "@/lib/codemirrorLanguageExtensions";
+import { markdownImagePreviewExtension } from "@/lib/codemirrorMarkdownImagePreview";
 import CodeMirrorFindReplaceBar from "@/components/CodeMirrorFindReplaceBar.vue";
 import { type App, type ComponentPublicInstance, computed, createApp, onBeforeUnmount, onMounted, ref, shallowRef, watch } from "vue";
 
@@ -41,6 +42,10 @@ const props = defineProps<{
   modelValue: string;
   language?: string;
   ariaLabel?: string;
+  showLineNumbers?: boolean;
+  /** When set with `markdownFilePath`, show `![](...)` previews in Markdown source (Electron). */
+  markdownWorkspaceRoot?: string | null;
+  markdownFilePath?: string | null;
 }>();
 
 const emit = defineEmits<{
@@ -63,7 +68,19 @@ const extensions = computed((): Extension[] => {
     indentUnit.of("  "),
     keymap.of([indentWithTab]),
     keymap.of(searchKeymap),
+    keymap.of(foldKeymap),
+    ...(props.showLineNumbers === false ? [] : [lineNumbers(), foldGutter()]),
     ...languageExtensionsFor(props.language),
+    ...(props.language === "markdown" &&
+    props.markdownWorkspaceRoot &&
+    props.markdownFilePath
+      ? [
+          markdownImagePreviewExtension({
+            workspaceRoot: props.markdownWorkspaceRoot,
+            markdownPath: props.markdownFilePath
+          })
+        ]
+      : []),
     CMEditorView.theme({
       /* Fill flex parent (.file-editor-cm); avoid height:100% when parent height is indefinite */
       "&": {
@@ -85,6 +102,15 @@ const extensions = computed((): Extension[] => {
       ".cm-content": {
         caretColor: "var(--foreground)",
         padding: "12px"
+      },
+      ".cm-gutters": {
+        backgroundColor: "transparent",
+        color: "var(--muted-foreground)",
+        borderRight: "1px solid color-mix(in oklab, var(--border) 75%, transparent)"
+      },
+      ".cm-foldGutter .cm-gutterElement": {
+        paddingLeft: "2px",
+        paddingRight: "4px"
       },
       ".cm-line": {
         padding: "0"
@@ -156,7 +182,15 @@ watch(
 );
 
 watch(
-  () => [props.language, props.ariaLabel, colorSchemeDark.value] as const,
+  () =>
+    [
+      props.language,
+      props.ariaLabel,
+      props.showLineNumbers,
+      colorSchemeDark.value,
+      props.markdownWorkspaceRoot,
+      props.markdownFilePath
+    ] as const,
   () => {
     const v = view.value;
     if (!v) return;
@@ -164,6 +198,14 @@ watch(
     v.setState(createState(doc));
   }
 );
+
+/** Opens the in-editor find/replace panel (same as Mod-f from @codemirror/search). */
+function openFind(): void {
+  const v = view.value;
+  if (v) openSearchPanel(v);
+}
+
+defineExpose({ openFind });
 </script>
 
 <template>
@@ -172,5 +214,6 @@ watch(
     data-testid="file-editor"
     class="file-editor-cm flex min-h-0 w-full flex-1 flex-col overflow-hidden rounded-md bg-muted/15 [font-feature-settings:'liga'_0]"
     :data-language="language"
+    :data-line-numbers="props.showLineNumbers === false ? 'hidden' : 'visible'"
   />
 </template>

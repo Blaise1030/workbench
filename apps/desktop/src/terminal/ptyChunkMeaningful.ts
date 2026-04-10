@@ -17,11 +17,25 @@ export function stripTerminalControlNoise(input: string): string {
   return input.replace(/\x07/g, "").replace(CSI_SEQUENCE, "").replace(OSC_TO_BEL, "").replace(OSC_TO_ST, "");
 }
 
+/**
+ * `\r` without `\n` is typically used for spinner/progress redraws on the current line.
+ * Treat those chunks as non-activity so terminal loading UIs do not arm idle attention.
+ */
+export function isCarriageReturnRedraw(input: string): boolean {
+  if (!input.includes("\r") || input.includes("\n")) return false;
+  const visible = stripTerminalControlNoise(input)
+    .replace(/\r/g, "")
+    .replace(/[\x00-\x1f\x7f]/g, "")
+    .trim();
+  return visible.length > 0;
+}
+
 /** True when the chunk has user-visible text, excluding bells and terminal control sequences. */
 export function hasMeaningfulPtyOutput(
   data: string,
   sensitivity: TerminalActivitySensitivity = "low"
 ): boolean {
+  if (isCarriageReturnRedraw(data)) return false;
   const cleaned = stripTerminalControlNoise(data)
     .replace(/[\x00-\x1f\x7f]/g, "")
     .replace(/\s+/g, " ")

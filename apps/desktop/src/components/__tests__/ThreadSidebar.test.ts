@@ -1,6 +1,6 @@
 import { mount } from "@vue/test-utils";
 import { nextTick } from "vue";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import ThreadSidebar from "@/components/ThreadSidebar.vue";
 import type { Thread, Worktree } from "@shared/domain";
 import type { WorkspaceThreadContext } from "@/stores/workspaceStore";
@@ -227,26 +227,19 @@ describe("ThreadSidebar", () => {
     expect(wrapper.findAll("button").filter((node) => node.text().trim() === "Cancel")).toHaveLength(1);
   });
 
-  it("emits remove with threadId when a ThreadRow emits remove", async () => {
+  it("emits remove with threadId when a ThreadRow archive is confirmed in the window", async () => {
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
     wrapper = mount(ThreadSidebar, { attachTo: document.body, props: { threads, activeThreadId: "t1" } });
     await hoverFirstThreadRow(wrapper);
-    await wrapper.get('[data-testid="thread-menu-trigger"]').trigger("click");
-    await nextTick();
-    document
-      .querySelector('[data-testid="thread-delete"]')
-      ?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    await wrapper.get('[data-testid="thread-archive"]').trigger("click");
+    expect(confirmSpy).toHaveBeenCalled();
     expect(wrapper.emitted("remove")).toEqual([["t1"]]);
+    confirmSpy.mockRestore();
   });
 
   it("emits rename with threadId and new title when a ThreadRow emits rename", async () => {
-    wrapper = mount(ThreadSidebar, { attachTo: document.body, props: { threads, activeThreadId: "t1" } });
-    await hoverFirstThreadRow(wrapper);
-    await wrapper.get('[data-testid="thread-menu-trigger"]').trigger("click");
-    await nextTick();
-    document
-      .querySelector('[data-testid="thread-rename"]')
-      ?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    await nextTick();
+    wrapper = mount(ThreadSidebar, { props: { threads, activeThreadId: "t1" } });
+    await wrapper.get('[data-testid="thread-select"]').trigger("dblclick");
     const input = wrapper.get('[data-testid="thread-rename-input"]');
     await input.setValue("Renamed");
     await input.trigger("keydown", { key: "Enter" });

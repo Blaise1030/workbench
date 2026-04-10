@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { FileService } from "../fileService";
 
@@ -135,6 +136,27 @@ describe("FileService", () => {
     await expect(service.deleteFolder(tempDir, "only.txt")).rejects.toThrow("Not a folder");
   });
 
+  it("finds files whose UTF-8 contents contain the query (case-insensitive)", async () => {
+    await fs.mkdir(path.join(tempDir, "src"), { recursive: true });
+    await fs.writeFile(path.join(tempDir, "src", "a.ts"), "hello world", "utf8");
+    await fs.writeFile(path.join(tempDir, "src", "b.ts"), "nothing", "utf8");
+
+    await expect(service.searchFileContents(tempDir, "hello")).resolves.toEqual(["src/a.ts"]);
+    await expect(service.searchFileContents(tempDir, "HELLO")).resolves.toEqual(["src/a.ts"]);
+    await expect(service.searchFileContents(tempDir, "nothing")).resolves.toEqual(["src/b.ts"]);
+    await expect(service.searchFileContents(tempDir, "xyz")).resolves.toEqual([]);
+  });
+
+  it("returns empty for blank content queries", async () => {
+    await fs.writeFile(path.join(tempDir, "x.txt"), "a", "utf8");
+    await expect(service.searchFileContents(tempDir, "   ")).resolves.toEqual([]);
+  });
+
+  it("skips binary files when searching contents", async () => {
+    await fs.writeFile(path.join(tempDir, "bin.dat"), Buffer.from([0x48, 0x00, 0x49]));
+    await expect(service.searchFileContents(tempDir, "HI")).resolves.toEqual([]);
+  });
+
   it("reads and writes a text file under the root", async () => {
     await fs.mkdir(path.join(tempDir, "src"), { recursive: true });
     const filePath = path.join(tempDir, "src", "note.txt");
@@ -152,5 +174,27 @@ describe("FileService", () => {
         size: 5
       })
     ]);
+  });
+
+  it("resolves relative markdown image hrefs to file URLs under the worktree", async () => {
+    await fs.mkdir(path.join(tempDir, "docs", "assets"), { recursive: true });
+    const pngPath = path.join(tempDir, "docs", "assets", "pic.png");
+    await fs.writeFile(pngPath, "x", "utf8");
+
+    const url = service.resolveMarkdownImageUrl(tempDir, "docs/page.md", "assets/pic.png");
+    expect(url).toBe(pathToFileURL(pngPath).href);
+  });
+
+  it("passes through http(s) and data markdown image hrefs", () => {
+    expect(service.resolveMarkdownImageUrl(tempDir, "a.md", "https://example.com/x.png")).toBe(
+      "https://example.com/x.png"
+    );
+    expect(service.resolveMarkdownImageUrl(tempDir, "a.md", "data:image/png;base64,xx")).toBe(
+      "data:image/png;base64,xx"
+    );
+  });
+
+  it("returns null for markdown image hrefs that escape the worktree", () => {
+    expect(service.resolveMarkdownImageUrl(tempDir, "docs/a.md", "../../../outside.txt")).toBeNull();
   });
 });

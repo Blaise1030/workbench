@@ -7,6 +7,8 @@ electronVersion: 35.1.5
 directories:
   output: release
   # App icons: build/icon.icns, build/icon.ico, build/icon.png (from build/icon-source.png).
+  # Optional: remove dark studio floor from source PNG (transparent edges but opaque mat under subject):
+  #   python3 build/remove_icon_dark_floor.py build/icon-source.png -o build/icon-source.png
   # Regenerate: npx electron-icon-builder --input=build/icon-source.png --output=build --flatten
   # then: cp build/icons/icon.icns build/ && cp build/icons/icon.ico build/ && cp build/icons/512x512.png build/icon.png && rm -rf build/icons
   buildResources: build

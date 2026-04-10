@@ -1,15 +1,10 @@
 import { mount } from "@vue/test-utils";
-import { nextTick } from "vue";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import ThreadRow from "@/components/ThreadRow.vue";
 import type { Thread } from "@shared/domain";
 
 async function hoverThreadRow(wrapper: ReturnType<typeof mount>): Promise<void> {
   await wrapper.get('[data-testid="thread-row"]').trigger("mouseenter");
-}
-
-function getThreadMenuItem(testId: string): HTMLElement | null {
-  return document.querySelector(`[data-testid="${testId}"]`);
 }
 
 const thread: Thread = {
@@ -45,7 +40,7 @@ describe("ThreadRow", () => {
     const btn = wrapper.get('[data-testid="thread-select"]');
     expect(btn.classes()).toContain("cursor-pointer");
     expect(btn.attributes("aria-label")).toBe(thread.title);
-    expect(wrapper.find('[data-testid="thread-menu-trigger"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="thread-archive"]').exists()).toBe(false);
     await btn.trigger("click");
     expect(wrapper.emitted("select")).toHaveLength(1);
   });
@@ -82,82 +77,46 @@ describe("ThreadRow", () => {
     expect(icon.classes()).toEqual(expect.arrayContaining(["text-red-500"]));
   });
 
-  it("keeps thread row at 32px and does not mount the menu trigger until the row is hovered", async () => {
+  it("keeps thread row at 32px and does not mount the archive trigger until the row is hovered", async () => {
     wrapper = mount(ThreadRow, { props: { thread, isActive: false } });
     const row = wrapper.get('[data-testid="thread-row"]');
     expect(row.classes()).toContain("h-7");
-    expect(wrapper.find('[data-testid="thread-menu-trigger"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="thread-archive"]').exists()).toBe(false);
     await hoverThreadRow(wrapper);
-    expect(wrapper.find('[data-testid="thread-menu-trigger"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="thread-archive"]').exists()).toBe(true);
   });
 
-  it("opens the action menu when the chevron button is clicked", async () => {
+  it("emits remove when the archive button is used and the window confirms", async () => {
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
     wrapper = mount(ThreadRow, { attachTo: document.body, props: { thread, isActive: false } });
     await hoverThreadRow(wrapper);
-    await wrapper.get('[data-testid="thread-menu-trigger"]').trigger("click");
-    await nextTick();
-    expect(getThreadMenuItem("thread-delete")).not.toBeNull();
-    expect(getThreadMenuItem("thread-rename")).not.toBeNull();
-  });
-
-  it("renders a flat action menu without border or shadow", async () => {
-    wrapper = mount(ThreadRow, { attachTo: document.body, props: { thread, isActive: false } });
-    await hoverThreadRow(wrapper);
-    await wrapper.get('[data-testid="thread-menu-trigger"]').trigger("click");
-    await nextTick();
-
-    const menu = document.querySelector('[data-slot="dropdown-menu-content"]') as HTMLElement;
-    expect(menu).not.toBeNull();
-    expect(menu.getAttribute("role")).toBe("menu");
-    expect(menu.className).toContain("border");
-    expect(menu.className).toContain("shadow-md");
-    expect(menu.className).toContain("bg-popover");
-  });
-
-  it("uses list-style action rows with hover background and destructive delete text", async () => {
-    wrapper = mount(ThreadRow, { attachTo: document.body, props: { thread, isActive: false } });
-    await hoverThreadRow(wrapper);
-    await wrapper.get('[data-testid="thread-menu-trigger"]').trigger("click");
-    await nextTick();
-
-    const rename = getThreadMenuItem("thread-rename") as HTMLElement;
-    const deleteButton = getThreadMenuItem("thread-delete") as HTMLElement;
-
-    expect(rename.className).toContain("focus:bg-accent");
-    expect(rename.className).not.toContain("border");
-    expect(deleteButton.dataset.variant).toBe("destructive");
-    expect(deleteButton.className).toContain("text-destructive");
-    expect(deleteButton.className).toContain("focus:bg-destructive/10");
-    expect(deleteButton.className).not.toContain("border");
-  });
-
-  it("emits remove when Delete menu item is clicked", async () => {
-    wrapper = mount(ThreadRow, { attachTo: document.body, props: { thread, isActive: false } });
-    await hoverThreadRow(wrapper);
-    await wrapper.get('[data-testid="thread-menu-trigger"]').trigger("click");
-    await nextTick();
-    getThreadMenuItem("thread-delete")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    await wrapper.get('[data-testid="thread-archive"]').trigger("click");
+    expect(confirmSpy).toHaveBeenCalledWith(
+      "Archive this thread? It will be removed from the sidebar."
+    );
     expect(wrapper.emitted("remove")).toHaveLength(1);
+    confirmSpy.mockRestore();
   });
 
-  it("enters inline edit mode when Rename is clicked", async () => {
+  it("does not emit remove when the window confirm is dismissed", async () => {
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
     wrapper = mount(ThreadRow, { attachTo: document.body, props: { thread, isActive: false } });
     await hoverThreadRow(wrapper);
-    await wrapper.get('[data-testid="thread-menu-trigger"]').trigger("click");
-    await nextTick();
-    getThreadMenuItem("thread-rename")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    await nextTick();
+    await wrapper.get('[data-testid="thread-archive"]').trigger("click");
+    expect(wrapper.emitted("remove")).toBeUndefined();
+    confirmSpy.mockRestore();
+  });
+
+  it("enters inline edit mode when the row is double-clicked", async () => {
+    wrapper = mount(ThreadRow, { props: { thread, isActive: false } });
+    await wrapper.get('[data-testid="thread-select"]').trigger("dblclick");
     expect(wrapper.find('[data-testid="thread-rename-input"]').exists()).toBe(true);
     expect((wrapper.get('[data-testid="thread-rename-input"]').element as HTMLInputElement).value).toBe(thread.title);
   });
 
-  it("emits rename with new title on Enter", async () => {
-    wrapper = mount(ThreadRow, { attachTo: document.body, props: { thread, isActive: false } });
-    await hoverThreadRow(wrapper);
-    await wrapper.get('[data-testid="thread-menu-trigger"]').trigger("click");
-    await nextTick();
-    getThreadMenuItem("thread-rename")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    await nextTick();
+  it("emits rename with new title on Enter after double-click edit", async () => {
+    wrapper = mount(ThreadRow, { props: { thread, isActive: false } });
+    await wrapper.get('[data-testid="thread-select"]').trigger("dblclick");
     const input = wrapper.get('[data-testid="thread-rename-input"]');
     await input.setValue("New Title");
     await input.trigger("keydown", { key: "Enter" });
@@ -166,28 +125,19 @@ describe("ThreadRow", () => {
   });
 
   it("cancels rename on Escape without emitting", async () => {
-    wrapper = mount(ThreadRow, { attachTo: document.body, props: { thread, isActive: false } });
-    await hoverThreadRow(wrapper);
-    await wrapper.get('[data-testid="thread-menu-trigger"]').trigger("click");
-    await nextTick();
-    getThreadMenuItem("thread-rename")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    await nextTick();
+    wrapper = mount(ThreadRow, { props: { thread, isActive: false } });
+    await wrapper.get('[data-testid="thread-select"]').trigger("dblclick");
     await wrapper.get('[data-testid="thread-rename-input"]').trigger("keydown", { key: "Escape" });
     expect(wrapper.emitted("rename")).toBeUndefined();
     expect(wrapper.find('[data-testid="thread-rename-input"]').exists()).toBe(false);
   });
 
   it("does not emit rename when confirmed with empty value", async () => {
-    const wrapper = mount(ThreadRow, { attachTo: document.body, props: { thread, isActive: false } });
-    await hoverThreadRow(wrapper);
-    await wrapper.get('[data-testid="thread-menu-trigger"]').trigger("click");
-    await nextTick();
-    getThreadMenuItem("thread-rename")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    await nextTick();
+    const wrapper = mount(ThreadRow, { props: { thread, isActive: false } });
+    await wrapper.get('[data-testid="thread-select"]').trigger("dblclick");
     const input = wrapper.get('[data-testid="thread-rename-input"]');
     await input.setValue("   ");
     await input.trigger("keydown", { key: "Enter" });
     expect(wrapper.emitted("rename")).toBeUndefined();
   });
-
 });

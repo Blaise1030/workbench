@@ -59,8 +59,16 @@ contextBridge.exposeInMainWorld("workspaceApi", {
     ipcRenderer.invoke(IPC_CHANNELS.diffGitCommit, { cwd, message }),
   listFiles: (cwd: string) => ipcRenderer.invoke(IPC_CHANNELS.filesList, cwd),
   searchFiles: (cwd: string, query: string) => ipcRenderer.invoke(IPC_CHANNELS.filesSearch, { cwd, query }),
+  searchFileContents: (cwd: string, query: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.filesSearchContent, { cwd, query }),
   readFile: (cwd: string, relativePath: string) =>
     ipcRenderer.invoke(IPC_CHANNELS.filesRead, { cwd, relativePath }),
+  resolveMarkdownImageUrl: (cwd: string, markdownRelativePath: string, href: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.filesResolveMarkdownImageUrl, {
+      cwd,
+      relativePath: markdownRelativePath,
+      href
+    }) as Promise<string | null>,
   writeFile: (cwd: string, relativePath: string, content: string) =>
     ipcRenderer.invoke(IPC_CHANNELS.filesWrite, { cwd, relativePath, content }),
   createFile: (cwd: string, relativePath: string) =>

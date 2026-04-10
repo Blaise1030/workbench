@@ -9,6 +9,7 @@ import {
   type CreateWorktreeGroupInput,
   type DeleteThreadInput,
   type FileReadInput,
+  type FileResolveMarkdownImageUrlInput,
   type FileWriteInput,
   type RemoveProjectInput,
   type RenameThreadInput,
@@ -254,8 +255,14 @@ function registerIpc(workspaceService: WorkspaceService): void {
   ipcMain.handle(IPC_CHANNELS.filesSearch, (_, payload: { cwd: string; query: string }) =>
     fileService.searchFiles(payload.cwd, payload.query)
   );
+  ipcMain.handle(IPC_CHANNELS.filesSearchContent, (_, payload: { cwd: string; query: string }) =>
+    fileService.searchFileContents(payload.cwd, payload.query)
+  );
   ipcMain.handle(IPC_CHANNELS.filesRead, (_, payload: FileReadInput) =>
     fileService.readFile(payload.cwd, payload.relativePath)
+  );
+  ipcMain.handle(IPC_CHANNELS.filesResolveMarkdownImageUrl, (_, payload: FileResolveMarkdownImageUrlInput) =>
+    fileService.resolveMarkdownImageUrl(payload.cwd, payload.relativePath, payload.href)
   );
   ipcMain.handle(IPC_CHANNELS.filesWrite, async (_, payload: FileWriteInput) => {
     await fileService.writeFile(payload.cwd, payload.relativePath, payload.content);

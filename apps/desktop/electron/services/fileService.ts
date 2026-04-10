@@ -1,5 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import type { FileSummary } from "../../src/shared/ipc.js";
 
 const IGNORED_DIRECTORY_NAMES = new Set(["node_modules", ".git", "dist", "dist-electron"]);
@@ -94,9 +95,78 @@ export class FileService {
       .filter((relativePath) => relativePath.toLowerCase().includes(trimmedQuery));
   }
 
+  /** Max bytes read per file when scanning for substring matches (skip larger files). */
+  private static readonly MAX_CONTENT_SEARCH_BYTES = 2 * 1024 * 1024;
+
+  /**
+   * Returns relative paths of **files** whose UTF-8 text contains `query` (case-insensitive).
+   * Skips directories, binary files (null bytes), and files larger than `MAX_CONTENT_SEARCH_BYTES`.
+   */
+  async searchFileContents(root: string, query: string): Promise<string[]> {
+    const trimmedQuery = query.trim().toLowerCase();
+    if (!trimmedQuery) return [];
+
+    const resolvedRoot = path.resolve(root);
+    const summaries = await this.listFileSummaries(resolvedRoot);
+    const matches: string[] = [];
+
+    for (const file of summaries) {
+      if (file.kind === "directory") continue;
+      if (file.size > FileService.MAX_CONTENT_SEARCH_BYTES) continue;
+
+      const absolutePath = assertPathWithinRoot(resolvedRoot, file.relativePath);
+      try {
+        const buf = await fs.readFile(absolutePath);
+        if (buf.includes(0)) continue;
+        const text = buf.toString("utf8");
+        if (text.toLowerCase().includes(trimmedQuery)) {
+          matches.push(file.relativePath);
+        }
+      } catch {
+        /* unreadable or race — skip */
+      }
+    }
+
+    matches.sort((a, b) => a.localeCompare(b));
+    return matches;
+  }
+
   async readFile(root: string, relativePath: string): Promise<string> {
     const absolutePath = assertPathWithinRoot(root, relativePath);
     return fs.readFile(absolutePath, "utf8");
+  }
+
+  /**
+   * Returns a URL suitable for `<img src>`: `https?`, `data:`, or `file://` for paths inside the worktree.
+   * Returns `null` if the href is empty, escapes the worktree, or cannot be resolved.
+   */
+  resolveMarkdownImageUrl(root: string, markdownRelativePath: string, href: string): string | null {
+    const trimmed = href.trim();
+    if (!trimmed) return null;
+    const lower = trimmed.toLowerCase();
+    if (lower.startsWith("http://") || lower.startsWith("https://") || lower.startsWith("data:")) {
+      return trimmed;
+    }
+    if (lower.startsWith("//")) return null;
+
+    let pathPart = trimmed.replace(/^<|>$/g, "");
+    const hashIdx = pathPart.indexOf("#");
+    if (hashIdx >= 0) pathPart = pathPart.slice(0, hashIdx);
+    pathPart = pathPart.trim();
+    if (!pathPart) return null;
+
+    const normalizedMd = normalizeRelativePath(markdownRelativePath);
+    const baseDir = path.dirname(normalizedMd);
+    const joined = path.normalize(path.join(baseDir, pathPart)).replace(/\\/g, "/");
+    const relative = joined.replace(/^\/+/, "");
+    if (!relative) return null;
+
+    try {
+      const absolutePath = assertPathWithinRoot(root, relative);
+      return pathToFileURL(absolutePath).href;
+    } catch {
+      return null;
+    }
   }
 
   async writeFile(root: string, relativePath: string, content: string): Promise<void> {

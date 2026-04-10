@@ -1,16 +1,10 @@
 <script setup lang="ts">
 import type { RunStatus, Thread } from "@shared/domain";
 import { computed, nextTick, ref } from "vue";
-import { MoreHorizontal, Pencil, Trash2 } from "lucide-vue-next";
+import { Archive } from "lucide-vue-next";
 import AgentIcon from "@/components/ui/AgentIcon.vue";
 import Button from "@/components/ui/Button.vue";
 import Input from "@/components/ui/Input.vue";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger
-} from "@/components/ui/dropdown-menu";
 import {
   Tooltip,
   TooltipContent,
@@ -36,14 +30,13 @@ const emit = defineEmits<{
   (e: "rename", newTitle: string): void;
 }>();
 
-const menuOpen = ref(false);
 const rowHovered = ref(false);
 const isEditing = ref(false);
 const editValue = ref("");
 const editInputRef = ref<InstanceType<typeof Input> | null>(null);
 
 const showThreadMenu = computed(
-  () => !props.collapsed && !isEditing.value && (rowHovered.value || menuOpen.value)
+  () => !props.collapsed && !isEditing.value && rowHovered.value
 );
 
 /** Human-readable for tooltips and aria-label. Omitted when idle (no subtext). */
@@ -87,12 +80,7 @@ const iconClass = computed(() => {
   }
 });
 
-function closeMenu(): void {
-  menuOpen.value = false;
-}
-
 function startRename(): void {
-  closeMenu();
   editValue.value = props.thread.title;
   isEditing.value = true;
   void nextTick(() => {
@@ -111,14 +99,36 @@ function cancelRename(): void {
   isEditing.value = false;
 }
 
+function isFocusInsideAppDialog(el: Element | null): boolean {
+  if (!el) return false;
+  return (
+    el.closest("[role='dialog']") != null ||
+    el.closest("[role='alertdialog']") != null ||
+    el.closest("[data-slot='dialog-content']") != null
+  );
+}
+
+/** Blur fires before focus lands on a portaled dialog; defer cancel so rename isn't aborted when opening modals. */
+function onRenameBlur(e: FocusEvent): void {
+  const rt = e.relatedTarget as HTMLElement | null;
+  if (isFocusInsideAppDialog(rt)) return;
+  void nextTick(() => {
+    if (!isEditing.value) return;
+    if (isFocusInsideAppDialog(document.activeElement)) return;
+    cancelRename();
+  });
+}
+
 function handleRenameKeydown(event: KeyboardEvent): void {
   if (event.key === "Enter") confirmRename();
   else if (event.key === "Escape") cancelRename();
 }
 
-function handleDelete(): void {
-  closeMenu();
-  emit("remove");
+function handleArchiveClick(): void {
+  const confirmed = window.confirm(
+    "Archive this thread? It will be removed from the sidebar."
+  );
+  if (confirmed) emit("remove");
 }
 </script>
 
@@ -184,6 +194,7 @@ function handleDelete(): void {
                   :aria-current="isActive ? 'true' : undefined"
                   :aria-label="rowAriaLabel"
                   @click="emit('select')"
+                  @dblclick.stop.prevent="startRename"
                   @keydown.enter.prevent="emit('select')"
                   @keydown.space.prevent="emit('select')"
                 >
@@ -213,44 +224,24 @@ function handleDelete(): void {
           v-model="editValue"
           data-testid="thread-rename-input"
           type="text"
-          class="min-w-0 flex-1 rounded border border-border bg-background px-1 text-xs leading-none"
+          class="min-w-0 flex-1 rounded border border-border bg-background px-1 text-start text-xs leading-none"
           @keydown="handleRenameKeydown"
-          @blur="cancelRename"
+          @blur="onRenameBlur"
         />
       </template>
     </template>
 
-    <DropdownMenu
+    <Button
       v-if="showThreadMenu"
-      v-model:open="menuOpen"
+      type="button"
+      variant="ghost"
+      size="icon-xs"
+      data-testid="thread-archive"
+      class="flex h-5 w-5 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground"
+      aria-label="Archive thread"
+      @click.stop="handleArchiveClick"
     >
-      <DropdownMenuTrigger as-child>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-xs"
-          data-testid="thread-menu-trigger"
-          class="flex h-5 w-5 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground"
-          aria-label="Thread actions"
-        >
-          <MoreHorizontal class="h-2.5 w-2.5" stroke-width="2" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" class="min-w-[8rem]">
-        <DropdownMenuItem data-testid="thread-rename" class="text-xs" @select="startRename">
-          <Pencil class="h-3 w-3 shrink-0" />
-          Rename
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          data-testid="thread-delete"
-          variant="destructive"
-          class="text-xs"
-          @select="handleDelete"
-        >
-          <Trash2 class="h-3 w-3 shrink-0" />
-          Delete
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+      <Archive class="h-2.5 w-2.5" stroke-width="2" />
+    </Button>
   </div>
 </template>

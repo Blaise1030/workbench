@@ -34,7 +34,10 @@ export const IPC_CHANNELS = {
   diffInitGitRepository: "diff:initGitRepository",
   filesList: "files:list",
   filesSearch: "files:search",
+  filesSearchContent: "files:searchContent",
   filesRead: "files:read",
+  /** Resolve `![](href)` in a Markdown file to a loadable URL (e.g. `file://` for workspace assets). */
+  filesResolveMarkdownImageUrl: "files:resolveMarkdownImageUrl",
   filesWrite: "files:write",
   filesCreate: "files:create",
   filesDelete: "files:delete",
@@ -118,6 +121,12 @@ export interface RenameThreadInput {
 export interface FileReadInput {
   cwd: string;
   relativePath: string;
+}
+
+/** Resolve a Markdown image `href` relative to `markdownRelativePath` inside `cwd`. */
+export interface FileResolveMarkdownImageUrlInput extends FileReadInput {
+  /** Raw `href` from `![](...)` (may be relative, URL, or data URI). */
+  href: string;
 }
 
 export interface FileSummary {

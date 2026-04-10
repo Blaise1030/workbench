@@ -40,7 +40,11 @@ interface WorkspaceApi {
   discardPaths?: (cwd: string, paths: string[]) => Promise<void>;
   listFiles: (cwd: string) => Promise<FileSummary[]>;
   searchFiles: (cwd: string, query: string) => Promise<string[]>;
+  /** Full-text search over file text (UTF-8); optional on older preload builds. */
+  searchFileContents?: (cwd: string, query: string) => Promise<string[]>;
   readFile: (cwd: string, relativePath: string) => Promise<string>;
+  /** Resolve `![](href)` for Markdown previews; optional on older preload builds. */
+  resolveMarkdownImageUrl?: (cwd: string, markdownRelativePath: string, href: string) => Promise<string | null>;
   writeFile: (cwd: string, relativePath: string, content: string) => Promise<void>;
   createFile: (cwd: string, relativePath: string) => Promise<void>;
   deleteFile: (cwd: string, relativePath: string) => Promise<void>;
