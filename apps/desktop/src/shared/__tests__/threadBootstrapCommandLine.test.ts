@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { shellDoubleQuotedArg, threadBootstrapCommandLine } from "@/shared/threadBootstrapCommandLine";
+import { shellDoubleQuotedArg, threadBootstrapCommandLine } from "../threadBootstrapCommandLine";
 
 describe("threadBootstrapCommandLine", () => {
   it("escapes double quotes and shell metacharacters in double-quoted args", () => {
