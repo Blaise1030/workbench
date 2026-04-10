@@ -5,11 +5,11 @@ import { playTerminalChirp } from "@/terminal/playTerminalChirp";
 import { hasMeaningfulPtyOutput } from "@/terminal/ptyChunkMeaningful";
 import type { TerminalActivitySensitivity } from "@/terminal/activitySensitivity";
 
-const IDLE_MS = 5000;
+const IDLE_MS = 1000;
 
 export type UseThreadPtyRunStatusOpts = {
-  /** PTY session id currently visible in the center panel (`threadId` or `__wt:` / shell ids). */
-  visibleSessionId: Ref<string | null>;
+  /** Thread the user is focused on; idle attention and chirps use this, not which terminal tab is visible. */
+  activeThreadId: Ref<string | null>;
   /** When false, idle completion does not play the attention chirp (row may still highlight). */
   notificationsEnabled: Ref<boolean>;
   /** Shared activity sensitivity used for both idle detection and terminal sounds. */
@@ -20,9 +20,10 @@ export type UseThreadPtyRunStatusOpts = {
  * Derives per-thread agent run status from integrated-terminal PTY output (same heuristics as Electron adapters).
  * Sticky for needsReview / failed / done until new activity; running while output streams; idle after quiet period.
  *
- * When a thread was **running** and goes **idle** while its PTY is **not** the visible session, marks
- * `idleAttentionByThreadId` and plays one chirp (if notifications are on). Cleared when the user focuses
- * that thread’s PTY or selects the thread successfully.
+ * When a thread was **running** and goes **idle** while it is **not** the active thread (`activeThreadId`),
+ * marks `idleAttentionByThreadId` and plays one chirp (if notifications are on). Cleared when the user selects
+ * that thread or when new output arrives. PTY chunks within 300ms of `markUserInput` for that thread are ignored
+ * so typed echo does not count as program activity.
  */
 export function useThreadPtyRunStatus(
   threads: Ref<readonly Thread[]> | ComputedRef<readonly Thread[]>,
@@ -31,10 +32,16 @@ export function useThreadPtyRunStatus(
   runStatusByThreadId: Ref<Record<string, RunStatus>>;
   idleAttentionByThreadId: Ref<Record<string, boolean>>;
   clearIdleAttention: (threadId: string) => void;
+  markUserInput: (sessionId: string) => void;
 } {
   const runStatusByThreadId = ref<Record<string, RunStatus>>({});
   const idleAttentionByThreadId = ref<Record<string, boolean>>({});
   const idleTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  const lastUserInputMs = new Map<string, number>();
+
+  function markUserInput(sessionId: string): void {
+    lastUserInputMs.set(sessionId, Date.now());
+  }
 
   function clearIdleAttention(threadId: string): void {
     if (!idleAttentionByThreadId.value[threadId]) return;
@@ -60,8 +67,7 @@ export function useThreadPtyRunStatus(
         const cur = runStatusByThreadId.value[threadId];
         if (cur === "needsReview" || cur === "failed" || cur === "done") return;
 
-        const vis = opts.visibleSessionId.value;
-        const inFocus = vis != null && vis === threadId;
+        const inFocus = opts.activeThreadId.value === threadId;
 
         if (cur === "running" && !inFocus) {
           idleAttentionByThreadId.value = { ...idleAttentionByThreadId.value, [threadId]: true };
@@ -78,6 +84,7 @@ export function useThreadPtyRunStatus(
   }
 
   function applyChunk(threadId: string, agent: ThreadAgent, data: string): void {
+    if (Date.now() - (lastUserInputMs.get(threadId) ?? 0) < 300) return;
     if (!hasMeaningfulPtyOutput(data, opts.activitySensitivity.value)) return;
 
     clearIdleAttention(threadId);
@@ -132,11 +139,9 @@ export function useThreadPtyRunStatus(
   );
 
   watch(
-    () => opts.visibleSessionId.value,
+    () => opts.activeThreadId.value,
     (id) => {
-      if (id != null && !id.startsWith("__")) {
-        clearIdleAttention(id);
-      }
+      if (id != null) clearIdleAttention(id);
     },
     { flush: "sync" }
   );
@@ -148,5 +153,5 @@ export function useThreadPtyRunStatus(
     idleTimers.clear();
   });
 
-  return { runStatusByThreadId, idleAttentionByThreadId, clearIdleAttention };
+  return { runStatusByThreadId, idleAttentionByThreadId, clearIdleAttention, markUserInput };
 }
