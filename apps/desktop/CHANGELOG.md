@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.1](https://github.com/Blaise1030/instrumental/compare/v0.5.0...v0.5.1) (2026-04-10)
+
+
+### Bug Fixes
+
+* **desktop:** resolve threadBootstrap test import for node/electron tsconfigs ([ff1a551](https://github.com/Blaise1030/instrumental/commit/ff1a5517cfbd1257e62c6bb35aff09496652ed7a))
+
 ## [0.5.0](https://github.com/Blaise1030/instrumental/compare/v0.4.0...v0.5.0) (2026-04-10)
 
 
