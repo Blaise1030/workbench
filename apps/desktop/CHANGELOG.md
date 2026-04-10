@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.3](https://github.com/Blaise1030/instrumental/compare/v0.5.2...v0.5.3) (2026-04-10)
+
+
+### Bug Fixes
+
+* **desktop:** fix electron-builder release packaging and publish metadata
+
 ## [0.5.2](https://github.com/Blaise1030/instrumental/compare/v0.5.1...v0.5.2) (2026-04-10)
 
 
