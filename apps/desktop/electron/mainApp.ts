@@ -43,7 +43,6 @@ let closeConfirmationInFlight = false;
 async function promptForCloseConfirmation(): Promise<boolean> {
   const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0];
   const activeTerminalCount = ptyService.getActiveSessionCount();
-  const detectedResumeIds = await collectResumeIdsFromActiveTerminals(ptyService);
   const opts = {
     type: "warning" as const,
     buttons: ["Cancel", "Confirm"],
@@ -51,12 +50,14 @@ async function promptForCloseConfirmation(): Promise<boolean> {
     cancelId: 0,
     title: "Confirm close",
     message: "Are you sure you want to close the app?",
-    detail: buildCloseConfirmationDetail(activeTerminalCount, detectedResumeIds)
+    detail: buildCloseConfirmationDetail(activeTerminalCount, [])
   };
   const { response } = win
     ? await dialog.showMessageBox(win, opts)
     : await dialog.showMessageBox(opts);
-  return response === 1;
+  if (response !== 1) return false;
+  await collectResumeIdsFromActiveTerminals(ptyService);
+  return true;
 }
 
 /** Dev / unpackaged window icon; packaged apps use platform icons from electron-builder. */
@@ -372,6 +373,7 @@ app.on("before-quit", (event) => {
         .finally(() => {
           allowQuitAfterResumeCapture = true;
           resumeCaptureOnQuitInFlight = false;
+          ptyService.killNonThreadSessions();
           app.quit();
         });
     })

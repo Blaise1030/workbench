@@ -120,6 +120,14 @@ export class PtyService {
     return [...this.sessions.keys()];
   }
 
+  /** Kills all standalone shell/worktree sessions (those not tied to agent threads) one by one. */
+  killNonThreadSessions(): void {
+    const ids = [...this.sessions.keys()].filter((id) => id.startsWith("__"));
+    for (const id of ids) {
+      this.kill(id);
+    }
+  }
+
   private captureSubmittedInput(sessionId: string, data: string): void {
     if (!this.submittedInputListener) return;
 

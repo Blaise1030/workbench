@@ -32,7 +32,7 @@ function bufferTail(buffer: string): string {
  * their output for `agent --resume <id>` hints.
  */
 export async function collectResumeIdsFromActiveTerminals(ptyService: PtyService): Promise<string[]> {
-  const sessionIds = ptyService.listSessionIds();
+  const sessionIds = ptyService.listAgentThreadSessionIds();
   if (sessionIds.length === 0) return [];
 
   const found = new Set<string>();
