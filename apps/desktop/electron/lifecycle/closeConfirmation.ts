@@ -2,7 +2,7 @@ export type CloseConfirmationPrompt = () => Promise<boolean>;
 
 export function buildCloseConfirmationDetail(activeTerminalCount: number, resumeIds: string[]): string {
   const terminalInstanceLabel = activeTerminalCount === 1 ? "instance" : "instances";
-  const resumePart = resumeIds.length > 0 ? ` ${resumeIds.length} resumable session(s) detected.` : "";
+  const resumePart = resumeIds.length > 0 ? ` Resume IDs detected: ${resumeIds.join(", ")}.` : "";
   return `You have ${activeTerminalCount} active terminal ${terminalInstanceLabel}.${resumePart} Close is blocked until you click Confirm.`;
 }
 
