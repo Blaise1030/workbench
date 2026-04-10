@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.2](https://github.com/Blaise1030/instrumental/compare/v0.5.1...v0.5.2) (2026-04-10)
+
+
+### Bug Fixes
+
+* **desktop:** fix closeConfirmation resume IDs message and electron-builder channel ([88b0be7](https://github.com/Blaise1030/instrumental/commit/88b0be77640ab6f107a99db69b4ddbc234b067aa))
+
 ## [0.5.1](https://github.com/Blaise1030/instrumental/compare/v0.5.0...v0.5.1) (2026-04-10)
 
 
