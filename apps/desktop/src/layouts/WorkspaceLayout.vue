@@ -289,9 +289,10 @@ useTerminalAttentionSounds({
 const {
   runStatusByThreadId: ptyRunStatusByThreadId,
   idleAttentionByThreadId: ptyIdleAttentionByThreadId,
-  clearIdleAttention: clearPtyIdleAttention
+  clearIdleAttention: clearPtyIdleAttention,
+  markUserInput: markPtyUserInput
 } = useThreadPtyRunStatus(computed(() => workspace.threads), {
-  visibleSessionId: visiblePtySessionId,
+  activeThreadId: computed(() => workspace.activeThreadId),
   notificationsEnabled: terminalNotificationsEnabled,
   activitySensitivity: terminalActivitySensitivity
 });
@@ -1645,6 +1646,7 @@ watch(
                       :cwd="workspace.activeWorktree?.path ?? ''"
                       :pending-agent-bootstrap="pendingAgentBootstrap"
                       @bootstrap-consumed="onTerminalBootstrapConsumed"
+                      @user-typed="markPtyUserInput"
                     />
                   </div>
                 </div>
@@ -1738,6 +1740,7 @@ watch(
                           :worktree-id="workspace.activeWorktreeId ?? ''"
                           :thread-id="workspace.activeThreadId ?? ''"
                           :cwd="workspace.activeWorktree?.path ?? ''"
+                          @user-typed="markPtyUserInput"
                         />
                       </div>
                       <div
