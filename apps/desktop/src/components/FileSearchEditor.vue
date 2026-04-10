@@ -97,6 +97,10 @@ function fileEmojiForPath(relativePath: string): string {
 
 const searchInput = ref<InstanceType<typeof Input> | null>(null);
 const query = ref("");
+/** Milliseconds after typing stops before path filter / text search runs. */
+const SEARCH_INPUT_DEBOUNCE_MS = 280;
+/** Debounced mirror of `query` for filtering and content IPC (input updates immediately). */
+const debouncedQuery = ref("");
 /** `path`: filter by path; `content`: full-text search (main process). */
 const searchMode = ref<"path" | "content">("path");
 const allFiles = ref<FileSummary[]>([]);
@@ -415,9 +419,13 @@ function defaultExpandedFolders(files: FileSummary[]): Set<string> {
 
 const summariesForTree = computed(() => {
   const files = allFiles.value;
-  const q = query.value.trim();
+  /** Path mode never filters by query here — avoids rebuilding the whole tree on every keystroke. */
+  if (searchMode.value === "path") {
+    return files;
+  }
+
+  const q = debouncedQuery.value.trim();
   if (!q) return files;
-  if (searchMode.value === "path") return files;
 
   const matches = new Set(contentMatchPaths.value);
   if (matches.size === 0) return [];
@@ -438,9 +446,9 @@ const summariesForTree = computed(() => {
 const fileTree = computed(() => buildFileTree(summariesForTree.value));
 
 const visibleTree = computed(() => {
-  if (!query.value.trim()) return fileTree.value;
+  if (!debouncedQuery.value.trim()) return fileTree.value;
   if (searchMode.value === "content") return fileTree.value;
-  return filterTreeNodes(fileTree.value, query.value);
+  return filterTreeNodes(fileTree.value, debouncedQuery.value);
 });
 
 const searchModeTabs = computed<PillTabItem[]>(() => [
@@ -452,9 +460,29 @@ const searchPlaceholder = computed(() =>
   searchMode.value === "content" ? "Search text in files…" : "Search paths…"
 );
 
-/** Path mode: on first character of a search, expand only folders that lead to visible files (not every folder). */
-watch(query, (next, prev) => {
+watchDebounced(
+  () => query.value,
+  (v) => {
+    debouncedQuery.value = v;
+  },
+  { debounce: SEARCH_INPUT_DEBOUNCE_MS, flush: "post" }
+);
+
+/** Empty or whitespace-only query clears the debounced filter immediately (no extra delay). */
+watch(query, (v) => {
   error.value = null;
+  if (!v.trim()) {
+    debouncedQuery.value = "";
+  }
+});
+
+/** Avoid stale debounced text when switching mode or workspace. */
+watch([() => searchMode.value, () => props.worktreePath], () => {
+  debouncedQuery.value = query.value;
+});
+
+/** Path mode: on first character of a debounced search, expand folders that lead to visible files. */
+watch(debouncedQuery, (next, prev) => {
   if ((prev ?? "").trim().length > 0 || next.trim().length === 0) return;
   if (searchMode.value !== "path") return;
   const nextExpanded = new Set(expandedFolders.value);
@@ -468,7 +496,7 @@ watch(query, (next, prev) => {
 watch(
   contentMatchPaths,
   () => {
-    if (searchMode.value !== "content" || !query.value.trim()) return;
+    if (searchMode.value !== "content" || !debouncedQuery.value.trim()) return;
     const nextExpanded = new Set(expandedFolders.value);
     for (const f of ancestorFoldersForAllVisibleFiles(visibleTree.value)) {
       nextExpanded.add(f);
@@ -478,10 +506,9 @@ watch(
   { flush: "post" }
 );
 
-/** Show loading immediately; `watchDebounced` clears it when the IPC call finishes. */
 watch(
-  [() => query.value, () => searchMode.value, () => props.worktreePath],
-  () => {
+  [() => debouncedQuery.value, () => searchMode.value, () => props.worktreePath],
+  async () => {
     if (searchMode.value !== "content") {
       contentMatchPaths.value = [];
       contentSearchError.value = null;
@@ -489,26 +516,20 @@ watch(
       contentSearchSeq += 1;
       return;
     }
-    if (!query.value.trim() || !props.worktreePath) {
+    if (!props.worktreePath) {
       contentMatchPaths.value = [];
       contentSearchError.value = null;
       isContentSearching.value = false;
       contentSearchSeq += 1;
       return;
     }
-    isContentSearching.value = true;
-  },
-  { flush: "post" }
-);
 
-watchDebounced(
-  [() => query.value, () => searchMode.value, () => props.worktreePath],
-  async () => {
-    if (searchMode.value !== "content" || !props.worktreePath) {
-      return;
-    }
-    const q = query.value.trim();
+    const q = debouncedQuery.value.trim();
     if (!q) {
+      contentMatchPaths.value = [];
+      contentSearchError.value = null;
+      isContentSearching.value = false;
+      contentSearchSeq += 1;
       return;
     }
 
@@ -516,8 +537,9 @@ watchDebounced(
     const cwd = props.worktreePath;
     const seq = ++contentSearchSeq;
     contentSearchError.value = null;
+    isContentSearching.value = true;
 
-    if (!api.searchFileContents) {
+    if (!api?.searchFileContents) {
       contentMatchPaths.value = [];
       contentSearchError.value = "Full-text search is not available in this build.";
       if (seq === contentSearchSeq) {
@@ -541,7 +563,7 @@ watchDebounced(
       }
     }
   },
-  { debounce: 320, flush: "post" }
+  { flush: "post" }
 );
 
 function getApi(): WorkspaceApi | null {
@@ -725,6 +747,7 @@ function invalidatePendingFileRequests(): void {
 
 function resetState(): void {
   query.value = "";
+  debouncedQuery.value = "";
   searchMode.value = "path";
   allFiles.value = [];
   contentMatchPaths.value = [];
@@ -1187,7 +1210,7 @@ defineExpose({
               <p
                 v-else-if="
                   searchMode === 'content' &&
-                    query.trim() &&
+                    debouncedQuery.trim() &&
                     contentSearchError
                 "
                 class="px-1.5 py-2 text-xs text-destructive"
@@ -1196,7 +1219,7 @@ defineExpose({
               </p>
               <p
                 v-else-if="
-                  searchMode === 'content' && query.trim() && isContentSearching
+                  searchMode === 'content' && debouncedQuery.trim() && isContentSearching
                 "
                 class="px-1.5 py-2 text-xs text-muted-foreground"
               >
@@ -1205,7 +1228,7 @@ defineExpose({
               <p
                 v-else-if="
                   searchMode === 'content' &&
-                    query.trim() &&
+                    debouncedQuery.trim() &&
                     !isContentSearching &&
                     contentMatchPaths.length === 0 &&
                     !contentSearchError

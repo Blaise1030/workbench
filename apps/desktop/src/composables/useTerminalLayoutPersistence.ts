@@ -12,10 +12,8 @@ export type TerminalLayoutState = {
   shellSlotIds: string[];
   /** When false, integrated terminal dock is collapsed (⌘J / Ctrl+J toggles). */
   terminalPanelOpen?: boolean;
-  /** @deprecated Kept for migration; prefer agentShellSplitUpperFraction. */
-  terminalBarPanelHeightPx?: number;
-  /** Fraction of the split (0.25–0.85) for the upper agent terminal pane when the lower shell pane is open. */
-  agentShellSplitUpperFraction?: number;
+  /** Fixed pixel height of the terminal overlay panel. */
+  terminalPanelHeightPx?: number;
 };
 
 export function loadTerminalLayout(worktreeId: string): TerminalLayoutState | null {
@@ -28,8 +26,7 @@ export function loadTerminalLayout(worktreeId: string): TerminalLayoutState | nu
       shellOverlayTab?: unknown;
       shellSlotIds?: unknown;
       terminalPanelOpen?: unknown;
-      terminalBarPanelHeightPx?: unknown;
-      agentShellSplitUpperFraction?: unknown;
+      terminalPanelHeightPx?: unknown;
     };
     if (typeof parsed.centerTab !== "string" || !Array.isArray(parsed.shellSlotIds)) {
       return null;
@@ -37,15 +34,10 @@ export function loadTerminalLayout(worktreeId: string): TerminalLayoutState | nu
     const shellSlotIds = parsed.shellSlotIds.filter((x): x is string => typeof x === "string");
     const terminalPanelOpen =
       typeof parsed.terminalPanelOpen === "boolean" ? parsed.terminalPanelOpen : undefined;
-    const terminalBarPanelHeightPx =
-      typeof parsed.terminalBarPanelHeightPx === "number" &&
-      Number.isFinite(parsed.terminalBarPanelHeightPx)
-        ? parsed.terminalBarPanelHeightPx
-        : undefined;
-    const agentShellSplitUpperFraction =
-      typeof parsed.agentShellSplitUpperFraction === "number" &&
-      Number.isFinite(parsed.agentShellSplitUpperFraction)
-        ? parsed.agentShellSplitUpperFraction
+    const terminalPanelHeightPx =
+      typeof parsed.terminalPanelHeightPx === "number" &&
+      Number.isFinite(parsed.terminalPanelHeightPx)
+        ? parsed.terminalPanelHeightPx
         : undefined;
     const shellOverlayTab =
       typeof parsed.shellOverlayTab === "string" ? parsed.shellOverlayTab : undefined;
@@ -54,8 +46,7 @@ export function loadTerminalLayout(worktreeId: string): TerminalLayoutState | nu
       shellOverlayTab,
       shellSlotIds,
       terminalPanelOpen,
-      terminalBarPanelHeightPx,
-      agentShellSplitUpperFraction
+      terminalPanelHeightPx
     };
   } catch {
     return null;

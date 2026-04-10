@@ -117,32 +117,31 @@ const shellSlotIds = ref<string[]>([]);
 /** Bottom terminal bar (tab strip for shells); toggled with ⌘J / Ctrl+J. */
 const terminalPanelOpen = ref(true);
 
-/** Upper / lower split between thread agent terminal and extra shell terminals (when lower pane is open). */
-const DEFAULT_AGENT_UPPER_FRACTION = 0.5;
-const MIN_AGENT_UPPER_FRACTION = 0.25;
-const MAX_AGENT_UPPER_FRACTION = 0.85;
+/** Terminal overlay panel — fixed pixel height, resizable by dragging. */
+const DEFAULT_TERMINAL_HEIGHT_PX = 300;
+const MIN_TERMINAL_HEIGHT_PX = 120;
 
-function clampAgentShellUpperFraction(f: number): number {
-  return Math.min(MAX_AGENT_UPPER_FRACTION, Math.max(MIN_AGENT_UPPER_FRACTION, f));
+function clampTerminalHeight(px: number, containerHeight: number): number {
+  const max = Math.floor(containerHeight * 0.85);
+  return Math.min(max, Math.max(MIN_TERMINAL_HEIGHT_PX, px));
 }
 
-const agentUpperFraction = ref(DEFAULT_AGENT_UPPER_FRACTION);
+const terminalPanelHeight = ref(DEFAULT_TERMINAL_HEIGHT_PX);
 const splitContainerRef = ref<HTMLElement | null>(null);
 
 function onSplitResizePointerDown(e: PointerEvent): void {
   if (e.button !== 0) return;
   const container = splitContainerRef.value;
   if (!container || !terminalPanelOpen.value) return;
-  const total = container.getBoundingClientRect().height;
-  if (total < 32) return;
+  const containerHeight = container.getBoundingClientRect().height;
+  if (containerHeight < 32) return;
   const startY = e.clientY;
-  const startFrac = agentUpperFraction.value;
+  const startHeight = terminalPanelHeight.value;
 
   const onMove = (ev: PointerEvent): void => {
     const dy = ev.clientY - startY;
-    const deltaFrac = dy / total;
-    // Drag down → more space for agent above the overlay; drag up → overlay grows
-    agentUpperFraction.value = clampAgentShellUpperFraction(startFrac + deltaFrac);
+    // Drag up (negative dy) → panel grows; drag down → panel shrinks
+    terminalPanelHeight.value = clampTerminalHeight(startHeight - dy, containerHeight);
   };
   const onUp = (): void => {
     window.removeEventListener("pointermove", onMove);
@@ -153,24 +152,14 @@ function onSplitResizePointerDown(e: PointerEvent): void {
   e.preventDefault();
 }
 
-/** Main center pane (diff / files / agent) flex share when the lower terminal strip is open. */
-const mainCenterSplitFlexStyle = computed(() => {
-  if (!terminalPanelOpen.value) {
-    return { flex: "1 1 0%", minHeight: 0 };
-  }
-  return {
-    flex: `${agentUpperFraction.value} 1 0%`,
-    minHeight: 0
-  };
-});
+/** Main center pane always fills available space — terminal overlay does not shift layout. */
+const mainCenterSplitFlexStyle = computed(() => ({ flex: "1 1 0%", minHeight: 0 }));
 
-/** Lower shell pane flex share; keeps layout flow so it does not cover the Git commit area. */
+/** Terminal overlay panel uses a fixed pixel height. */
 const shellOverlaySplitFlexStyle = computed(
   () =>
     ({
-      flex: `${1 - agentUpperFraction.value} 1 0%`,
-      minHeight: "7.5rem",
-      maxHeight: "85%"
+      height: `${terminalPanelHeight.value}px`
     }) as Record<string, string>
 );
 const pendingCloseShellTabValue = ref<string | null>(null);
@@ -1345,8 +1334,8 @@ watch(
         if (typeof saved.terminalPanelOpen === "boolean") {
           terminalPanelOpen.value = saved.terminalPanelOpen;
         }
-        if (typeof saved.agentShellSplitUpperFraction === "number") {
-          agentUpperFraction.value = clampAgentShellUpperFraction(saved.agentShellSplitUpperFraction);
+        if (typeof saved.terminalPanelHeightPx === "number") {
+          terminalPanelHeight.value = Math.max(MIN_TERMINAL_HEIGHT_PX, saved.terminalPanelHeightPx);
         }
       } else if (prev != null) {
         shellSlotIds.value = [];
@@ -1367,7 +1356,7 @@ watch(
     shellOverlayTab,
     shellSlotIds,
     terminalPanelOpen,
-    agentUpperFraction,
+    terminalPanelHeight,
     () => workspace.activeWorktreeId
   ],
   () => {
@@ -1378,7 +1367,7 @@ watch(
       shellOverlayTab: shellOverlayTab.value,
       shellSlotIds: [...shellSlotIds.value],
       terminalPanelOpen: terminalPanelOpen.value,
-      agentShellSplitUpperFraction: agentUpperFraction.value
+      terminalPanelHeightPx: terminalPanelHeight.value
     });
   }
 );
@@ -1601,7 +1590,7 @@ watch(
           </section>
           <template v-else>
             <div class="flex min-h-0 flex-1 flex-col overflow-hidden">
-              <div ref="splitContainerRef" class="flex min-h-0 flex-1 flex-col overflow-hidden">
+              <div ref="splitContainerRef" class="relative flex min-h-0 flex-1 flex-col overflow-hidden">
                 <div
                   class="flex min-h-0 flex-col overflow-hidden border-b border-border bg-card"
                   :style="mainCenterSplitFlexStyle"
@@ -1661,7 +1650,7 @@ watch(
                 </div>
                   <div
                     v-show="terminalPanelOpen"
-                    class="pointer-events-auto flex min-h-0 flex-col overflow-hidden border-t border-border bg-card shadow-[0_-6px_24px_rgba(0,0,0,0.08)] ring-1 ring-border/60 dark:shadow-[0_-8px_32px_rgba(0,0,0,0.45)]"
+                    class="pointer-events-auto absolute inset-x-0 bottom-0 z-10 flex flex-col overflow-hidden border-t border-border bg-card shadow-[0_-6px_24px_rgba(0,0,0,0.08)] ring-1 ring-border/60 dark:shadow-[0_-8px_32px_rgba(0,0,0,0.45)]"
                     :style="shellOverlaySplitFlexStyle"
                   >
                     <div

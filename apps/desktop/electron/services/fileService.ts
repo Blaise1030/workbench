@@ -107,20 +107,28 @@ export class FileService {
     if (!trimmedQuery) return [];
 
     const resolvedRoot = path.resolve(root);
-    const summaries = await this.listFileSummaries(resolvedRoot);
+    /** File paths only — avoids stat+summary work for every directory like `listFileSummaries`. */
+    const relativePaths: string[] = [];
+    await collectFiles(resolvedRoot, resolvedRoot, relativePaths);
     const matches: string[] = [];
 
-    for (const file of summaries) {
-      if (file.kind === "directory") continue;
-      if (file.size > FileService.MAX_CONTENT_SEARCH_BYTES) continue;
+    let scanned = 0;
+    for (const relativePath of relativePaths) {
+      scanned += 1;
+      if (scanned % 48 === 0) {
+        await new Promise<void>((resolve) => setImmediate(resolve));
+      }
 
-      const absolutePath = assertPathWithinRoot(resolvedRoot, file.relativePath);
+      const absolutePath = assertPathWithinRoot(resolvedRoot, relativePath);
       try {
+        const stat = await fs.stat(absolutePath);
+        if (stat.size > FileService.MAX_CONTENT_SEARCH_BYTES) continue;
+
         const buf = await fs.readFile(absolutePath);
         if (buf.includes(0)) continue;
         const text = buf.toString("utf8");
         if (text.toLowerCase().includes(trimmedQuery)) {
-          matches.push(file.relativePath);
+          matches.push(relativePath);
         }
       } catch {
         /* unreadable or race — skip */

@@ -378,6 +378,7 @@ describe("FileSearchEditor", () => {
 
     await flushPromises();
     await wrapper.get('[data-testid="file-search-input"]').setValue("file");
+    await vi.advanceTimersByTimeAsync(350);
     await flushPromises();
 
     expect(listFiles).toHaveBeenCalledTimes(1);
@@ -399,6 +400,7 @@ describe("FileSearchEditor", () => {
 
     await flushPromises();
     await wrapper.get('[data-testid="file-search-input"]').setValue("file");
+    await vi.advanceTimersByTimeAsync(350);
     await flushPromises();
 
     expect(wrapper.text()).toContain("FileSearchEditor.vue");
