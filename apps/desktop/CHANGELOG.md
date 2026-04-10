@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.0](https://github.com/Blaise1030/instrumental/compare/v0.5.3...v0.6.0) (2026-04-10)
+
+
+### Features
+
+* updated terminal positioning ([8987aa1](https://github.com/Blaise1030/instrumental/commit/8987aa130e728f4e85ef593902f1d3c79c99edfa))
+
 ## [0.5.3](https://github.com/Blaise1030/instrumental/compare/v0.5.2...v0.5.3) (2026-04-10)
 
 

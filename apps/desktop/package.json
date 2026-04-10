@@ -1,6 +1,6 @@
 {
   "name": "workbench",
-  "version": "0.5.3",
+  "version": "0.6.0",
   "private": true,
   "type": "commonjs",
   "description": "Desktop workspace for local coding agents",
