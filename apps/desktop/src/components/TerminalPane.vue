@@ -26,6 +26,7 @@ const props = withDefaults(
 
 const emit = defineEmits<{
   bootstrapConsumed: [];
+  "user-typed": [sessionId: string];
 }>();
 
 const paneAriaLabel = computed(() =>
@@ -207,7 +208,10 @@ onMounted(async () => {
   if (api) {
     terminal.onData((data) => {
       const sid = activeSessionId.value;
-      if (sid) void api.ptyWrite(sid, data);
+      if (sid) {
+        emit("user-typed", sid);
+        void api.ptyWrite(sid, data);
+      }
     });
     terminal.onResize(({ cols, rows }) => {
       const sid = activeSessionId.value;
@@ -244,6 +248,7 @@ onMounted(async () => {
     const api = getApi();
     if (!sid || !api) return;
     const payload = paths.map(shellQuotePathForPty).join(" ");
+    emit("user-typed", sid);
     void api.ptyWrite(sid, payload);
     terminal?.focus();
   };
