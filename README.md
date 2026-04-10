@@ -1,4 +1,4 @@
-![Workbench](docs/logo.png)
+<img width="221" height="50" alt="Screenshot 2026-04-10 at 10 02 57 AM" src="https://github.com/user-attachments/assets/5a56b748-14d4-4eec-9944-f5c80dca0a6a" />
 
 # Workbench
 
