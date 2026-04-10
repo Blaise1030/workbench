@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.5.0](https://github.com/Blaise1030/instrumental/compare/v0.4.0...v0.5.0) (2026-04-10)
+
+
+### Features
+
+* add cursor resume-ID parser ([0232584](https://github.com/Blaise1030/instrumental/commit/023258497eb288c17d4b9ac8b70bdfb2f221e205))
+* add CursorCliAdapter with detectResumeId ([7a82263](https://github.com/Blaise1030/instrumental/commit/7a822634c243409a8e43a8a8a8e2e8efa3579d4d))
+* add cursorSessionIdDetected IPC channel ([6bba333](https://github.com/Blaise1030/instrumental/commit/6bba333216d01236896a31d2707fd193085cf078))
+* add setRawDataListener hook to PtyService ([8099b6b](https://github.com/Blaise1030/instrumental/commit/8099b6b29b1afc2a98ce7a2910bf4ebb14513128))
+* added resumable feature ([2eb0d58](https://github.com/Blaise1030/instrumental/commit/2eb0d580173a86b5c6b7b6bda37be492e85a9fd7))
+* using shadcn sonner component ([ee29943](https://github.com/Blaise1030/instrumental/commit/ee29943063338f1b95461a7cf61dd34b71877799))
+
+
+### Bug Fixes
+
+* fix missing styling ([85e28ca](https://github.com/Blaise1030/instrumental/commit/85e28ca4a0b9c282e8799a70a3a685dd60ab76c3))
+
 ## [0.4.0](https://github.com/Blaise1030/instrumental/compare/v0.3.0...v0.4.0) (2026-04-07)
 
 
