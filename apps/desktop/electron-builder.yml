@@ -23,6 +23,7 @@ publish:
   provider: github
   releaseType: release
   publishAutoUpdate: true
+  channel: latest
 
 mac:
   category: public.app-category.developer-tools
