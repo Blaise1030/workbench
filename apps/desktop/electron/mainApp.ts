@@ -400,7 +400,7 @@ if (app.isPackaged) {
 
 async function checkForUpdate(): Promise<void> {
   try {
-    const res = await fetch("https://api.github.com/repos/Blaise1030/instrumental/releases/latest", {
+    const res = await fetch("https://api.github.com/repos/Blaise1030/workbench/releases/latest", {
       headers: { Accept: "application/vnd.github+json", "User-Agent": "workbench-app" }
     });
     if (!res.ok) return;
@@ -423,7 +423,7 @@ async function checkForUpdate(): Promise<void> {
       ? await dialog.showMessageBox(win, opts)
       : await dialog.showMessageBox(opts);
     if (response === 0) {
-      const url = typeof data.html_url === "string" ? data.html_url : `https://github.com/Blaise1030/instrumental/releases/latest`;
+      const url = typeof data.html_url === "string" ? data.html_url : `https://github.com/Blaise1030/workbench/releases/latest`;
       void shell.openExternal(url);
     }
   } catch {

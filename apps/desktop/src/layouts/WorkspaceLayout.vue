@@ -1391,6 +1391,38 @@ watch(
         fileSearchRef.value?.focusSearch?.();
       });
     }
+    if (tab === "agent") {
+      void nextTick(() => agentTerminalPaneRef.value?.refresh?.());
+    }
+  },
+  { flush: "post" }
+);
+
+watch(
+  () => terminalPanelOpen.value,
+  (open) => {
+    if (!open) return;
+    void nextTick(() => {
+      const tab = shellOverlayTab.value;
+      if (tab.startsWith("shell:")) {
+        shellTerminalPaneRefs.get(tab.slice("shell:".length))?.refresh?.();
+      } else {
+        agentTerminalPaneRef.value?.refresh?.();
+      }
+    });
+  },
+  { flush: "post" }
+);
+
+watch(
+  () => shellOverlayTab.value,
+  (tab) => {
+    if (!terminalPanelOpen.value) return;
+    void nextTick(() => {
+      if (tab.startsWith("shell:")) {
+        shellTerminalPaneRefs.get(tab.slice("shell:".length))?.refresh?.();
+      }
+    });
   },
   { flush: "post" }
 );

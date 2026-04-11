@@ -215,7 +215,10 @@ onMounted(async () => {
     });
     terminal.onResize(({ cols, rows }) => {
       const sid = activeSessionId.value;
-      if (sid) void api.ptyResize(sid, cols, rows);
+      if (sid) {
+        emit("user-typed", sid);
+        void api.ptyResize(sid, cols, rows);
+      }
     });
   }
 
@@ -298,7 +301,12 @@ function focusTerminal(): void {
   terminal?.focus();
 }
 
-defineExpose({ focus: focusTerminal });
+function refreshTerminal(): void {
+  fit();
+  requestAnimationFrame(() => terminal?.scrollToBottom());
+}
+
+defineExpose({ focus: focusTerminal, refresh: refreshTerminal });
 </script>
 
 <template>

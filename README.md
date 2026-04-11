@@ -78,5 +78,5 @@ pnpm test
 
 ## Links
 
-- [Releases](https://github.com/Blaise1030/instrument/releases/latest)
-- [GitHub](https://github.com/Blaise1030/instrument)
+- [Releases](https://github.com/Blaise1030/workbench/releases/latest)
+- [GitHub](https://github.com/Blaise1030/workbench)

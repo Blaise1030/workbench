@@ -1,5 +1,5 @@
 /** Canonical GitHub repo; must match `origin` for release artifacts. */
-export const GITHUB_REPO = "Blaise1030/instrumental" as const;
+export const GITHUB_REPO = "Blaise1030/workbench" as const;
 
 export const GITHUB_REPO_URL = `https://github.com/${GITHUB_REPO}` as const;
 

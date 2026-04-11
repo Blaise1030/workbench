@@ -24,6 +24,9 @@ npm-debug.log*
 .DS_Store
 Thumbs.db
 
+# Local bundle analysis (pnpm --filter workbench analyze)
+apps/desktop/bundle-stats/
+
 # Test / tooling caches
 coverage/
 .vitest/
