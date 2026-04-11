@@ -2,7 +2,7 @@
 import { computed, nextTick, onUnmounted, ref, watch } from "vue";
 import Button from "@/components/ui/Button.vue";
 import { clampPopupRect, type Rect } from "@/lib/contextQueueAnchor";
-import { eventMatchesBinding, findDefinitionIn } from "@/keybindings/registry";
+import { eventMatchesBinding, findDefinitionIn, type KeybindingId } from "@/keybindings/registry";
 import { useKeybindingsStore } from "@/stores/keybindingsStore";
 
 const props = defineProps<{
@@ -25,10 +25,20 @@ const agentButtonTitle = computed(() =>
   keybindings.titleWithShortcut("Agent", "contextQueueSelectionSendToAgent")
 );
 
+/** Primary chord only (before " · ") for compact inline hints. */
+function primaryShortcutLabel(id: KeybindingId): string {
+  const full = keybindings.shortcutLabelForId(id);
+  const sep = full.indexOf(" · ");
+  return sep >= 0 ? full.slice(0, sep).trim() : full;
+}
+
+const agentShortcutInline = computed(() => primaryShortcutLabel("contextQueueSelectionSendToAgent"));
+const queueShortcutInline = computed(() => primaryShortcutLabel("contextQueueSelectionQueue"));
+
 const popupEl = ref<HTMLElement | null>(null);
 const position = ref({ left: 0, top: 0 });
 
-const fallbackSize = { w: 140, h: 36 };
+const fallbackSize = { w: 220, h: 36 };
 
 const keydownCaptureOpts = { capture: true } as const;
 
@@ -58,18 +68,18 @@ function onPopupKeydown(e: KeyboardEvent): void {
     return;
   }
   const defs = keybindings.effectiveDefinitions;
-  const queueDef = findDefinitionIn(defs, "contextQueueSelectionQueue");
   const agentDef = findDefinitionIn(defs, "contextQueueSelectionSendToAgent");
-  if (queueDef && eventMatchesBinding(e, queueDef)) {
-    e.preventDefault();
-    e.stopPropagation();
-    emit("queue");
-    return;
-  }
+  const queueDef = findDefinitionIn(defs, "contextQueueSelectionQueue");
   if (agentDef && eventMatchesBinding(e, agentDef)) {
     e.preventDefault();
     e.stopPropagation();
     emit("sendToAgent");
+    return;
+  }
+  if (queueDef && eventMatchesBinding(e, queueDef)) {
+    e.preventDefault();
+    e.stopPropagation();
+    emit("queue");
     return;
   }
 }
@@ -111,22 +121,32 @@ onUnmounted(() => {
       <Button
         variant="ghost"
         size="xs"
-        class="text-muted-foreground hover:text-foreground"
-        data-testid="context-queue-selection-queue"
-        :title="queueButtonTitle"
-        @click="emit('queue')"
-      >
-        Queue
-      </Button>
-      <Button
-        variant="ghost"
-        size="xs"
-        class="text-muted-foreground hover:text-foreground"
+        class="gap-1 text-muted-foreground hover:text-foreground"
         data-testid="context-queue-selection-agent"
         :title="agentButtonTitle"
         @click="emit('sendToAgent')"
       >
-        Agent
+        <span>Agent</span>
+        <span
+          v-if="agentShortcutInline"
+          class="font-medium text-[10px] leading-none text-muted-foreground/90 tabular-nums"
+          >{{ agentShortcutInline }}</span
+        >
+      </Button>
+      <Button
+        variant="ghost"
+        size="xs"
+        class="gap-1 text-muted-foreground hover:text-foreground"
+        data-testid="context-queue-selection-queue"
+        :title="queueButtonTitle"
+        @click="emit('queue')"
+      >
+        <span>Queue</span>
+        <span
+          v-if="queueShortcutInline"
+          class="font-medium text-[10px] leading-none text-muted-foreground/90 tabular-nums"
+          >{{ queueShortcutInline }}</span
+        >
       </Button>
     </div>
   </Teleport>
