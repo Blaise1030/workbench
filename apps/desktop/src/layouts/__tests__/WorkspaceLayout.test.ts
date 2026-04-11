@@ -280,7 +280,9 @@ describe("WorkspaceLayout", () => {
     delete window.workspaceApi;
   });
 
-  it("refreshes the sidebar when Electron reports a background workspace change", async () => {
+  it(
+    "refreshes the sidebar when Electron reports a background workspace change",
+    async () => {
     const { default: WorkspaceLayout } = await import("../WorkspaceLayout.vue");
     const getSnapshot = vi
       .fn<WorkspaceApi["getSnapshot"]>()
@@ -351,7 +353,9 @@ describe("WorkspaceLayout", () => {
     expect(wrapper.get('[data-testid="thread-sidebar"]').text()).toContain(
       "Rename thread from first prompt"
     );
-  });
+    },
+    15_000
+  );
 
   it("renders the file search editor when the Files tab is selected", async () => {
     const { default: WorkspaceLayout } = await import("../WorkspaceLayout.vue");

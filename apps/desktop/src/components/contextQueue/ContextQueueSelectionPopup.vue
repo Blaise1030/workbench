@@ -63,6 +63,7 @@ onUnmounted(() => {
       data-testid="context-queue-selection-popup"
       class="pointer-events-auto fixed z-[9999] flex items-center gap-1 rounded-lg border border-border bg-background p-1 shadow-md"
       :style="{ left: `${position.left}px`, top: `${position.top}px` }"
+      @pointerdown.stop
     >
       <Button data-testid="context-queue-selection-queue" @click="emit('queue')">Queue</Button>
       <Button

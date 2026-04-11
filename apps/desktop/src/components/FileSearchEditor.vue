@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { watchDebounced } from "@vueuse/core";
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
+import { computed, inject, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import {
   FilePlus,
   FolderPlus,
@@ -24,7 +24,14 @@ import {
   ContextMenuTrigger
 } from "@/components/ui/context-menu";
 import FileTreeNode, { type FileTreeNodeData } from "@/components/FileTreeNode.vue";
-import CodeMirrorEditor from "@/components/CodeMirrorEditor.vue";
+import CodeMirrorEditor, { type QueueableEditorSelection } from "@/components/CodeMirrorEditor.vue";
+import ContextQueueSelectionPopup from "@/components/contextQueue/ContextQueueSelectionPopup.vue";
+import { buildPasteText } from "@/contextQueue/formatters";
+import { formatFolderListingFromFiles } from "@/contextQueue/folderListing";
+import { threadContextQueueKey } from "@/contextQueue/injectionKeys";
+import type { QueueCapture } from "@/contextQueue/types";
+import type { Rect } from "@/lib/contextQueueAnchor";
+import { useToast } from "@/composables/useToast";
 import Input from "@/components/ui/Input.vue";
 import PillTabs, { type PillTabItem } from "@/components/ui/PillTabs.vue";
 import {
@@ -49,7 +56,12 @@ import { renderMarkdownToHtml } from "@/lib/markdown";
 
 const props = defineProps<{
   worktreePath: string | null;
+  /** When set, file editor / tree can enqueue context for this thread. */
+  activeThreadId?: string | null;
 }>();
+
+const threadQueue = inject(threadContextQueueKey, undefined);
+const toast = useToast();
 
 function basenameFromPath(absPath: string): string {
   const parts = absPath.split(/[/\\]/).filter(Boolean);
@@ -281,6 +293,60 @@ const externalDropPreview = ref<{ src: string; title: string } | null>(null);
 
 const codeMirrorRef = ref<InstanceType<typeof CodeMirrorEditor> | null>(null);
 
+const fileEditorQueueVisible = ref(false);
+const fileEditorQueueAnchor = ref<Rect | null>(null);
+const pendingFileEditorSelection = ref<{ text: string; lineStart: number; lineEnd: number } | null>(null);
+
+function dismissFileEditorQueuePopup(): void {
+  fileEditorQueueVisible.value = false;
+  fileEditorQueueAnchor.value = null;
+  pendingFileEditorSelection.value = null;
+}
+
+function onEditorQueueableSelection(payload: QueueableEditorSelection | null): void {
+  if (!threadQueue || !props.activeThreadId) {
+    dismissFileEditorQueuePopup();
+    return;
+  }
+  const path = selectedPath.value;
+  if (!payload || !path) {
+    dismissFileEditorQueuePopup();
+    return;
+  }
+  pendingFileEditorSelection.value = {
+    text: payload.selectedText,
+    lineStart: payload.lineStart,
+    lineEnd: payload.lineEnd
+  };
+  fileEditorQueueAnchor.value = payload.anchor;
+  fileEditorQueueVisible.value = true;
+}
+
+function confirmFileEditorQueue(): void {
+  const tid = props.activeThreadId;
+  const path = selectedPath.value;
+  const p = pendingFileEditorSelection.value;
+  if (!tid || !threadQueue || !path || !p) {
+    toast.error("Cannot queue", "Select a thread, open a file, and highlight text first.");
+    dismissFileEditorQueuePopup();
+    return;
+  }
+  const capture: QueueCapture = {
+    source: "file",
+    filePath: path,
+    selectedText: p.text,
+    lineStart: p.lineStart,
+    lineEnd: p.lineEnd
+  };
+  threadQueue.addItem(tid, {
+    id: crypto.randomUUID(),
+    source: "file",
+    pasteText: buildPasteText(capture),
+    meta: { filePath: path }
+  });
+  dismissFileEditorQueuePopup();
+}
+
 const findInFileShortcutHint = computed(() =>
   typeof navigator !== "undefined" && /Mac|iPhone|iPod|iPad/i.test(navigator.platform)
     ? "⌘F"
@@ -294,6 +360,10 @@ const canFindInFile = computed(
     !isLoadingFile.value &&
     !(isMarkdownFile.value && mdViewMode.value === "read") &&
     !(isImagePreviewFile.value && imageFileViewMode.value === "preview")
+);
+
+const queueSelectionHintsEnabled = computed(
+  () => Boolean(threadQueue && props.activeThreadId && selectedPath.value)
 );
 
 function openFindInFile(): void {
@@ -530,11 +600,6 @@ const visibleTree = computed(() => {
   return filterTreeNodes(fileTree.value, debouncedQuery.value);
 });
 
-const searchModeTabs = computed<PillTabItem[]>(() => [
-  { value: "path", label: "Path" },
-  { value: "content", label: "Text" }
-]);
-
 const searchPlaceholder = computed(() =>
   searchMode.value === "content" ? "Search text in files…" : "Search paths…"
 );
@@ -647,6 +712,56 @@ watch(
 
 function getApi(): WorkspaceApi | null {
   return window.workspaceApi ?? null;
+}
+
+async function onQueueTreeItemForAgent(payload: { kind: "file" | "folder"; path: string }): Promise<void> {
+  const tid = props.activeThreadId;
+  if (!tid || !threadQueue) {
+    toast.error("No active thread", "Select a thread before queuing context.");
+    return;
+  }
+  const cwd = props.worktreePath;
+  if (!cwd) return;
+  const api = getApi();
+  if (!api?.listFiles) return;
+  const files = await api.listFiles(cwd);
+  if (payload.kind === "folder") {
+    const listing = formatFolderListingFromFiles(payload.path, files);
+    const capture: QueueCapture = {
+      source: "folder",
+      folderPath: payload.path,
+      listingText: listing
+    };
+    threadQueue.addItem(tid, {
+      id: crypto.randomUUID(),
+      source: "folder",
+      pasteText: buildPasteText(capture),
+      meta: { folderPath: payload.path }
+    });
+    return;
+  }
+  let body = "";
+  try {
+    if (api.readFile) {
+      body = await api.readFile(cwd, payload.path);
+      if (body.length > 8000) body = `${body.slice(0, 8000)}\n… (truncated)`;
+    }
+  } catch {
+    body = "(could not read file)";
+  }
+  const capture: QueueCapture = {
+    source: "file",
+    filePath: payload.path,
+    selectedText: body || "(empty file)",
+    lineStart: undefined,
+    lineEnd: undefined
+  };
+  threadQueue.addItem(tid, {
+    id: crypto.randomUUID(),
+    source: "file",
+    pasteText: buildPasteText(capture),
+    meta: { filePath: payload.path }
+  });
 }
 
 function normalizeNewFilePathInput(raw: string): string {
@@ -1295,14 +1410,39 @@ defineExpose({
             />
           </div>
           <div class="flex min-h-[1.75rem] flex-wrap items-center justify-between gap-x-2 gap-y-2">
-            <PillTabs
-              v-model="searchMode"
+            <div
               data-testid="file-search-mode-tabs"
-              size="sm"
-              class="min-w-0 flex-1 [&_[role=tablist]]:justify-start [&_[role=tablist]]:gap-1 [&_[role=tablist]]:px-0"
-              aria-label="File search mode"
-              :tabs="searchModeTabs"
-            />
+              class="flex min-w-0 flex-1 items-center justify-start"
+            >
+              <div
+                class="flex shrink-0 items-center gap-px rounded-md border border-border bg-muted/25 p-px"
+                role="group"
+                aria-label="File search mode"
+              >
+                <Button
+                  type="button"
+                  size="xs"
+                  :variant="searchMode === 'path' ? 'default' : 'ghost'"
+                  class="h-6 rounded-sm px-2 text-[10px]"
+                  title="Filter the file list by path or name"
+                  :aria-pressed="searchMode === 'path'"
+                  @click="searchMode = 'path'"
+                >
+                  Path
+                </Button>
+                <Button
+                  type="button"
+                  size="xs"
+                  :variant="searchMode === 'content' ? 'default' : 'ghost'"
+                  class="h-6 rounded-sm px-2 text-[10px]"
+                  title="Search text inside workspace files"
+                  :aria-pressed="searchMode === 'content'"
+                  @click="searchMode = 'content'"
+                >
+                  Text
+                </Button>
+              </div>
+            </div>
             <div
               class="flex shrink-0 items-center gap-0.5 rounded-md border border-border/70 bg-muted/20 p-0.5"
               role="toolbar"
@@ -1423,6 +1563,7 @@ defineExpose({
                   @add-folder="onCtxAddFolder"
                   @delete-folder="onCtxDeleteFolder"
                   @delete-file="onCtxDeleteFile"
+                  @queue-for-agent="onQueueTreeItemForAgent"
                 />
               </ul>
             </div>
@@ -1702,11 +1843,13 @@ defineExpose({
             :markdown-workspace-root="markdownImageWorkspaceRoot"
             :markdown-file-path="markdownImageFilePath"
             :markdown-image-preview-enabled="mdSourceImagePreviews"
+            :queue-selection-hints="queueSelectionHintsEnabled"
             :aria-label="
               selectedPath
                 ? `Source code, ${editorLanguage ?? 'plain text'}, ${selectedPath}`
                 : undefined
             "
+            @queueable-text-selection="onEditorQueueableSelection"
           />
         </template>
       </div>
@@ -1850,5 +1993,12 @@ defineExpose({
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
+
+    <ContextQueueSelectionPopup
+      :visible="fileEditorQueueVisible"
+      :anchor="fileEditorQueueAnchor"
+      @queue="confirmFileEditorQueue"
+      @dismiss="dismissFileEditorQueuePopup"
+    />
   </section>
 </template>

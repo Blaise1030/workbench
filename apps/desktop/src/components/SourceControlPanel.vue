@@ -96,6 +96,8 @@ const props = withDefaults(
     selectedScope: EntryScope | null;
     mergeResult: FileMergeSidesResult | null;
     mergeLoading: boolean;
+    /** Thread id for context-queue capture in the diff viewer. */
+    activeThreadId?: string | null;
   }>(),
   {
     branchLine: null,
@@ -110,7 +112,8 @@ const props = withDefaults(
     scmCommitAvailable: false,
     scmFetchBusy: false,
     scmPushBusy: false,
-    scmCommitBusy: false
+    scmCommitBusy: false,
+    activeThreadId: null
   }
 );
 
@@ -931,6 +934,7 @@ onBeforeUnmount(() => {
             :original="mergeResult.original"
             :modified="mergeResult.modified"
             :file-path="selectedEntry?.path ?? ''"
+            :active-thread-id="props.activeThreadId"
           />
         </div>
       </div>

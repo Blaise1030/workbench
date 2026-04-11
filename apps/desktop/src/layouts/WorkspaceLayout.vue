@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeMount, onBeforeUnmount, onMounted, ref, watch } from "vue";
-import { ChevronDown, ChevronUp, Plus, Settings } from "lucide-vue-next";
+import { computed, nextTick, onBeforeMount, onBeforeUnmount, onMounted, provide, ref, watch } from "vue";
+import { ChevronDown, ChevronUp, ListOrdered, Plus, Settings } from "lucide-vue-next";
 import Button from "@/components/ui/Button.vue";
 import Badge from "@/components/ui/Badge.vue";
 import SourceControlPanel from "@/components/SourceControlPanel.vue";
@@ -14,6 +14,11 @@ import FileSearchEditor from "@/components/FileSearchEditor.vue";
 import WorkspaceLauncherModal from "@/components/WorkspaceLauncherModal.vue";
 import ThreadCreateButton from "@/components/ThreadCreateButton.vue";
 import BranchPicker from "@/components/BranchPicker.vue";
+import ContextQueueReviewDialog from "@/components/contextQueue/ContextQueueReviewDialog.vue";
+import { injectContextQueue } from "@/contextQueue/injectContextQueue";
+import { threadContextQueueKey } from "@/contextQueue/injectionKeys";
+import type { QueueItem } from "@/contextQueue/types";
+import { useThreadContextQueue } from "@/composables/useThreadContextQueue";
 import ThreadSidebar from "@/components/ThreadSidebar.vue";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
@@ -63,6 +68,54 @@ import type {
   WorkspaceSnapshot
 } from "@shared/ipc";
 const workspace = useWorkspaceStore();
+const threadContextQueue = useThreadContextQueue();
+provide(threadContextQueueKey, threadContextQueue);
+
+const contextQueueReviewOpen = ref(false);
+
+const contextQueueItems = computed((): QueueItem[] => {
+  const id = workspace.activeThreadId;
+  return id ? threadContextQueue.itemsFor(id) : [];
+});
+
+const contextQueueCount = computed(() => contextQueueItems.value.length);
+
+function openContextQueueReview(): void {
+  if (!workspace.activeThreadId) {
+    toast.error("No active thread", "Create or select a thread to use the context queue.");
+    return;
+  }
+  contextQueueReviewOpen.value = true;
+}
+
+async function onContextQueueConfirmed(items: QueueItem[]): Promise<void> {
+  const tid = workspace.activeThreadId;
+  if (!tid) return;
+  contextQueueReviewOpen.value = false;
+  mainCenterTab.value = "agent";
+  shellOverlayTab.value = "agent";
+  await nextTick();
+  agentTerminalPaneRef.value?.focus?.();
+  const api = window.workspaceApi;
+  if (!api?.ptyWrite) {
+    toast.error("Terminal unavailable", "PTY is not available in this environment.");
+    return;
+  }
+  try {
+    await injectContextQueue({
+      sessionId: tid,
+      items,
+      ptyWrite: api.ptyWrite,
+      delayMs: 200
+    });
+    for (const row of items) {
+      threadContextQueue.removeItem(tid, row.id);
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Injection failed";
+    toast.error("Could not send to agent", msg);
+  }
+}
 const { terminalNotificationsEnabled, terminalActivitySensitivity } = useTerminalSoundSettings();
 /** Fixed policy: bell and background-output rules (settings UI removed). */
 const terminalBellSound = ref(true);
@@ -1609,6 +1662,25 @@ watch(
             :tabs="topCenterPanelTabs"
             aria-label="Center panel"
           />
+          <Button
+            v-if="workspace.activeThreadId"
+            type="button"
+            variant="outline"
+            size="xs"
+            class="ms-1 shrink-0 gap-1 px-2"
+            data-testid="workspace-context-queue-button"
+            title="Review and send queued context to the agent terminal"
+            @click="openContextQueueReview"
+          >
+            <ListOrdered class="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+            <span class="hidden sm:inline">Queue</span>
+            <Badge
+              v-if="contextQueueCount > 0"
+              variant="secondary"
+              class="h-5 min-w-5 rounded-full px-1 text-[10px] tabular-nums"
+              >{{ contextQueueCount }}</Badge
+            >
+          </Button>
         </div>
         <div
           v-if="activeWorktreeHasThreads && hasGitRepository === false"
@@ -1694,6 +1766,7 @@ watch(
                       :selected-scope="selectedScmScope"
                       :merge-result="selectedMergeResult"
                       :merge-loading="selectedDiffLoading"
+                      :active-thread-id="workspace.activeThreadId"
                       @select-entry="handleSelectScmEntry"
                       @stage-all="handleStageAll"
                       @unstage-all="handleUnstageAll"
@@ -1716,6 +1789,7 @@ watch(
                     <FileSearchEditor
                       ref="fileSearchRef"
                       :worktree-path="fileExplorerWorktree?.path ?? null"
+                      :active-thread-id="workspace.activeThreadId"
                     />
                   </div>
                   <div v-show="mainCenterTab === 'agent'" class="flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -1859,6 +1933,15 @@ watch(
         </div>
       </section>
     </section>
+
+    <ContextQueueReviewDialog
+      v-if="hasActiveWorkspace"
+      :open="contextQueueReviewOpen"
+      :thread-id="workspace.activeThreadId"
+      :items="contextQueueItems"
+      @update:open="contextQueueReviewOpen = $event"
+      @confirm="onContextQueueConfirmed"
+    />
 
     <ThreadCreateButton
       v-if="hasActiveWorkspace"

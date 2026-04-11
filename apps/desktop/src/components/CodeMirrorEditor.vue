@@ -38,20 +38,33 @@ function createCustomSearchPanel(view: EditorView): Panel {
 /** CodeMirror’s `&light` / `&dark` panels follow this facet, not `html.dark`. */
 const colorSchemeDark = ref(false);
 
-const props = defineProps<{
-  modelValue: string;
-  language?: string;
-  ariaLabel?: string;
-  showLineNumbers?: boolean;
-  /** When set with `markdownFilePath`, show `![](...)` previews in Markdown source (Electron). */
-  markdownWorkspaceRoot?: string | null;
-  markdownFilePath?: string | null;
-  /** When false, Markdown `![](...)` widgets are hidden (plain source). Default true. */
-  markdownImagePreviewEnabled?: boolean;
-}>();
+export type QueueableEditorSelection = {
+  selectedText: string;
+  lineStart: number;
+  lineEnd: number;
+  anchor: { left: number; top: number; width: number; height: number };
+};
+
+const props = withDefaults(
+  defineProps<{
+    modelValue: string;
+    language?: string;
+    ariaLabel?: string;
+    showLineNumbers?: boolean;
+    /** When set with `markdownFilePath`, show `![](...)` previews in Markdown source (Electron). */
+    markdownWorkspaceRoot?: string | null;
+    markdownFilePath?: string | null;
+    /** When false, Markdown `![](...)` widgets are hidden (plain source). Default true. */
+    markdownImagePreviewEnabled?: boolean;
+    /** When true, mouseup with a non-empty selection emits `queueable-text-selection`. */
+    queueSelectionHints?: boolean;
+  }>(),
+  { markdownImagePreviewEnabled: true, queueSelectionHints: false }
+);
 
 const emit = defineEmits<{
   "update:modelValue": [value: string];
+  "queueable-text-selection": [payload: QueueableEditorSelection | null];
 }>();
 
 const hostRef = ref<HTMLDivElement | null>(null);
@@ -74,6 +87,46 @@ function markdownImagePreviewSlot(): Extension {
     workspaceRoot: props.markdownWorkspaceRoot,
     markdownPath: props.markdownFilePath
   });
+}
+
+function queueSelectionExtensions(): Extension[] {
+  if (!props.queueSelectionHints) return [];
+  return [
+    CMEditorView.updateListener.of((update) => {
+      if (!update.selectionSet) return;
+      if (update.state.selection.main.empty) {
+        emit("queueable-text-selection", null);
+      }
+    }),
+    CMEditorView.domEventHandlers({
+      mouseup(_e, view) {
+        const sel = view.state.selection.main;
+        if (sel.empty) {
+          emit("queueable-text-selection", null);
+          return false;
+        }
+        const text = view.state.sliceDoc(sel.from, sel.to);
+        if (!text.trim()) {
+          emit("queueable-text-selection", null);
+          return false;
+        }
+        const coords = view.coordsAtPos(sel.to);
+        if (!coords) return false;
+        emit("queueable-text-selection", {
+          selectedText: text,
+          lineStart: view.state.doc.lineAt(sel.from).number,
+          lineEnd: view.state.doc.lineAt(sel.to).number,
+          anchor: {
+            left: coords.left,
+            top: coords.top,
+            width: Math.max(2, coords.right - coords.left),
+            height: Math.max(2, coords.bottom - coords.top)
+          }
+        });
+        return false;
+      }
+    })
+  ];
 }
 
 const extensions = computed((): Extension[] => {
@@ -139,6 +192,7 @@ const extensions = computed((): Extension[] => {
         emit("update:modelValue", update.state.doc.toString());
       }
     }),
+    ...queueSelectionExtensions(),
     ...attrs
   ];
 });
@@ -200,7 +254,8 @@ watch(
       props.showLineNumbers,
       colorSchemeDark.value,
       props.markdownWorkspaceRoot,
-      props.markdownFilePath
+      props.markdownFilePath,
+      props.queueSelectionHints
     ] as const,
   () => {
     const v = view.value;

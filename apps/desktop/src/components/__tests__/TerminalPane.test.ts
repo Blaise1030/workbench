@@ -28,6 +28,11 @@ vi.mock("xterm", () => ({
     dispose = disposeMock;
     onData = onDataMock;
     onResize = onResizeMock;
+    onSelectionChange = vi.fn((_listener: () => void) => ({ dispose: vi.fn() }));
+    hasSelection = vi.fn(() => false);
+    getSelection = vi.fn(() => "");
+    clearSelection = vi.fn();
+    scrollToBottom = vi.fn();
   }
 }));
 

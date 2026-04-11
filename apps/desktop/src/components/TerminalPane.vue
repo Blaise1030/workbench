@@ -3,7 +3,13 @@ import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "xterm";
 import "xterm/css/xterm.css";
 import { Loader2 } from "lucide-vue-next";
-import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { computed, inject, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import ContextQueueSelectionPopup from "@/components/contextQueue/ContextQueueSelectionPopup.vue";
+import { buildPasteText } from "@/contextQueue/formatters";
+import { threadContextQueueKey } from "@/contextQueue/injectionKeys";
+import type { QueueCapture } from "@/contextQueue/types";
+import type { Rect } from "@/lib/contextQueueAnchor";
+import { useToast } from "@/composables/useToast";
 
 const props = withDefaults(
   defineProps<{
@@ -33,6 +39,12 @@ const paneAriaLabel = computed(() =>
   props.ptyKind === "shell" ? "Terminal" : "Agent"
 );
 
+const threadQueue = inject(threadContextQueueKey, undefined);
+const toast = useToast();
+const terminalQueueVisible = ref(false);
+const terminalQueueAnchor = ref<Rect | null>(null);
+const pendingTerminalText = ref("");
+
 const containerRef = ref<HTMLElement | null>(null);
 const ptyBusy = ref(false);
 /** Routes stdin/resize to the PTY the renderer is showing (avoids stale worktree-only keys). */
@@ -46,6 +58,13 @@ let attachGeneration = 0;
 /** After first mount attach, focus terminal when session props change (e.g. thread switch). */
 let didCompleteInitialAttach = false;
 let dropHandlersCleanup: (() => void) | null = null;
+/** Coalesces ResizeObserver bursts (e.g. split drag) into one fit + theme pass. */
+let resizeFitRafId = 0;
+
+/** xterm only sizes in whole columns; FitAddon leaves a pixel strip. Nudge font size to minimize it. */
+const TERMINAL_BASE_FONT_SIZE = 13;
+const TERMINAL_FONT_FIT_MIN = 9;
+const TERMINAL_FONT_FIT_STEP = 0.125;
 
 /** Safe for POSIX shells (zsh/bash): single-quote and escape embedded quotes. */
 function shellQuotePathForPty(absPath: string): string {
@@ -102,11 +121,66 @@ function applyTheme(): void {
   terminal.options.theme = { background: bg, foreground: fg, cursor: fg };
 }
 
+function measureTerminalContentWidth(): number {
+  if (!terminal?.element) return 0;
+  const screen = terminal.element.querySelector(".xterm-screen");
+  if (screen instanceof HTMLElement) {
+    return screen.getBoundingClientRect().width;
+  }
+  return terminal.element.getBoundingClientRect().width;
+}
+
 function fit(): void {
   if (!terminal || !fitAddon || !containerRef.value) return;
-  const { clientWidth, clientHeight } = containerRef.value;
+  const host = containerRef.value;
+  const { clientWidth, clientHeight } = host;
   if (clientWidth < 2 || clientHeight < 2) return;
+
+  terminal.options.fontSize = TERMINAL_BASE_FONT_SIZE;
   fitAddon.fit();
+
+  const contentW0 = measureTerminalContentWidth();
+  if (contentW0 < 1) return;
+
+  const targetW = clientWidth;
+  if (Math.abs(targetW - contentW0) < 1.5) {
+    return;
+  }
+
+  let bestSize = TERMINAL_BASE_FONT_SIZE;
+  /** Prefer flush fill; allow ~1px underfill from sub-pixel layout vs tiny overflow. */
+  let bestLoss = Math.abs(targetW - contentW0);
+
+  for (
+    let size = TERMINAL_BASE_FONT_SIZE - TERMINAL_FONT_FIT_STEP;
+    size >= TERMINAL_FONT_FIT_MIN;
+    size -= TERMINAL_FONT_FIT_STEP
+  ) {
+    terminal.options.fontSize = size;
+    fitAddon.fit();
+    const w = measureTerminalContentWidth();
+    if (w < 1) continue;
+    const gap = targetW - w;
+    const loss = gap < -2 ? Number.POSITIVE_INFINITY : Math.abs(gap);
+    if (loss < bestLoss) {
+      bestLoss = loss;
+      bestSize = size;
+    }
+  }
+
+  terminal.options.fontSize = bestSize;
+  fitAddon.fit();
+}
+
+function scheduleResizeFit(): void {
+  if (resizeFitRafId !== 0) {
+    cancelAnimationFrame(resizeFitRafId);
+  }
+  resizeFitRafId = requestAnimationFrame(() => {
+    resizeFitRafId = 0;
+    fit();
+    applyTheme();
+  });
 }
 
 async function restoreDisplayFromBuffer(): Promise<void> {
@@ -178,7 +252,7 @@ onMounted(async () => {
 
   terminal = new Terminal({
     fontFamily: terminalMonoFontStack(),
-    fontSize: 12,
+    fontSize: TERMINAL_BASE_FONT_SIZE,
     lineHeight: 1.35,
     cursorBlink: true,
     cursorStyle: "block",
@@ -216,15 +290,13 @@ onMounted(async () => {
     terminal.onResize(({ cols, rows }) => {
       const sid = activeSessionId.value;
       if (sid) {
-        emit("user-typed", sid);
         void api.ptyResize(sid, cols, rows);
       }
     });
   }
 
   resizeObserver = new ResizeObserver(() => {
-    fit();
-    applyTheme();
+    scheduleResizeFit();
   });
   resizeObserver.observe(el);
 
@@ -263,9 +335,79 @@ onMounted(async () => {
     el.removeEventListener("drop", onDrop);
     dropHandlersCleanup = null;
   };
+
+  terminal.onSelectionChange(() => {
+    window.requestAnimationFrame(() => {
+      if (!terminal || props.ptyKind !== "agent" || !threadQueue || !props.threadId) {
+        terminalQueueVisible.value = false;
+        terminalQueueAnchor.value = null;
+        return;
+      }
+      if (!terminal.hasSelection()) {
+        terminalQueueVisible.value = false;
+        terminalQueueAnchor.value = null;
+        pendingTerminalText.value = "";
+        return;
+      }
+      const text = terminal.getSelection().trim();
+      if (!text) {
+        terminalQueueVisible.value = false;
+        terminalQueueAnchor.value = null;
+        return;
+      }
+      pendingTerminalText.value = terminal.getSelection();
+      const wrap = containerRef.value;
+      if (wrap) {
+        const r = wrap.getBoundingClientRect();
+        terminalQueueAnchor.value = {
+          left: r.right - 48,
+          top: r.bottom - 56,
+          width: 12,
+          height: 12
+        };
+        terminalQueueVisible.value = true;
+      }
+    });
+  });
 });
 
+function dismissTerminalQueuePopup(): void {
+  terminalQueueVisible.value = false;
+  terminalQueueAnchor.value = null;
+}
+
+function onQueueTerminalSelection(): void {
+  if (!threadQueue || !props.threadId) {
+    toast.error("No thread", "Cannot queue terminal output without a thread session.");
+    dismissTerminalQueuePopup();
+    return;
+  }
+  const text = pendingTerminalText.value.trim();
+  if (!text) {
+    dismissTerminalQueuePopup();
+    return;
+  }
+  const capture: QueueCapture = {
+    source: "terminal",
+    selectedText: text,
+    sessionLabel: props.ptyKind === "agent" ? "Agent" : "Terminal"
+  };
+  threadQueue.addItem(props.threadId, {
+    id: crypto.randomUUID(),
+    source: "terminal",
+    pasteText: buildPasteText(capture),
+    meta: {}
+  });
+  terminal?.clearSelection();
+  dismissTerminalQueuePopup();
+  pendingTerminalText.value = "";
+}
+
 onBeforeUnmount(() => {
+  if (resizeFitRafId !== 0) {
+    cancelAnimationFrame(resizeFitRafId);
+    resizeFitRafId = 0;
+  }
   dropHandlersCleanup?.();
   resizeObserver?.disconnect();
   resizeObserver = null;
@@ -312,7 +454,7 @@ defineExpose({ focus: focusTerminal, refresh: refreshTerminal });
 <template>
   <section
     data-instrument-terminal
-    class="relative flex bg-muted h-full min-h-0 min-w-0 flex-col overflow-hidden bg-card px-3 pt-1 pb-0 text-card-foreground text-xs border-t border-border"
+    class="relative flex bg-muted h-full min-h-0 min-w-0 flex-col overflow-hidden bg-card px-0 pt-1 pb-0 text-card-foreground text-xs border-t border-border"
     role="document"
     :aria-label="paneAriaLabel"
   >
@@ -328,6 +470,12 @@ defineExpose({ focus: focusTerminal, refresh: refreshTerminal });
       <Loader2 class="h-8 w-8 animate-spin text-muted-foreground" aria-hidden="true" />
       <span class="text-sm text-muted-foreground">Starting terminal…</span>
     </div>
+    <ContextQueueSelectionPopup
+      :visible="terminalQueueVisible"
+      :anchor="terminalQueueAnchor"
+      @queue="onQueueTerminalSelection"
+      @dismiss="dismissTerminalQueuePopup"
+    />
   </section>
 </template>
 
