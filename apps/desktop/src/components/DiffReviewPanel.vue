@@ -3,9 +3,15 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch, watchEffect
 import { html as diffToHtml } from "diff2html";
 import { ColorSchemeType } from "diff2html/lib/types";
 import Button from "@/components/ui/Button.vue";
-import { titleWithShortcut } from "@/keybindings/registry";
+import type { KeybindingId } from "@/keybindings/registry";
+import { useKeybindingsStore } from "@/stores/keybindingsStore";
 import { looksLikeUnifiedDiff, pathsFromUnifiedDiff } from "@shared/diffPaths";
 import "diff2html/bundles/css/diff2html.min.css";
+
+const keybindings = useKeybindingsStore();
+function titleWithShortcut(label: string, id: KeybindingId): string {
+  return keybindings.titleWithShortcut(label, id);
+}
 
 const props = withDefaults(
   defineProps<{

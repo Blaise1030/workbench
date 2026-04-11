@@ -1,6 +1,7 @@
 import { mount } from "@vue/test-utils";
+import { createPinia, setActivePinia } from "pinia";
 import { nextTick } from "vue";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import ThreadCreateButton from "@/components/ThreadCreateButton.vue";
 
 function getDialog(): HTMLElement {
@@ -9,6 +10,10 @@ function getDialog(): HTMLElement {
 
 describe("ThreadCreateButton", () => {
   let wrapper: ReturnType<typeof mount<typeof ThreadCreateButton>>;
+
+  beforeEach(() => {
+    setActivePinia(createPinia());
+  });
 
   afterEach(() => {
     wrapper?.unmount();

@@ -11,7 +11,13 @@ import WorktreeStaleCallout from "@/components/WorktreeStaleCallout.vue";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import Button from "@/components/ui/Button.vue";
 import { openThreadCreateDialog } from "@/composables/threadCreateDialog";
-import { titleWithShortcut } from "@/keybindings/registry";
+import type { KeybindingId } from "@/keybindings/registry";
+import { useKeybindingsStore } from "@/stores/keybindingsStore";
+
+const keybindings = useKeybindingsStore();
+function titleWithShortcut(label: string, id: KeybindingId): string {
+  return keybindings.titleWithShortcut(label, id);
+}
 
 const PRIMARY_FALLBACK_UI_KEY = "__sidebar-primary__";
 

@@ -9,7 +9,14 @@ import {
   HoverCardContent,
   HoverCardTrigger
 } from "@/components/ui/hover-card";
-import { shortcutForModDigitSlot, titleWithShortcut } from "@/keybindings/registry";
+import type { KeybindingId } from "@/keybindings/registry";
+import { shortcutForModDigitSlot } from "@/keybindings/registry";
+import { useKeybindingsStore } from "@/stores/keybindingsStore";
+
+const keybindings = useKeybindingsStore();
+function titleWithShortcut(label: string, id: KeybindingId): string {
+  return keybindings.titleWithShortcut(label, id);
+}
 
 const props = withDefaults(
   defineProps<{

@@ -25,10 +25,17 @@ import type { TerminalActivitySensitivity } from "@/terminal/activitySensitivity
 import { useColorScheme, type ColorSchemePreference } from "@/composables/useColorScheme";
 import { uiThemePresetLabel, useUiThemePreset } from "@/composables/useUiThemePreset";
 import {
+  conflictingBindingId,
+  findDefinitionIn,
   formatBindingDisplay,
   KEYBINDING_DEFINITIONS,
-  type KeybindingCategory
+  mergeKeybindingOverrides,
+  physicalShortcutFromKeyboardEvent,
+  type KeybindingCategory,
+  type KeybindingDefinition,
+  type KeybindingId
 } from "@/keybindings/registry";
+import { useKeybindingsStore } from "@/stores/keybindingsStore";
 
 /** `v-model` visibility; avoid prop name `open` (Vue 3.5 boolean-attribute merge quirks). */
 const modelValue = defineModel<boolean>({ default: false });
@@ -85,9 +92,11 @@ const KEYBIND_CATEGORY_ORDER: KeybindingCategory[] = [
   "General"
 ];
 
+const keybindings = useKeybindingsStore();
+
 const keyboardBindingsGrouped = computed(() => {
-  const map = new Map<KeybindingCategory, typeof KEYBINDING_DEFINITIONS>();
-  for (const def of KEYBINDING_DEFINITIONS) {
+  const map = new Map<KeybindingCategory, KeybindingDefinition[]>();
+  for (const def of keybindings.effectiveDefinitions) {
     const list = map.get(def.category) ?? [];
     list.push(def);
     map.set(def.category, list);
@@ -97,6 +106,52 @@ const keyboardBindingsGrouped = computed(() => {
     rows: map.get(category)!
   }));
 });
+
+const recordingKeybindingId = ref<KeybindingId | null>(null);
+const recordError = ref<string | null>(null);
+let removeRecordListener: (() => void) | null = null;
+
+function stopRecording(): void {
+  removeRecordListener?.();
+  removeRecordListener = null;
+  recordingKeybindingId.value = null;
+  recordError.value = null;
+}
+
+function startRecording(id: KeybindingId): void {
+  if (id === "switchProjectOrTerminalDigit") return;
+  stopRecording();
+  recordingKeybindingId.value = id;
+  recordError.value = null;
+
+  const handler = (e: KeyboardEvent): void => {
+    if (recordingKeybindingId.value !== id) return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.key === "Escape") {
+      stopRecording();
+      return;
+    }
+    const shortcut = physicalShortcutFromKeyboardEvent(e);
+    if (!shortcut) return;
+    const mergedOverrides = { ...keybindings.overrides, [id]: { shortcut } };
+    const tentative = mergeKeybindingOverrides(KEYBINDING_DEFINITIONS, mergedOverrides);
+    const conflict = conflictingBindingId(tentative, id, shortcut);
+    if (conflict) {
+      const label = findDefinitionIn(tentative, conflict)?.label ?? conflict;
+      recordError.value = `Already used by “${label}”.`;
+      return;
+    }
+    keybindings.setOverride(id, shortcut);
+    stopRecording();
+  };
+
+  window.addEventListener("keydown", handler, true);
+  removeRecordListener = () => {
+    window.removeEventListener("keydown", handler, true);
+    removeRecordListener = null;
+  };
+}
 
 const { terminalNotificationsEnabled, terminalActivitySensitivity } = useTerminalSoundSettings();
 const TERMINAL_ACTIVITY_SENSITIVITY_OPTIONS: {
@@ -115,6 +170,12 @@ function bindEscapeWhileOpen(): void {
   removeEscapeListener?.();
   const handler = (e: KeyboardEvent): void => {
     if (e.key === "Escape") {
+      if (recordingKeybindingId.value) {
+        e.preventDefault();
+        e.stopPropagation();
+        stopRecording();
+        return;
+      }
       e.preventDefault();
       close();
     }
@@ -126,6 +187,7 @@ function bindEscapeWhileOpen(): void {
 watch(modelValue, async (isOpen) => {
   removeEscapeListener?.();
   removeEscapeListener = null;
+  stopRecording();
   if (isOpen) {
     draft.value = { ...props.commands };
     syncFromStorage();
@@ -134,6 +196,10 @@ watch(modelValue, async (isOpen) => {
     await nextTick();
     panelRef.value?.focus();
   }
+});
+
+watch(activeSection, () => {
+  stopRecording();
 });
 
 watch(
@@ -147,6 +213,7 @@ watch(
 
 onBeforeUnmount(() => {
   removeEscapeListener?.();
+  stopRecording();
 });
 
 function close(): void {
@@ -429,10 +496,47 @@ function save(): void {
                     >
                       <td class="py-2 pr-3 text-foreground">{{ row.label }}</td>
                       <td class="py-2">
+                        <div v-if="row.id !== 'switchProjectOrTerminalDigit'" class="flex flex-wrap items-center gap-2">
+                          <button
+                            type="button"
+                            class="max-w-full rounded border border-transparent bg-muted/50 px-1.5 py-0.5 text-left font-mono text-xs text-foreground transition-colors hover:bg-muted"
+                            :class="
+                              recordingKeybindingId === row.id
+                                ? 'ring-2 ring-ring ring-offset-2 ring-offset-card'
+                                : ''
+                            "
+                            @click="startRecording(row.id)"
+                          >
+                            {{ formatBindingDisplay(row) }}
+                            <span
+                              v-if="recordingKeybindingId === row.id"
+                              class="ml-2 inline-block font-sans text-[11px] font-normal text-muted-foreground"
+                            >
+                              Press new shortcut… Esc cancels
+                            </span>
+                          </button>
+                          <Button
+                            v-if="keybindings.overrides[row.id]"
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            class="h-7 px-2 text-xs"
+                            @click="keybindings.clearOverride(row.id)"
+                          >
+                            Reset row
+                          </Button>
+                        </div>
                         <kbd
+                          v-else
                           class="rounded border border-border bg-muted/50 px-1.5 py-0.5 font-mono text-xs text-foreground"
                           >{{ formatBindingDisplay(row) }}</kbd
                         >
+                        <p
+                          v-if="recordingKeybindingId === row.id && recordError"
+                          class="mt-1 max-w-sm text-xs text-destructive"
+                        >
+                          {{ recordError }}
+                        </p>
                         <p v-if="row.notes" class="mt-1 max-w-sm text-xs text-muted-foreground">
                           {{ row.notes }}
                         </p>
@@ -447,7 +551,9 @@ function save(): void {
 
         <div
           class="flex shrink-0 flex-wrap items-center gap-2 border-t border-border px-4 py-4"
-          :class="activeSection === 'agents' ? 'justify-between' : 'justify-end'"
+          :class="
+            activeSection === 'agents' || activeSection === 'keyboard' ? 'justify-between' : 'justify-end'
+          "
         >
           <Button
             v-if="activeSection === 'agents'"
@@ -457,6 +563,15 @@ function save(): void {
             @click="resetDraftToDefaults"
           >
             Reset to app defaults
+          </Button>
+          <Button
+            v-if="activeSection === 'keyboard'"
+            type="button"
+            variant="ghost"
+            size="sm"
+            @click="keybindings.resetAll()"
+          >
+            Reset keyboard to defaults
           </Button>
           <div class="flex gap-2">
             <Button type="button" variant="outline" size="sm" @click="close"> Cancel </Button>

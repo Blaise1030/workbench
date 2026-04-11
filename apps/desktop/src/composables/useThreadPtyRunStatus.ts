@@ -5,7 +5,7 @@ import { playTerminalChirp } from "@/terminal/playTerminalChirp";
 import { hasMeaningfulPtyOutput } from "@/terminal/ptyChunkMeaningful";
 import type { TerminalActivitySensitivity } from "@/terminal/activitySensitivity";
 
-const IDLE_MS = 1000;
+const IDLE_MS = 5000;
 
 export type UseThreadPtyRunStatusOpts = {
   /** Thread the user is focused on; idle attention and chirps use this, not which terminal tab is visible. */

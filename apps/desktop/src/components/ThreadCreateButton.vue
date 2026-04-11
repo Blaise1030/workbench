@@ -1,16 +1,8 @@
-<script lang="ts">
-import { titleWithShortcut } from "@/keybindings/registry";
-
-export const threadCreateButtonDefaultTitle = titleWithShortcut(
-  "New thread",
-  "newThreadMenu"
-);
-</script>
-
 <script setup lang="ts">
 import type { ThreadAgent, ThreadCreateWithAgentPayload } from "@shared/domain";
 import { BookMarked, MessageSquarePlus, Paperclip, Slash, X } from "lucide-vue-next";
 import { computed, nextTick, onBeforeUnmount, ref, toRef, watch } from "vue";
+import { useKeybindingsStore } from "@/stores/keybindingsStore";
 import AgentIcon from "@/components/ui/AgentIcon.vue";
 import Button from "@/components/ui/Button.vue";
 import { badgeVariants } from "@/components/ui/badge";
@@ -55,7 +47,7 @@ const props = withDefaults(
   }>(),
   {
     ariaLabel: "New thread",
-    title: threadCreateButtonDefaultTitle,
+    title: undefined,
     variant: "outline",
     size: "icon-xs",
     buttonClass: "",
@@ -68,6 +60,9 @@ const props = withDefaults(
 const emit = defineEmits<{
   createWithAgent: [payload: ThreadCreateWithAgentPayload];
 }>();
+
+const keybindings = useKeybindingsStore();
+const resolvedTitle = computed(() => props.title ?? keybindings.titleWithShortcut("New thread", "newThreadMenu"));
 
 const AGENT_OPTIONS: { agent: ThreadAgent; label: string }[] = [
   { agent: "claude", label: "Claude Code" },
@@ -337,7 +332,7 @@ defineExpose({ openMenu: openOverlay });
         :size="size"
         :variant="variant"
         :aria-label="ariaLabel"
-        :title="title"
+        :title="resolvedTitle"
         :class="buttonClass"
       >
         <slot />

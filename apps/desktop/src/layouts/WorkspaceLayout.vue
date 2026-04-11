@@ -43,7 +43,8 @@ import {
   type ThreadCreateDialogOpenOptions
 } from "@/composables/threadCreateDialog";
 import { useWorkspaceKeybindings } from "@/composables/useWorkspaceKeybindings";
-import { formatShortcut, MOD_DIGIT_SLOT_CODES, shortcutForId, titleWithShortcut } from "@/keybindings/registry";
+import { formatShortcut, MOD_DIGIT_SLOT_CODES } from "@/keybindings/registry";
+import { useKeybindingsStore } from "@/stores/keybindingsStore";
 import { useWorkspaceStore } from "@/stores/workspaceStore";
 import { useThreadPtyRunStatus } from "@/composables/useThreadPtyRunStatus";
 import { visibleTerminalSessionId } from "@/terminal/attentionRules";
@@ -204,6 +205,7 @@ const threadCreateWorktreePath = computed(() => {
 });
 const fileSearchRef = ref<InstanceType<typeof FileSearchEditor> | null>(null);
 const workspaceLauncherOpen = ref(false);
+const keybindings = useKeybindingsStore();
 const keybindingsEnabled = ref(true);
 const showBranchPicker = ref(false);
 const staleWorktreeIds = ref<Set<string>>(new Set());
@@ -304,7 +306,7 @@ function addShellTerminal(): void {
   shellOverlayTab.value = `shell:${id}`;
 }
 
-const addTerminalTooltipText = titleWithShortcut("Add terminal", "addTerminal");
+const addTerminalTooltipText = computed(() => keybindings.titleWithShortcut("Add terminal", "addTerminal"));
 
 function onCenterTabClose(tabValue: string): void {
   if (!tabValue.startsWith("shell:")) return;
@@ -1418,7 +1420,7 @@ watch(
           variant="outline"
           size="icon-xs"
           aria-label="Settings"
-          :title="titleWithShortcut('Settings', 'openSettings')"
+          :title="keybindings.titleWithShortcut('Settings', 'openSettings')"
           @click="handleConfigureCommands"
         >
           <Settings class="h-3.5 w-3.5" />
@@ -1578,7 +1580,7 @@ watch(
               type="button"
               data-testid="workspace-create-thread-empty-state"
               aria-label="Add thread"
-              :title="titleWithShortcut('Add thread', 'newThreadMenu')"
+              :title="keybindings.titleWithShortcut('Add thread', 'newThreadMenu')"
               variant="outline"
               size="sm"
               @click="openAddThreadFromToolbarOrEmpty"
@@ -1713,14 +1715,14 @@ watch(
                                 variant="ghost"
                                 size="icon-sm"
                                 class="shrink-0 text-muted-foreground"
-                                :aria-label="titleWithShortcut('Hide overlay terminals', 'toggleTerminalPanel')"
+                                :aria-label="keybindings.titleWithShortcut('Hide overlay terminals', 'toggleTerminalPanel')"
                                 @click="terminalPanelOpen = false"
                               >
                                 <ChevronDown class="h-4 w-4" aria-hidden="true" />
                               </Button>
                             </TooltipTrigger>
                             <TooltipContent side="top">
-                              {{ titleWithShortcut("Hide overlay terminals", "toggleTerminalPanel") }}
+                              {{ keybindings.titleWithShortcut("Hide overlay terminals", "toggleTerminalPanel") }}
                             </TooltipContent>
                           </Tooltip>
                         </TooltipProvider>
@@ -1761,15 +1763,15 @@ watch(
                   v-if="!terminalPanelOpen"
                   type="button"
                   class="pointer-events-auto flex w-full shrink-0 items-center justify-center gap-2 border-t border-border bg-card py-1 text-xs font-medium text-muted-foreground hover:bg-muted/50"
-                  :title="titleWithShortcut('Show lower terminals', 'toggleTerminalPanel')"
-                  :aria-label="titleWithShortcut('Show lower terminals', 'toggleTerminalPanel')"
+:title="keybindings.titleWithShortcut('Show lower terminals', 'toggleTerminalPanel')"
+                  :aria-label="keybindings.titleWithShortcut('Show lower terminals', 'toggleTerminalPanel')"
                   @click="openTerminalOverlayPanel"
                 >
                   <ChevronUp class="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
                   <span>Terminals</span>
                   <kbd
                     class="pointer-events-none rounded border border-border/80 bg-muted/40 px-1 py-px font-mono text-[10px] font-normal text-muted-foreground tabular-nums"
-                    >{{ shortcutForId("toggleTerminalPanel") }}</kbd
+                    >{{ keybindings.shortcutLabelForId("toggleTerminalPanel") }}</kbd
                   >
                 </button>
               </div>
@@ -1813,7 +1815,7 @@ watch(
           <AlertDialogTitle>Close {{ pendingCloseShellLabel }}?</AlertDialogTitle>
           <AlertDialogDescription>
             The shell session for this tab will end. You can add a new terminal tab later ({{
-              shortcutForId("addTerminal")
+              keybindings.shortcutLabelForId("addTerminal")
             }}).
           </AlertDialogDescription>
         </AlertDialogHeader>

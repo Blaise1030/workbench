@@ -1,4 +1,5 @@
 import { mount } from "@vue/test-utils";
+import { createPinia, setActivePinia } from "pinia";
 import { defineComponent, h, nextTick, provide, inject, ref } from "vue";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import ProjectTabs from "@/components/ProjectTabs.vue";
@@ -74,6 +75,7 @@ async function openProjectHoverCard(
 
 describe("ProjectTabs", () => {
   beforeEach(() => {
+    setActivePinia(createPinia());
     window.workspaceApi = {
       ptyListSessions: vi.fn().mockResolvedValue([])
     } as WorkspaceApi;

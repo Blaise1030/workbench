@@ -2,14 +2,15 @@ import { onBeforeUnmount, onMounted, type Ref } from "vue";
 import {
   eventMatchesBinding,
   eventMatchesShortcut,
-  findDefinition,
+  findDefinitionIn,
   isFocusInsideInstrumentTerminal,
   isTypingSurface,
-  KEYBINDING_DEFINITIONS,
   MOD_DIGIT_SLOT_CODES,
+  type KeybindingDefinition,
   type KeybindingId,
   type PhysicalShortcut
 } from "@/keybindings/registry";
+import { useKeybindingsStore } from "@/stores/keybindingsStore";
 
 const NAV_IDS: KeybindingId[] = [
   "prevThread",
@@ -51,8 +52,8 @@ export type WorkspaceKeybindingContext = {
   launcherConsumesNavShortcuts?: () => boolean;
 };
 
-function findStaticBindingId(ev: KeyboardEvent): KeybindingId | null {
-  for (const d of KEYBINDING_DEFINITIONS) {
+function findStaticBindingId(ev: KeyboardEvent, definitions: KeybindingDefinition[]): KeybindingId | null {
+  for (const d of definitions) {
     if (d.id === "switchProjectOrTerminalDigit") continue;
     if (eventMatchesBinding(ev, d)) return d.id;
   }
@@ -73,20 +74,23 @@ function modDigitSlotIndex(ev: KeyboardEvent): number | null {
  * most text fields block navigation shortcuts; see `isTypingSurface` / terminal data attribute.
  */
 export function useWorkspaceKeybindings(ctx: WorkspaceKeybindingContext, enabled: Ref<boolean>): void {
+  const keybindings = useKeybindingsStore();
+
   function onKeydown(ev: KeyboardEvent): void {
     if (!enabled.value) return;
     if (ctx.settingsOpen()) return;
 
+    const definitions = keybindings.effectiveDefinitions;
     const inTerminal = isFocusInsideInstrumentTerminal(ev.target);
     const typing = isTypingSurface(ev.target);
     const workspaceUi = ctx.workspaceUiActive();
 
     const digitSlot = workspaceUi ? modDigitSlotIndex(ev) : null;
-    const id = findStaticBindingId(ev);
+    const id = findStaticBindingId(ev, definitions);
 
     if (ctx.launcherConsumesNavShortcuts?.()) {
       if (workspaceUi && id === "workspaceLauncher") {
-        const def = findDefinition("workspaceLauncher");
+        const def = findDefinitionIn(definitions, "workspaceLauncher");
         if (def && eventMatchesShortcut(ev, def.shortcut)) {
           ev.preventDefault();
           ctx.onToggleWorkspaceLauncher();
@@ -133,7 +137,7 @@ export function useWorkspaceKeybindings(ctx: WorkspaceKeybindingContext, enabled
     }
 
     if (id === "openSettings") {
-      const def = findDefinition("openSettings");
+      const def = findDefinitionIn(definitions, "openSettings");
       if (def && eventMatchesShortcut(ev, def.shortcut)) {
         if (!inTerminal) {
           ev.preventDefault();
@@ -148,7 +152,7 @@ export function useWorkspaceKeybindings(ctx: WorkspaceKeybindingContext, enabled
     if (!workspaceUi) return;
 
     if (id === "workspaceLauncher") {
-      const def = findDefinition("workspaceLauncher");
+      const def = findDefinitionIn(definitions, "workspaceLauncher");
       if (def && eventMatchesShortcut(ev, def.shortcut)) {
         ev.preventDefault();
         ctx.onToggleWorkspaceLauncher();
@@ -157,7 +161,7 @@ export function useWorkspaceKeybindings(ctx: WorkspaceKeybindingContext, enabled
     }
 
     if (id === "toggleTerminalPanel") {
-      const def = findDefinition("toggleTerminalPanel");
+      const def = findDefinitionIn(definitions, "toggleTerminalPanel");
       if (def && eventMatchesBinding(ev, def)) {
         ev.preventDefault();
         ctx.onToggleTerminalPanel();
@@ -165,7 +169,7 @@ export function useWorkspaceKeybindings(ctx: WorkspaceKeybindingContext, enabled
       return;
     }
 
-    const def = findDefinition(id);
+    const def = findDefinitionIn(definitions, id);
 
     if (def && NAV_IDS.includes(def.id) && inTerminal) return;
 

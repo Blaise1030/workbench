@@ -17,7 +17,8 @@ import {
   type LauncherRow,
   type LauncherSectionId
 } from "@/lib/workspaceLauncherSearch";
-import { findDefinition, formatShortcut, shortcutForId } from "@/keybindings/registry";
+import { findDefinitionIn, formatShortcut } from "@/keybindings/registry";
+import { useKeybindingsStore } from "@/stores/keybindingsStore";
 import { useWorkspaceStore } from "@/stores/workspaceStore";
 import type { FileSummary } from "@shared/ipc";
 import type { ThreadAgent } from "@shared/domain";
@@ -33,6 +34,7 @@ const emit = defineEmits<{
 }>();
 
 const workspace = useWorkspaceStore();
+const keybindings = useKeybindingsStore();
 
 const query = ref("");
 const inputRef = ref<HTMLInputElement | null>(null);
@@ -53,7 +55,7 @@ function getApi(): WorkspaceApi | null {
 const parsed = computed(() => parseLauncherQuery(query.value));
 
 const launcherToggleShortcutLabel = computed(() => {
-  const def = findDefinition("workspaceLauncher");
+  const def = findDefinitionIn(keybindings.effectiveDefinitions, "workspaceLauncher");
   return def ? formatShortcut(def.shortcut) : "⌘K";
 });
 
@@ -62,7 +64,7 @@ const commandSearchText = computed(() =>
 );
 
 const commandShortcutHints = computed(() => ({
-  "toggle-thread-sidebar": shortcutForId("toggleThreadSidebar")
+  "toggle-thread-sidebar": keybindings.shortcutLabelForId("toggleThreadSidebar")
 }));
 
 const rows = computed<LauncherRow[]>(() => {

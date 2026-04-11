@@ -1,9 +1,14 @@
 import { mount } from "@vue/test-utils";
-import { afterEach, describe, expect, it } from "vitest";
+import { createPinia, setActivePinia } from "pinia";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import ThreadTopBar from "@/components/ThreadTopBar.vue";
 
 describe("ThreadTopBar", () => {
   let wrapper: ReturnType<typeof mount<typeof ThreadTopBar>>;
+
+  beforeEach(() => {
+    setActivePinia(createPinia());
+  });
 
   afterEach(() => {
     wrapper?.unmount();

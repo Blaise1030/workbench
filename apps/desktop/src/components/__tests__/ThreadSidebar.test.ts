@@ -1,6 +1,7 @@
 import { mount } from "@vue/test-utils";
+import { createPinia, setActivePinia } from "pinia";
 import { nextTick } from "vue";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import ThreadSidebar from "@/components/ThreadSidebar.vue";
 import type { Thread, Worktree } from "@shared/domain";
 import type { WorkspaceThreadContext } from "@/stores/workspaceStore";
@@ -11,6 +12,10 @@ async function hoverFirstThreadRow(wrapper: ReturnType<typeof mount>): Promise<v
 
 describe("ThreadSidebar", () => {
   let wrapper: ReturnType<typeof mount<typeof ThreadSidebar>>;
+
+  beforeEach(() => {
+    setActivePinia(createPinia());
+  });
 
   afterEach(() => {
     wrapper?.unmount();

@@ -4,7 +4,13 @@ import Badge from "@/components/ui/Badge.vue";
 import Button from "@/components/ui/Button.vue";
 import WorkbenchLogoMark from "@/components/WorkbenchLogoMark.vue";
 import { APP_BRAND_BADGE, APP_PRERELEASE_BADGE } from "@/constants/appMeta";
-import { titleWithShortcut } from "@/keybindings/registry";
+import type { KeybindingId } from "@/keybindings/registry";
+import { useKeybindingsStore } from "@/stores/keybindingsStore";
+
+const keybindings = useKeybindingsStore();
+function titleWithShortcut(label: string, id: KeybindingId): string {
+  return keybindings.titleWithShortcut(label, id);
+}
 
 withDefaults(
   defineProps<{

@@ -4,7 +4,6 @@ defineOptions({ inheritAttrs: false });
 import { ChevronDown, ChevronRight, EllipsisVertical, Plus, Trash2 } from "lucide-vue-next";
 import { computed, ref } from "vue";
 import { openThreadCreateDialog } from "@/composables/threadCreateDialog";
-import { titleWithShortcut } from "@/keybindings/registry";
 import Badge from "@/components/ui/Badge.vue";
 import Button from "@/components/ui/Button.vue";
 import {
@@ -13,6 +12,13 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu";
+import type { KeybindingId } from "@/keybindings/registry";
+import { useKeybindingsStore } from "@/stores/keybindingsStore";
+
+const keybindings = useKeybindingsStore();
+function titleWithShortcut(label: string, id: KeybindingId): string {
+  return keybindings.titleWithShortcut(label, id);
+}
 
 const props = withDefaults(
   defineProps<{

@@ -97,7 +97,7 @@ describe("useThreadPtyRunStatus", () => {
     ptyHandler!("t-b", "hello\n");
     expect(runStatusByThreadId.value["t-b"]).toBe("running");
 
-    vi.advanceTimersByTime(1000);
+    vi.advanceTimersByTime(5000);
     await flushPromises();
 
     expect(runStatusByThreadId.value["t-b"]).toBeUndefined();
@@ -110,7 +110,7 @@ describe("useThreadPtyRunStatus", () => {
     await flushPromises();
 
     ptyHandler!("t-a", "hello\n");
-    vi.advanceTimersByTime(1000);
+    vi.advanceTimersByTime(5000);
     await flushPromises();
 
     expect(runStatusByThreadId.value["t-a"]).toBeUndefined();
@@ -127,7 +127,7 @@ describe("useThreadPtyRunStatus", () => {
     await flushPromises();
 
     ptyHandler!("t-b", "hello\n");
-    vi.advanceTimersByTime(1000);
+    vi.advanceTimersByTime(5000);
     await flushPromises();
 
     expect(idleAttentionByThreadId.value["t-b"]).toBe(true);
@@ -142,7 +142,7 @@ describe("useThreadPtyRunStatus", () => {
     await flushPromises();
 
     ptyHandler!("t-b", "hello\n");
-    vi.advanceTimersByTime(1000);
+    vi.advanceTimersByTime(5000);
     await flushPromises();
     expect(idleAttentionByThreadId.value["t-b"]).toBe(true);
 
@@ -160,7 +160,7 @@ describe("useThreadPtyRunStatus", () => {
     await flushPromises();
 
     ptyHandler!("t-b", "hello\n");
-    vi.advanceTimersByTime(1000);
+    vi.advanceTimersByTime(5000);
     await flushPromises();
     expect(idleAttentionByThreadId.value["t-b"]).toBe(true);
 
@@ -173,7 +173,7 @@ describe("useThreadPtyRunStatus", () => {
     await flushPromises();
 
     ptyHandler!("t-b", "hello\n");
-    vi.advanceTimersByTime(1000);
+    vi.advanceTimersByTime(5000);
     await flushPromises();
     expect(idleAttentionByThreadId.value["t-b"]).toBe(true);
 
@@ -190,7 +190,7 @@ describe("useThreadPtyRunStatus", () => {
     await flushPromises();
 
     ptyHandler!("t-b", "\x1b[2J\x1b[H\x1b[?25h");
-    vi.advanceTimersByTime(1000);
+    vi.advanceTimersByTime(5000);
     await flushPromises();
 
     expect(runStatusByThreadId.value["t-b"]).toBeUndefined();
@@ -206,7 +206,7 @@ describe("useThreadPtyRunStatus", () => {
     await flushPromises();
 
     ptyHandler!("t-b", "Loading...\r");
-    vi.advanceTimersByTime(1000);
+    vi.advanceTimersByTime(5000);
     await flushPromises();
 
     expect(runStatusByThreadId.value["t-b"]).toBeUndefined();
@@ -224,7 +224,7 @@ describe("useThreadPtyRunStatus", () => {
     await flushPromises();
 
     ptyHandler!("t-b", "ok");
-    vi.advanceTimersByTime(1000);
+    vi.advanceTimersByTime(5000);
     await flushPromises();
 
     expect(runStatusByThreadId.value["t-b"]).toBeUndefined();
@@ -240,7 +240,7 @@ describe("useThreadPtyRunStatus", () => {
     await flushPromises();
 
     ptyHandler!("t-b", "hello\n");
-    vi.advanceTimersByTime(1000);
+    vi.advanceTimersByTime(5000);
     await flushPromises();
 
     expect(runStatusByThreadId.value["t-b"]).toBeUndefined();
@@ -254,7 +254,7 @@ describe("useThreadPtyRunStatus", () => {
 
     markUserInput("t-b");
     ptyHandler!("t-b", "echoed\n");
-    vi.advanceTimersByTime(1000);
+    vi.advanceTimersByTime(5000);
     await flushPromises();
 
     expect(idleAttentionByThreadId.value["t-b"]).toBeUndefined();
@@ -266,7 +266,7 @@ describe("useThreadPtyRunStatus", () => {
     await flushPromises();
 
     ptyHandler!("t-b", "echoed\n");
-    vi.advanceTimersByTime(1000);
+    vi.advanceTimersByTime(5000);
     await flushPromises();
 
     expect(idleAttentionByThreadId.value["t-b"]).toBe(true);
