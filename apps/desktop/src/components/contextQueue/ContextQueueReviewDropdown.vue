@@ -289,6 +289,13 @@ function insertLink(): void {
   if (!url) return;
   insertAroundSelection("[", `](${url})`);
 }
+
+/** Open the queue review panel (e.g. after enqueueing from the editor). */
+function openReview(): void {
+  open.value = true;
+}
+
+defineExpose({ openReview });
 </script>
 
 <template>

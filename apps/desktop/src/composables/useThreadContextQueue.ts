@@ -1,4 +1,4 @@
-import { reactive } from "vue";
+import { reactive, ref } from "vue";
 import type { QueueItem } from "@/contextQueue/types";
 
 type QueuesState = {
@@ -8,6 +8,10 @@ type QueuesState = {
 const state = reactive<QueuesState>({
   byThreadId: {}
 });
+
+/** Bumps on each `addItem` so layout can open the queue review for the active thread. */
+const lastEnqueueEvent = ref<{ threadId: string; seq: number } | null>(null);
+let enqueueSeq = 0;
 
 function ensureQueue(threadId: string): QueueItem[] {
   let list = state.byThreadId[threadId];
@@ -25,6 +29,8 @@ export function useThreadContextQueue() {
 
   function addItem(threadId: string, item: QueueItem): void {
     ensureQueue(threadId).push(item);
+    enqueueSeq += 1;
+    lastEnqueueEvent.value = { threadId, seq: enqueueSeq };
   }
 
   function removeItem(threadId: string, id: string): void {
@@ -73,6 +79,7 @@ export function useThreadContextQueue() {
     removeItem,
     reorder,
     updatePasteText,
-    clearThread
+    clearThread,
+    lastEnqueueEvent
   };
 }

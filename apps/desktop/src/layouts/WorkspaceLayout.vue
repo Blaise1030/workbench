@@ -151,6 +151,20 @@ watch(threadsSidebarCollapsed, (collapsed) => {
     /* ignore quota / private mode */
   }
 });
+
+const contextQueueReviewRef = ref<InstanceType<typeof ContextQueueReviewDropdown> | null>(null);
+
+watch(
+  () => threadContextQueue.lastEnqueueEvent.value,
+  (evt) => {
+    if (!evt) return;
+    if (evt.threadId !== workspace.activeThreadId) return;
+    void nextTick(() => {
+      contextQueueReviewRef.value?.openReview();
+    });
+  }
+);
+
 /** Top pills: Agent / Git Diff / Files (never `shell:*`). */
 const mainCenterTab = ref<"agent" | "diff" | "files">("agent");
 /** Lower overlay: thread agent vs extra shell tab. */
@@ -1656,6 +1670,7 @@ watch(
           />
           <ContextQueueReviewDropdown
             v-if="workspace.activeThreadId"
+            ref="contextQueueReviewRef"
             :thread-id="workspace.activeThreadId"
             :items="contextQueueItems"
             @confirm="onContextQueueConfirmed"

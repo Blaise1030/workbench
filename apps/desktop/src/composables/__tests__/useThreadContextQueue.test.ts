@@ -58,4 +58,13 @@ describe("useThreadContextQueue", () => {
 
     expect(q.itemsFor("t1")[0]?.pasteText).toBe("new");
   });
+
+  it("bumps lastEnqueueEvent on each addItem", () => {
+    q.addItem("t1", item("a"));
+    expect(q.lastEnqueueEvent.value).toEqual({ threadId: "t1", seq: expect.any(Number) });
+    const seq1 = q.lastEnqueueEvent.value!.seq;
+    q.addItem("t2", item("b"));
+    expect(q.lastEnqueueEvent.value).toEqual({ threadId: "t2", seq: expect.any(Number) });
+    expect(q.lastEnqueueEvent.value!.seq).toBeGreaterThan(seq1);
+  });
 });
