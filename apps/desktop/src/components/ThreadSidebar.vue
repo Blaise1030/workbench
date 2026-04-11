@@ -467,33 +467,18 @@ function onFooterWorktreeToggle(): void {
 
 const appUpdate = ref<AppUpdateAvailability | null>(null);
 
-/** Temporary UI preview: sample card in `dev` / `dev:electron` (not in Vitest). Remove when finished. */
-const TEMP_PREVIEW_UPDATE_CARD =
-  import.meta.env.DEV && import.meta.env.MODE !== "test";
-
-const TEMP_PREVIEW_UPDATE_MOCK: AppUpdateAvailability = {
-  currentVersion: "0.6.0",
-  latestVersion: "0.7.0",
-  latestTag: "v0.7.0",
-  releasePageUrl: "https://github.com/Blaise1030/workbench/releases/latest",
-  compareUrl: "https://github.com/Blaise1030/workbench/compare/v0.6.0...v0.7.0"
-};
-
 onMounted(() => {
   void (async () => {
-    let next: AppUpdateAvailability | null = null;
     const check = window.workspaceApi?.getAppUpdateAvailability;
-    if (check) {
-      try {
-        next = await check();
-      } catch {
-        next = null;
-      }
+    if (!check) {
+      appUpdate.value = null;
+      return;
     }
-    if (!next && TEMP_PREVIEW_UPDATE_CARD) {
-      next = TEMP_PREVIEW_UPDATE_MOCK;
+    try {
+      appUpdate.value = await check();
+    } catch {
+      appUpdate.value = null;
     }
-    appUpdate.value = next;
   })();
 });
 

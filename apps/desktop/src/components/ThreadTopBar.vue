@@ -73,13 +73,6 @@ const emit = defineEmits<{
     >
       <PanelLeftOpen class="h-3.5 w-3.5" />
     </Button>
-    <p
-      v-if="releaseTagDisplay"
-      data-testid="thread-topbar-app-version"
-      class="w-full max-w-full truncate px-0.5 text-end font-mono text-[8px] leading-none text-muted-foreground"
-    >
-      {{ releaseTagDisplay }}
-    </p>
   </header>
   <header v-else class="flex shrink-0 select-none flex-col gap-0 px-3 pb-1">
     <div class="flex min-h-11 items-center gap-2">
