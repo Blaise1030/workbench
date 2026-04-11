@@ -62,6 +62,27 @@ describe("ContextQueueReviewDropdown", () => {
     expect(payload[1]!.pasteText).toBe("second");
   });
 
+  it("shows rendered markdown in Preview tab", async () => {
+    wrapper = mount(ContextQueueReviewDropdown, {
+      attachTo: document.body,
+      props: {
+        threadId: "t-1",
+        items: sampleItems()
+      }
+    });
+
+    await wrapper.get('[data-testid="workspace-context-queue-button"]').trigger("click");
+    await flushPromises();
+
+    await (document.body.querySelector('[data-testid="context-queue-review-tab-preview"]') as HTMLButtonElement).click();
+    await flushPromises();
+
+    const preview = document.body.querySelector('[data-testid="context-queue-review-preview"]') as HTMLElement;
+    expect(preview).toBeTruthy();
+    expect(preview.innerHTML).toContain("first");
+    expect(preview.innerHTML).toContain("second");
+  });
+
   it("disables Confirm when one textarea is cleared", async () => {
     wrapper = mount(ContextQueueReviewDropdown, {
       attachTo: document.body,
