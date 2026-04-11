@@ -246,6 +246,20 @@ function readWorkspaceSchemaSql(): string {
   throw new Error(`workspace schema not found. Tried:\n${candidates.join("\n")}`);
 }
 
+/**
+ * Asserts that `cwd` is a registered worktree path or a sub-path of one.
+ * Exempt handlers: diffIsGitRepository, diffInitGitRepository (used before project is registered).
+ */
+function assertCwdIsRegistered(cwd: string): void {
+  const snapshot = workspaceService.getSnapshot();
+  const registered = snapshot.worktrees.some(
+    (wt) => cwd === wt.path || cwd.startsWith(wt.path + path.sep)
+  );
+  if (!registered) {
+    throw new Error(`Operation refused: cwd is not a registered worktree path: "${cwd}"`);
+  }
+}
+
 function registerIpc(workspaceService: WorkspaceService): void {
   ipcMain.handle(IPC_CHANNELS.workspaceGetSnapshot, () => workspaceService.getSnapshot());
   ipcMain.handle(IPC_CHANNELS.workspaceAddProject, (_, payload: AddProjectInput) => {
@@ -318,60 +332,73 @@ function registerIpc(workspaceService: WorkspaceService): void {
     return workspaceService.getSnapshot();
   });
 
-  ipcMain.handle(IPC_CHANNELS.runStart, (_, payload: { agent: ThreadAgent; cwd: string; prompt: string }) =>
-    runService.start(payload.agent, payload.cwd, payload.prompt, () => {}, () => {})
-  );
+  ipcMain.handle(IPC_CHANNELS.runStart, (_, payload: { agent: ThreadAgent; cwd: string; prompt: string }) => {
+    assertCwdIsRegistered(payload.cwd);
+    return runService.start(payload.agent, payload.cwd, payload.prompt, () => {}, () => {});
+  });
   ipcMain.handle(IPC_CHANNELS.runSendInput, (_, payload: { runId: string; input: string }) => runService.sendInput(payload.runId, payload.input));
   ipcMain.handle(IPC_CHANNELS.runInterrupt, (_, runId: string) => runService.interrupt(runId));
 
-  ipcMain.handle(IPC_CHANNELS.diffChangedFiles, (_, cwd: string) => diffService.changedFiles(cwd));
+  ipcMain.handle(IPC_CHANNELS.diffChangedFiles, (_, cwd: string) => { assertCwdIsRegistered(cwd); return diffService.changedFiles(cwd); });
   ipcMain.handle(IPC_CHANNELS.diffIsGitRepository, (_, cwd: string) => diffService.isGitRepository(cwd));
   ipcMain.handle(IPC_CHANNELS.diffInitGitRepository, (_, cwd: string) => diffService.initGitRepository(cwd));
-  ipcMain.handle(IPC_CHANNELS.diffRepoStatus, (_, cwd: string) => diffService.repoStatus(cwd));
+  ipcMain.handle(IPC_CHANNELS.diffRepoStatus, (_, cwd: string) => { assertCwdIsRegistered(cwd); return diffService.repoStatus(cwd); });
   ipcMain.handle(
     IPC_CHANNELS.diffFileDiff,
-    (_, payload: { cwd: string; file: string; scope?: "staged" | "unstaged" | "combined" }) =>
-      diffService.fileDiff(payload.cwd, payload.file, payload.scope)
+    (_, payload: { cwd: string; file: string; scope?: "staged" | "unstaged" | "combined" }) => {
+      assertCwdIsRegistered(payload.cwd);
+      return diffService.fileDiff(payload.cwd, payload.file, payload.scope);
+    }
   );
   ipcMain.handle(
     IPC_CHANNELS.diffFileMergeSides,
-    (_, payload: { cwd: string; file: string; scope: "staged" | "unstaged" }) =>
-      diffService.fileMergeSides(payload.cwd, payload.file, payload.scope)
+    (_, payload: { cwd: string; file: string; scope: "staged" | "unstaged" }) => {
+      assertCwdIsRegistered(payload.cwd);
+      return diffService.fileMergeSides(payload.cwd, payload.file, payload.scope);
+    }
   );
-  ipcMain.handle(IPC_CHANNELS.diffWorkingTree, (_, cwd: string) => diffService.workingTreeDiff(cwd));
-  ipcMain.handle(IPC_CHANNELS.diffStageAll, (_, cwd: string) => diffService.stageAll(cwd));
-  ipcMain.handle(IPC_CHANNELS.diffUnstageAll, (_, cwd: string) => diffService.unstageAll(cwd));
-  ipcMain.handle(IPC_CHANNELS.diffDiscardAll, (_, cwd: string) => diffService.discardAll(cwd));
-  ipcMain.handle(IPC_CHANNELS.diffStagePaths, (_, payload: { cwd: string; paths: string[] }) =>
-    diffService.stagePaths(payload.cwd, payload.paths)
-  );
-  ipcMain.handle(IPC_CHANNELS.diffUnstagePaths, (_, payload: { cwd: string; paths: string[] }) =>
-    diffService.unstagePaths(payload.cwd, payload.paths)
-  );
-  ipcMain.handle(IPC_CHANNELS.diffDiscardPaths, (_, payload: { cwd: string; paths: string[] }) =>
-    diffService.discardPaths(payload.cwd, payload.paths)
-  );
-  ipcMain.handle(IPC_CHANNELS.diffGitFetch, (_, cwd: string) => diffService.gitFetch(cwd));
-  ipcMain.handle(IPC_CHANNELS.diffGitPush, (_, cwd: string) => diffService.gitPush(cwd));
-  ipcMain.handle(IPC_CHANNELS.diffGitCommit, (_, payload: { cwd: string; message: string }) =>
-    diffService.commitStaged(payload.cwd, payload.message)
-  );
+  ipcMain.handle(IPC_CHANNELS.diffWorkingTree, (_, cwd: string) => { assertCwdIsRegistered(cwd); return diffService.workingTreeDiff(cwd); });
+  ipcMain.handle(IPC_CHANNELS.diffStageAll, (_, cwd: string) => { assertCwdIsRegistered(cwd); return diffService.stageAll(cwd); });
+  ipcMain.handle(IPC_CHANNELS.diffUnstageAll, (_, cwd: string) => { assertCwdIsRegistered(cwd); return diffService.unstageAll(cwd); });
+  ipcMain.handle(IPC_CHANNELS.diffDiscardAll, (_, cwd: string) => { assertCwdIsRegistered(cwd); return diffService.discardAll(cwd); });
+  ipcMain.handle(IPC_CHANNELS.diffStagePaths, (_, payload: { cwd: string; paths: string[] }) => {
+    assertCwdIsRegistered(payload.cwd);
+    return diffService.stagePaths(payload.cwd, payload.paths);
+  });
+  ipcMain.handle(IPC_CHANNELS.diffUnstagePaths, (_, payload: { cwd: string; paths: string[] }) => {
+    assertCwdIsRegistered(payload.cwd);
+    return diffService.unstagePaths(payload.cwd, payload.paths);
+  });
+  ipcMain.handle(IPC_CHANNELS.diffDiscardPaths, (_, payload: { cwd: string; paths: string[] }) => {
+    assertCwdIsRegistered(payload.cwd);
+    return diffService.discardPaths(payload.cwd, payload.paths);
+  });
+  ipcMain.handle(IPC_CHANNELS.diffGitFetch, (_, cwd: string) => { assertCwdIsRegistered(cwd); return diffService.gitFetch(cwd); });
+  ipcMain.handle(IPC_CHANNELS.diffGitPush, (_, cwd: string) => { assertCwdIsRegistered(cwd); return diffService.gitPush(cwd); });
+  ipcMain.handle(IPC_CHANNELS.diffGitCommit, (_, payload: { cwd: string; message: string }) => {
+    assertCwdIsRegistered(payload.cwd);
+    return diffService.commitStaged(payload.cwd, payload.message);
+  });
   ipcMain.handle(IPC_CHANNELS.diffGitCheckoutBranch, async (_, payload: { cwd: string; branch: string }) => {
+    assertCwdIsRegistered(payload.cwd);
     await diffService.checkoutBranch(payload.cwd, payload.branch);
     workspaceService.updateWorktreeBranchAtPath(payload.cwd, payload.branch);
     emitWorkspaceDidChange();
     emitWorkingTreeFilesDidChange();
   });
-  ipcMain.handle(IPC_CHANNELS.filesList, (_, cwd: string) => fileService.listFileSummaries(cwd));
-  ipcMain.handle(IPC_CHANNELS.filesSearch, (_, payload: { cwd: string; query: string }) =>
-    fileService.searchFiles(payload.cwd, payload.query)
-  );
-  ipcMain.handle(IPC_CHANNELS.filesSearchContent, (_, payload: { cwd: string; query: string }) =>
-    fileService.searchFileContents(payload.cwd, payload.query)
-  );
-  ipcMain.handle(IPC_CHANNELS.filesRead, (_, payload: FileReadInput) =>
-    fileService.readFile(payload.cwd, payload.relativePath)
-  );
+  ipcMain.handle(IPC_CHANNELS.filesList, (_, cwd: string) => { assertCwdIsRegistered(cwd); return fileService.listFileSummaries(cwd); });
+  ipcMain.handle(IPC_CHANNELS.filesSearch, (_, payload: { cwd: string; query: string }) => {
+    assertCwdIsRegistered(payload.cwd);
+    return fileService.searchFiles(payload.cwd, payload.query);
+  });
+  ipcMain.handle(IPC_CHANNELS.filesSearchContent, (_, payload: { cwd: string; query: string }) => {
+    assertCwdIsRegistered(payload.cwd);
+    return fileService.searchFileContents(payload.cwd, payload.query);
+  });
+  ipcMain.handle(IPC_CHANNELS.filesRead, (_, payload: FileReadInput) => {
+    assertCwdIsRegistered(payload.cwd);
+    return fileService.readFile(payload.cwd, payload.relativePath);
+  });
   ipcMain.handle(IPC_CHANNELS.filesResolveMarkdownImageUrl, (_, payload: FileResolveMarkdownImageUrlInput) =>
     fileService.resolveMarkdownImageUrl(payload.cwd, payload.relativePath, payload.href)
   );
@@ -380,33 +407,41 @@ function registerIpc(workspaceService: WorkspaceService): void {
     (_, payload: FileAbsolutePathInput) => fileService.readImageDataUrlFromAbsolutePath(payload.absolutePath)
   );
   ipcMain.handle(IPC_CHANNELS.filesWrite, async (_, payload: FileWriteInput) => {
+    assertCwdIsRegistered(payload.cwd);
     await fileService.writeFile(payload.cwd, payload.relativePath, payload.content);
     emitWorkingTreeFilesDidChange();
   });
   ipcMain.handle(IPC_CHANNELS.filesCreate, async (_, payload: FileReadInput) => {
+    assertCwdIsRegistered(payload.cwd);
     await fileService.createFile(payload.cwd, payload.relativePath);
     emitWorkingTreeFilesDidChange();
   });
   ipcMain.handle(IPC_CHANNELS.filesDelete, async (_, payload: FileReadInput) => {
+    assertCwdIsRegistered(payload.cwd);
     await fileService.deleteFile(payload.cwd, payload.relativePath);
     emitWorkingTreeFilesDidChange();
   });
   ipcMain.handle(IPC_CHANNELS.filesCreateFolder, async (_, payload: FileReadInput) => {
+    assertCwdIsRegistered(payload.cwd);
     await fileService.createFolder(payload.cwd, payload.relativePath);
     emitWorkingTreeFilesDidChange();
   });
   ipcMain.handle(IPC_CHANNELS.filesDeleteFolder, async (_, payload: FileReadInput) => {
+    assertCwdIsRegistered(payload.cwd);
     await fileService.deleteFolder(payload.cwd, payload.relativePath);
     emitWorkingTreeFilesDidChange();
   });
   ipcMain.handle(IPC_CHANNELS.editApplyPatch, async (_, payload) => {
+    assertCwdIsRegistered(payload.cwd);
     await editService.applyPatch(payload);
     emitWorkingTreeFilesDidChange();
   });
   ipcMain.handle(
     IPC_CHANNELS.terminalPtyCreate,
-    (_, payload: { sessionId: string; cwd: string; worktreeId: string }) =>
-      ptyService.getOrCreate(payload.sessionId, payload.cwd, payload.worktreeId)
+    (_, payload: { sessionId: string; cwd: string; worktreeId: string }) => {
+      assertCwdIsRegistered(payload.cwd);
+      return ptyService.getOrCreate(payload.sessionId, payload.cwd, payload.worktreeId);
+    }
   );
   ipcMain.handle(IPC_CHANNELS.terminalPtyWrite, (_, payload: { sessionId: string; data: string }) => {
     ptyService.write(payload.sessionId, payload.data);
