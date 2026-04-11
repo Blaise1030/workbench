@@ -96,9 +96,15 @@ function terminalSelectionAnchorRect(wrap: HTMLElement): Rect {
 }
 
 function terminalQueueSessionLabel(): string {
-  if (props.ptyKind === "agent") return "Agent";
   const custom = props.queueSessionLabel?.trim();
   return custom && custom.length > 0 ? custom : "Shell";
+}
+
+function terminalQueueCapture(text: string): QueueCapture {
+  if (props.ptyKind === "agent") {
+    return { source: "terminal", selectedText: text, agentTab: true };
+  }
+  return { source: "terminal", selectedText: text, sessionLabel: terminalQueueSessionLabel() };
 }
 
 const containerRef = ref<HTMLElement | null>(null);
@@ -389,11 +395,7 @@ function onQueueTerminalSelection(): void {
     dismissTerminalQueuePopup();
     return;
   }
-  const capture: QueueCapture = {
-    source: "terminal",
-    selectedText: text,
-    sessionLabel: terminalQueueSessionLabel()
-  };
+  const capture = terminalQueueCapture(text);
   threadQueue.addItem(props.threadId, {
     id: crypto.randomUUID(),
     source: "terminal",
@@ -421,11 +423,7 @@ async function onInjectTerminalSelectionToAgent(): Promise<void> {
     dismissTerminalQueuePopup();
     return;
   }
-  const capture: QueueCapture = {
-    source: "terminal",
-    selectedText: text,
-    sessionLabel: terminalQueueSessionLabel()
-  };
+  const capture = terminalQueueCapture(text);
   const item: QueueItem = {
     id: crypto.randomUUID(),
     source: "terminal",

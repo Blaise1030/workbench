@@ -17,7 +17,13 @@ export type QueueCapture =
       lineEnd?: number;
     }
   | { source: "folder"; folderPath: string; listingText: string }
-  | { source: "terminal"; selectedText: string; sessionLabel?: string };
+  | {
+      source: "terminal";
+      selectedText: string;
+      /** Main thread agent pane — paste uses `[Agent Tab]` instead of `[terminal]`. */
+      agentTab?: boolean;
+      sessionLabel?: string;
+    };
 
 export type QueueItem = {
   id: string;

@@ -41,6 +41,19 @@ describe("buildPasteText", () => {
     expect(t).toContain("export const x = 1;");
   });
 
+  it("formats agent tab terminal capture without [terminal] header", () => {
+    const c: QueueCapture = {
+      source: "terminal",
+      selectedText: "npm run build",
+      agentTab: true
+    };
+    const t = buildPasteText(c);
+    expect(t).toContain("[Agent Tab]");
+    expect(t).not.toContain("[terminal]");
+    expect(t).not.toContain("Session:");
+    expect(t).toContain("npm run build");
+  });
+
   it("formats terminal capture with session label", () => {
     const c: QueueCapture = {
       source: "terminal",
