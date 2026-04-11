@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ListOrdered } from "lucide-vue-next";
+import { GripVertical, ListOrdered } from "lucide-vue-next";
 import { computed, onUnmounted, ref, watch } from "vue";
 import type { QueueItem } from "@/contextQueue/types";
 import Badge from "@/components/ui/Badge.vue";
@@ -46,6 +46,8 @@ function cloneItems(items: QueueItem[]): QueueItem[] {
 }
 
 const internalItems = ref<QueueItem[]>([]);
+const dragFromIndex = ref<number | null>(null);
+const dragOverIndex = ref<number | null>(null);
 
 watch(
   () => open.value,
@@ -105,6 +107,66 @@ function moveDown(index: number): void {
   next[index] = tmp!;
   internalItems.value = next;
 }
+
+function onDragStart(index: number, e: DragEvent): void {
+  dragFromIndex.value = index;
+  e.dataTransfer?.setData("text/plain", String(index));
+  if (e.dataTransfer) {
+    e.dataTransfer.effectAllowed = "move";
+  }
+}
+
+function clearDragUi(): void {
+  dragFromIndex.value = null;
+  dragOverIndex.value = null;
+}
+
+function onDragEnd(): void {
+  clearDragUi();
+}
+
+function onDragOverRow(index: number, e: DragEvent): void {
+  e.preventDefault();
+  if (e.dataTransfer) {
+    e.dataTransfer.dropEffect = "move";
+  }
+  dragOverIndex.value = index;
+}
+
+function onDragLeaveRow(index: number, e: DragEvent): void {
+  const cur = e.currentTarget;
+  const rel = e.relatedTarget;
+  if (cur instanceof HTMLElement && rel instanceof Node && cur.contains(rel)) {
+    return;
+  }
+  if (dragOverIndex.value === index) {
+    dragOverIndex.value = null;
+  }
+}
+
+function onDropRow(toIndex: number, e: DragEvent): void {
+  e.preventDefault();
+  const raw = e.dataTransfer?.getData("text/plain");
+  const parsed = raw != null && raw !== "" ? Number.parseInt(raw, 10) : NaN;
+  const from = Number.isFinite(parsed) ? parsed : dragFromIndex.value;
+  if (from == null || typeof from !== "number" || Number.isNaN(from)) {
+    clearDragUi();
+    return;
+  }
+  if (from < 0 || from >= internalItems.value.length || toIndex < 0 || toIndex >= internalItems.value.length) {
+    clearDragUi();
+    return;
+  }
+  if (from === toIndex) {
+    clearDragUi();
+    return;
+  }
+  const next = [...internalItems.value];
+  const [moved] = next.splice(from, 1);
+  next.splice(toIndex, 0, moved!);
+  internalItems.value = next;
+  clearDragUi();
+}
 </script>
 
 <template>
@@ -149,9 +211,30 @@ function moveDown(index: number): void {
         <div
           v-for="(row, index) in internalItems"
           :key="row.id"
-          class="flex flex-col gap-2 rounded-md border bg-muted/30 p-3"
+          class="flex flex-col gap-2 rounded-md border bg-muted/30 p-3 transition-shadow"
+          :class="{
+            'opacity-50 ring-2 ring-primary/40': dragFromIndex === index,
+            'ring-2 ring-primary ring-offset-2 ring-offset-background': dragOverIndex === index && dragFromIndex !== index
+          }"
+          data-testid="context-queue-review-row"
+          @dragenter.prevent="onDragOverRow(index, $event)"
+          @dragover="onDragOverRow(index, $event)"
+          @dragleave="onDragLeaveRow(index, $event)"
+          @drop="onDropRow(index, $event)"
         >
           <div class="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              class="touch-none cursor-grab rounded border border-transparent p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground active:cursor-grabbing"
+              draggable="true"
+              title="Drag to reorder"
+              :aria-label="`Drag item ${index + 1} to reorder`"
+              data-testid="context-queue-review-drag-handle"
+              @dragstart="onDragStart(index, $event)"
+              @dragend="onDragEnd"
+            >
+              <GripVertical class="size-4 shrink-0" aria-hidden="true" />
+            </button>
             <span class="text-xs font-medium text-muted-foreground">Item {{ index + 1 }}</span>
             <span class="text-xs text-muted-foreground">({{ row.source }})</span>
             <div class="ml-auto flex flex-wrap gap-1">
@@ -191,6 +274,7 @@ function moveDown(index: number): void {
           </div>
           <textarea
             v-model="row.pasteText"
+            draggable="false"
             class="min-h-[5rem] w-full resize-y rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             data-testid="context-queue-review-paste"
             :aria-label="`Paste text for item ${index + 1}`"
