@@ -41,17 +41,27 @@ function onKeydown(e: KeyboardEvent): void {
   if (e.key === "Escape") emit("dismiss");
 }
 
+function onGlobalScroll(): void {
+  if (showPopup.value) emit("dismiss");
+}
+
 watch(
   () => props.visible,
   (visible) => {
-    if (visible) window.addEventListener("keydown", onKeydown);
-    else window.removeEventListener("keydown", onKeydown);
+    if (visible) {
+      window.addEventListener("keydown", onKeydown);
+      document.addEventListener("scroll", onGlobalScroll, true);
+    } else {
+      window.removeEventListener("keydown", onKeydown);
+      document.removeEventListener("scroll", onGlobalScroll, true);
+    }
   },
   { immediate: true }
 );
 
 onUnmounted(() => {
   window.removeEventListener("keydown", onKeydown);
+  document.removeEventListener("scroll", onGlobalScroll, true);
 });
 </script>
 

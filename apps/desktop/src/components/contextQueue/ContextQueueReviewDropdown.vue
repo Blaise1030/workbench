@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ListOrdered } from "lucide-vue-next";
-import { computed, ref, watch } from "vue";
+import { computed, onUnmounted, ref, watch } from "vue";
 import type { QueueItem } from "@/contextQueue/types";
 import Badge from "@/components/ui/Badge.vue";
 import Button from "@/components/ui/Button.vue";
@@ -16,6 +16,27 @@ const emit = defineEmits<{
 }>();
 
 const open = ref(false);
+/** Root of panel content — scrolls inside here must not close the popover. */
+const popoverPanelRef = ref<HTMLElement | null>(null);
+
+function onGlobalScroll(ev: Event): void {
+  if (!open.value) return;
+  const t = ev.target;
+  if (t instanceof Node && popoverPanelRef.value?.contains(t)) return;
+  open.value = false;
+}
+
+watch(open, (isOpen) => {
+  if (isOpen) {
+    document.addEventListener("scroll", onGlobalScroll, true);
+  } else {
+    document.removeEventListener("scroll", onGlobalScroll, true);
+  }
+});
+
+onUnmounted(() => {
+  document.removeEventListener("scroll", onGlobalScroll, true);
+});
 
 function cloneItems(items: QueueItem[]): QueueItem[] {
   return items.map((item) => ({
@@ -115,6 +136,7 @@ function moveDown(index: number): void {
       class="flex w-[min(36rem,calc(100vw-1.5rem))] max-w-[calc(100vw-1.5rem)] max-h-[min(85vh,calc(100dvh-3rem))] flex-col gap-0 overflow-hidden p-0"
       @pointerdown.stop
     >
+      <div ref="popoverPanelRef" class="flex min-h-0 max-h-[inherit] flex-1 flex-col overflow-hidden">
       <div class="shrink-0 border-b px-4 py-3">
         <h2 class="text-sm font-semibold text-foreground">Review context queue</h2>
         <p class="sr-only">Edit paste text for each queued item, reorder, or remove entries before confirming.</p>
@@ -189,6 +211,7 @@ function moveDown(index: number): void {
         >
           Confirm
         </Button>
+      </div>
       </div>
     </PopoverContent>
   </Popover>
