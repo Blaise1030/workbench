@@ -2,6 +2,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import type { FileSummary } from "../../src/shared/ipc.js";
+import { assertPathWithinRoot } from "../utils/pathGuard.js";
 
 const IGNORED_DIRECTORY_NAMES = new Set(["node_modules", ".git", "dist", "dist-electron"]);
 
@@ -121,20 +122,6 @@ function isPlausibleDecodedImage(buf: Buffer, ext: string): boolean {
   }
 }
 
-function assertPathWithinRoot(root: string, relativePath: string): string {
-  const resolvedRoot = path.resolve(root);
-  const resolvedPath = path.resolve(resolvedRoot, relativePath);
-  const relativeToRoot = path.relative(resolvedRoot, resolvedPath);
-
-  if (
-    relativeToRoot === "" ||
-    (!relativeToRoot.startsWith("..") && !path.isAbsolute(relativeToRoot))
-  ) {
-    return resolvedPath;
-  }
-
-  throw new Error("Path escapes the active worktree");
-}
 
 async function collectFiles(root: string, currentDir: string, output: string[]): Promise<void> {
   const entries = await fs.readdir(currentDir, { withFileTypes: true });
