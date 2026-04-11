@@ -123,6 +123,7 @@ contextBridge.exposeInMainWorld("workspaceApi", {
   /** Absolute path for a file from a drag-and-drop `DataTransfer` (Electron). */
   getPathForFile: (file: File) => webUtils.getPathForFile(file),
   getAppVersion: () => ipcRenderer.invoke(IPC_CHANNELS.appGetVersion) as Promise<string>,
+  getAppReleaseTag: () => ipcRenderer.invoke(IPC_CHANNELS.appGetReleaseTag) as Promise<string>,
   getAppUpdateAvailability: () =>
     ipcRenderer.invoke(IPC_CHANNELS.appGetUpdateAvailability) as Promise<AppUpdateAvailability | null>,
   openAppExternalUrl: (url: string) => ipcRenderer.invoke(IPC_CHANNELS.appOpenExternalUrl, url)

@@ -67,7 +67,9 @@ export const IPC_CHANNELS = {
   uiOpenWorkspaceSettings: "ui:openWorkspaceSettings",
   /** Running app semver from Electron `app.getVersion()`. */
   appGetVersion: "app:getVersion",
-  /** Packaged app only: GitHub latest release vs `app.getVersion()`. */
+  /** GitHub-style release tag for this build (from bundled `package.json` semver when available). */
+  appGetReleaseTag: "app:getReleaseTag",
+  /** Packaged app only: GitHub latest release vs bundled app semver (same source as release tag). */
   appGetUpdateAvailability: "app:getUpdateAvailability",
   /** Open a validated https URL in the system browser (GitHub only). */
   appOpenExternalUrl: "app:openExternalUrl"

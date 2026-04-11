@@ -314,7 +314,10 @@ function threadsFilteredByCurrentBranch(group: SidebarContextGroup, threads: Thr
   if (!filterByCurrentBranch.value) return threads;
   const b = group.branch?.trim() ?? "";
   if (!b) return threads;
-  return threads.filter((t) => t.createdBranch != null && t.createdBranch === b);
+  return threads.filter((t) => {
+    const cb = t.createdBranch?.trim() ?? "";
+    return cb.length > 0 && cb === b;
+  });
 }
 
 const branchFilteredContextGroups = computed<SidebarContextGroup[]>(() => {
@@ -565,7 +568,7 @@ async function openAppUpdateUrl(url: string): Promise<void> {
                   @pointerenter="onCollapsedGroupTriggerPointerEnter(group.uiKey)"
                   @pointerleave="onCollapsedGroupTriggerPointerLeave"
                 >
-                  <span aria-hidden="true">{{ group.isPrimary ? "⛰️" : "🌳" }}</span>
+                  <span aria-hidden="true">{{ group.isPrimary ? "⭐️" : "🌳" }}</span>
                 </Button>
               </PopoverTrigger>
               <PopoverContent
@@ -579,7 +582,7 @@ async function openAppUpdateUrl(url: string): Promise<void> {
               >
                 <div class="flex shrink-0 flex-col gap-1 border-b border-border px-2 py-2 text-xs">
                   <div class="flex items-center gap-2 font-medium">
-                    <span aria-hidden="true">{{ group.isPrimary ? "⛰️" : "🌳" }}</span>
+                    <span aria-hidden="true">{{ group.isPrimary ? "⭐️" : "🌳" }}</span>
                     <span class="min-w-0 truncate">{{ group.title }}</span>
                   </div>
                   <div
@@ -729,15 +732,9 @@ async function openAppUpdateUrl(url: string): Promise<void> {
 
           <div
             v-if="groupIndex === 0 && branchFilterAvailable"
-            class="flex items-center justify-between gap-3 px-4 py-1"
+            class="flex items-center gap-2 py-0.5 px-5"
             title="Threads created on the checked-out branch in each group."
           >
-            <label
-              class="min-w-0 cursor-pointer truncate text-[11px] text-muted-foreground"
-              for="thread-sidebar-filter-current-branch"
-            >
-              Threads from this branch only
-            </label>
             <Switch
               id="thread-sidebar-filter-current-branch"
               v-model="filterByCurrentBranch"
@@ -745,6 +742,12 @@ async function openAppUpdateUrl(url: string): Promise<void> {
               data-testid="thread-sidebar-filter-current-branch"
               aria-label="Threads from this branch only"
             />
+            <label
+              class="min-w-0 user-select-none cursor-pointer text-left text-[11px] leading-snug text-muted-foreground"
+              for="thread-sidebar-filter-current-branch"
+            >
+              Threads from this branch only
+            </label>
           </div>
 
           <WorktreeStaleCallout

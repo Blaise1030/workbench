@@ -40,6 +40,31 @@ const WORKBENCH_RELEASES_LATEST_API =
   "https://api.github.com/repos/Blaise1030/workbench/releases/latest";
 const WORKBENCH_REPO_COMPARE_BASE = "https://github.com/Blaise1030/workbench/compare";
 
+function readBundledPackageJsonVersion(): string | null {
+  try {
+    const pkgPath = path.join(app.getAppPath(), "package.json");
+    const raw = fs.readFileSync(pkgPath, "utf8");
+    const parsed: unknown = JSON.parse(raw);
+    if (typeof parsed !== "object" || parsed === null || !("version" in parsed)) return null;
+    const v = (parsed as { version?: unknown }).version;
+    return typeof v === "string" && v.trim() ? v.trim() : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Ship semver for update checks and release-tag display (bundled package.json first, then `app.getVersion()`). */
+function getWorkbenchAppSemver(): string {
+  return readBundledPackageJsonVersion() ?? app.getVersion()?.trim() ?? "";
+}
+
+/** GitHub-style tag string for the running build (e.g. `v0.6.0`). */
+function getAppReleaseTag(): string {
+  const s = getWorkbenchAppSemver();
+  if (!s) return "";
+  return /^v\d/i.test(s) ? s : `v${s}`;
+}
+
 function githubCompareRefForCurrent(currentSemver: string, latestTag: string): string {
   const cur = currentSemver.replace(/^v/i, "");
   return /^v\d/i.test(latestTag) ? `v${cur}` : cur;
@@ -54,7 +79,7 @@ async function fetchWorkbenchUpdateFromGitHub(): Promise<AppUpdateAvailability |
     const data = (await res.json()) as { tag_name?: string; html_url?: string };
     const latestTag = data.tag_name ?? "";
     const latestVersion = latestTag.replace(/^v/i, "");
-    const currentVersion = app.getVersion();
+    const currentVersion = getWorkbenchAppSemver().replace(/^v/i, "");
     if (!latestVersion || latestVersion === currentVersion) return null;
     const releasePageUrl =
       typeof data.html_url === "string"
@@ -247,8 +272,12 @@ function registerIpc(workspaceService: WorkspaceService): void {
     workspaceService.setActive(payload.projectId, payload.worktreeId, payload.threadId);
     emitWorkspaceDidChange();
   });
-  ipcMain.handle(IPC_CHANNELS.workspaceCreateThread, (_, payload: CreateThreadInput) => {
-    const thread = workspaceService.createThread(payload);
+  ipcMain.handle(IPC_CHANNELS.workspaceCreateThread, async (_, payload: CreateThreadInput) => {
+    const snapshot = workspaceService.getSnapshot();
+    const wt = snapshot.worktrees.find((w) => w.id === payload.worktreeId);
+    const createdBranchOverride =
+      wt == null ? undefined : (await diffService.readAbbrevRefHead(wt.path)) ?? wt.branch ?? null;
+    const thread = workspaceService.createThread(payload, createdBranchOverride);
     emitWorkspaceDidChange();
     return thread;
   });
@@ -405,6 +434,7 @@ function registerIpc(workspaceService: WorkspaceService): void {
   });
 
   ipcMain.handle(IPC_CHANNELS.appGetVersion, () => app.getVersion());
+  ipcMain.handle(IPC_CHANNELS.appGetReleaseTag, () => getAppReleaseTag());
   ipcMain.handle(IPC_CHANNELS.appGetUpdateAvailability, () => getWorkbenchUpdateAvailability());
   ipcMain.handle(IPC_CHANNELS.appOpenExternalUrl, async (_, url: unknown) => {
     if (typeof url !== "string" || !isAllowedAppOpenExternalUrl(url)) return;

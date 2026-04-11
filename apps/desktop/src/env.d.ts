@@ -84,6 +84,8 @@ interface WorkspaceApi {
   getPathForFile?: (file: File) => string;
   /** Electron: `app.getVersion()` (semver string). */
   getAppVersion?: () => Promise<string>;
+  /** Electron: GitHub-style release tag for this build (from bundled app semver). */
+  getAppReleaseTag?: () => Promise<string>;
   /** Packaged Electron: latest GitHub release vs running version, or null. */
   getAppUpdateAvailability?: () => Promise<AppUpdateAvailability | null>;
   /** Open a validated https `github.com` URL in the default browser. */

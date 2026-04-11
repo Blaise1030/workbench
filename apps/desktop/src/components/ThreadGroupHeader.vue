@@ -122,7 +122,7 @@ function openAddThreadDialog(): void {
       :class="isStale ? 'text-destructive' : ''"
     >
       <span v-if="!isPrimary" aria-hidden="true" class="shrink-0 font-normal leading-none">🌳</span>
-      <span v-else aria-hidden="true" class="shrink-0 font-normal leading-none">⛰️</span>
+      <span v-else aria-hidden="true" class="shrink-0 font-normal leading-none">⭐️</span>
        {{ primaryLabelBadgeText }}
       <span v-if="!isPrimary || !primaryLabelBadgeText" class="min-w-0 truncate">{{ title }}</span>
     </span>

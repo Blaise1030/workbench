@@ -102,10 +102,15 @@ export class WorkspaceService {
     return worktree;
   }
 
-  createThread(input: CreateThreadInput): Thread {
+  /**
+   * @param createdBranchOverride When set (including `null`), persisted as `createdBranch` instead of the
+   *   worktree row's `branch` (used by main process after reading `HEAD` from disk so it matches SCM state).
+   */
+  createThread(input: CreateThreadInput, createdBranchOverride?: string | null): Thread {
     const now = new Date().toISOString();
     const worktree = this.store.getSnapshot().worktrees.find((w) => w.id === input.worktreeId);
-    const createdBranch = worktree?.branch ?? null;
+    const createdBranch =
+      createdBranchOverride !== undefined ? createdBranchOverride : (worktree?.branch ?? null);
     const thread: Thread = {
       id: randomUUID(),
       projectId: input.projectId,

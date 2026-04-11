@@ -9,22 +9,23 @@ import type { KeybindingId } from "@/keybindings/registry";
 import { useKeybindingsStore } from "@/stores/keybindingsStore";
 
 const keybindings = useKeybindingsStore();
-const appVersionRaw = ref<string | null>(null);
+const releaseTagRaw = ref<string | null>(null);
 
 onMounted(() => {
   void (async () => {
-    const fn = window.workspaceApi?.getAppVersion;
+    const fn = window.workspaceApi?.getAppReleaseTag ?? window.workspaceApi?.getAppVersion;
     if (!fn) return;
     try {
-      appVersionRaw.value = await fn();
+      const raw = (await fn()).trim();
+      releaseTagRaw.value = raw || null;
     } catch {
-      appVersionRaw.value = null;
+      releaseTagRaw.value = null;
     }
   })();
 });
 
-const appVersionDisplay = computed(() => {
-  const v = appVersionRaw.value?.trim();
+const releaseTagDisplay = computed(() => {
+  const v = releaseTagRaw.value?.trim();
   if (!v) return null;
   return /^v\d/i.test(v) ? v : `v${v}`;
 });
@@ -73,11 +74,11 @@ const emit = defineEmits<{
       <PanelLeftOpen class="h-3.5 w-3.5" />
     </Button>
     <p
-      v-if="appVersionDisplay"
+      v-if="releaseTagDisplay"
       data-testid="thread-topbar-app-version"
-      class="max-w-full truncate px-0.5 text-center font-mono text-[8px] leading-none text-muted-foreground"
+      class="w-full max-w-full truncate px-0.5 text-end font-mono text-[8px] leading-none text-muted-foreground"
     >
-      {{ appVersionDisplay }}
+      {{ releaseTagDisplay }}
     </p>
   </header>
   <header v-else class="flex shrink-0 select-none flex-col gap-0 px-3 pb-1">
@@ -94,7 +95,7 @@ const emit = defineEmits<{
         <Badge
           variant="outline"
           data-testid="thread-sidebar-alpha-badge"
-          class="shadow-xs ms-0.5 h-3.5 mt-0.5 min-h-0 rounded-sm !px-1 !py-0 text-[8px] font-semibold uppercase leading-none tracking-wide"
+          class="shadow-xs ms-0.5 h-3.5 mt-0.5 min-h-0 shrink-0 rounded-sm !px-1 !py-0 text-[8px] font-semibold uppercase leading-none tracking-wide"
         >
           Alpha
         </Badge>
@@ -112,11 +113,11 @@ const emit = defineEmits<{
       </Button>
     </div>
     <p
-      v-if="appVersionDisplay"
+      v-if="releaseTagDisplay"
       data-testid="thread-topbar-app-version"
-      class="w-full truncate pb-0.5 font-mono text-[10px] leading-none text-muted-foreground"
+      class="w-full truncate pb-0.5 text-end font-mono text-[10px] leading-none text-muted-foreground"
     >
-      {{ appVersionDisplay }}
+      {{ releaseTagDisplay }}
     </p>
   </header>
 </template>

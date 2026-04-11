@@ -687,6 +687,22 @@ describe("WorkspaceService thread ordering", () => {
         createdBranch: "feature/x"
       })
     );
+
+    const withOverride = service.createThread(
+      {
+        projectId: "project-1",
+        worktreeId: "worktree-1",
+        title: "Second",
+        agent: "codex"
+      },
+      "feature/live-head"
+    );
+    expect(upsertThread).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: withOverride.id,
+        createdBranch: "feature/live-head"
+      })
+    );
     expect(created.createdAt).toEqual(expect.any(String));
     expect(setActiveState).toHaveBeenCalledWith("project-1", "worktree-1", created.id);
   });
