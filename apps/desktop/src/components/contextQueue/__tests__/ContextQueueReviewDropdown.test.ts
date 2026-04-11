@@ -1,6 +1,6 @@
-import { mount } from "@vue/test-utils";
+import { mount, flushPromises } from "@vue/test-utils";
 import { afterEach, describe, expect, it } from "vitest";
-import ContextQueueReviewDialog from "@/components/contextQueue/ContextQueueReviewDialog.vue";
+import ContextQueueReviewDropdown from "@/components/contextQueue/ContextQueueReviewDropdown.vue";
 import type { QueueItem } from "@/contextQueue/types";
 
 function sampleItems(): QueueItem[] {
@@ -20,24 +20,26 @@ function sampleItems(): QueueItem[] {
   ];
 }
 
-describe("ContextQueueReviewDialog", () => {
-  let wrapper: ReturnType<typeof mount<typeof ContextQueueReviewDialog>>;
+describe("ContextQueueReviewDropdown", () => {
+  let wrapper: ReturnType<typeof mount<typeof ContextQueueReviewDropdown>>;
 
   afterEach(() => {
     wrapper?.unmount();
+    document.body.innerHTML = "";
   });
 
   it("emits confirm with edited paste text from textareas", async () => {
-    wrapper = mount(ContextQueueReviewDialog, {
+    wrapper = mount(ContextQueueReviewDropdown, {
       attachTo: document.body,
       props: {
-        open: true,
         threadId: "t-1",
         items: sampleItems()
       }
     });
 
-    await wrapper.vm.$nextTick();
+    await wrapper.get('[data-testid="workspace-context-queue-button"]').trigger("click");
+    await flushPromises();
+
     const areas = document.body.querySelectorAll(
       '[data-testid="context-queue-review-paste"]'
     ) as NodeListOf<HTMLTextAreaElement>;
@@ -45,7 +47,7 @@ describe("ContextQueueReviewDialog", () => {
     areas[0]!.value = "edited first";
     areas[0]!.dispatchEvent(new Event("input"));
 
-    await wrapper.vm.$nextTick();
+    await flushPromises();
 
     const confirm = document.body.querySelector(
       '[data-testid="context-queue-review-confirm"]'
@@ -61,23 +63,24 @@ describe("ContextQueueReviewDialog", () => {
   });
 
   it("disables Confirm when one textarea is cleared", async () => {
-    wrapper = mount(ContextQueueReviewDialog, {
+    wrapper = mount(ContextQueueReviewDropdown, {
       attachTo: document.body,
       props: {
-        open: true,
         threadId: null,
         items: sampleItems()
       }
     });
 
-    await wrapper.vm.$nextTick();
+    await wrapper.get('[data-testid="workspace-context-queue-button"]').trigger("click");
+    await flushPromises();
+
     const areas = document.body.querySelectorAll(
       '[data-testid="context-queue-review-paste"]'
     ) as NodeListOf<HTMLTextAreaElement>;
     areas[0]!.value = "";
     areas[0]!.dispatchEvent(new Event("input"));
 
-    await wrapper.vm.$nextTick();
+    await flushPromises();
 
     const confirm = document.body.querySelector(
       '[data-testid="context-queue-review-confirm"]'

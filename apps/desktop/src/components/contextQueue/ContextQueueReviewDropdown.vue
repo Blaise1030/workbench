@@ -1,26 +1,21 @@
 <script setup lang="ts">
+import { ListOrdered } from "lucide-vue-next";
 import { computed, ref, watch } from "vue";
 import type { QueueItem } from "@/contextQueue/types";
+import Badge from "@/components/ui/Badge.vue";
 import Button from "@/components/ui/Button.vue";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle
-} from "@/components/ui/dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 const props = defineProps<{
-  open: boolean;
   threadId: string | null;
   items: QueueItem[];
 }>();
 
 const emit = defineEmits<{
-  "update:open": [open: boolean];
   confirm: [items: QueueItem[]];
 }>();
+
+const open = ref(false);
 
 function cloneItems(items: QueueItem[]): QueueItem[] {
   return items.map((item) => ({
@@ -32,13 +27,22 @@ function cloneItems(items: QueueItem[]): QueueItem[] {
 const internalItems = ref<QueueItem[]>([]);
 
 watch(
-  () => props.open,
+  () => open.value,
   (isOpen) => {
     if (isOpen) {
       internalItems.value = cloneItems(props.items);
     }
+  }
+);
+
+watch(
+  () => props.items,
+  () => {
+    if (open.value) {
+      internalItems.value = cloneItems(props.items);
+    }
   },
-  { immediate: true }
+  { deep: true }
 );
 
 const confirmDisabled = computed(
@@ -47,18 +51,16 @@ const confirmDisabled = computed(
     internalItems.value.some((row) => row.pasteText.trim() === "")
 );
 
-function onDialogOpenChange(next: boolean): void {
-  emit("update:open", next);
-}
+const itemCount = computed(() => props.items.length);
 
-function cancel(): void {
-  emit("update:open", false);
+function close(): void {
+  open.value = false;
 }
 
 function confirm(): void {
   if (confirmDisabled.value) return;
   emit("confirm", cloneItems(internalItems.value));
-  emit("update:open", false);
+  open.value = false;
 }
 
 function removeAt(index: number): void {
@@ -85,20 +87,41 @@ function moveDown(index: number): void {
 </script>
 
 <template>
-  <Dialog :open="open" @update:open="onDialogOpenChange">
-    <DialogContent
-      aria-labelledby="context-queue-review-title"
-      class="flex max-h-[min(85vh,calc(100dvh-2rem))] w-full max-w-2xl flex-col gap-0 overflow-hidden p-0"
-    >
-      <DialogHeader class="shrink-0 border-b px-6 py-4">
-        <DialogTitle id="context-queue-review-title">Review context queue</DialogTitle>
-        <DialogDescription class="sr-only">
-          Edit paste text for each queued item, reorder, or remove entries before confirming.
-        </DialogDescription>
-        <p v-if="threadId" class="mt-1 text-xs text-muted-foreground">Thread {{ threadId }}</p>
-      </DialogHeader>
+  <Popover v-model:open="open">
+    <PopoverTrigger as-child>
+      <Button
+        type="button"
+        variant="outline"
+        size="xs"
+        class="ms-1 shrink-0 gap-1 px-2"
+        data-testid="workspace-context-queue-button"
+        title="Review and send queued context to the agent terminal"
+      >
+        <ListOrdered class="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+        <span class="hidden sm:inline">Queue</span>
+        <Badge
+          v-if="itemCount > 0"
+          variant="secondary"
+          class="h-5 min-w-5 rounded-full px-1 text-[10px] tabular-nums"
+          >{{ itemCount }}</Badge
+        >
+      </Button>
+    </PopoverTrigger>
 
-      <div class="min-h-0 flex-1 space-y-3 overflow-y-auto px-6 py-4">
+    <PopoverContent
+      align="end"
+      side="bottom"
+      :side-offset="6"
+      class="flex w-[min(36rem,calc(100vw-1.5rem))] max-w-[calc(100vw-1.5rem)] max-h-[min(85vh,calc(100dvh-3rem))] flex-col gap-0 overflow-hidden p-0"
+      @pointerdown.stop
+    >
+      <div class="shrink-0 border-b px-4 py-3">
+        <h2 class="text-sm font-semibold text-foreground">Review context queue</h2>
+        <p class="sr-only">Edit paste text for each queued item, reorder, or remove entries before confirming.</p>
+        <p v-if="threadId" class="mt-0.5 text-xs text-muted-foreground">Thread {{ threadId }}</p>
+      </div>
+
+      <div class="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-3">
         <p v-if="internalItems.length === 0" class="text-sm text-muted-foreground">No items in queue.</p>
 
         <div
@@ -153,19 +176,20 @@ function moveDown(index: number): void {
         </div>
       </div>
 
-      <DialogFooter class="shrink-0 border-t px-6 py-4">
-        <Button type="button" variant="outline" data-testid="context-queue-review-cancel" @click="cancel">
-          Cancel
+      <div class="flex shrink-0 justify-end gap-2 border-t px-4 py-3">
+        <Button type="button" variant="outline" size="sm" data-testid="context-queue-review-cancel" @click="close">
+          Close
         </Button>
         <Button
           type="button"
+          size="sm"
           data-testid="context-queue-review-confirm"
           :disabled="confirmDisabled"
           @click="confirm"
         >
           Confirm
         </Button>
-      </DialogFooter>
-    </DialogContent>
-  </Dialog>
+      </div>
+    </PopoverContent>
+  </Popover>
 </template>

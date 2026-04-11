@@ -92,5 +92,5 @@ Users work across **Git Diff**, **Files** (including **folders**), and the **Ter
 
 ## Open points for implementation plan only
 
-- Queue UI shape: **modal**, **side panel**, or **drawer** (match workbench patterns).
+- Queue review UI: **popover / dropdown** anchored to the toolbar **Queue** control (not a full-screen dialog).
 - Whether the popup includes only **Queue** or also **Queue and open review** (v1 can stay **Queue** only).

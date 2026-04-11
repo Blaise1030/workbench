@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeMount, onBeforeUnmount, onMounted, provide, ref, watch } from "vue";
-import { ChevronDown, ChevronUp, ListOrdered, Plus, Settings } from "lucide-vue-next";
+import { ChevronDown, ChevronUp, Plus, Settings } from "lucide-vue-next";
 import Button from "@/components/ui/Button.vue";
 import Badge from "@/components/ui/Badge.vue";
 import SourceControlPanel from "@/components/SourceControlPanel.vue";
@@ -14,7 +14,7 @@ import FileSearchEditor from "@/components/FileSearchEditor.vue";
 import WorkspaceLauncherModal from "@/components/WorkspaceLauncherModal.vue";
 import ThreadCreateButton from "@/components/ThreadCreateButton.vue";
 import BranchPicker from "@/components/BranchPicker.vue";
-import ContextQueueReviewDialog from "@/components/contextQueue/ContextQueueReviewDialog.vue";
+import ContextQueueReviewDropdown from "@/components/contextQueue/ContextQueueReviewDropdown.vue";
 import { injectContextQueue } from "@/contextQueue/injectContextQueue";
 import { threadContextQueueKey } from "@/contextQueue/injectionKeys";
 import type { QueueItem } from "@/contextQueue/types";
@@ -71,27 +71,14 @@ const workspace = useWorkspaceStore();
 const threadContextQueue = useThreadContextQueue();
 provide(threadContextQueueKey, threadContextQueue);
 
-const contextQueueReviewOpen = ref(false);
-
 const contextQueueItems = computed((): QueueItem[] => {
   const id = workspace.activeThreadId;
   return id ? threadContextQueue.itemsFor(id) : [];
 });
 
-const contextQueueCount = computed(() => contextQueueItems.value.length);
-
-function openContextQueueReview(): void {
-  if (!workspace.activeThreadId) {
-    toast.error("No active thread", "Create or select a thread to use the context queue.");
-    return;
-  }
-  contextQueueReviewOpen.value = true;
-}
-
 async function onContextQueueConfirmed(items: QueueItem[]): Promise<void> {
   const tid = workspace.activeThreadId;
   if (!tid) return;
-  contextQueueReviewOpen.value = false;
   mainCenterTab.value = "agent";
   shellOverlayTab.value = "agent";
   await nextTick();
@@ -408,8 +395,11 @@ function focusActiveTerminal(): void {
   void nextTick(() => {
     if (shellOverlayTab.value.startsWith("shell:")) {
       const id = shellOverlayTab.value.slice("shell:".length);
-      shellTerminalPaneRefs.get(id)?.focus?.();
+      const pane = shellTerminalPaneRefs.get(id);
+      pane?.refresh?.();
+      pane?.focus?.();
     } else {
+      agentTerminalPaneRef.value?.refresh?.();
       agentTerminalPaneRef.value?.focus?.();
     }
   });
@@ -1506,6 +1496,8 @@ watch(
     void nextTick(() => {
       if (tab.startsWith("shell:")) {
         shellTerminalPaneRefs.get(tab.slice("shell:".length))?.refresh?.();
+      } else {
+        agentTerminalPaneRef.value?.refresh?.();
       }
     });
   },
@@ -1662,25 +1654,12 @@ watch(
             :tabs="topCenterPanelTabs"
             aria-label="Center panel"
           />
-          <Button
+          <ContextQueueReviewDropdown
             v-if="workspace.activeThreadId"
-            type="button"
-            variant="outline"
-            size="xs"
-            class="ms-1 shrink-0 gap-1 px-2"
-            data-testid="workspace-context-queue-button"
-            title="Review and send queued context to the agent terminal"
-            @click="openContextQueueReview"
-          >
-            <ListOrdered class="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-            <span class="hidden sm:inline">Queue</span>
-            <Badge
-              v-if="contextQueueCount > 0"
-              variant="secondary"
-              class="h-5 min-w-5 rounded-full px-1 text-[10px] tabular-nums"
-              >{{ contextQueueCount }}</Badge
-            >
-          </Button>
+            :thread-id="workspace.activeThreadId"
+            :items="contextQueueItems"
+            @confirm="onContextQueueConfirmed"
+          />
         </div>
         <div
           v-if="activeWorktreeHasThreads && hasGitRepository === false"
@@ -1933,15 +1912,6 @@ watch(
         </div>
       </section>
     </section>
-
-    <ContextQueueReviewDialog
-      v-if="hasActiveWorkspace"
-      :open="contextQueueReviewOpen"
-      :thread-id="workspace.activeThreadId"
-      :items="contextQueueItems"
-      @update:open="contextQueueReviewOpen = $event"
-      @confirm="onContextQueueConfirmed"
-    />
 
     <ThreadCreateButton
       v-if="hasActiveWorkspace"
