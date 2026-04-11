@@ -104,12 +104,15 @@ export class WorkspaceService {
 
   createThread(input: CreateThreadInput): Thread {
     const now = new Date().toISOString();
+    const worktree = this.store.getSnapshot().worktrees.find((w) => w.id === input.worktreeId);
+    const createdBranch = worktree?.branch ?? null;
     const thread: Thread = {
       id: randomUUID(),
       projectId: input.projectId,
       worktreeId: input.worktreeId,
       title: input.title,
       agent: input.agent,
+      createdBranch,
       createdAt: now,
       updatedAt: now
     };
@@ -287,6 +290,22 @@ export class WorkspaceService {
     if (!project) throw new Error(`Project ${projectId} not found`);
 
     return this.git.branchList(project.repoPath);
+  }
+
+  /**
+   * Keeps persisted worktree `branch` aligned with `git checkout` performed in that path
+   * (or with the branch read from disk after an external HEAD change).
+   *
+   * @returns whether the persisted worktree row was updated.
+   */
+  updateWorktreeBranchAtPath(worktreePath: string, branch: string): boolean {
+    const normalized = path.normalize(worktreePath);
+    const snapshot = this.store.getSnapshot();
+    const worktree = snapshot.worktrees.find((w) => path.normalize(w.path) === normalized);
+    if (!worktree || worktree.branch === branch) return false;
+    const now = new Date().toISOString();
+    this.store.upsertWorktree({ ...worktree, branch, updatedAt: now });
+    return true;
   }
 
   async checkWorktreeHealth(worktreeId: string): Promise<{ exists: boolean }> {

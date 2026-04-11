@@ -90,10 +90,51 @@ function fileEmojiForPath(relativePath: string): string {
     yml: "⚙️",
     yaml: "⚙️",
     toml: "⚙️",
-    sql: "🗃️"
+    sql: "🗃️",
+    png: "🖼️",
+    jpg: "🖼️",
+    jpeg: "🖼️",
+    webp: "🖼️",
+    gif: "🖼️",
+    svg: "🖼️",
+    avif: "🖼️",
+    bmp: "🖼️",
+    ico: "🖼️"
   };
   return map[ext] ?? "📄";
 }
+
+/** Lowercase extension without dot (e.g. `docs/a.PNG` → `png`). */
+function fileExtensionLower(relativePath: string): string {
+  const lower = relativePath.toLowerCase();
+  const dot = lower.lastIndexOf(".");
+  return dot >= 0 ? lower.slice(dot + 1) : "";
+}
+
+/** Shown as image preview first; Source loads UTF-8 text (binary will look garbled). */
+const IMAGE_PREVIEW_EXTENSIONS = new Set([
+  "png",
+  "jpg",
+  "jpeg",
+  "gif",
+  "webp",
+  "bmp",
+  "ico",
+  "svg",
+  "avif"
+]);
+
+/** Saving UTF-8 edits would corrupt these; block Save when dirty in Source mode. */
+const RASTER_IMAGE_EXTENSIONS = new Set([
+  "png",
+  "jpg",
+  "jpeg",
+  "gif",
+  "webp",
+  "bmp",
+  "ico",
+  "avif"
+]);
 
 const searchInput = ref<InstanceType<typeof Input> | null>(null);
 const query = ref("");
@@ -121,6 +162,7 @@ const error = ref<string | null>(null);
 const SIDEBAR_COLLAPSED_KEY = "instrument.fileSearchSidebarCollapsed";
 const EDITOR_COLLAPSED_KEY = "instrument.fileSearchEditorCollapsed";
 const LINE_NUMBERS_VISIBLE_KEY = "instrument.fileSearchLineNumbersVisible";
+const MD_SOURCE_IMAGE_PREVIEWS_KEY = "instrument.markdownSourceImagePreviewsVisible";
 
 function readLocalStorageFlag(key: string, fallback = false): boolean {
   try {
@@ -135,6 +177,7 @@ function readLocalStorageFlag(key: string, fallback = false): boolean {
 const sidebarCollapsed = ref(readLocalStorageFlag(SIDEBAR_COLLAPSED_KEY));
 const editorCollapsed = ref(readLocalStorageFlag(EDITOR_COLLAPSED_KEY));
 const showLineNumbers = ref(readLocalStorageFlag(LINE_NUMBERS_VISIBLE_KEY, true));
+const mdSourceImagePreviews = ref(readLocalStorageFlag(MD_SOURCE_IMAGE_PREVIEWS_KEY, true));
 
 watch(sidebarCollapsed, (collapsed) => {
   try {
@@ -155,6 +198,15 @@ watch(editorCollapsed, (collapsed) => {
 watch(showLineNumbers, (visible) => {
   try {
     localStorage.setItem(LINE_NUMBERS_VISIBLE_KEY, visible ? "1" : "0");
+  } catch {
+    /* ignore quota / private mode */
+  }
+});
+
+watch(mdSourceImagePreviews, (on) => {
+  try {
+    if (typeof localStorage === "undefined") return;
+    localStorage.setItem(MD_SOURCE_IMAGE_PREVIEWS_KEY, on ? "1" : "0");
   } catch {
     /* ignore quota / private mode */
   }
@@ -194,12 +246,38 @@ const isMarkdownFile = computed(() => {
   return p.endsWith(".md") || p.endsWith(".markdown");
 });
 
+const isImagePreviewFile = computed(() => {
+  const p = selectedPath.value;
+  return Boolean(p && IMAGE_PREVIEW_EXTENSIONS.has(fileExtensionLower(p)));
+});
+
+const isRasterImageFile = computed(() => {
+  const p = selectedPath.value;
+  return Boolean(p && RASTER_IMAGE_EXTENSIONS.has(fileExtensionLower(p)));
+});
+
+/** Raster images edited as text cannot be saved safely as UTF-8. */
+const rasterImageSaveBlocked = computed(() => isRasterImageFile.value && dirty.value);
+
 const mdViewMode = ref<"read" | "source">("read");
 
 const mdViewTabs = computed<PillTabItem[]>(() => [
   { value: "read", label: "Read" },
   { value: "source", label: "Source" }
 ]);
+
+const imageFileViewMode = ref<"preview" | "text">("preview");
+
+const imageViewTabs = computed<PillTabItem[]>(() => [
+  { value: "preview", label: "Preview" },
+  { value: "text", label: "Source" }
+]);
+
+/** `data:` URL for `<img src>` when the open file is an image in the worktree. */
+const imagePreviewSrc = ref<string | null>(null);
+
+/** Dropped OS file (e.g. screencapture in temp) — not a worktree-relative selection. */
+const externalDropPreview = ref<{ src: string; title: string } | null>(null);
 
 const codeMirrorRef = ref<InstanceType<typeof CodeMirrorEditor> | null>(null);
 
@@ -214,7 +292,8 @@ const canFindInFile = computed(
     Boolean(selectedPath.value) &&
     !editorCollapsed.value &&
     !isLoadingFile.value &&
-    !(isMarkdownFile.value && mdViewMode.value === "read")
+    !(isMarkdownFile.value && mdViewMode.value === "read") &&
+    !(isImagePreviewFile.value && imageFileViewMode.value === "preview")
 );
 
 function openFindInFile(): void {
@@ -728,6 +807,85 @@ function clearSelection(): void {
   selectedPath.value = null;
   loadedContent.value = "";
   draftContent.value = "";
+  imagePreviewSrc.value = null;
+  imageFileViewMode.value = "preview";
+  externalDropPreview.value = null;
+}
+
+function clearExternalDropPreview(): void {
+  externalDropPreview.value = null;
+}
+
+async function onImageDropFromOs(e: DragEvent): Promise<void> {
+  e.preventDefault();
+  const df = e.dataTransfer;
+  if (!df?.files?.length) return;
+  const file = df.files[0];
+  if (!file) return;
+  const api = getApi();
+  if (!api?.readImageDataUrlFromAbsolutePath || !api.getPathForFile) return;
+  try {
+    const abs = api.getPathForFile(file);
+    const imageish =
+      Boolean(file.type && file.type.startsWith("image/")) ||
+      /\.(png|jpe?g|gif|webp|bmp|ico|svg|avif)$/i.test(abs);
+    if (!imageish) return;
+    const url = await api.readImageDataUrlFromAbsolutePath(abs);
+    if (url) externalDropPreview.value = { src: url, title: abs };
+  } catch {
+    /* ignore invalid drops */
+  }
+}
+
+async function refreshImagePreviewUrl(): Promise<void> {
+  const path = selectedPath.value;
+  const cwd = props.worktreePath;
+  const api = getApi();
+  if (!path || !cwd || !api?.resolveMarkdownImageUrl) {
+    imagePreviewSrc.value = null;
+    return;
+  }
+  const name = basenameFromPath(path);
+  imagePreviewSrc.value = (await api.resolveMarkdownImageUrl(cwd, path, name)) ?? null;
+}
+
+async function loadImageFileAsText(): Promise<void> {
+  const path = selectedPath.value;
+  const cwd = props.worktreePath;
+  const api = getApi();
+  if (!path || !cwd || !api) return;
+
+  isLoadingFile.value = true;
+  error.value = null;
+  try {
+    const content = await api.readFile(cwd, path);
+    loadedContent.value = content;
+    draftContent.value = content;
+  } catch (readError) {
+    error.value =
+      readError instanceof Error ? readError.message : "Could not read the image file as text.";
+  } finally {
+    isLoadingFile.value = false;
+  }
+}
+
+async function onImageViewModeRequest(next: string): Promise<void> {
+  if (next !== "preview" && next !== "text") return;
+  if (next === imageFileViewMode.value) return;
+
+  if (next === "preview") {
+    if (imageFileViewMode.value === "text" && dirty.value) {
+      if (!(await confirmDiscardIfDirty())) return;
+    }
+    imageFileViewMode.value = "preview";
+    loadedContent.value = "";
+    draftContent.value = "";
+    await refreshImagePreviewUrl();
+    return;
+  }
+
+  imageFileViewMode.value = "text";
+  await loadImageFileAsText();
 }
 
 async function handleCloseFileTab(): Promise<void> {
@@ -851,6 +1009,18 @@ async function openFile(relativePath: string): Promise<void> {
   error.value = null;
 
   try {
+    imagePreviewSrc.value = null;
+    const ext = fileExtensionLower(relativePath);
+    if (IMAGE_PREVIEW_EXTENSIONS.has(ext)) {
+      selectedPath.value = relativePath;
+      imageFileViewMode.value = "preview";
+      loadedContent.value = "";
+      draftContent.value = "";
+      await refreshImagePreviewUrl();
+      if (seq !== openFileSeq || props.worktreePath !== cwd) return;
+      return;
+    }
+
     const content = await api.readFile(cwd, relativePath);
     if (seq !== openFileSeq || props.worktreePath !== cwd) return;
     selectedPath.value = relativePath;
@@ -985,6 +1155,12 @@ async function handleSave(): Promise<void> {
   const relativePath = selectedPath.value;
   if (!api || !cwd || !relativePath) return;
 
+  if (isRasterImageFile.value && dirty.value) {
+    error.value =
+      "Raster images cannot be saved from Source view; that would corrupt the file. Revert or switch back to Preview.";
+    return;
+  }
+
   isSaving.value = true;
   error.value = null;
 
@@ -1025,6 +1201,7 @@ async function confirmContextSwitch(nextWorktreePath: string | null): Promise<bo
 }
 
 watch(selectedPath, (path) => {
+  externalDropPreview.value = null;
   if (path && /\.(md|markdown)$/i.test(path)) {
     mdViewMode.value = "read";
   }
@@ -1272,7 +1449,11 @@ defineExpose({
       </template>
     </div>
 
-    <div class="flex min-h-0 min-w-0 flex-1 flex-col">
+    <div
+      class="flex min-h-0 min-w-0 flex-1 flex-col"
+      @dragover.prevent
+      @drop="onImageDropFromOs"
+    >
       <header
         data-testid="file-editor-header"
         class="flex items-center justify-between gap-3 border-b border-border px-4 py-1.5"
@@ -1343,7 +1524,7 @@ defineExpose({
             data-testid="toggle-line-numbers"
             variant="outline"
             size="xs"
-            :disabled="!selectedPath"
+            :disabled="!selectedPath || (isImagePreviewFile && imageFileViewMode === 'preview')"
             :aria-pressed="showLineNumbers"
             :title="showLineNumbers ? 'Hide line numbers' : 'Show line numbers'"
             @click="toggleLineNumbers"
@@ -1390,7 +1571,7 @@ defineExpose({
             data-testid="save-file"
             variant="default"
             size="xs"
-            :disabled="!selectedPath || !dirty || isSaving"
+            :disabled="!selectedPath || !dirty || isSaving || rasterImageSaveBlocked"
             @click="handleSave"
           >
             Save
@@ -1425,13 +1606,41 @@ defineExpose({
         <template v-else>
           <div
             v-if="isMarkdownFile && selectedPath"
-            class="absolute top-2 right-3 z-20 rounded-lg border border-border/60 bg-background/95 p-0.5 shadow-sm backdrop-blur-sm supports-[backdrop-filter]:bg-background/80"
+            class="absolute top-2 right-3 z-20 flex flex-col items-end gap-1 rounded-lg border border-border/60 bg-background/95 p-0.5 shadow-sm backdrop-blur-sm supports-[backdrop-filter]:bg-background/80"
           >
             <PillTabs
               v-model="mdViewMode"
               class="min-w-0 shrink-0 [&_[role=tablist]]:px-0 [&_[role=tablist]]:py-0"
               aria-label="Markdown view"
               :tabs="mdViewTabs"
+            />
+            <Button
+              v-if="mdViewMode === 'source'"
+              data-testid="markdown-source-image-previews-toggle"
+              type="button"
+              variant="ghost"
+              size="xs"
+              class="h-7 shrink-0 px-2 text-[11px] text-muted-foreground hover:text-foreground"
+              :title="
+                mdSourceImagePreviews
+                  ? 'Show Markdown source without inline image previews'
+                  : 'Show resolved images under image syntax in the editor'
+              "
+              @click="mdSourceImagePreviews = !mdSourceImagePreviews"
+            >
+              {{ mdSourceImagePreviews ? "Hide image previews" : "Show image previews" }}
+            </Button>
+          </div>
+          <div
+            v-if="isImagePreviewFile && selectedPath"
+            class="absolute top-2 right-3 z-20 rounded-lg border border-border/60 bg-background/95 p-0.5 shadow-sm backdrop-blur-sm supports-[backdrop-filter]:bg-background/80"
+          >
+            <PillTabs
+              :model-value="imageFileViewMode"
+              class="min-w-0 shrink-0 [&_[role=tablist]]:px-0 [&_[role=tablist]]:py-0"
+              aria-label="Image view"
+              :tabs="imageViewTabs"
+              @update:model-value="onImageViewModeRequest"
             />
           </div>
           <p
@@ -1459,6 +1668,36 @@ defineExpose({
             Loading file…
           </p>
           <div
+            v-else-if="isImagePreviewFile && imageFileViewMode === 'preview' && imagePreviewSrc"
+            data-testid="image-file-preview"
+            class="flex min-h-[18rem] flex-1 flex-col items-center justify-center overflow-auto rounded-md bg-muted/10 px-4 py-6"
+          >
+            <img
+              :src="imagePreviewSrc"
+              :alt="`Preview of ${selectedPath}`"
+              class="max-h-[min(70vh,48rem)] max-w-full rounded-md border border-border/60 object-contain shadow-sm"
+              draggable="false"
+            />
+          </div>
+          <div
+            v-else-if="isImagePreviewFile && imageFileViewMode === 'preview' && !imagePreviewSrc"
+            data-testid="image-file-preview-unavailable"
+            class="flex min-h-[18rem] flex-1 flex-col items-center justify-center gap-2 rounded-md bg-muted/10 px-4 py-6 text-center text-xs text-muted-foreground"
+            role="status"
+          >
+            <p class="max-w-sm">
+              Could not build a preview (missing binary, Git LFS pointer not smudged, wrong file type, or over 32 MB).
+            </p>
+            <p>
+              Use <span class="font-medium text-foreground">Source</span> to inspect the file, or run
+              <span class="font-mono">git lfs pull</span> if this is an LFS asset.
+            </p>
+            <p class="text-[11px] text-muted-foreground/90">
+              For screenshots in macOS TemporaryItems: drag the file onto this pane (temp folder is allowed), or copy
+              the image into the repo.
+            </p>
+          </div>
+          <div
             v-else-if="isMarkdownFile && mdViewMode === 'read'"
             data-testid="markdown-preview"
             class="markdown-reader h-full min-h-[18rem] overflow-y-auto rounded-md bg-muted/10 px-3 py-3"
@@ -1472,6 +1711,7 @@ defineExpose({
             :show-line-numbers="showLineNumbers"
             :markdown-workspace-root="markdownImageWorkspaceRoot"
             :markdown-file-path="markdownImageFilePath"
+            :markdown-image-preview-enabled="mdSourceImagePreviews"
             :aria-label="
               selectedPath
                 ? `Source code, ${editorLanguage ?? 'plain text'}, ${selectedPath}`
@@ -1479,6 +1719,40 @@ defineExpose({
             "
           />
         </template>
+      </div>
+      <div
+        v-if="externalDropPreview"
+        data-testid="external-image-drop-preview"
+        class="shrink-0 border-t border-border bg-muted/25 px-4 py-3"
+      >
+        <div class="flex items-start justify-between gap-2">
+          <p class="min-w-0 text-[11px] leading-snug text-muted-foreground">
+            <span class="font-medium text-foreground">Dropped image</span>
+            (not in the file tree). Save a copy under the worktree to open it in the editor.
+          </p>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-xs"
+            class="shrink-0"
+            aria-label="Dismiss dropped image preview"
+            @click="clearExternalDropPreview"
+          >
+            <X class="h-3.5 w-3.5" aria-hidden="true" />
+          </Button>
+        </div>
+        <p
+          class="mt-1 truncate font-mono text-[10px] text-muted-foreground"
+          :title="externalDropPreview.title"
+        >
+          {{ externalDropPreview.title }}
+        </p>
+        <img
+          :src="externalDropPreview.src"
+          alt=""
+          class="mt-2 max-h-72 max-w-full rounded-md border border-border/60 object-contain shadow-sm"
+          draggable="false"
+        />
       </div>
     </div>
 

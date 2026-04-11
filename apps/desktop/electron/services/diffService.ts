@@ -72,6 +72,11 @@ export class DiffService {
     await git.init();
   }
 
+  async checkoutBranch(cwd: string, branch: string): Promise<void> {
+    const git = simpleGit(cwd);
+    await git.checkout(branch);
+  }
+
   async repoStatus(cwd: string): Promise<RepoScmSnapshot> {
     const [
       porcelainResult,
@@ -298,5 +303,32 @@ export class DiffService {
     const git = simpleGit(cwd);
     await git.raw(["reset", "--hard", "HEAD"]);
     await git.clean("f", ["-d"]);
+  }
+
+  /** Absolute path to the `HEAD` ref file for this worktree (suitable for `fs.watch`). */
+  async resolveGitHeadFilePath(cwd: string): Promise<string | null> {
+    try {
+      const { stdout } = await execFileAsync("git", ["-C", cwd, "rev-parse", "--git-dir"], {
+        maxBuffer: 64 * 1024,
+        encoding: "utf8"
+      });
+      const gitDir = resolve(cwd, stdout.trim());
+      return resolve(gitDir, "HEAD");
+    } catch {
+      return null;
+    }
+  }
+
+  async readAbbrevRefHead(cwd: string): Promise<string | null> {
+    try {
+      const { stdout } = await execFileAsync("git", ["-C", cwd, "rev-parse", "--abbrev-ref", "HEAD"], {
+        maxBuffer: 64 * 1024,
+        encoding: "utf8"
+      });
+      const branch = stdout.trim();
+      return branch || null;
+    } catch {
+      return null;
+    }
   }
 }

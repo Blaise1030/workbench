@@ -20,6 +20,7 @@ import {
 } from "lucide-vue-next";
 import Button from "@/components/ui/Button.vue";
 import Badge from "@/components/ui/Badge.vue";
+import ScmBranchCombobox from "@/components/ScmBranchCombobox.vue";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -52,6 +53,13 @@ const props = withDefaults(
     repoStatus: RepoStatusEntry[];
     /** One-line repo context, e.g. `folder / main` from `RepoScmSnapshot`. */
     branchLine?: string | null;
+    /** Short `HEAD` name for branch switcher (same source as `RepoScmSnapshot.branch`). */
+    scmBranch?: string;
+    projectId?: string | null;
+    /** Active worktree path (repo status / checkout cwd). */
+    scmCwd?: string | null;
+    /** Allow in-panel branch checkout; off when the project uses linked worktrees (sidebar layout). */
+    allowScmBranchSwitcher?: boolean;
     /** Latest commit subject from `git log -1`; shown as a one-click draft hint. */
     lastCommitSubject?: string | null;
     /** Active worktree label shown in the panel chrome. */
@@ -71,6 +79,10 @@ const props = withDefaults(
   }>(),
   {
     branchLine: null,
+    scmBranch: "",
+    projectId: null,
+    scmCwd: null,
+    allowScmBranchSwitcher: false,
     lastCommitSubject: null,
     contextLabel: null,
     scmFetchAvailable: false,
@@ -94,6 +106,7 @@ const emit = defineEmits<{
   push: [];
   commit: [];
   openFileInEditor: [path: string];
+  branchChanged: [];
 }>();
 
 const richDiffMaxBytes = 300_000;
@@ -686,14 +699,14 @@ onBeforeUnmount(() => {
       </div>
       <footer class="flex shrink-0 flex-col border-t border-border bg-muted/10">
         <div class="flex items-center justify-between gap-2 px-2 py-1">
-          <p
-            v-if="branchLine"
-            class="min-w-0 truncate font-mono text-[8px] text-muted-foreground"
-            :title="branchLine"
-          >
-            {{ branchLine?.replace(' / ', '/') }}
-          </p>
-          <span v-else class="text-[9px] text-muted-foreground">—</span>
+          <ScmBranchCombobox
+            :branch-line="branchLine"
+            :current-branch="scmBranch"
+            :project-id="projectId ?? ''"
+            :cwd="scmCwd ?? ''"
+            :switcher-enabled="allowScmBranchSwitcher"
+            @branch-changed="emit('branchChanged')"
+          />
           <div
             v-if="scmFetchAvailable || scmPushAvailable"
             class="flex shrink-0 items-center gap-1"

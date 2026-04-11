@@ -1,7 +1,6 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { pathToFileURL } from "node:url";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { FileService } from "../fileService";
 
@@ -176,25 +175,73 @@ describe("FileService", () => {
     ]);
   });
 
-  it("resolves relative markdown image hrefs to file URLs under the worktree", async () => {
+  it("resolves relative markdown image hrefs to data URLs under the worktree", async () => {
     await fs.mkdir(path.join(tempDir, "docs", "assets"), { recursive: true });
     const pngPath = path.join(tempDir, "docs", "assets", "pic.png");
-    await fs.writeFile(pngPath, "x", "utf8");
+    const tinyPng = Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhgGAWjR9awAAAABJRU5ErkJggg==",
+      "base64"
+    );
+    await fs.writeFile(pngPath, tinyPng);
 
-    const url = service.resolveMarkdownImageUrl(tempDir, "docs/page.md", "assets/pic.png");
-    expect(url).toBe(pathToFileURL(pngPath).href);
+    const url = await service.resolveMarkdownImageUrl(tempDir, "docs/page.md", "assets/pic.png");
+    expect(url).toMatch(/^data:image\/png;base64,/);
+    expect(Buffer.from(url!.split(",")[1]!, "base64").equals(tinyPng)).toBe(true);
   });
 
-  it("passes through http(s) and data markdown image hrefs", () => {
-    expect(service.resolveMarkdownImageUrl(tempDir, "a.md", "https://example.com/x.png")).toBe(
+  it("returns null when a .png is a Git LFS pointer", async () => {
+    await fs.mkdir(path.join(tempDir, "docs"), { recursive: true });
+    const pngPath = path.join(tempDir, "docs", "lfs-fake.png");
+    await fs.writeFile(
+      pngPath,
+      "version https://git-lfs.github.com/spec/v1\noid sha256:abc\nsize 123\n",
+      "utf8"
+    );
+
+    await expect(service.resolveMarkdownImageUrl(tempDir, "docs/page.md", "lfs-fake.png")).resolves.toBeNull();
+  });
+
+  it("passes through http(s) and data markdown image hrefs", async () => {
+    await expect(service.resolveMarkdownImageUrl(tempDir, "a.md", "https://example.com/x.png")).resolves.toBe(
       "https://example.com/x.png"
     );
-    expect(service.resolveMarkdownImageUrl(tempDir, "a.md", "data:image/png;base64,xx")).toBe(
+    await expect(service.resolveMarkdownImageUrl(tempDir, "a.md", "data:image/png;base64,xx")).resolves.toBe(
       "data:image/png;base64,xx"
     );
   });
 
-  it("returns null for markdown image hrefs that escape the worktree", () => {
-    expect(service.resolveMarkdownImageUrl(tempDir, "docs/a.md", "../../../outside.txt")).toBeNull();
+  it("returns null for markdown image hrefs that escape the worktree", async () => {
+    await expect(service.resolveMarkdownImageUrl(tempDir, "docs/a.md", "../../../outside.txt")).resolves.toBeNull();
+  });
+
+  it("reads a valid PNG from an absolute path under the temp directory", async () => {
+    const tinyPng = Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhgGAWjR9awAAAABJRU5ErkJggg==",
+      "base64"
+    );
+    const abs = path.join(os.tmpdir(), `instrument-absimg-${Date.now()}.png`);
+    await fs.writeFile(abs, tinyPng);
+    try {
+      const url = await service.readImageDataUrlFromAbsolutePath(abs);
+      expect(url).toMatch(/^data:image\/png;base64,/);
+    } finally {
+      await fs.rm(abs, { force: true });
+    }
+  });
+
+  it("rejects absolute image paths outside temp and user media folders", async () => {
+    const dir = path.join(os.homedir(), ".instrument-test-external-reject");
+    await fs.mkdir(dir, { recursive: true });
+    const abs = path.join(dir, "x.png");
+    const tinyPng = Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhgGAWjR9awAAAABJRU5ErkJggg==",
+      "base64"
+    );
+    await fs.writeFile(abs, tinyPng);
+    try {
+      await expect(service.readImageDataUrlFromAbsolutePath(abs)).resolves.toBeNull();
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
   });
 });

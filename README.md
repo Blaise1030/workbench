@@ -32,6 +32,39 @@ Workbench is a native desktop application that gives you a dedicated environment
 | Testing | Vitest |
 | Package manager | pnpm (monorepo) |
 
+## Architecture
+
+Workbench is an Electron app: the **renderer** (Vue) never touches the filesystem or shells directly. A small **preload** script exposes a typed `workspaceApi` via `contextBridge`, and the **main** process implements IPC handlers that delegate to services (`WorkspaceService`, PTY/run orchestration, file I/O, Git/diff). Workspace state is persisted through `WorkspaceStore`. The **landing page** is a separate Vite app in the same monorepo for marketing and downloads.
+
+```mermaid
+flowchart TB
+  subgraph mono["Monorepo (pnpm)"]
+    LP["apps/landing-page<br/>Vite static site"]
+    subgraph desktop["apps/desktop — Workbench"]
+      direction TB
+      R["Renderer<br/>Vue 3 · Pinia · CodeMirror 6"]
+      PR["Preload<br/>contextBridge → window.workspaceApi"]
+      MP["Main process<br/>ipcMain · BrowserWindow"]
+      subgraph svc["Main-process services"]
+        direction LR
+        WS["WorkspaceService"]
+        RUN["PtyService / RunService"]
+        FE["FileService / EditService"]
+        DG["DiffService · Git"]
+      end
+      ST[("WorkspaceStore")]
+    end
+  end
+
+  R <-->|invoke / events| PR
+  PR <-->|IPC_CHANNELS| MP
+  MP --> WS
+  MP --> RUN
+  MP --> FE
+  MP --> DG
+  WS --> ST
+```
+
 ## Project Structure
 
 ```

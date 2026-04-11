@@ -60,7 +60,7 @@ describe("ThreadSidebar", () => {
     return {
       worktreeId: worktree.id,
       worktree,
-      displayLabel: worktree.isDefault ? "Primary" : worktree.name,
+      displayLabel: worktree.isDefault ? (worktree.branch?.trim() || "Primary") : worktree.name,
       isDefault: worktree.isDefault,
       threads: contextThreads
     };
@@ -266,6 +266,79 @@ describe("ThreadSidebar", () => {
     ]);
   });
 
+  it("filters threads by created branch when filter toggle is on", async () => {
+    const defaultWorktree: Worktree = {
+      id: "w-default",
+      projectId: "p1",
+      name: "main",
+      branch: "main",
+      path: "/tmp/project",
+      isActive: false,
+      isDefault: true,
+      baseBranch: null,
+      lastActiveThreadId: null,
+      createdAt: "2026-04-07T00:00:00Z",
+      updatedAt: "2026-04-07T00:00:00Z"
+    };
+    const linkedWorktree: Worktree = {
+      id: "w-feat",
+      projectId: "p1",
+      name: "feat/auth",
+      branch: "feat/auth",
+      path: "/tmp/.worktrees/feat-auth",
+      isActive: true,
+      isDefault: false,
+      baseBranch: "main",
+      lastActiveThreadId: null,
+      createdAt: "2026-04-07T00:00:00Z",
+      updatedAt: "2026-04-07T00:00:00Z"
+    };
+    const onBranch: Thread = {
+      id: "t-match",
+      projectId: "p1",
+      worktreeId: "w-feat",
+      title: "On branch",
+      agent: "codex",
+      createdBranch: "feat/auth",
+      createdAt: "2026-04-07T00:02:00Z",
+      updatedAt: "2026-04-07T00:02:00Z"
+    };
+    const offBranch: Thread = {
+      id: "t-other",
+      projectId: "p1",
+      worktreeId: "w-feat",
+      title: "Other branch",
+      agent: "claude",
+      createdBranch: "main",
+      createdAt: "2026-04-07T00:01:00Z",
+      updatedAt: "2026-04-07T00:01:00Z"
+    };
+
+    wrapper = mount(ThreadSidebar, {
+      props: {
+        threads: [onBranch, offBranch],
+        activeThreadId: "t-match",
+        threadContexts: [
+          makeThreadContext(defaultWorktree, []),
+          makeThreadContext(linkedWorktree, [onBranch, offBranch])
+        ],
+        threadGroups: [linkedWorktree],
+        defaultWorktreeId: "w-default"
+      }
+    });
+
+    expect(wrapper.findAll('[data-testid="thread-row"]')).toHaveLength(2);
+
+    const filterControl = wrapper.get('[data-testid="thread-sidebar-filter-current-branch"]');
+    await filterControl.trigger("click");
+
+    expect(wrapper.findAll('[data-testid="thread-row"]')).toHaveLength(1);
+    expect(wrapper.get('[data-testid="thread-row"]').text()).toContain("On branch");
+
+    await filterControl.trigger("click");
+    expect(wrapper.findAll('[data-testid="thread-row"]')).toHaveLength(2);
+  });
+
   it("renders threads grouped by worktree with group headers", () => {
     const ungroupedThreads: Thread[] = [
       {
@@ -331,10 +404,10 @@ describe("ThreadSidebar", () => {
     });
 
     expect(wrapper.findAll('[data-testid="thread-group-header"]').map((node) => node.text())).toEqual([
-      expect.stringContaining("Primary"),
+      expect.stringContaining("main"),
       expect.stringContaining("feat/auth")
     ]);
-    expect(wrapper.get('[data-thread-group-id="w-default"]').text()).toContain("Primary");
+    expect(wrapper.get('[data-thread-group-id="w-default"]').text()).toContain("main");
     expect(wrapper.get('[data-thread-group-id="w-feat"]').text()).toContain("feat/auth");
     expect(
       wrapper.findAll('[data-testid="thread-group-header"]').map((node) => node.attributes("aria-expanded"))
@@ -781,7 +854,7 @@ describe("ThreadSidebar", () => {
     });
 
     expect(wrapper.findAll('[data-testid="thread-group-header"]').map((node) => node.text())).toEqual([
-      expect.stringContaining("Primary"),
+      expect.stringContaining("main"),
       expect.stringContaining("feat/auth"),
       expect.stringContaining("w-untracked")
     ]);

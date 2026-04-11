@@ -4,6 +4,7 @@ import { ChevronDown, ChevronUp, Plus, Settings } from "lucide-vue-next";
 import Button from "@/components/ui/Button.vue";
 import Badge from "@/components/ui/Badge.vue";
 import SourceControlPanel from "@/components/SourceControlPanel.vue";
+import ScmBranchCombobox from "@/components/ScmBranchCombobox.vue";
 import PillTabs, { type PillTabItem } from "@/components/ui/PillTabs.vue";
 import ProjectTabs from "@/components/ProjectTabs.vue";
 import TerminalPane from "@/components/TerminalPane.vue";
@@ -211,6 +212,14 @@ const showBranchPicker = ref(false);
 const staleWorktreeIds = ref<Set<string>>(new Set());
 const activeContextBadge = computed(() => workspace.activeContextBadge);
 const activeContextLabel = computed(() => activeContextBadge.value?.displayLabel ?? null);
+
+/** Center bar: branch combobox replaces the "Primary" badge only for single-worktree + Git repos. */
+const showTopBarBranchSwitcher = computed(
+  () =>
+    hasGitRepository.value === true &&
+    workspace.threadGroups.length === 0 &&
+    Boolean(workspace.activeProjectId && workspace.activeWorktree?.path)
+);
 const projectDigitSlotCount = computed(() => Math.min(MOD_DIGIT_SLOT_CODES.length, workspace.projects.length));
 
 /** Top row: workspace views only (terminal sessions switch from the bottom terminal bar). */
@@ -1557,7 +1566,17 @@ watch(
           v-if="activeWorktreeHasThreads"
           class="flex min-h-0 min-w-0 shrink-0 items-center gap-1 overflow-hidden border-b border-border bg-muted/25 py-px pr-1 pl-0.5"
         >
-          <Badge variant="outline" class="ms-2 shrink-0 text-[10px] text-muted-foreground">
+          <ScmBranchCombobox
+            v-if="showTopBarBranchSwitcher"
+            variant="toolbar"
+            :branch-line="scmBranchLine"
+            :current-branch="scmMeta.branch"
+            :project-id="workspace.activeProjectId ?? ''"
+            :cwd="workspace.activeWorktree?.path ?? ''"
+            switcher-enabled
+            @branch-changed="void refreshRepoStatus()"
+          />
+          <Badge v-else variant="outline" class="ms-2 shrink-0 text-[10px] text-muted-foreground">
             {{ activeContextLabel }}
           </Badge>
           <div class="h-5 shrink-0 border-s ms-2" aria-hidden="true" />
@@ -1637,6 +1656,10 @@ watch(
                       :context-label="activeContextLabel"
                       :repo-status="repoStatus"
                       :branch-line="scmBranchLine"
+                      :scm-branch="scmMeta.branch"
+                      :project-id="workspace.activeProjectId"
+                      :scm-cwd="workspace.activeWorktree?.path ?? null"
+                      :allow-scm-branch-switcher="workspace.threadGroups.length === 0"
                       :last-commit-subject="scmMeta.lastCommitSubject"
                       :scm-fetch-available="scmFetchAvailable"
                       :scm-push-available="scmPushAvailable"
@@ -1659,6 +1682,7 @@ watch(
                       @push="handleScmPush"
                       @commit="handleScmCommit"
                       @open-file-in-editor="handleScmOpenFileInEditor"
+                      @branch-changed="void refreshRepoStatus()"
                     />
                   </div>
                   <div

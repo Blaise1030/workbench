@@ -10,6 +10,7 @@ import {
 const baseThread = (partial: Partial<Thread> & Pick<Thread, "id" | "title" | "agent">): Thread => ({
   projectId: "p1",
   worktreeId: "wt1",
+  createdBranch: null,
   createdAt: "",
   updatedAt: "",
   ...partial

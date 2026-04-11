@@ -51,6 +51,7 @@ describe("FileSearchEditor", () => {
     localStorage.removeItem("instrument.fileSearchSidebarCollapsed");
     localStorage.removeItem("instrument.fileSearchEditorCollapsed");
     localStorage.removeItem("instrument.fileSearchLineNumbersVisible");
+    localStorage.removeItem("instrument.markdownSourceImagePreviewsVisible");
     listFiles.mockReset();
     searchFileContents.mockReset();
     readFile.mockReset();
@@ -83,6 +84,10 @@ describe("FileSearchEditor", () => {
       searchFiles: vi.fn(),
       searchFileContents,
       readFile,
+      resolveMarkdownImageUrl: vi
+        .fn()
+        .mockResolvedValue("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhgGAWjR9awAAAABJRU5ErkJggg=="),
+      readImageDataUrlFromAbsolutePath: vi.fn().mockResolvedValue(null),
       writeFile,
       createFile,
       deleteFile,
@@ -530,6 +535,81 @@ describe("FileSearchEditor", () => {
 
     expect(wrapper.find('[data-testid="markdown-preview"]').exists()).toBe(false);
     expect(wrapper.find('[data-testid="file-editor"]').exists()).toBe(true);
+  });
+
+  it("shows a Markdown source toggle for inline image previews", async () => {
+    listFiles.mockResolvedValue([{ relativePath: "pic.md", size: 8, modifiedAt: 1 }]);
+    readFile.mockResolvedValue("# x");
+
+    const wrapper = mount(FileSearchEditor, {
+      props: { worktreePath: "/tmp/project" }
+    });
+
+    await flushPromises();
+    await wrapper.get('[data-testid="file-node-pic.md"]').trigger("click");
+    await flushPromises();
+
+    expect(wrapper.find('[data-testid="markdown-source-image-previews-toggle"]').exists()).toBe(
+      false
+    );
+
+    const tabs = wrapper.findAll('[role="tab"]');
+    const source = tabs.find((t) => t.text().includes("Source"));
+    await source!.trigger("click");
+    await flushPromises();
+
+    const toggle = wrapper.get('[data-testid="markdown-source-image-previews-toggle"]');
+    expect(toggle.text()).toContain("Hide image previews");
+
+    await toggle.trigger("click");
+    await flushPromises();
+    expect(toggle.text()).toContain("Show image previews");
+
+    await toggle.trigger("click");
+    await flushPromises();
+    expect(toggle.text()).toContain("Hide image previews");
+  });
+
+  it("opens raster images in Preview without readFile", async () => {
+    listFiles.mockResolvedValue([{ relativePath: "shots/clip.png", size: 500, modifiedAt: 1 }]);
+    readFile.mockResolvedValue("binary");
+
+    const wrapper = mount(FileSearchEditor, {
+      props: { worktreePath: "/tmp/project" }
+    });
+
+    await flushPromises();
+    await wrapper.get('[data-testid="file-node-shots/clip.png"]').trigger("click");
+    await flushPromises();
+
+    expect(readFile).not.toHaveBeenCalled();
+    const preview = wrapper.get('[data-testid="image-file-preview"]');
+    expect(preview.find("img").attributes("src")).toMatch(/^data:image\/png;base64,/);
+  });
+
+  it("loads image bytes when switching image view to Source", async () => {
+    listFiles.mockResolvedValue([{ relativePath: "x.png", size: 4, modifiedAt: 1 }]);
+    readFile.mockResolvedValue("fake-utf8");
+
+    const wrapper = mount(FileSearchEditor, {
+      props: { worktreePath: "/tmp/project" }
+    });
+
+    await flushPromises();
+    await wrapper.get('[data-testid="file-node-x.png"]').trigger("click");
+    await flushPromises();
+    expect(readFile).not.toHaveBeenCalled();
+
+    const imageTabs = wrapper.get('[aria-label="Image view"]');
+    const sourceTab = imageTabs.findAll('[role="tab"]').find((t) => t.text().includes("Source"));
+    expect(sourceTab).toBeDefined();
+    await sourceTab!.trigger("click");
+    await flushPromises();
+
+    expect(readFile).toHaveBeenCalledWith("/tmp/project", "x.png");
+    expect((wrapper.get('[data-testid="file-editor"]').element as HTMLTextAreaElement).value).toBe(
+      "fake-utf8"
+    );
   });
 
   it("opens a discard dialog before switching files when the current draft is dirty", async () => {

@@ -2,7 +2,7 @@
 import { indentWithTab } from "@codemirror/commands";
 import { foldGutter, foldKeymap, indentUnit } from "@codemirror/language";
 import { openSearchPanel, search, searchKeymap } from "@codemirror/search";
-import { EditorState, type Extension } from "@codemirror/state";
+import { Compartment, EditorState, type Extension } from "@codemirror/state";
 import type { EditorView, Panel, ViewUpdate } from "@codemirror/view";
 import { EditorView as CMEditorView, keymap, lineNumbers } from "@codemirror/view";
 import { minimalSetup } from "codemirror";
@@ -46,6 +46,8 @@ const props = defineProps<{
   /** When set with `markdownFilePath`, show `![](...)` previews in Markdown source (Electron). */
   markdownWorkspaceRoot?: string | null;
   markdownFilePath?: string | null;
+  /** When false, Markdown `![](...)` widgets are hidden (plain source). Default true. */
+  markdownImagePreviewEnabled?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -55,6 +57,24 @@ const emit = defineEmits<{
 const hostRef = ref<HTMLDivElement | null>(null);
 const view = shallowRef<CMEditorView | null>(null);
 let syncingFromProp = false;
+
+/** Toggled without recreating editor state (preserves selection and undo). */
+const imagePreviewCompartment = new Compartment();
+
+function markdownImagePreviewSlot(): Extension {
+  if (
+    props.language !== "markdown" ||
+    !props.markdownWorkspaceRoot ||
+    !props.markdownFilePath ||
+    props.markdownImagePreviewEnabled === false
+  ) {
+    return [];
+  }
+  return markdownImagePreviewExtension({
+    workspaceRoot: props.markdownWorkspaceRoot,
+    markdownPath: props.markdownFilePath
+  });
+}
 
 const extensions = computed((): Extension[] => {
   const attrs: Extension[] = [];
@@ -71,16 +91,7 @@ const extensions = computed((): Extension[] => {
     keymap.of(foldKeymap),
     ...(props.showLineNumbers === false ? [] : [lineNumbers(), foldGutter()]),
     ...languageExtensionsFor(props.language),
-    ...(props.language === "markdown" &&
-    props.markdownWorkspaceRoot &&
-    props.markdownFilePath
-      ? [
-          markdownImagePreviewExtension({
-            workspaceRoot: props.markdownWorkspaceRoot,
-            markdownPath: props.markdownFilePath
-          })
-        ]
-      : []),
+    imagePreviewCompartment.of(markdownImagePreviewSlot()),
     CMEditorView.theme({
       /* Fill flex parent (.file-editor-cm); avoid height:100% when parent height is indefinite */
       "&": {
@@ -196,6 +207,23 @@ watch(
     if (!v) return;
     const doc = v.state.doc.toString();
     v.setState(createState(doc));
+  }
+);
+
+watch(
+  () =>
+    [
+      props.markdownImagePreviewEnabled,
+      props.markdownWorkspaceRoot,
+      props.markdownFilePath,
+      props.language
+    ] as const,
+  () => {
+    const v = view.value;
+    if (!v) return;
+    v.dispatch({
+      effects: imagePreviewCompartment.reconfigure(markdownImagePreviewSlot())
+    });
   }
 );
 

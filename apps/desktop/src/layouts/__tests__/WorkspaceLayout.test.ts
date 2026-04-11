@@ -462,7 +462,7 @@ describe("WorkspaceLayout", () => {
     expect(wrapper.text()).toContain("feature-a");
   });
 
-  it("shows the active worktree context in the center bar badge for the default worktree", async () => {
+  it("shows a branch combobox in the center bar for the default worktree when Git + branch APIs exist", async () => {
     const { default: WorkspaceLayout } = await import("../WorkspaceLayout.vue");
     const getSnapshot = vi.fn<WorkspaceApi["getSnapshot"]>().mockResolvedValue(makeSnapshot("Codex CLI"));
     const changedFiles = vi.fn<WorkspaceApi["changedFiles"]>().mockResolvedValue([]);
@@ -471,6 +471,14 @@ describe("WorkspaceLayout", () => {
       getSnapshot,
       changedFiles,
       isGitRepository: vi.fn().mockResolvedValue(true),
+      repoStatus: vi.fn().mockResolvedValue({
+        entries: [],
+        branch: "main",
+        shortLabel: "instrument",
+        lastCommitSubject: null
+      }),
+      listBranches: vi.fn().mockResolvedValue(["main", "develop"]),
+      gitCheckoutBranch: vi.fn().mockResolvedValue(undefined),
       addProject: vi.fn(),
       addWorktree: vi.fn(),
       setActive: vi.fn(),
@@ -513,7 +521,9 @@ describe("WorkspaceLayout", () => {
 
     const agentTab = wrapper.findAll("button").find((button) => button.text().includes("Agent"));
     expect(agentTab?.text()).toContain("🤖 Agent");
-    expect(wrapper.text()).toMatch(/Primary/);
+    const branchTrigger = wrapper.find('[aria-label^="Current branch:"]');
+    expect(branchTrigger.exists()).toBe(true);
+    expect(branchTrigger.attributes("aria-label")).toContain("main");
   });
 
   it("shows the linked worktree context in the center bar badge when active", async () => {

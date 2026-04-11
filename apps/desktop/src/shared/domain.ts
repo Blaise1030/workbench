@@ -45,6 +45,8 @@ export interface Thread {
   worktreeId: string;
   title: string;
   agent: ThreadAgent;
+  /** Git branch checked out on the thread's worktree when the thread was created (null for legacy rows). */
+  createdBranch: string | null;
   createdAt: string;
   updatedAt: string;
 }

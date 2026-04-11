@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="400" height="220" viewBox="0 0 400 220" fill="none" aria-hidden="true">
+  <rect width="400" height="220" fill="#fafafa"/>
+  <rect x="12" y="12" width="376" height="196" rx="10" fill="#fff" stroke="#e4e4e7" stroke-width="1"/>
+  <rect x="12" y="12" width="376" height="28" rx="10" fill="#f4f4f5"/>
+  <circle cx="28" cy="26" r="4" fill="#fecaca"/>
+  <circle cx="42" cy="26" r="4" fill="#fde68a"/>
+  <circle cx="56" cy="26" r="4" fill="#bbf7d0"/>
+  <text x="200" y="29" text-anchor="middle" fill="#71717a" font-family="ui-sans-serif, system-ui, sans-serif" font-size="11" font-weight="600">Finder</text>
+  <!-- folder area -->
+  <rect x="24" y="48" width="352" height="148" rx="6" fill="#fafafa" stroke="#e4e4e7"/>
+  <!-- app icon -->
+  <rect x="52" y="78" width="56" height="56" rx="12" fill="#e4e4e7" stroke="#a1a1aa"/>
+  <text x="80" y="112" text-anchor="middle" fill="#52525b" font-family="ui-sans-serif, system-ui, sans-serif" font-size="9" font-weight="700">WB</text>
+  <text x="80" y="148" text-anchor="middle" fill="#71717a" font-family="ui-sans-serif, system-ui, sans-serif" font-size="8">workbench</text>
+  <!-- context menu -->
+  <rect x="118" y="64" width="132" height="102" rx="8" fill="#fff" stroke="#d4d4d8" stroke-width="1" filter="url(#s)"/>
+  <defs>
+    <filter id="s" x="-8" y="-8" width="160" height="130" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="0" dy="2" stdDeviation="4" flood-color="#000" flood-opacity="0.12"/>
+    </filter>
+  </defs>
+  <rect x="126" y="76" width="116" height="14" rx="2" fill="#f4f4f5"/>
+  <text x="132" y="86" fill="#52525b" font-family="ui-sans-serif, system-ui, sans-serif" font-size="9">Move to Trash</text>
+  <rect x="126" y="96" width="116" height="22" rx="4" fill="#18181b"/>
+  <text x="184" y="111" text-anchor="middle" fill="#fafafa" font-family="ui-sans-serif, system-ui, sans-serif" font-size="10" font-weight="600">Open</text>
+  <rect x="252" y="98" width="56" height="18" rx="9" fill="#dc2626"/>
+  <text x="280" y="111" text-anchor="middle" fill="#fff" font-family="ui-sans-serif, system-ui, sans-serif" font-size="8" font-weight="700">Click</text>
+  <rect x="126" y="124" width="116" height="14" rx="2" fill="#f4f4f5"/>
+  <text x="132" y="134" fill="#52525b" font-family="ui-sans-serif, system-ui, sans-serif" font-size="9">Get Info</text>
+  <rect x="126" y="142" width="116" height="14" rx="2" fill="#f4f4f5"/>
+  <text x="132" y="152" fill="#52525b" font-family="ui-sans-serif, system-ui, sans-serif" font-size="9">Rename</text>
+  <!-- pointer -->
+  <path d="M108 118 L118 128 L112 130 Z" fill="#18181b" stroke="#fff" stroke-width="1"/>
+</svg>

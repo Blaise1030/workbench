@@ -80,7 +80,7 @@ function buildDecorations(
 
 /**
  * Renders a small preview under each `![](...)` in Markdown source when running in Electron
- * (uses `workspaceApi.resolveMarkdownImageUrl` for `file://` workspace assets).
+ * (uses `workspaceApi.resolveMarkdownImageUrl` for workspace assets as `data:` URLs).
  */
 export function markdownImagePreviewExtension(opts: MarkdownImagePreviewOptions): Extension {
   const { workspaceRoot, markdownPath } = opts;

@@ -1,6 +1,6 @@
 import path from "node:path";
 import { contextBridge, ipcRenderer, webUtils } from "electron";
-import { IPC_CHANNELS } from "../src/shared/ipc.js";
+import { IPC_CHANNELS, type AppUpdateAvailability } from "../src/shared/ipc.js";
 
 /** Absolute repo root from the first file in a webkitdirectory pick (Electron only). */
 function resolveRepoRootFromWebkitFile(file: File): string {
@@ -57,6 +57,8 @@ contextBridge.exposeInMainWorld("workspaceApi", {
   gitPush: (cwd: string) => ipcRenderer.invoke(IPC_CHANNELS.diffGitPush, cwd),
   commitStaged: (cwd: string, message: string) =>
     ipcRenderer.invoke(IPC_CHANNELS.diffGitCommit, { cwd, message }),
+  gitCheckoutBranch: (cwd: string, branch: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.diffGitCheckoutBranch, { cwd, branch }),
   listFiles: (cwd: string) => ipcRenderer.invoke(IPC_CHANNELS.filesList, cwd),
   searchFiles: (cwd: string, query: string) => ipcRenderer.invoke(IPC_CHANNELS.filesSearch, { cwd, query }),
   searchFileContents: (cwd: string, query: string) =>
@@ -68,6 +70,10 @@ contextBridge.exposeInMainWorld("workspaceApi", {
       cwd,
       relativePath: markdownRelativePath,
       href
+    }) as Promise<string | null>,
+  readImageDataUrlFromAbsolutePath: (absolutePath: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.filesReadImageDataUrlFromAbsolutePath, {
+      absolutePath
     }) as Promise<string | null>,
   writeFile: (cwd: string, relativePath: string, content: string) =>
     ipcRenderer.invoke(IPC_CHANNELS.filesWrite, { cwd, relativePath, content }),
@@ -115,5 +121,9 @@ contextBridge.exposeInMainWorld("workspaceApi", {
   pickRepoDirectory: () => ipcRenderer.invoke(IPC_CHANNELS.dialogPickRepoDirectory),
   resolveRepoRootFromWebkitFile: (file: File) => resolveRepoRootFromWebkitFile(file),
   /** Absolute path for a file from a drag-and-drop `DataTransfer` (Electron). */
-  getPathForFile: (file: File) => webUtils.getPathForFile(file)
+  getPathForFile: (file: File) => webUtils.getPathForFile(file),
+  getAppVersion: () => ipcRenderer.invoke(IPC_CHANNELS.appGetVersion) as Promise<string>,
+  getAppUpdateAvailability: () =>
+    ipcRenderer.invoke(IPC_CHANNELS.appGetUpdateAvailability) as Promise<AppUpdateAvailability | null>,
+  openAppExternalUrl: (url: string) => ipcRenderer.invoke(IPC_CHANNELS.appOpenExternalUrl, url)
 });

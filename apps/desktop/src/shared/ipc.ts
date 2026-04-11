@@ -30,14 +30,18 @@ export const IPC_CHANNELS = {
   diffGitFetch: "diff:gitFetch",
   diffGitPush: "diff:gitPush",
   diffGitCommit: "diff:gitCommit",
+  /** Checkout an existing local branch in the given worktree directory. */
+  diffGitCheckoutBranch: "diff:gitCheckoutBranch",
   diffIsGitRepository: "diff:isGitRepository",
   diffInitGitRepository: "diff:initGitRepository",
   filesList: "files:list",
   filesSearch: "files:search",
   filesSearchContent: "files:searchContent",
   filesRead: "files:read",
-  /** Resolve `![](href)` in a Markdown file to a loadable URL (e.g. `file://` for workspace assets). */
+  /** Resolve `![](href)` in a Markdown file to a loadable URL (`data:` for workspace images, pass-through for http(s)). */
   filesResolveMarkdownImageUrl: "files:resolveMarkdownImageUrl",
+  /** Read an image outside the worktree (e.g. temp screencapture) as `data:` — restricted to temp + user media folders. */
+  filesReadImageDataUrlFromAbsolutePath: "files:readImageDataUrlFromAbsolutePath",
   filesWrite: "files:write",
   filesCreate: "files:create",
   filesDelete: "files:delete",
@@ -60,7 +64,13 @@ export const IPC_CHANNELS = {
   workspaceWorktreeHealth: "workspace:worktreeHealth",
   workspaceSyncWorktrees: "workspace:syncWorktrees",
   /** macOS often captures ⌘, for the app menu; main sends this so the renderer can open settings. */
-  uiOpenWorkspaceSettings: "ui:openWorkspaceSettings"
+  uiOpenWorkspaceSettings: "ui:openWorkspaceSettings",
+  /** Running app semver from Electron `app.getVersion()`. */
+  appGetVersion: "app:getVersion",
+  /** Packaged app only: GitHub latest release vs `app.getVersion()`. */
+  appGetUpdateAvailability: "app:getUpdateAvailability",
+  /** Open a validated https URL in the system browser (GitHub only). */
+  appOpenExternalUrl: "app:openExternalUrl"
 } as const;
 
 export interface WorkspaceSnapshot {
@@ -123,6 +133,10 @@ export interface FileReadInput {
   relativePath: string;
 }
 
+export interface FileAbsolutePathInput {
+  absolutePath: string;
+}
+
 /** Resolve a Markdown image `href` relative to `markdownRelativePath` inside `cwd`. */
 export interface FileResolveMarkdownImageUrlInput extends FileReadInput {
   /** Raw `href` from `![](...)` (may be relative, URL, or data URI). */
@@ -175,6 +189,18 @@ export interface RepoScmSnapshot {
 }
 
 export type FileDiffScope = "staged" | "unstaged" | "combined";
+
+/** When a newer GitHub release exists than the running packaged build. */
+export interface AppUpdateAvailability {
+  currentVersion: string;
+  latestVersion: string;
+  /** Full tag from GitHub (often `v1.2.3`). */
+  latestTag: string;
+  /** Release page with notes and download assets. */
+  releasePageUrl: string;
+  /** Compare range for commit-level changes since the running version. */
+  compareUrl: string;
+}
 
 /** Result of checking whether a preview URL responds (main process; no CORS). */
 export type PreviewProbeResult =

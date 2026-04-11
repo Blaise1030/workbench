@@ -5,9 +5,11 @@ import {
   IPC_CHANNELS,
   type AddProjectInput,
   type AddWorktreeInput,
+  type AppUpdateAvailability,
   type CreateThreadInput,
   type CreateWorktreeGroupInput,
   type DeleteThreadInput,
+  type FileAbsolutePathInput,
   type FileReadInput,
   type FileResolveMarkdownImageUrlInput,
   type FileWriteInput,
@@ -27,17 +29,85 @@ import { buildCloseConfirmationDetail } from "./lifecycle/closeConfirmation.js";
 import { captureResumeIdsBeforeQuit } from "./lifecycle/quitResumeCapture.js";
 import { collectResumeIdsFromActiveTerminals } from "./lifecycle/quitResumeCapture.js";
 import { extractResumeIdFromStdout, RESUME_CAPTURE_TAIL_CHARS } from "./adapters/resumeIdCapture.js";
+import { GitHeadWatcher } from "./services/gitHeadWatcher.js";
 import { WorkspaceService } from "./services/workspaceService.js";
 import { WorkspaceStore } from "./storage/store.js";
 
 /** Threads whose PTY we scan for resume IDs (stdout + submitted command lines). */
 const AGENTS_WITH_RESUME_CAPTURE: ThreadAgent[] = ["cursor", "claude", "codex", "gemini"];
 
+const WORKBENCH_RELEASES_LATEST_API =
+  "https://api.github.com/repos/Blaise1030/workbench/releases/latest";
+const WORKBENCH_REPO_COMPARE_BASE = "https://github.com/Blaise1030/workbench/compare";
+
+function githubCompareRefForCurrent(currentSemver: string, latestTag: string): string {
+  const cur = currentSemver.replace(/^v/i, "");
+  return /^v\d/i.test(latestTag) ? `v${cur}` : cur;
+}
+
+async function fetchWorkbenchUpdateFromGitHub(): Promise<AppUpdateAvailability | null> {
+  try {
+    const res = await fetch(WORKBENCH_RELEASES_LATEST_API, {
+      headers: { Accept: "application/vnd.github+json", "User-Agent": "workbench-app" }
+    });
+    if (!res.ok) return null;
+    const data = (await res.json()) as { tag_name?: string; html_url?: string };
+    const latestTag = data.tag_name ?? "";
+    const latestVersion = latestTag.replace(/^v/i, "");
+    const currentVersion = app.getVersion();
+    if (!latestVersion || latestVersion === currentVersion) return null;
+    const releasePageUrl =
+      typeof data.html_url === "string"
+        ? data.html_url
+        : "https://github.com/Blaise1030/workbench/releases/latest";
+    const lhs = githubCompareRefForCurrent(currentVersion, latestTag);
+    const compareUrl = `${WORKBENCH_REPO_COMPARE_BASE}/${encodeURIComponent(lhs)}...${encodeURIComponent(latestTag)}`;
+    return {
+      currentVersion,
+      latestVersion,
+      latestTag,
+      releasePageUrl,
+      compareUrl
+    };
+  } catch {
+    return null;
+  }
+}
+
+/** Single in-flight / resolved result per app run (startup check + renderer IPC share one GitHub request). */
+let workbenchUpdateCheckPromise: Promise<AppUpdateAvailability | null> | null = null;
+
+function getWorkbenchUpdateAvailability(): Promise<AppUpdateAvailability | null> {
+  if (!app.isPackaged) return Promise.resolve(null);
+  workbenchUpdateCheckPromise ??= fetchWorkbenchUpdateFromGitHub();
+  return workbenchUpdateCheckPromise;
+}
+
+/** Packaged builds: probe GitHub for a newer release shortly after launch (UI uses IPC). */
+async function checkForUpdate(): Promise<void> {
+  if (!app.isPackaged) return;
+  try {
+    await getWorkbenchUpdateAvailability();
+  } catch {
+    // network / parse failures already yield null from fetch
+  }
+}
+
+function isAllowedAppOpenExternalUrl(url: string): boolean {
+  try {
+    const u = new URL(url);
+    return u.protocol === "https:" && u.hostname === "github.com";
+  } catch {
+    return false;
+  }
+}
+
 const runService = new RunService();
 const diffService = new DiffService();
 const editService = new EditService();
 const fileService = new FileService();
 const ptyService = new PtyService();
+let gitHeadWatcher: GitHeadWatcher | null = null;
 let hasConfirmedClose = false;
 let closeConfirmationInFlight = false;
 
@@ -72,6 +142,7 @@ function emitWorkspaceDidChange(): void {
   for (const win of BrowserWindow.getAllWindows()) {
     win.webContents.send(IPC_CHANNELS.workspaceDidChange);
   }
+  gitHeadWatcher?.syncFromSnapshot(workspaceService.getSnapshot());
 }
 
 function emitWorkingTreeFilesDidChange(): void {
@@ -251,6 +322,12 @@ function registerIpc(workspaceService: WorkspaceService): void {
   ipcMain.handle(IPC_CHANNELS.diffGitCommit, (_, payload: { cwd: string; message: string }) =>
     diffService.commitStaged(payload.cwd, payload.message)
   );
+  ipcMain.handle(IPC_CHANNELS.diffGitCheckoutBranch, async (_, payload: { cwd: string; branch: string }) => {
+    await diffService.checkoutBranch(payload.cwd, payload.branch);
+    workspaceService.updateWorktreeBranchAtPath(payload.cwd, payload.branch);
+    emitWorkspaceDidChange();
+    emitWorkingTreeFilesDidChange();
+  });
   ipcMain.handle(IPC_CHANNELS.filesList, (_, cwd: string) => fileService.listFileSummaries(cwd));
   ipcMain.handle(IPC_CHANNELS.filesSearch, (_, payload: { cwd: string; query: string }) =>
     fileService.searchFiles(payload.cwd, payload.query)
@@ -263,6 +340,10 @@ function registerIpc(workspaceService: WorkspaceService): void {
   );
   ipcMain.handle(IPC_CHANNELS.filesResolveMarkdownImageUrl, (_, payload: FileResolveMarkdownImageUrlInput) =>
     fileService.resolveMarkdownImageUrl(payload.cwd, payload.relativePath, payload.href)
+  );
+  ipcMain.handle(
+    IPC_CHANNELS.filesReadImageDataUrlFromAbsolutePath,
+    (_, payload: FileAbsolutePathInput) => fileService.readImageDataUrlFromAbsolutePath(payload.absolutePath)
   );
   ipcMain.handle(IPC_CHANNELS.filesWrite, async (_, payload: FileWriteInput) => {
     await fileService.writeFile(payload.cwd, payload.relativePath, payload.content);
@@ -322,6 +403,13 @@ function registerIpc(workspaceService: WorkspaceService): void {
     if (canceled || filePaths.length === 0) return null;
     return filePaths[0];
   });
+
+  ipcMain.handle(IPC_CHANNELS.appGetVersion, () => app.getVersion());
+  ipcMain.handle(IPC_CHANNELS.appGetUpdateAvailability, () => getWorkbenchUpdateAvailability());
+  ipcMain.handle(IPC_CHANNELS.appOpenExternalUrl, async (_, url: unknown) => {
+    if (typeof url !== "string" || !isAllowedAppOpenExternalUrl(url)) return;
+    await shell.openExternal(url);
+  });
 }
 
 const dataDir = app.getPath("userData");
@@ -330,6 +418,12 @@ const store = new WorkspaceStore(dataDir);
 store.migrate(schemaSql);
 const gitAdapter = createGitAdapter();
 const workspaceService = new WorkspaceService(store, gitAdapter);
+gitHeadWatcher = new GitHeadWatcher({
+  diffService,
+  workspaceService,
+  onWorkingTreeChanged: emitWorkingTreeFilesDidChange,
+  onWorkspaceMetadataChanged: emitWorkspaceDidChange
+});
 ptyService.setSubmittedInputListener((sessionId, input) => {
   let didChange = workspaceService.maybeRenameThreadFromPrompt(sessionId, input);
   // Capture resume/session UUID from a submitted shell line (e.g. `gemini --resume <uuid>` Enter).
@@ -361,6 +455,12 @@ ptyService.setSessionOutputListener((sessionId) => {
   }
 });
 registerIpc(workspaceService);
+gitHeadWatcher.syncFromSnapshot(workspaceService.getSnapshot());
+
+app.on("will-quit", () => {
+  gitHeadWatcher?.dispose();
+  gitHeadWatcher = null;
+});
 
 let allowQuitAfterResumeCapture = false;
 let resumeCaptureOnQuitInFlight = false;
@@ -396,37 +496,4 @@ app.on("activate", () => {
 
 if (app.isPackaged) {
   void checkForUpdate();
-}
-
-async function checkForUpdate(): Promise<void> {
-  try {
-    const res = await fetch("https://api.github.com/repos/Blaise1030/workbench/releases/latest", {
-      headers: { Accept: "application/vnd.github+json", "User-Agent": "workbench-app" }
-    });
-    if (!res.ok) return;
-    const data = await res.json() as { tag_name?: string; html_url?: string };
-    const latestTag = data.tag_name ?? "";
-    const latestVersion = latestTag.replace(/^v/, "");
-    const currentVersion = app.getVersion();
-    if (!latestVersion || latestVersion === currentVersion) return;
-
-    const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0];
-    const opts = {
-      type: "info" as const,
-      buttons: ["Download", "Later"],
-      defaultId: 0,
-      title: "Update available",
-      message: `workbench ${latestVersion} is available (you have ${currentVersion}).`,
-      detail: "Click Download to open the release page in your browser."
-    };
-    const { response } = win
-      ? await dialog.showMessageBox(win, opts)
-      : await dialog.showMessageBox(opts);
-    if (response === 0) {
-      const url = typeof data.html_url === "string" ? data.html_url : `https://github.com/Blaise1030/workbench/releases/latest`;
-      void shell.openExternal(url);
-    }
-  } catch {
-    // silently ignore — no network, rate limit, etc.
-  }
 }

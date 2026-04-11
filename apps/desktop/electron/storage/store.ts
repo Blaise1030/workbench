@@ -13,6 +13,7 @@ type ThreadTableRow = {
   worktreeId: string;
   title: string;
   agent: Thread["agent"];
+  createdBranch: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -81,6 +82,12 @@ export class WorkspaceStore {
       this.db.prepare("ALTER TABLE worktrees ADD COLUMN last_active_thread_id TEXT").run();
     }
     this.migrateThreadsDropSortOrderIfNeeded();
+    const hasCreatedBranch = this.db
+      .prepare("SELECT 1 FROM pragma_table_info('threads') WHERE name = 'created_branch' LIMIT 1")
+      .get();
+    if (!hasCreatedBranch) {
+      this.db.exec("ALTER TABLE threads ADD COLUMN created_branch TEXT");
+    }
     this.db
       .prepare(
         `UPDATE projects
@@ -259,13 +266,14 @@ export class WorkspaceStore {
   upsertThread(thread: Thread): void {
     this.db
       .prepare(
-        `INSERT INTO threads (id, project_id, worktree_id, title, agent, created_at, updated_at)
-         VALUES (@id, @projectId, @worktreeId, @title, @agent, @createdAt, @updatedAt)
+        `INSERT INTO threads (id, project_id, worktree_id, title, agent, created_branch, created_at, updated_at)
+         VALUES (@id, @projectId, @worktreeId, @title, @agent, @createdBranch, @createdAt, @updatedAt)
          ON CONFLICT(id) DO UPDATE SET
            project_id=excluded.project_id,
            worktree_id=excluded.worktree_id,
            title=excluded.title,
            agent=excluded.agent,
+           created_branch=excluded.created_branch,
            updated_at=excluded.updated_at`
       )
       .run({
@@ -274,6 +282,7 @@ export class WorkspaceStore {
         worktreeId: thread.worktreeId,
         title: thread.title,
         agent: thread.agent,
+        createdBranch: thread.createdBranch ?? null,
         createdAt: thread.createdAt,
         updatedAt: thread.updatedAt
       });
@@ -432,7 +441,7 @@ export class WorkspaceStore {
   getThread(id: string): Thread | null {
     const row = this.db
       .prepare(
-        "SELECT id, project_id AS projectId, worktree_id AS worktreeId, title, agent, created_at AS createdAt, updated_at AS updatedAt FROM threads WHERE id = ?"
+        "SELECT id, project_id AS projectId, worktree_id AS worktreeId, title, agent, created_branch AS createdBranch, created_at AS createdAt, updated_at AS updatedAt FROM threads WHERE id = ?"
       )
       .get(id) as ThreadTableRow | undefined;
     return row ? WorkspaceStore.rowToThread(row) : null;
@@ -522,7 +531,7 @@ export class WorkspaceStore {
     const worktrees = worktreeRows.map((w) => ({ ...w, isActive: Boolean(w.isActive), isDefault: Boolean(w.isDefault), baseBranch: w.baseBranch ?? null })) as Worktree[];
     const threadRows = this.db
       .prepare(
-        "SELECT id, project_id AS projectId, worktree_id AS worktreeId, title, agent, created_at AS createdAt, updated_at AS updatedAt FROM threads"
+        "SELECT id, project_id AS projectId, worktree_id AS worktreeId, title, agent, created_branch AS createdBranch, created_at AS createdAt, updated_at AS updatedAt FROM threads"
       )
       .all() as ThreadTableRow[];
     const threads = threadRows.map((row) => WorkspaceStore.rowToThread(row));
@@ -591,6 +600,7 @@ export class WorkspaceStore {
       worktreeId: row.worktreeId,
       title: row.title,
       agent: row.agent,
+      createdBranch: row.createdBranch ?? null,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt
     };
