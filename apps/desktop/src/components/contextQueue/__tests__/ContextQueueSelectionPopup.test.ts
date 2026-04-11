@@ -28,6 +28,25 @@ describe("ContextQueueSelectionPopup", () => {
     expect(wrapper.emitted("queue")).toHaveLength(1);
   });
 
+  it("emits sendToAgent when Agent is clicked", async () => {
+    wrapper = mount(ContextQueueSelectionPopup, {
+      attachTo: document.body,
+      props: {
+        visible: true,
+        anchor: { left: 10, top: 10, width: 1, height: 1 }
+      }
+    });
+
+    await wrapper.vm.$nextTick();
+    const agent = document.body.querySelector(
+      '[data-testid="context-queue-selection-agent"]'
+    ) as HTMLButtonElement;
+    expect(agent).toBeTruthy();
+    await agent.click();
+
+    expect(wrapper.emitted("sendToAgent")).toHaveLength(1);
+  });
+
   it("emits dismiss when dismiss is clicked", async () => {
     wrapper = mount(ContextQueueSelectionPopup, {
       attachTo: document.body,

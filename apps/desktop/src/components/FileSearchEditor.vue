@@ -28,8 +28,8 @@ import CodeMirrorEditor, { type QueueableEditorSelection } from "@/components/Co
 import ContextQueueSelectionPopup from "@/components/contextQueue/ContextQueueSelectionPopup.vue";
 import { buildPasteText } from "@/contextQueue/formatters";
 import { formatFolderListingFromFiles } from "@/contextQueue/folderListing";
-import { threadContextQueueKey } from "@/contextQueue/injectionKeys";
-import type { QueueCapture } from "@/contextQueue/types";
+import { injectContextToAgentKey, threadContextQueueKey } from "@/contextQueue/injectionKeys";
+import type { QueueCapture, QueueItem } from "@/contextQueue/types";
 import type { Rect } from "@/lib/contextQueueAnchor";
 import { useToast } from "@/composables/useToast";
 import Input from "@/components/ui/Input.vue";
@@ -61,6 +61,7 @@ const props = defineProps<{
 }>();
 
 const threadQueue = inject(threadContextQueueKey, undefined);
+const injectContextToAgent = inject(injectContextToAgentKey, undefined);
 const toast = useToast();
 
 function basenameFromPath(absPath: string): string {
@@ -345,6 +346,39 @@ function confirmFileEditorQueue(): void {
     meta: { filePath: path }
   });
   dismissFileEditorQueuePopup();
+}
+
+async function injectFileEditorSelectionToAgent(): Promise<void> {
+  const tid = props.activeThreadId;
+  const path = selectedPath.value;
+  const p = pendingFileEditorSelection.value;
+  if (!tid || !path || !p) {
+    toast.error("Cannot send", "Select a thread, open a file, and highlight text first.");
+    dismissFileEditorQueuePopup();
+    return;
+  }
+  if (!injectContextToAgent) {
+    toast.error("Unavailable", "Sending to the agent is not available here.");
+    dismissFileEditorQueuePopup();
+    return;
+  }
+  const capture: QueueCapture = {
+    source: "file",
+    filePath: path,
+    selectedText: p.text,
+    lineStart: p.lineStart,
+    lineEnd: p.lineEnd
+  };
+  const item: QueueItem = {
+    id: crypto.randomUUID(),
+    source: "file",
+    pasteText: buildPasteText(capture),
+    meta: { filePath: path }
+  };
+  const ok = await injectContextToAgent([item], { sessionId: tid });
+  if (ok) {
+    dismissFileEditorQueuePopup();
+  }
 }
 
 const findInFileShortcutHint = computed(() =>
@@ -1998,6 +2032,7 @@ defineExpose({
       :visible="fileEditorQueueVisible"
       :anchor="fileEditorQueueAnchor"
       @queue="confirmFileEditorQueue"
+      @send-to-agent="injectFileEditorSelectionToAgent"
       @dismiss="dismissFileEditorQueuePopup"
     />
   </section>

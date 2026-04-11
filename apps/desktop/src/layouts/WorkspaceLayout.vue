@@ -16,7 +16,7 @@ import ThreadCreateButton from "@/components/ThreadCreateButton.vue";
 import BranchPicker from "@/components/BranchPicker.vue";
 import ContextQueueReviewDropdown from "@/components/contextQueue/ContextQueueReviewDropdown.vue";
 import { injectContextQueue } from "@/contextQueue/injectContextQueue";
-import { threadContextQueueKey } from "@/contextQueue/injectionKeys";
+import { injectContextToAgentKey, threadContextQueueKey } from "@/contextQueue/injectionKeys";
 import type { QueueItem } from "@/contextQueue/types";
 import { useThreadContextQueue } from "@/composables/useThreadContextQueue";
 import ThreadSidebar from "@/components/ThreadSidebar.vue";
@@ -76,33 +76,6 @@ const contextQueueItems = computed((): QueueItem[] => {
   return id ? threadContextQueue.itemsFor(id) : [];
 });
 
-async function onContextQueueConfirmed(items: QueueItem[]): Promise<void> {
-  const tid = workspace.activeThreadId;
-  if (!tid) return;
-  mainCenterTab.value = "agent";
-  shellOverlayTab.value = "agent";
-  await nextTick();
-  agentTerminalPaneRef.value?.focus?.();
-  const api = window.workspaceApi;
-  if (!api?.ptyWrite) {
-    toast.error("Terminal unavailable", "PTY is not available in this environment.");
-    return;
-  }
-  try {
-    await injectContextQueue({
-      sessionId: tid,
-      items,
-      ptyWrite: api.ptyWrite,
-      delayMs: 200
-    });
-    for (const row of items) {
-      threadContextQueue.removeItem(tid, row.id);
-    }
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : "Injection failed";
-    toast.error("Could not send to agent", msg);
-  }
-}
 const { terminalNotificationsEnabled, terminalActivitySensitivity } = useTerminalSoundSettings();
 /** Fixed policy: bell and background-output rules (settings UI removed). */
 const terminalBellSound = ref(true);
@@ -230,6 +203,49 @@ const pendingCloseShellLabel = computed(() => {
 });
 
 const agentTerminalPaneRef = ref<InstanceType<typeof TerminalPane> | null>(null);
+
+async function injectContextItemsToActiveAgent(
+  items: QueueItem[],
+  opts?: { sessionId?: string }
+): Promise<boolean> {
+  const tid = opts?.sessionId ?? workspace.activeThreadId;
+  if (!tid) return false;
+  mainCenterTab.value = "agent";
+  shellOverlayTab.value = "agent";
+  await nextTick();
+  agentTerminalPaneRef.value?.focus?.();
+  const api = window.workspaceApi;
+  if (!api?.ptyWrite) {
+    toast.error("Terminal unavailable", "PTY is not available in this environment.");
+    return false;
+  }
+  try {
+    await injectContextQueue({
+      sessionId: tid,
+      items,
+      ptyWrite: api.ptyWrite,
+      delayMs: 200
+    });
+    return true;
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Injection failed";
+    toast.error("Could not send to agent", msg);
+    return false;
+  }
+}
+
+provide(injectContextToAgentKey, injectContextItemsToActiveAgent);
+
+async function onContextQueueConfirmed(items: QueueItem[]): Promise<void> {
+  const tid = workspace.activeThreadId;
+  if (!tid) return;
+  const ok = await injectContextItemsToActiveAgent(items);
+  if (!ok) return;
+  for (const row of items) {
+    threadContextQueue.removeItem(tid, row.id);
+  }
+}
+
 /**
  * Function refs fire during render/mount; keep this registry non-reactive so storing pane
  * instances does not feed back into WorkspaceLayout updates.

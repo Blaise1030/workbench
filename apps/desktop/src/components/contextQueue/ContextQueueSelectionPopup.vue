@@ -10,13 +10,15 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   queue: [];
+  /** Send this capture straight to the agent PTY (skip the review queue). */
+  sendToAgent: [];
   dismiss: [];
 }>();
 
 const popupEl = ref<HTMLElement | null>(null);
 const position = ref({ left: 0, top: 0 });
 
-const fallbackSize = { w: 120, h: 40 };
+const fallbackSize = { w: 200, h: 40 };
 
 function updatePosition(): void {
   if (!props.visible || !props.anchor) return;
@@ -75,7 +77,12 @@ onUnmounted(() => {
       :style="{ left: `${position.left}px`, top: `${position.top}px` }"
       @pointerdown.stop
     >
-      <Button data-testid="context-queue-selection-queue" @click="emit('queue')">Queue</Button>
+      <Button variant="outline" size="xs" data-testid="context-queue-selection-queue" @click="emit('queue')">
+        Queue
+      </Button>
+      <Button size="xs" data-testid="context-queue-selection-agent" @click="emit('sendToAgent')">
+        Agent
+      </Button>
       <Button
         variant="ghost"
         size="icon-sm"

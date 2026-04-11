@@ -6,8 +6,8 @@ import { minimalSetup } from "codemirror";
 import { inject, onBeforeUnmount, onMounted, ref, shallowRef, watch } from "vue";
 import { codemirrorLanguageIdFromPath, languageExtensionsFor } from "@/lib/codemirrorLanguageExtensions";
 import { buildPasteText } from "@/contextQueue/formatters";
-import { threadContextQueueKey } from "@/contextQueue/injectionKeys";
-import type { QueueCapture } from "@/contextQueue/types";
+import { injectContextToAgentKey, threadContextQueueKey } from "@/contextQueue/injectionKeys";
+import type { QueueCapture, QueueItem } from "@/contextQueue/types";
 import type { Rect } from "@/lib/contextQueueAnchor";
 import ContextQueueSelectionPopup from "@/components/contextQueue/ContextQueueSelectionPopup.vue";
 import { useToast } from "@/composables/useToast";
@@ -33,6 +33,7 @@ const editorViewRef = shallowRef<EditorView | null>(null);
 const colorSchemeDark = ref(false);
 
 const threadQueue = inject(threadContextQueueKey, undefined);
+const injectContextToAgent = inject(injectContextToAgentKey, undefined);
 const toast = useToast();
 
 const selectionPopupVisible = ref(false);
@@ -241,6 +242,55 @@ function onQueueDiffSelection(): void {
   lastSelectionView = null;
 }
 
+async function onInjectDiffSelectionToAgent(): Promise<void> {
+  const tid = props.activeThreadId;
+  if (!tid) {
+    toast.error("No active thread", "Select a thread before sending context to the agent.");
+    dismissSelectionPopup();
+    return;
+  }
+  if (!injectContextToAgent) {
+    toast.error("Unavailable", "Sending to the agent is not available here.");
+    dismissSelectionPopup();
+    return;
+  }
+  const p = pendingDiff.value;
+  if (!p) {
+    dismissSelectionPopup();
+    return;
+  }
+
+  const capture: QueueCapture = {
+    source: "diff",
+    filePath: props.filePath,
+    selectedText: p.text,
+    lineStart: p.lineStart,
+    lineEnd: p.lineEnd
+  };
+  const pasteText = buildPasteText(capture);
+  const item: QueueItem = {
+    id: crypto.randomUUID(),
+    source: "diff",
+    pasteText,
+    meta: { filePath: props.filePath }
+  };
+
+  const ok = await injectContextToAgent([item], { sessionId: tid });
+  if (!ok) return;
+
+  if (lastSelectionView) {
+    const sel = lastSelectionView.state.selection.main;
+    lastSelectionView.dispatch({
+      selection: EditorSelection.cursor(sel.to),
+      userEvent: "instrument.contextQueue"
+    });
+  }
+
+  dismissSelectionPopup();
+  pendingDiff.value = null;
+  lastSelectionView = null;
+}
+
 onMounted(() => {
   colorSchemeDark.value = isDark();
   mountMerge();
@@ -275,6 +325,7 @@ watch(
       :visible="selectionPopupVisible"
       :anchor="selectionPopupAnchor"
       @queue="onQueueDiffSelection"
+      @send-to-agent="onInjectDiffSelectionToAgent"
       @dismiss="dismissSelectionPopup"
     />
   </div>
