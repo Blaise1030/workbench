@@ -260,6 +260,9 @@ export class DiffService {
     file: string,
     scope: Exclude<FileDiffScope, "combined">
   ): Promise<FileMergeSidesResult> {
+    if (file.includes(":")) {
+      throw new Error(`Invalid file path for diff: path must not contain ":"`);
+    }
     if (scope === "staged") {
       const head = await this.gitShowBuffer(cwd, `HEAD:${file}`);
       const index = await this.gitShowBuffer(cwd, `:${file}`);
