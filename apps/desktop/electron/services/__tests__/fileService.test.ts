@@ -59,13 +59,13 @@ describe("FileService", () => {
 
   it("rejects reads that escape the root", async () => {
     await expect(service.readFile(tempDir, "../outside.txt")).rejects.toThrow(
-      "Path escapes the active worktree"
+      "Path escapes root"
     );
   });
 
   it("rejects writes that escape the root", async () => {
     await expect(service.writeFile(tempDir, "../outside.txt", "nope")).rejects.toThrow(
-      "Path escapes the active worktree"
+      "Path escapes root"
     );
   });
 
@@ -103,7 +103,7 @@ describe("FileService", () => {
 
   it("rejects deletes that escape the root", async () => {
     await expect(service.deleteFile(tempDir, "../nope.txt")).rejects.toThrow(
-      "Path escapes the active worktree"
+      "Path escapes root"
     );
   });
 

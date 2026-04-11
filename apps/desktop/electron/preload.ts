@@ -1,4 +1,3 @@
-import path from "node:path";
 import { contextBridge, ipcRenderer, webUtils } from "electron";
 import { IPC_CHANNELS, type AppUpdateAvailability } from "../src/shared/ipc.js";
 
@@ -6,16 +5,28 @@ import { IPC_CHANNELS, type AppUpdateAvailability } from "../src/shared/ipc.js";
 function resolveRepoRootFromWebkitFile(file: File): string {
   const absolute = webUtils.getPathForFile(file);
   const relative = file.webkitRelativePath;
+
   if (!relative) {
-    return path.dirname(absolute);
+    // No relative path: strip filename — find last separator
+    const lastSlash = Math.max(absolute.lastIndexOf("/"), absolute.lastIndexOf("\\"));
+    return lastSlash >= 0 ? absolute.slice(0, lastSlash) : absolute;
   }
+
+  // Normalise both to forward slashes for comparison
   const absForward = absolute.replace(/\\/g, "/");
   const relForward = relative.replace(/\\/g, "/");
+
   if (absForward.endsWith(relForward)) {
-    const rootForward = absForward.slice(0, absForward.length - relForward.length).replace(/\/+$/, "");
-    return path.normalize(rootForward.replace(/\//g, path.sep));
+    const rootForward = absForward
+      .slice(0, absForward.length - relForward.length)
+      .replace(/\/+$/, "");
+    // Restore original OS separator style
+    return absolute.includes("\\") ? rootForward.replace(/\//g, "\\") : rootForward;
   }
-  return path.dirname(absolute);
+
+  // Fallback: strip filename
+  const lastSlash = Math.max(absolute.lastIndexOf("/"), absolute.lastIndexOf("\\"));
+  return lastSlash >= 0 ? absolute.slice(0, lastSlash) : absolute;
 }
 
 contextBridge.exposeInMainWorld("workspaceApi", {
