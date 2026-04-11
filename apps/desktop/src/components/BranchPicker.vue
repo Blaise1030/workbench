@@ -1,15 +1,9 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from "vue";
 import { cn } from "@/lib/utils";
+import ScmBranchCombobox from "@/components/ScmBranchCombobox.vue";
 import Button from "@/components/ui/Button.vue";
 import Input from "@/components/ui/Input.vue";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue
-} from "@/components/ui/select";
 
 const props = withDefaults(
   defineProps<{
@@ -31,12 +25,6 @@ const branchInput = ref("");
 const baseBranch = ref("");
 
 const branchTrimmed = computed(() => branchInput.value.trim());
-const selectedBaseBranch = computed({
-  get: () => baseBranch.value,
-  set: (value: string) => {
-    baseBranch.value = value;
-  }
-});
 
 /** True when the typed name is a new branch (not an existing local branch name). */
 const isNewBranchName = computed(() => {
@@ -95,17 +83,29 @@ function handleCreate(): void {
       />
     </div>
 
-    <!-- Base branch (only when creating a new branch name) -->
+    <!-- Base branch (only when creating a new branch name) — same searchable branch control as the toolbar -->
     <div v-if="isNewBranchName" class="mb-2">
       <label class="mb-1 block text-[10px] text-muted-foreground">Base branch</label>
-      <Select v-model="selectedBaseBranch">
-        <SelectTrigger class="h-8 w-full bg-background text-sm">
-          <SelectValue placeholder="Choose base branch" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem v-for="branch in branches" :key="branch" :value="branch">{{ branch }}</SelectItem>
-        </SelectContent>
-      </Select>
+      <ScmBranchCombobox
+        v-if="!loading && branches.length > 0"
+        v-model:current-branch="baseBranch"
+        mode="pick"
+        variant="footer"
+        :branch-line="null"
+        :project-id="projectId"
+      />
+      <p
+        v-else-if="!loading"
+        class="rounded-md border border-border/60 bg-muted/20 px-2 py-2 text-xs text-muted-foreground"
+      >
+        No local branches to branch from.
+      </p>
+      <div
+        v-else
+        class="flex h-8 items-center rounded-md border border-border/60 bg-muted/10 px-2 text-xs text-muted-foreground"
+      >
+        Loading branches…
+      </div>
     </div>
 
     <!-- Actions: primary Create is full-width and large; optional Cancel sits above when not footer. -->

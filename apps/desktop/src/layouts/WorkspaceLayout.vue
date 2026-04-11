@@ -55,6 +55,7 @@ import type {
   CreateThreadInput,
   DeleteThreadInput,
   FileDiffScope,
+  FileMergeSidesResult,
   RemoveProjectInput,
   RepoScmSnapshot,
   RepoStatusEntry,
@@ -83,9 +84,9 @@ const scmPushBusy = ref(false);
 const scmCommitBusy = ref(false);
 const selectedScmPath = ref<string | null>(null);
 const selectedScmScope = ref<FileDiffScope | null>(null);
-const selectedDiff = ref("");
+const selectedMergeResult = ref<FileMergeSidesResult | null>(null);
 const selectedDiffLoading = ref(false);
-const diffCache = new Map<string, string>();
+const diffCache = new Map<string, FileMergeSidesResult>();
 
 const THREADS_SIDEBAR_COLLAPSED_KEY = "instrument.threadsSidebarCollapsed";
 
@@ -480,12 +481,20 @@ function applyRepoStatusSelection(status: RepoStatusEntry[]): void {
   selectedScmScope.value = firstUnstaged ? "unstaged" : null;
 }
 
-async function loadSelectedDiff(): Promise<void> {
+async function loadSelectedMerge(): Promise<void> {
   const api = getApi();
   const path = selectedScmPath.value;
   const scope = selectedScmScope.value;
   if (!api || !workspace.activeWorktree || !path || !scope) {
-    selectedDiff.value = "";
+    selectedMergeResult.value = null;
+    selectedDiffLoading.value = false;
+    return;
+  }
+  if (scope === "combined") {
+    selectedMergeResult.value = {
+      kind: "error",
+      message: "Combined diff scope is not supported for merge view."
+    };
     selectedDiffLoading.value = false;
     return;
   }
@@ -494,16 +503,25 @@ async function loadSelectedDiff(): Promise<void> {
   const key = cacheKey(path, scope);
   const cached = diffCache.get(key);
   if (cached != null) {
-    selectedDiff.value = cached;
+    selectedMergeResult.value = cached;
     selectedDiffLoading.value = false;
     return;
   }
+  if (!api.fileMergeSides) {
+    selectedMergeResult.value = {
+      kind: "error",
+      message: "Update the desktop app to show merge diff in source control."
+    };
+    selectedDiffLoading.value = false;
+    return;
+  }
+  selectedMergeResult.value = null;
   selectedDiffLoading.value = true;
   try {
-    const diff = await api.fileDiff(cwd, path, scope);
+    const result = await api.fileMergeSides(cwd, path, scope);
     if (seq !== selectedDiffSeq || workspace.activeWorktree?.path !== cwd) return;
-    selectedDiff.value = diff;
-    diffCache.set(key, diff);
+    selectedMergeResult.value = result;
+    diffCache.set(key, result);
     while (diffCache.size > 24) {
       const oldest = diffCache.keys().next().value;
       if (!oldest) break;
@@ -511,10 +529,10 @@ async function loadSelectedDiff(): Promise<void> {
     }
   } catch (error) {
     if (seq !== selectedDiffSeq || workspace.activeWorktree?.path !== cwd) return;
-    selectedDiff.value =
-      error instanceof Error
-        ? `Could not load diff: ${error.message}`
-        : "Could not load diff.";
+    selectedMergeResult.value = {
+      kind: "error",
+      message: error instanceof Error ? error.message : "Could not load diff."
+    };
   } finally {
     if (seq === selectedDiffSeq) selectedDiffLoading.value = false;
   }
@@ -528,7 +546,7 @@ async function refreshRepoStatus(): Promise<void> {
     scmMeta.value = { shortLabel: "", branch: "", lastCommitSubject: null };
     selectedScmPath.value = null;
     selectedScmScope.value = null;
-    selectedDiff.value = "";
+    selectedMergeResult.value = null;
     selectedDiffLoading.value = false;
     diffCache.clear();
     return;
@@ -550,7 +568,7 @@ async function refreshRepoStatus(): Promise<void> {
       scmMeta.value = { shortLabel: "", branch: "", lastCommitSubject: null };
       selectedScmPath.value = null;
       selectedScmScope.value = null;
-      selectedDiff.value = "";
+      selectedMergeResult.value = null;
       selectedDiffLoading.value = false;
       diffCache.clear();
       return;
@@ -584,7 +602,7 @@ async function refreshRepoStatus(): Promise<void> {
     }
     applyRepoStatusSelection(statusEntries);
     diffCache.clear();
-    await loadSelectedDiff();
+    await loadSelectedMerge();
   } catch (error) {
     if (seq !== diffRefreshSeq || workspace.activeWorktree?.path !== cwd) return;
     repoStatus.value = [];
@@ -594,10 +612,15 @@ async function refreshRepoStatus(): Promise<void> {
       hasGitRepository.value = false;
       selectedScmPath.value = null;
       selectedScmScope.value = null;
-      selectedDiff.value = "";
+      selectedMergeResult.value = null;
     } else {
-      selectedDiff.value =
-        error instanceof Error ? `Could not load source control status: ${error.message}` : "Could not load source control status.";
+      selectedMergeResult.value = {
+        kind: "error",
+        message:
+          error instanceof Error
+            ? `Could not load source control status: ${error.message}`
+            : "Could not load source control status."
+      };
     }
     selectedDiffLoading.value = false;
   }
@@ -1136,7 +1159,7 @@ async function handleScmCommit(): Promise<void> {
 function handleSelectScmEntry(payload: { path: string; scope: "staged" | "unstaged" }): void {
   selectedScmPath.value = payload.path;
   selectedScmScope.value = payload.scope;
-  void loadSelectedDiff();
+  void loadSelectedMerge();
 }
 
 async function handleScmOpenFileInEditor(path: string): Promise<void> {
@@ -1669,8 +1692,8 @@ watch(
                       :scm-commit-busy="scmCommitBusy"
                       :selected-path="selectedScmPath"
                       :selected-scope="selectedScmScope"
-                      :selected-diff="selectedDiff"
-                      :diff-loading="selectedDiffLoading"
+                      :merge-result="selectedMergeResult"
+                      :merge-loading="selectedDiffLoading"
                       @select-entry="handleSelectScmEntry"
                       @stage-all="handleStageAll"
                       @unstage-all="handleUnstageAll"

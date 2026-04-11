@@ -304,6 +304,13 @@ describe("WorkspaceLayout", () => {
       sendRunInput: vi.fn(),
       interruptRun: vi.fn(),
       fileDiff: vi.fn(),
+      fileMergeSides: vi.fn().mockResolvedValue({
+        kind: "ok" as const,
+        original: "",
+        modified: "",
+        originalLabel: "HEAD",
+        modifiedLabel: "Staged"
+      }),
       stageAll: vi.fn(),
       discardAll: vi.fn(),
       listFiles: vi.fn(),
@@ -366,6 +373,13 @@ describe("WorkspaceLayout", () => {
       sendRunInput: vi.fn(),
       interruptRun: vi.fn(),
       fileDiff: vi.fn(),
+      fileMergeSides: vi.fn().mockResolvedValue({
+        kind: "ok" as const,
+        original: "",
+        modified: "",
+        originalLabel: "HEAD",
+        modifiedLabel: "Staged"
+      }),
       stageAll: vi.fn(),
       discardAll: vi.fn(),
       listFiles: vi.fn(),
@@ -425,6 +439,13 @@ describe("WorkspaceLayout", () => {
       sendRunInput: vi.fn(),
       interruptRun: vi.fn(),
       fileDiff: vi.fn(),
+      fileMergeSides: vi.fn().mockResolvedValue({
+        kind: "ok" as const,
+        original: "",
+        modified: "",
+        originalLabel: "HEAD",
+        modifiedLabel: "Staged"
+      }),
       stageAll: vi.fn(),
       discardAll: vi.fn(),
       listFiles: vi.fn(),
@@ -490,6 +511,13 @@ describe("WorkspaceLayout", () => {
       sendRunInput: vi.fn(),
       interruptRun: vi.fn(),
       fileDiff: vi.fn(),
+      fileMergeSides: vi.fn().mockResolvedValue({
+        kind: "ok" as const,
+        original: "",
+        modified: "",
+        originalLabel: "HEAD",
+        modifiedLabel: "Staged"
+      }),
       stageAll: vi.fn(),
       discardAll: vi.fn(),
       listFiles: vi.fn(),
@@ -546,6 +574,13 @@ describe("WorkspaceLayout", () => {
       sendRunInput: vi.fn(),
       interruptRun: vi.fn(),
       fileDiff: vi.fn(),
+      fileMergeSides: vi.fn().mockResolvedValue({
+        kind: "ok" as const,
+        original: "",
+        modified: "",
+        originalLabel: "HEAD",
+        modifiedLabel: "Staged"
+      }),
       stageAll: vi.fn(),
       discardAll: vi.fn(),
       listFiles: vi.fn(),
@@ -600,6 +635,13 @@ describe("WorkspaceLayout", () => {
       sendRunInput: vi.fn(),
       interruptRun: vi.fn(),
       fileDiff: vi.fn(),
+      fileMergeSides: vi.fn().mockResolvedValue({
+        kind: "ok" as const,
+        original: "",
+        modified: "",
+        originalLabel: "HEAD",
+        modifiedLabel: "Staged"
+      }),
       stageAll: vi.fn(),
       discardAll: vi.fn(),
       listFiles: vi.fn(),
@@ -660,6 +702,13 @@ describe("WorkspaceLayout", () => {
       sendRunInput: vi.fn(),
       interruptRun: vi.fn(),
       fileDiff: vi.fn(),
+      fileMergeSides: vi.fn().mockResolvedValue({
+        kind: "ok" as const,
+        original: "",
+        modified: "",
+        originalLabel: "HEAD",
+        modifiedLabel: "Staged"
+      }),
       stageAll: vi.fn(),
       discardAll: vi.fn(),
       listFiles: vi.fn(),
@@ -724,6 +773,13 @@ describe("WorkspaceLayout", () => {
       sendRunInput: vi.fn(),
       interruptRun: vi.fn(),
       fileDiff: vi.fn(),
+      fileMergeSides: vi.fn().mockResolvedValue({
+        kind: "ok" as const,
+        original: "",
+        modified: "",
+        originalLabel: "HEAD",
+        modifiedLabel: "Staged"
+      }),
       stageAll: vi.fn(),
       discardAll: vi.fn(),
       listFiles: vi.fn(),
@@ -792,6 +848,13 @@ describe("WorkspaceLayout", () => {
       sendRunInput: vi.fn(),
       interruptRun: vi.fn(),
       fileDiff: vi.fn(),
+      fileMergeSides: vi.fn().mockResolvedValue({
+        kind: "ok" as const,
+        original: "",
+        modified: "",
+        originalLabel: "HEAD",
+        modifiedLabel: "Staged"
+      }),
       stageAll: vi.fn(),
       discardAll: vi.fn(),
       listFiles: vi.fn(),
@@ -861,6 +924,13 @@ describe("WorkspaceLayout", () => {
       sendRunInput: vi.fn(),
       interruptRun: vi.fn(),
       fileDiff: vi.fn(),
+      fileMergeSides: vi.fn().mockResolvedValue({
+        kind: "ok" as const,
+        original: "",
+        modified: "",
+        originalLabel: "HEAD",
+        modifiedLabel: "Staged"
+      }),
       stageAll: vi.fn(),
       discardAll: vi.fn(),
       listFiles: vi.fn(),
@@ -933,6 +1003,13 @@ describe("WorkspaceLayout", () => {
       sendRunInput: vi.fn(),
       interruptRun: vi.fn(),
       fileDiff: vi.fn(),
+      fileMergeSides: vi.fn().mockResolvedValue({
+        kind: "ok" as const,
+        original: "",
+        modified: "",
+        originalLabel: "HEAD",
+        modifiedLabel: "Staged"
+      }),
       stageAll: vi.fn(),
       discardAll: vi.fn(),
       listFiles: vi.fn(),
@@ -992,6 +1069,13 @@ describe("WorkspaceLayout", () => {
       sendRunInput: vi.fn(),
       interruptRun: vi.fn(),
       fileDiff: vi.fn(),
+      fileMergeSides: vi.fn().mockResolvedValue({
+        kind: "ok" as const,
+        original: "",
+        modified: "",
+        originalLabel: "HEAD",
+        modifiedLabel: "Staged"
+      }),
       stageAll: vi.fn(),
       discardAll: vi.fn(),
       listFiles: vi.fn(),
@@ -1076,6 +1160,13 @@ describe("WorkspaceLayout", () => {
       sendRunInput: vi.fn(),
       interruptRun: vi.fn(),
       fileDiff: vi.fn(),
+      fileMergeSides: vi.fn().mockResolvedValue({
+        kind: "ok" as const,
+        original: "",
+        modified: "",
+        originalLabel: "HEAD",
+        modifiedLabel: "Staged"
+      }),
       stageAll: vi.fn(),
       discardAll: vi.fn(),
       listFiles: vi.fn(),
@@ -1142,6 +1233,13 @@ describe("WorkspaceLayout", () => {
       sendRunInput: vi.fn(),
       interruptRun: vi.fn(),
       fileDiff: vi.fn(),
+      fileMergeSides: vi.fn().mockResolvedValue({
+        kind: "ok" as const,
+        original: "",
+        modified: "",
+        originalLabel: "HEAD",
+        modifiedLabel: "Staged"
+      }),
       stageAll: vi.fn(),
       discardAll: vi.fn(),
       listFiles: vi.fn(),
@@ -1286,6 +1384,13 @@ describe("WorkspaceLayout", () => {
       sendRunInput: vi.fn(),
       interruptRun: vi.fn(),
       fileDiff: vi.fn(),
+      fileMergeSides: vi.fn().mockResolvedValue({
+        kind: "ok" as const,
+        original: "",
+        modified: "",
+        originalLabel: "HEAD",
+        modifiedLabel: "Staged"
+      }),
       stageAll: vi.fn(),
       discardAll: vi.fn(),
       listFiles: vi.fn(),

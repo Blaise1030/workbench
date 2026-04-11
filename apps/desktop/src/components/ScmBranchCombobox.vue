@@ -20,13 +20,19 @@ const props = withDefaults(
   defineProps<{
     /** Footer line, e.g. `folder / main`. */
     branchLine: string | null;
-    /** Current `HEAD` short name (from repo status). */
+    /** Current `HEAD` short name (from repo status), or selected branch when `mode` is `pick`. */
     currentBranch: string;
     projectId: string;
-    cwd: string;
+    /** Required for `checkout` mode (git checkout target path). Ignored when `mode` is `pick`. */
+    cwd?: string;
+    /**
+     * `checkout` — list branches and run `gitCheckoutBranch` on select (default).
+     * `pick` — searchable branch list only; emits `update:currentBranch` (e.g. worktree base branch).
+     */
+    mode?: "checkout" | "pick";
     /**
      * When `false`, show a static branch line only (e.g. multi-worktree projects use the sidebar
-     * branch / worktree flow instead).
+     * branch / worktree flow instead). Ignored when `mode` is `pick`.
      */
     switcherEnabled?: boolean;
     /** `toolbar` matches the center bar badge (compact); `footer` matches the Git panel footer. */
@@ -35,6 +41,8 @@ const props = withDefaults(
   {
     branchLine: null,
     currentBranch: "",
+    cwd: "",
+    mode: "checkout",
     switcherEnabled: false,
     variant: "footer"
   }
@@ -43,6 +51,7 @@ const props = withDefaults(
 const emit = defineEmits<{
   /** Parent should refresh repo status / snapshot after a successful checkout. */
   branchChanged: [];
+  "update:currentBranch": [value: string];
 }>();
 
 const toast = useToast();
@@ -52,10 +61,19 @@ const branchesLoading = ref(false);
 const checkoutBusy = ref(false);
 const comboboxKey = ref(0);
 
+const isPickMode = computed(() => props.mode === "pick");
+
 const canUseApi = computed(() => {
   const api = typeof window !== "undefined" ? window.workspaceApi : undefined;
+  if (isPickMode.value) {
+    return Boolean(api?.listBranches && props.projectId);
+  }
   return Boolean(
-    props.switcherEnabled && api?.listBranches && api?.gitCheckoutBranch && props.projectId && props.cwd
+    props.switcherEnabled &&
+      api?.listBranches &&
+      api?.gitCheckoutBranch &&
+      props.projectId &&
+      props.cwd
   );
 });
 
@@ -64,19 +82,21 @@ const triggerLabel = computed(() => {
   return "—";
 });
 
-/** Toolbar shows the short branch name; footer keeps the full `folder / branch` line. */
+/** Toolbar / pick show the branch name; footer prefers `branchLine` then falls back to `currentBranch`. */
 const displayTrigger = computed(() => {
   if (props.variant === "toolbar" && props.currentBranch.trim()) return props.currentBranch.trim();
+  if (isPickMode.value && props.currentBranch.trim()) return props.currentBranch.trim();
   return triggerLabel.value;
 });
 
-const comboboxRootClass = computed(() =>
-  props.variant === "toolbar" ? "ms-2 shrink-0" : "min-w-0 flex-1"
-);
+const comboboxRootClass = computed(() => {
+  if (isPickMode.value) return "min-w-0 w-full";
+  return props.variant === "toolbar" ? "ms-2 shrink-0" : "min-w-0 flex-1";
+});
 
 /** Override default `ComboboxAnchor` width so the toolbar pill sizes to the trigger. */
 const comboboxAnchorClass = computed(() =>
-  props.variant === "toolbar"
+  props.variant === "toolbar" && !isPickMode.value
     ? "flex w-auto min-w-0 max-w-full justify-start"
     : "flex w-auto min-w-0 max-w-full"
 );
@@ -90,6 +110,17 @@ const toolbarTriggerTitle = computed(() => {
 
 const triggerClass = computed(() => {
   const busy = checkoutBusy.value ? "pointer-events-none opacity-60" : "";
+  if (isPickMode.value) {
+    return cn(
+      buttonClass({
+        variant: "outline",
+        size: "sm",
+        className:
+          "h-8 min-h-8 w-full min-w-0 max-w-none !justify-start gap-2 px-2.5 text-start font-mono text-sm font-medium text-foreground shadow-xs hover:text-accent-foreground"
+      }),
+      busy
+    );
+  }
   if (props.variant === "toolbar") {
     return cn(
       buttonClass({
@@ -131,7 +162,15 @@ async function loadBranches(): Promise<void> {
 }
 
 async function onModelUpdate(branch: string | undefined): Promise<void> {
-  if (!branch || branch === props.currentBranch || checkoutBusy.value) return;
+  if (!branch || checkoutBusy.value) return;
+  if (isPickMode.value) {
+    if (branch !== props.currentBranch) {
+      emit("update:currentBranch", branch);
+    }
+    open.value = false;
+    return;
+  }
+  if (branch === props.currentBranch) return;
   const api = window.workspaceApi;
   if (!api?.gitCheckoutBranch) {
     toast.error("Checkout unavailable", "Use an up-to-date desktop build or run git checkout in the terminal.");
@@ -166,13 +205,21 @@ async function onModelUpdate(branch: string | undefined): Promise<void> {
       <ComboboxAnchor :class="comboboxAnchorClass">
         <ComboboxTrigger
           :disabled="checkoutBusy"
-          :title="variant === 'toolbar' ? toolbarTriggerTitle : undefined"
-          :aria-label="`Current branch: ${displayTrigger}. Open branch switcher.`"
+          :title="variant === 'toolbar' && !isPickMode ? toolbarTriggerTitle : undefined"
+          :aria-label="
+            isPickMode
+              ? `Base branch: ${displayTrigger}. Open branch list.`
+              : `Current branch: ${displayTrigger}. Open branch switcher.`
+          "
           :class="triggerClass"
         >
           <Loader2 v-if="checkoutBusy" class="size-2.5 shrink-0 animate-spin" aria-hidden="true" />
-          <template v-if="variant === 'toolbar'">
-            <GitBranch v-if="!checkoutBusy" class="size-3 shrink-0" aria-hidden="true" />
+          <template v-if="variant === 'toolbar' || isPickMode">
+            <GitBranch
+              v-if="!checkoutBusy"
+              :class="isPickMode ? 'size-3.5 shrink-0 opacity-80' : 'size-3 shrink-0'"
+              aria-hidden="true"
+            />
             <span v-if="!checkoutBusy" class="min-w-0 flex-1 truncate text-start">{{ displayTrigger }}</span>
             <ChevronDown
               v-if="!checkoutBusy"

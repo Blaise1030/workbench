@@ -2,6 +2,7 @@
 import type {
   AppUpdateAvailability,
   FileDiffScope,
+  FileMergeSidesResult,
   FileSummary,
   RepoScmSnapshot,
   RepoStatusEntry
@@ -38,6 +39,8 @@ interface WorkspaceApi {
   gitCheckoutBranch?: (cwd: string, branch: string) => Promise<void>;
   listBranches?: (projectId: string) => Promise<string[]>;
   fileDiff: (cwd: string, file: string, scope?: FileDiffScope) => Promise<string>;
+  /** Two full texts for Git merge diff (Electron); optional on older preload builds. */
+  fileMergeSides?: (cwd: string, file: string, scope: "staged" | "unstaged") => Promise<FileMergeSidesResult>;
   /** Full unstaged unified diff; omit on older preload builds (layout falls back per-file). */
   workingTreeDiff?: (cwd: string) => Promise<string>;
   stageAll: (cwd: string) => Promise<void>;

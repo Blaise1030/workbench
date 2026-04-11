@@ -1,7 +1,5 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
-import { html as diffToHtml } from "diff2html";
-import { ColorSchemeType } from "diff2html/lib/types";
 import {
   ArrowDownToLine,
   ArrowUpFromLine,
@@ -28,9 +26,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu";
-import type { RepoStatusEntry } from "@shared/ipc";
-import { looksLikeUnifiedDiff } from "@shared/diffPaths";
-import "diff2html/bundles/css/diff2html.min.css";
+import type { FileMergeSidesResult, RepoStatusEntry } from "@shared/ipc";
+import CodeMirrorMergeDiff from "@/components/CodeMirrorMergeDiff.vue";
 
 const commitMessage = defineModel<string>("commitMessage", { default: "" });
 
@@ -74,8 +71,8 @@ const props = withDefaults(
     scmCommitBusy?: boolean;
     selectedPath: string | null;
     selectedScope: EntryScope | null;
-    selectedDiff: string;
-    diffLoading: boolean;
+    mergeResult: FileMergeSidesResult | null;
+    mergeLoading: boolean;
   }>(),
   {
     branchLine: null,
@@ -109,8 +106,37 @@ const emit = defineEmits<{
   branchChanged: [];
 }>();
 
-const richDiffMaxBytes = 300_000;
-const rawPreMaxChars = 240_000;
+/** Max characters for the directory prefix before we collapse with `…/` (filename stays full). */
+const SCM_PATH_DIR_MAX_CHARS = 44;
+
+function splitRepoPath(path: string): { dir: string; base: string } {
+  const norm = path.replace(/\\/g, "/").trim();
+  if (!norm) return { dir: "", base: "" };
+  const i = norm.lastIndexOf("/");
+  if (i < 0) return { dir: "", base: norm };
+  return { dir: norm.slice(0, i), base: norm.slice(i + 1) };
+}
+
+/** Keep folders nearest the file; prepend `…/` for omitted parents (leading truncation). */
+function shortenDirPrefix(dir: string, maxLen: number): string {
+  if (dir.length <= maxLen) return dir;
+  const parts = dir.split("/").filter(Boolean);
+  const picked: string[] = [];
+  let used = 2;
+  for (let i = parts.length - 1; i >= 0; i--) {
+    const seg = parts[i]!;
+    const next = used + seg.length + (picked.length > 0 ? 1 : 0);
+    if (next > maxLen) break;
+    picked.unshift(seg);
+    used = next;
+  }
+  if (picked.length === 0) {
+    const tail = dir.slice(Math.max(0, dir.length - (maxLen - 1)));
+    return `…${tail}`;
+  }
+  return `…/${picked.join("/")}`;
+}
+
 /** Fixed row heights for virtualized sidebar (must match template layout). */
 const SECTION_ROW_PX = 22;
 const ENTRY_ROW_PX = 22;
@@ -119,9 +145,6 @@ const SECTION_MAJOR_GAP_PX = 10;
 const sidebarScrollRef = ref<HTMLElement | null>(null);
 const sidebarViewportHeight = ref(320);
 const sidebarScrollTop = ref(0);
-const diffHostRef = ref<HTMLElement | null>(null);
-const diffColorScheme = ref<ColorSchemeType>(ColorSchemeType.LIGHT);
-let diffThemeObserver: MutationObserver | null = null;
 let sidebarResizeObserver: ResizeObserver | null = null;
 
 function sectionEntries(section: SectionId): FlatItem[] {
@@ -224,6 +247,15 @@ const selectedEntry = computed(() => {
     (item) =>
       item.kind === "entry" && item.path === props.selectedPath && item.scope === props.selectedScope
   );
+});
+
+/** Path line: full basename + shortened parent path; `title` carries the full relative path. */
+const scmPathHeader = computed(() => {
+  const path = selectedEntry.value?.path ?? "";
+  if (!path) return { full: "", base: "", dirLine: "", hasDir: false };
+  const { dir, base } = splitRepoPath(path);
+  const dirLine = dir ? shortenDirPrefix(dir, SCM_PATH_DIR_MAX_CHARS) : "";
+  return { full: path, base, dirLine, hasDir: Boolean(dir) };
 });
 
 /** Entry row ids (`staged:path`, `untracked:path`, …) selected for bulk actions. */
@@ -397,36 +429,9 @@ const visibleSidebarItems = computed(() => {
   });
 });
 
-const rawDiffPreview = computed(() => {
-  const raw = props.selectedDiff;
-  if (raw.length <= rawPreMaxChars) return raw;
-  return `${raw.slice(0, rawPreMaxChars)}\n\n… (${raw.length.toLocaleString()} characters total; preview truncated)`;
-});
-
-function diffColorSchemeFromDocument(): ColorSchemeType {
-  if (typeof document === "undefined") return ColorSchemeType.LIGHT;
-  return document.documentElement.classList.contains("dark") ? ColorSchemeType.DARK : ColorSchemeType.LIGHT;
-}
-
-const richDiffHtml = computed(() => {
-  const raw = props.selectedDiff;
-  if (!looksLikeUnifiedDiff(raw) || raw.length > richDiffMaxBytes) return null;
-  try {
-    return diffToHtml(raw, {
-      drawFileList: false,
-      colorScheme: diffColorScheme.value,
-      outputFormat: "line-by-line",
-      diffStyle: "word"
-    });
-  } catch {
-    return null;
-  }
-});
-
 const emptyMessage = computed(() => {
   if (totalChanges.value === 0) return "✨ Working tree is clean.";
   if (!selectedEntry.value) return "Select a changed file to inspect it.";
-  if (!props.selectedDiff.trim() && !props.diffLoading) return "No diff to show for this selection.";
   return null;
 });
 
@@ -508,12 +513,6 @@ watch(
 );
 
 onMounted(() => {
-  diffColorScheme.value = diffColorSchemeFromDocument();
-  diffThemeObserver = new MutationObserver(() => {
-    diffColorScheme.value = diffColorSchemeFromDocument();
-  });
-  diffThemeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
-
   if (sidebarScrollRef.value) {
     sidebarViewportHeight.value = sidebarScrollRef.value.clientHeight;
     if (typeof ResizeObserver !== "undefined") {
@@ -528,8 +527,6 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
-  diffThemeObserver?.disconnect();
-  diffThemeObserver = null;
   sidebarResizeObserver?.disconnect();
   sidebarResizeObserver = null;
 });
@@ -791,18 +788,29 @@ onBeforeUnmount(() => {
     </aside>
 
     <div class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-      <header class="flex h-9 items-center gap-2 border-b border-border px-2">
-        <div class="min-w-0 flex-1">
-          <p class="truncate font-mono text-[10px] leading-none text-foreground">
-            {{ selectedEntry?.path ?? "No file selected" }}
-          </p>
+      <header class="flex h-9 min-w-0 items-center gap-2 overflow-x-auto border-b border-border px-2 whitespace-nowrap">
+        <div
+          class="min-w-0 flex-1 font-mono text-[10px] leading-tight"
+          :title="scmPathHeader.full || undefined"
+        >
+          <template v-if="scmPathHeader.full">
+            <p class="flex min-w-0 items-baseline justify-start gap-0">
+              <span
+                v-if="scmPathHeader.hasDir"
+                class="min-w-0 shrink truncate text-muted-foreground"
+              >{{ scmPathHeader.dirLine }}/</span>
+              <span class="shrink-0 font-medium text-foreground">{{ scmPathHeader.base }}</span>
+            </p>
+          </template>
+          <p v-else class="text-muted-foreground">No file selected</p>
           <p class="sr-only">
+            File path: {{ scmPathHeader.full || "none" }}.
             {{
               selectedEntry?.scope === "staged"
-                ? "Staged changes"
+                ? "Staged changes."
                 : selectedEntry?.scope === "unstaged"
-                  ? "Working tree changes"
-                  : "Diff"
+                  ? "Working tree changes."
+                  : "Diff."
             }}
           </p>
         </div>
@@ -821,8 +829,8 @@ onBeforeUnmount(() => {
         </Button>
       </header>
 
-      <div ref="diffHostRef" class="min-h-0 flex-1 overflow-auto">
-        <div v-if="diffLoading" class="flex h-full items-center justify-center text-[11px] text-muted-foreground">
+      <div class="flex min-h-0 flex-1 flex-col overflow-hidden">
+        <div v-if="mergeLoading" class="flex h-full items-center justify-center text-[11px] text-muted-foreground">
           Loading diff…
         </div>
         <div
@@ -835,14 +843,35 @@ onBeforeUnmount(() => {
           <p class="max-w-xs text-xs text-muted-foreground">{{ emptyMessage.replace('✨ ', '') }}</p>
         </div>
         <div
-          v-else-if="richDiffHtml"
-          class="diff-rich-host p-2"
-          v-html="richDiffHtml"
-        />
-        <pre
-          v-else
-          class="m-0 min-h-full overflow-auto p-4 font-mono text-xs whitespace-pre-wrap"
-        >{{ rawDiffPreview }}</pre>
+          v-else-if="mergeResult?.kind === 'error'"
+          class="flex h-full items-center justify-center px-4 text-center text-[11px] text-destructive"
+          role="alert"
+        >
+          {{ mergeResult.message }}
+        </div>
+        <div
+          v-else-if="mergeResult?.kind === 'binary'"
+          class="flex h-full items-center justify-center px-4 text-center text-[11px] text-muted-foreground"
+          role="status"
+        >
+          Binary file — side-by-side text diff is not shown.
+        </div>
+        <div v-else-if="mergeResult?.kind === 'ok'" class="flex min-h-0 flex-1 flex-col overflow-hidden">
+          <p
+            class="shrink-0 border-b border-border bg-muted/15 px-2 py-1 font-mono text-[10px] leading-tight text-muted-foreground"
+          >
+            <span class="font-medium text-foreground">{{ mergeResult.originalLabel }}</span>
+            · left —
+            <span class="font-medium text-foreground">{{ mergeResult.modifiedLabel }}</span>
+            · right
+          </p>
+          <CodeMirrorMergeDiff
+            class="min-h-0 flex-1"
+            :original="mergeResult.original"
+            :modified="mergeResult.modified"
+            :file-path="selectedEntry?.path ?? ''"
+          />
+        </div>
       </div>
     </div>
   </section>
@@ -850,66 +879,4 @@ onBeforeUnmount(() => {
 
 <style scoped>
 @reference "../styles/globals.css";
-
-.diff-rich-host :deep(.d2h-file-wrapper) {
-  margin-bottom: 0 !important;
-  border-color: var(--border) !important;
-  background: var(--background);
-  border-radius: 0.375rem !important;
-  overflow: hidden !important;
-}
-
-/* Path + status badge already appear in the panel header above. */
-.diff-rich-host :deep(.d2h-file-header) {
-  display: none !important;
-}
-
-.diff-rich-host :deep(.d2h-del) {
-  background-color: color-mix(in srgb, var(--destructive) 14%, transparent) !important;
-}
-
-.diff-rich-host :deep(.d2h-ins) {
-  background-color: color-mix(in srgb, var(--chart-2) 14%, transparent) !important;
-}
-
-/*
- * Line-by-line diffs rely on position:absolute gutter <td>s plus .d2h-code-line horizontal padding.
- * Do not set those <td>s to position:relative — it breaks the layout and hides the diff body.
- * Widen the gutter and match code-line inset so long line numbers do not clip.
- */
-.diff-rich-host :deep(td.d2h-code-linenumber),
-.diff-rich-host :deep(td.d2h-code-side-linenumber) {
-  overflow: hidden !important;
-  position: relative !important;
-}
-
-.diff-rich-host :deep(td.d2h-code-linenumber) {
-  width: 5rem !important;
-  max-width: 5rem !important;
-}
-
-.diff-rich-host :deep(td.d2h-code-side-linenumber) {
-  width: 2.75rem !important;
-  max-width: 2.75rem !important;
-}
-
-.diff-rich-host :deep(.line-num1),
-.diff-rich-host :deep(.line-num2) {
-  width: auto !important;
-  min-width: 3ch !important;
-  max-width: none !important;
-  overflow: visible !important;
-  text-overflow: clip !important;
-  white-space: nowrap !important;
-  box-sizing: border-box !important;
-  padding: 0 0.35rem !important;
-  font-variant-numeric: tabular-nums !important;
-}
-
-.diff-rich-host :deep(.d2h-code-line),
-.diff-rich-host :deep(.d2h-code-side-line) {
-  padding: 0 0.5rem 0 5.5rem !important;
-  width: auto !important;
-  max-width: none !important;
-}
 </style>

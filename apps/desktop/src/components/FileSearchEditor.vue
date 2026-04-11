@@ -217,15 +217,11 @@ let disposeWorkingTreeFilesChanged: (() => void) | null = null;
 let fileSummariesSeq = 0;
 let openFileSeq = 0;
 
-const newFileDialogOpen = ref(false);
-const newFilePathDraft = ref("");
-const newFilePathInputRef = ref<InstanceType<typeof Input> | null>(null);
-const newFileDialogFieldError = ref<string | null>(null);
-
-const newFolderDialogOpen = ref(false);
-const newFolderPathDraft = ref("");
-const newFolderPathInputRef = ref<InstanceType<typeof Input> | null>(null);
-const newFolderDialogFieldError = ref<string | null>(null);
+/** `null` when closed; distinguishes new file vs new folder in a single shadcn `Dialog`. */
+const newEntryDialogKind = ref<"file" | "folder" | null>(null);
+const newEntryPathDraft = ref("");
+const newEntryPathInputRef = ref<InstanceType<typeof Input> | null>(null);
+const newEntryDialogFieldError = ref<string | null>(null);
 
 type ConfirmActionState = {
   title: string;
@@ -236,6 +232,10 @@ type ConfirmActionState = {
 };
 
 const confirmAction = ref<ConfirmActionState | null>(null);
+
+const newEntryPathInputId = computed(() =>
+  newEntryDialogKind.value === "folder" ? "new-folder-path-input" : "new-file-path-input"
+);
 
 const hasWorkspace = computed(() => Boolean(props.worktreePath));
 const dirty = computed(
@@ -666,14 +666,9 @@ function computeNewFileDefaultValue(folderPathPrefix?: string): string {
   return folderHint === "" ? "new-file.txt" : folderHint ? `${folderHint}/` : "src/";
 }
 
-function closeNewFileDialog(): void {
-  newFileDialogOpen.value = false;
-  newFileDialogFieldError.value = null;
-}
-
-function closeNewFolderDialog(): void {
-  newFolderDialogOpen.value = false;
-  newFolderDialogFieldError.value = null;
+function closeNewEntryDialog(): void {
+  newEntryDialogKind.value = null;
+  newEntryDialogFieldError.value = null;
 }
 
 function computeNewFolderDefaultValue(folderPathPrefix?: string): string {
@@ -694,13 +689,13 @@ async function openNewFileDialog(folderPathPrefix?: string): Promise<void> {
   const cwd = props.worktreePath;
   if (!api || !cwd) return;
 
-  newFilePathDraft.value = computeNewFileDefaultValue(
+  newEntryPathDraft.value = computeNewFileDefaultValue(
     typeof folderPathPrefix === "string" ? folderPathPrefix : undefined
   );
-  newFileDialogFieldError.value = null;
-  newFileDialogOpen.value = true;
+  newEntryDialogFieldError.value = null;
+  newEntryDialogKind.value = "file";
   await nextTick();
-  const el = newFilePathInputRef.value;
+  const el = newEntryPathInputRef.value;
   el?.focus();
   el?.select();
 }
@@ -710,61 +705,61 @@ async function openNewFolderDialog(folderPathPrefix?: string): Promise<void> {
   const cwd = props.worktreePath;
   if (!api?.createFolder || !cwd) return;
 
-  newFolderPathDraft.value = computeNewFolderDefaultValue(
+  newEntryPathDraft.value = computeNewFolderDefaultValue(
     typeof folderPathPrefix === "string" ? folderPathPrefix : undefined
   );
-  newFolderDialogFieldError.value = null;
-  newFolderDialogOpen.value = true;
+  newEntryDialogFieldError.value = null;
+  newEntryDialogKind.value = "folder";
   await nextTick();
-  const el = newFolderPathInputRef.value;
+  const el = newEntryPathInputRef.value;
   el?.focus();
   el?.select();
 }
 
-async function submitNewFile(): Promise<void> {
+async function submitNewEntry(): Promise<void> {
+  const kind = newEntryDialogKind.value;
   const api = getApi();
   const cwd = props.worktreePath;
-  if (!api || !cwd) return;
+  if (!kind || !api || !cwd) return;
 
-  const normalized = normalizeNewFilePathInput(newFilePathDraft.value);
-  if (!normalized || normalized.endsWith("/")) {
-    newFileDialogFieldError.value = "Enter a file path (not a folder).";
+  if (kind === "file") {
+    const normalized = normalizeNewFilePathInput(newEntryPathDraft.value);
+    if (!normalized || normalized.endsWith("/")) {
+      newEntryDialogFieldError.value = "Enter a file path (not a folder).";
+      return;
+    }
+
+    newEntryDialogFieldError.value = null;
+    error.value = null;
+
+    try {
+      await api.createFile(cwd, normalized);
+      closeNewEntryDialog();
+      await loadFileSummaries();
+      expandAncestorFolders(normalized);
+      if (!(await confirmDiscardIfDirty())) return;
+      await openFile(normalized);
+    } catch (createError) {
+      error.value =
+        createError instanceof Error ? createError.message : "Could not create the file.";
+    }
     return;
   }
 
-  newFileDialogFieldError.value = null;
-  error.value = null;
+  if (!api.createFolder) return;
 
-  try {
-    await api.createFile(cwd, normalized);
-    closeNewFileDialog();
-    await loadFileSummaries();
-    expandAncestorFolders(normalized);
-    if (!(await confirmDiscardIfDirty())) return;
-    await openFile(normalized);
-  } catch (createError) {
-    error.value =
-      createError instanceof Error ? createError.message : "Could not create the file.";
-  }
-}
-
-async function submitNewFolder(): Promise<void> {
-  const api = getApi();
-  const cwd = props.worktreePath;
-  if (!api?.createFolder || !cwd) return;
-
-  const normalized = normalizeNewFilePathInput(newFolderPathDraft.value).replace(/\/+$/, "");
+  const normalized = normalizeNewFilePathInput(newEntryPathDraft.value).replace(/\/+$/, "");
   if (!normalized) {
-    newFolderDialogFieldError.value = "Enter a folder path.";
+    newEntryDialogFieldError.value = "Enter a folder path.";
     return;
   }
 
-  newFolderDialogFieldError.value = null;
+  newEntryDialogFieldError.value = null;
   error.value = null;
 
   try {
     await api.createFolder(cwd, normalized);
-    closeNewFolderDialog();
+    closeNewEntryDialog();
     await loadFileSummaries();
     expandAncestorFolders(normalized);
   } catch (createError) {
@@ -792,12 +787,8 @@ function onGlobalKeydown(e: KeyboardEvent): void {
       settleConfirmation(false);
       return;
     }
-    if (newFileDialogOpen.value) {
-      closeNewFileDialog();
-      return;
-    }
-    if (newFolderDialogOpen.value) {
-      closeNewFolderDialog();
+    if (newEntryDialogKind.value) {
+      closeNewEntryDialog();
       return;
     }
   }
@@ -917,8 +908,7 @@ function resetState(): void {
   isSearching.value = false;
   isLoadingFile.value = false;
   isSaving.value = false;
-  closeNewFileDialog();
-  closeNewFolderDialog();
+  closeNewEntryDialog();
   clearSelection();
 }
 
@@ -1287,7 +1277,7 @@ defineExpose({
       <template v-else>
         <div
           data-testid="file-search-header"
-          class="flex flex-col gap-1 border-b border-border px-2.5 pt-2.5 pb-2"
+          class="flex flex-col gap-1 border-b border-border p-1"
         >
           <div class="relative min-w-0 text-muted-foreground">
             <Search
@@ -1300,7 +1290,7 @@ defineExpose({
               data-testid="file-search-input"
               type="text"
               :placeholder="searchPlaceholder"
-              class="h-8 min-w-0 w-full rounded-md bg-background py-1 pr-2 pl-8 text-xs focus-visible:ring-2"
+              class="h-8 min-w-0 w-full rounded-md bg-muted py-1 pr-2 pl-8 text-xs focus-visible:ring-2"
               :disabled="!hasWorkspace"
             />
           </div>
@@ -1756,95 +1746,73 @@ defineExpose({
       </div>
     </div>
 
-    <Dialog :open="newFileDialogOpen" @update:open="(open) => (!open ? closeNewFileDialog() : undefined)">
-      <DialogContent data-testid="new-file-dialog" class="sm:max-w-md">
+    <Dialog
+      :open="newEntryDialogKind !== null"
+      @update:open="(open) => (!open ? closeNewEntryDialog() : undefined)"
+    >
+      <DialogContent
+        :data-testid="newEntryDialogKind === 'folder' ? 'new-folder-dialog' : 'new-file-dialog'"
+        class="sm:max-w-md"
+      >
         <DialogHeader>
-          <DialogTitle id="new-file-dialog-title" class="text-sm">New file</DialogTitle>
-          <DialogDescription class="text-xs">
+          <DialogTitle
+            :id="newEntryDialogKind === 'folder' ? 'new-folder-dialog-title' : 'new-file-dialog-title'"
+          >
+            {{ newEntryDialogKind === "folder" ? "New folder" : "New file" }}
+          </DialogTitle>
+          <DialogDescription v-if="newEntryDialogKind === 'file'" class="text-xs">
             Path relative to the workspace (use <span class="font-mono">/</span> for folders).
           </DialogDescription>
-        </DialogHeader>
-        <form class="space-y-3" @submit.prevent="submitNewFile">
-          <div>
-            <label for="new-file-path-input" class="sr-only">File path</label>
-            <Input
-              id="new-file-path-input"
-              ref="newFilePathInputRef"
-              v-model="newFilePathDraft"
-              data-testid="new-file-path-input"
-              type="text"
-              autocomplete="off"
-              spellcheck="false"
-              class="h-9 w-full rounded-md bg-background px-2.5 text-xs focus-visible:ring-2"
-              placeholder="e.g. src/components/MyFile.ts"
-            />
-            <p
-              v-if="newFileDialogFieldError"
-              data-testid="new-file-dialog-error"
-              class="mt-1.5 text-xs text-destructive"
-            >
-              {{ newFileDialogFieldError }}
-            </p>
-          </div>
-          <DialogFooter>
-            <Button
-              type="button"
-              data-testid="new-file-cancel"
-              variant="outline"
-              size="xs"
-              @click="closeNewFileDialog"
-            >
-              Cancel
-            </Button>
-            <Button type="submit" data-testid="new-file-confirm" variant="default" size="xs">
-              Create
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
-
-    <Dialog :open="newFolderDialogOpen" @update:open="(open) => (!open ? closeNewFolderDialog() : undefined)">
-      <DialogContent data-testid="new-folder-dialog" class="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle id="new-folder-dialog-title" class="text-sm">New folder</DialogTitle>
-          <DialogDescription class="text-xs">
+          <DialogDescription v-else-if="newEntryDialogKind === 'folder'" class="text-xs">
             Path relative to the workspace (nested folders are created as needed).
           </DialogDescription>
         </DialogHeader>
-        <form class="space-y-3" @submit.prevent="submitNewFolder">
+        <form class="space-y-3" @submit.prevent="submitNewEntry">
           <div>
-            <label for="new-folder-path-input" class="sr-only">Folder path</label>
+            <label :for="newEntryPathInputId" class="sr-only">
+              {{ newEntryDialogKind === "folder" ? "Folder path" : "File path" }}
+            </label>
             <Input
-              id="new-folder-path-input"
-              ref="newFolderPathInputRef"
-              v-model="newFolderPathDraft"
-              data-testid="new-folder-path-input"
+              :id="newEntryPathInputId"
+              ref="newEntryPathInputRef"
+              v-model="newEntryPathDraft"
+              :data-testid="
+                newEntryDialogKind === 'folder' ? 'new-folder-path-input' : 'new-file-path-input'
+              "
               type="text"
               autocomplete="off"
               spellcheck="false"
               class="h-9 w-full rounded-md bg-background px-2.5 text-xs focus-visible:ring-2"
-              placeholder="e.g. src/components/MyFolder"
+              :placeholder="
+                newEntryDialogKind === 'folder'
+                  ? 'e.g. src/components/MyFolder'
+                  : 'e.g. src/components/MyFile.ts'
+              "
             />
             <p
-              v-if="newFolderDialogFieldError"
-              data-testid="new-folder-dialog-error"
+              v-if="newEntryDialogFieldError"
+              :data-testid="
+                newEntryDialogKind === 'folder' ? 'new-folder-dialog-error' : 'new-file-dialog-error'
+              "
               class="mt-1.5 text-xs text-destructive"
             >
-              {{ newFolderDialogFieldError }}
+              {{ newEntryDialogFieldError }}
             </p>
           </div>
           <DialogFooter>
             <Button
               type="button"
-              data-testid="new-folder-cancel"
+              :data-testid="newEntryDialogKind === 'folder' ? 'new-folder-cancel' : 'new-file-cancel'"
               variant="outline"
-              size="xs"
-              @click="closeNewFolderDialog"
+              @click="closeNewEntryDialog"
             >
               Cancel
             </Button>
-            <Button type="submit" data-testid="new-folder-confirm" variant="default" size="xs">
+            <Button
+              type="submit"
+              :data-testid="newEntryDialogKind === 'folder' ? 'new-folder-confirm' : 'new-file-confirm'"
+              variant="default"
+            >
               Create
             </Button>
           </DialogFooter>
@@ -1859,24 +1827,25 @@ defineExpose({
           <AlertDialogDescription>{{ confirmAction?.description }}</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel
-            data-testid="confirm-action-cancel"
-            class="inline-flex h-6 items-center justify-center rounded-[min(var(--radius-md),10px)] border px-2 text-xs font-medium"
-            @click="settleConfirmation(false)"
-          >
-            Cancel
+          <AlertDialogCancel as-child>
+            <Button
+              type="button"
+              variant="outline"
+              data-testid="confirm-action-cancel"
+              @click="settleConfirmation(false)"
+            >
+              Cancel
+            </Button>
           </AlertDialogCancel>
-          <AlertDialogAction
-            data-testid="confirm-action-confirm"
-            class="inline-flex h-6 items-center justify-center rounded-[min(var(--radius-md),10px)] px-2 text-xs font-medium"
-            :class="
-              confirmAction?.variant === 'destructive'
-                ? 'bg-destructive text-destructive-foreground'
-                : 'bg-primary text-primary-foreground'
-            "
-            @click="settleConfirmation(true)"
-          >
-            {{ confirmAction?.confirmLabel ?? "Continue" }}
+          <AlertDialogAction as-child>
+            <Button
+              type="button"
+              :variant="confirmAction?.variant === 'destructive' ? 'destructive' : 'default'"
+              data-testid="confirm-action-confirm"
+              @click="settleConfirmation(true)"
+            >
+              {{ confirmAction?.confirmLabel ?? "Continue" }}
+            </Button>
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

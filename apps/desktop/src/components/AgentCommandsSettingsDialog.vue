@@ -23,7 +23,6 @@ import { usePreferredThreadAgent } from "@/composables/usePreferredThreadAgent";
 import { useTerminalSoundSettings } from "@/composables/useTerminalSoundSettings";
 import type { TerminalActivitySensitivity } from "@/terminal/activitySensitivity";
 import { useColorScheme, type ColorSchemePreference } from "@/composables/useColorScheme";
-import { uiThemePresetLabel, useUiThemePreset } from "@/composables/useUiThemePreset";
 import {
   conflictingBindingId,
   findDefinitionIn,
@@ -75,8 +74,7 @@ const settingsPanelTerminalId = "workspace-settings-panel-terminal";
 const settingsPanelAppearanceId = "workspace-settings-panel-appearance";
 const settingsPanelKeyboardId = "workspace-settings-panel-keyboard";
 
-const { preference: colorSchemePreference, resolvedIsDark: appearancePreviewIsDark } = useColorScheme();
-const { preset: uiThemePreset, presets: uiThemePresetIds } = useUiThemePreset();
+const { preference: colorSchemePreference } = useColorScheme();
 
 const COLOR_SCHEME_OPTIONS: { value: ColorSchemePreference; label: string; hint: string }[] = [
   { value: "light", label: "Light", hint: "Always use light chrome" },
@@ -375,8 +373,7 @@ function save(): void {
             aria-label="Appearance settings"
           >
             <p class="text-sm text-muted-foreground">
-              Color mode and accent presets use the same design tokens as the rest of the app. Changes apply
-              immediately.
+              Color mode uses the same design tokens as the rest of the app. Changes apply immediately.
             </p>
 
             <fieldset class="mt-4 space-y-2">
@@ -403,64 +400,6 @@ function save(): void {
                     <span class="text-sm font-medium text-foreground">{{ opt.label }}</span>
                   </div>
                   <p class="text-xs leading-snug text-muted-foreground">{{ opt.hint }}</p>
-                </label>
-              </div>
-            </fieldset>
-
-            <fieldset class="mt-5 space-y-2">
-              <legend class="text-sm font-medium text-foreground">Theme</legend>
-              <p class="text-xs text-muted-foreground">
-                Previews reflect the color mode chosen above. Accents apply to buttons, focus rings, and sidebar
-                highlights. You can still tune colors in
-                <a
-                  class="text-primary underline underline-offset-2 hover:opacity-90"
-                  href="https://tweakcn.com/editor/theme"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  >tweakcn</a
-                >
-                and merge variables into the app later.
-              </p>
-              <div class="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
-                <label
-                  v-for="id in uiThemePresetIds"
-                  :key="id"
-                  class="flex min-w-0 cursor-pointer flex-col gap-2 rounded-md border border-border p-2.5 transition-colors select-none hover:bg-muted/30"
-                  :class="
-                    uiThemePreset === id
-                      ? 'bg-muted/25 ring-2 ring-ring/60 ring-offset-2 ring-offset-card'
-                      : ''
-                  "
-                >
-                  <div class="flex items-center gap-2">
-                    <input
-                      v-model="uiThemePreset"
-                      type="radio"
-                      name="settings-ui-theme-preset"
-                      class="size-3.5 shrink-0 rounded-full border-border accent-primary"
-                      :value="id"
-                    />
-                    <span class="min-w-0 truncate text-sm font-medium text-foreground">{{
-                      uiThemePresetLabel(id)
-                    }}</span>
-                  </div>
-                  <div
-                    class="settings-theme-preview h-[3.25rem] w-full rounded-md"
-                    :class="{ 'settings-theme-preview--dark': appearancePreviewIsDark }"
-                    :data-settings-theme-preview-preset="id"
-                    aria-hidden="true"
-                  >
-                    <div class="settings-theme-preview__rail">
-                      <div class="settings-theme-preview__rail-mark" />
-                    </div>
-                    <div class="settings-theme-preview__main">
-                      <div class="settings-theme-preview__bar" />
-                      <div class="settings-theme-preview__row">
-                        <span class="settings-theme-preview__pill" />
-                        <span class="settings-theme-preview__danger" />
-                      </div>
-                    </div>
-                  </div>
                 </label>
               </div>
             </fieldset>

@@ -20,6 +20,7 @@ export const IPC_CHANNELS = {
   diffChangedFiles: "diff:changedFiles",
   diffRepoStatus: "diff:repoStatus",
   diffFileDiff: "diff:fileDiff",
+  diffFileMergeSides: "diff:fileMergeSides",
   diffWorkingTree: "diff:workingTree",
   diffStageAll: "diff:stageAll",
   diffUnstageAll: "diff:unstageAll",
@@ -191,6 +192,20 @@ export interface RepoScmSnapshot {
 }
 
 export type FileDiffScope = "staged" | "unstaged" | "combined";
+
+/** Two full texts for CodeMirror `MergeView` (per-file source control). */
+export type FileMergeSidesResult =
+  | {
+      kind: "ok";
+      original: string;
+      modified: string;
+      /** Short label for the left pane (e.g. `HEAD`, `Staged`). */
+      originalLabel: string;
+      /** Short label for the right pane (e.g. `Staged`, `Working tree`). */
+      modifiedLabel: string;
+    }
+  | { kind: "binary" }
+  | { kind: "error"; message: string };
 
 /** When a newer GitHub release exists than the running packaged build. */
 export interface AppUpdateAvailability {

@@ -43,6 +43,8 @@ contextBridge.exposeInMainWorld("workspaceApi", {
   repoStatus: (cwd: string) => ipcRenderer.invoke(IPC_CHANNELS.diffRepoStatus, cwd),
   fileDiff: (cwd: string, file: string, scope?: "staged" | "unstaged" | "combined") =>
     ipcRenderer.invoke(IPC_CHANNELS.diffFileDiff, { cwd, file, scope }),
+  fileMergeSides: (cwd: string, file: string, scope: "staged" | "unstaged") =>
+    ipcRenderer.invoke(IPC_CHANNELS.diffFileMergeSides, { cwd, file, scope }),
   workingTreeDiff: (cwd: string) => ipcRenderer.invoke(IPC_CHANNELS.diffWorkingTree, cwd),
   stageAll: (cwd: string) => ipcRenderer.invoke(IPC_CHANNELS.diffStageAll, cwd),
   unstageAll: (cwd: string) => ipcRenderer.invoke(IPC_CHANNELS.diffUnstageAll, cwd),

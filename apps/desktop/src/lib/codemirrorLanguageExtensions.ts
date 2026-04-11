@@ -61,3 +61,48 @@ export function languageExtensionsFor(id: string | undefined): Extension[] {
       return [];
   }
 }
+
+/** Map a repo-relative path to a `languageExtensionsFor` id (same rules as the Files editor). */
+export function codemirrorLanguageIdFromPath(path: string): string | undefined {
+  const dot = path.lastIndexOf(".");
+  if (dot < 0) return undefined;
+  const ext = path.slice(dot + 1).toLowerCase();
+  const map: Record<string, string> = {
+    ts: "typescript",
+    tsx: "tsx",
+    js: "javascript",
+    jsx: "javascript",
+    vue: "vue",
+    json: "json",
+    md: "markdown",
+    css: "css",
+    scss: "scss",
+    sass: "sass",
+    less: "less",
+    html: "html",
+    htm: "html",
+    xml: "xml",
+    yml: "yaml",
+    yaml: "yaml",
+    sh: "plain",
+    bash: "plain",
+    zsh: "plain",
+    py: "python",
+    rs: "rust",
+    go: "go",
+    java: "java",
+    kt: "plain",
+    swift: "plain",
+    c: "c",
+    h: "c",
+    cpp: "cpp",
+    cc: "cpp",
+    hpp: "cpp",
+    cs: "plain",
+    rb: "plain",
+    php: "php",
+    sql: "sql",
+    toml: "plain"
+  };
+  return map[ext];
+}

@@ -1,11 +1,17 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { statSync } from "node:fs";
+import { readFileSync, statSync } from "node:fs";
 import { basename, resolve } from "node:path";
 import { simpleGit } from "simple-git";
-import type { FileDiffScope, RepoChangeKind, RepoScmSnapshot, RepoStatusEntry } from "../../src/shared/ipc.js";
+import type {
+  FileDiffScope,
+  FileMergeSidesResult,
+  RepoChangeKind,
+  RepoScmSnapshot,
+  RepoStatusEntry
+} from "../../src/shared/ipc.js";
 import { pathsFromUnifiedDiffSet } from "../../src/shared/diffPaths.js";
-import { truncateUnifiedDiff } from "../../src/shared/diffTruncate.js";
+import { truncateMergeDoc, truncateUnifiedDiff } from "../../src/shared/diffTruncate.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -52,6 +58,14 @@ function decodeStatusKind(code: string): RepoChangeKind | null {
     default:
       return null;
   }
+}
+
+function bufferLooksBinary(buf: Buffer, scanBytes = 65536): boolean {
+  const n = Math.min(buf.length, scanBytes);
+  for (let i = 0; i < n; i++) {
+    if (buf[i] === 0) return true;
+  }
+  return false;
 }
 
 export class DiffService {
@@ -216,6 +230,70 @@ export class DiffService {
       if (e.code === 1 && typeof e.stdout === "string") return e.stdout;
       return "";
     }
+  }
+
+  /**
+   * Load blob text from `git show <revSpec>` (UTF-8). Missing rev → empty string.
+   * Binary content (NUL in first 64KiB) is reported so the UI can skip merge view.
+   */
+  private async gitShowBuffer(cwd: string, revSpec: string): Promise<{ text: string; binary: boolean }> {
+    try {
+      const { stdout } = await execFileAsync("git", ["-C", cwd, "show", revSpec], {
+        maxBuffer: 50 * 1024 * 1024,
+        encoding: "buffer"
+      });
+      const buf = stdout as Buffer;
+      if (bufferLooksBinary(buf)) return { text: "", binary: true };
+      return { text: buf.toString("utf8"), binary: false };
+    } catch {
+      return { text: "", binary: false };
+    }
+  }
+
+  /**
+   * Two document sides for CodeMirror `MergeView`.
+   * - **staged**: `HEAD` (left) vs index (right) — same basis as `git diff --cached`.
+   * - **unstaged**: index (left) vs working tree (right) — same basis as `git diff`.
+   */
+  async fileMergeSides(
+    cwd: string,
+    file: string,
+    scope: Exclude<FileDiffScope, "combined">
+  ): Promise<FileMergeSidesResult> {
+    if (scope === "staged") {
+      const head = await this.gitShowBuffer(cwd, `HEAD:${file}`);
+      const index = await this.gitShowBuffer(cwd, `:${file}`);
+      if (head.binary || index.binary) return { kind: "binary" };
+      return {
+        kind: "ok",
+        original: truncateMergeDoc(head.text),
+        modified: truncateMergeDoc(index.text),
+        originalLabel: "HEAD",
+        modifiedLabel: "Staged"
+      };
+    }
+
+    const index = await this.gitShowBuffer(cwd, `:${file}`);
+    let wtText = "";
+    let wtBinary = false;
+    const abs = resolve(cwd, file);
+    try {
+      if (statSync(abs).isFile()) {
+        const buf = readFileSync(abs);
+        if (bufferLooksBinary(buf)) wtBinary = true;
+        else wtText = buf.toString("utf8");
+      }
+    } catch {
+      wtText = "";
+    }
+    if (index.binary || wtBinary) return { kind: "binary" };
+    return {
+      kind: "ok",
+      original: truncateMergeDoc(index.text),
+      modified: truncateMergeDoc(wtText),
+      originalLabel: "Staged",
+      modifiedLabel: "Working tree"
+    };
   }
 
   async fileDiff(cwd: string, file: string, scope: FileDiffScope = "unstaged"): Promise<string> {
