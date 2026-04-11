@@ -70,6 +70,7 @@ export function useThreadCreateMentions(options: {
     const api = getApi();
     if (!api || !cwd) {
       mentionItems.value = [];
+      mentionLoading.value = false;
       return;
     }
     const seq = ++fetchSeq;

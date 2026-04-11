@@ -1,3 +1,5 @@
+import type { LocalFileAttachment } from "@/lib/localFileAttachment";
+
 export type QueueSource = "diff" | "file" | "folder" | "terminal";
 
 export type QueueCapture =
@@ -29,6 +31,9 @@ export type QueueItem = {
   id: string;
   source: QueueSource;
   pasteText: string;
+  /** Optional note + files; merged into {@link pasteText} when the review panel confirms send */
+  reviewComment?: string;
+  reviewAttachments?: LocalFileAttachment[];
   /** Debug / future UI; not required for inject */
   meta: Record<string, string | number | undefined>;
 };

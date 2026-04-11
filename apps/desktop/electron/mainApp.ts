@@ -386,7 +386,10 @@ function registerIpc(workspaceService: WorkspaceService): void {
     emitWorkspaceDidChange();
     emitWorkingTreeFilesDidChange();
   });
-  ipcMain.handle(IPC_CHANNELS.filesList, (_, cwd: string) => { assertCwdIsRegistered(cwd); return fileService.listFileSummaries(cwd); });
+  ipcMain.handle(IPC_CHANNELS.filesList, (_, cwd: string) => {
+    assertCwdIsRegistered(cwd);
+    return fileService.listFileSummariesCached(cwd);
+  });
   ipcMain.handle(IPC_CHANNELS.filesSearch, (_, payload: { cwd: string; query: string }) => {
     assertCwdIsRegistered(payload.cwd);
     return fileService.searchFiles(payload.cwd, payload.query);

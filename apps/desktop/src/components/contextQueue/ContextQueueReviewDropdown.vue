@@ -2,11 +2,14 @@
 import { GripVertical, ListOrdered } from "lucide-vue-next";
 import { computed, ref, watch } from "vue";
 import type { QueueItem } from "@/contextQueue/types";
-import { basenamePath, parseDiffQueuePaste } from "@/contextQueue/diffPasteParse";
+import { parseDiffQueuePaste } from "@/contextQueue/diffPasteParse";
+import { queueContextBadgeLabel, queueSnippetPreview } from "@/contextQueue/reviewPasteLabels";
 import Badge from "@/components/ui/Badge.vue";
 import Button from "@/components/ui/Button.vue";
 import ContextQueueDiffPasteComposer from "@/components/contextQueue/ContextQueueDiffPasteComposer.vue";
+import PromptWithFileAttachments from "@/components/PromptWithFileAttachments.vue";
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 const props = defineProps<{
   threadId: string | null;
@@ -27,7 +30,9 @@ function onQueueToolbarClick(): void {
 function cloneItems(items: QueueItem[]): QueueItem[] {
   return items.map((item) => ({
     ...item,
-    meta: { ...item.meta }
+    meta: { ...item.meta },
+    reviewComment: item.reviewComment ?? "",
+    reviewAttachments: item.reviewAttachments?.map((a) => ({ ...a })) ?? []
   }));
 }
 
@@ -88,27 +93,20 @@ function useDiffPasteComposer(row: QueueItem): boolean {
   return row.source === "diff" && parseDiffQueuePaste(row.pasteText) != null;
 }
 
-/** One-line summary for the collapsed chip (full paste stays in the editor when expanded). */
-function chipSummary(row: QueueItem): string {
-  if (row.source === "diff") {
-    const p = parseDiffQueuePaste(row.pasteText);
-    if (p) {
-      const base = basenamePath(p.capture.filePath);
-      const ln =
-        p.capture.lineStart != null && p.capture.lineEnd != null
-          ? ` L${p.capture.lineStart}-${p.capture.lineEnd}`
-          : "";
-      const hint = p.prefix.trim() || p.suffix.trim() ? " · …" : "";
-      return `${base}${ln}${hint}`;
-    }
+function buildItemForSend(row: QueueItem): QueueItem {
+  const parts: string[] = [row.pasteText];
+  const note = row.reviewComment?.trim();
+  if (note) parts.push(note);
+  const att = row.reviewAttachments;
+  if (att?.length) {
+    parts.push(`[Attached files]\n${att.map((a) => a.path).join("\n")}`);
   }
-  const t = row.pasteText.trim();
-  if (!t) return "";
-  const lines = t.split(/\r?\n/).filter((l) => l.trim() !== "");
-  const first = lines[0] ?? t;
-  if (first.length > 56) return `${first.slice(0, 53)}…`;
-  if (lines.length <= 1) return first;
-  return `${first} · +${lines.length - 1}`;
+  return {
+    id: row.id,
+    source: row.source,
+    meta: { ...row.meta },
+    pasteText: parts.join("\n\n")
+  };
 }
 
 function expandRowEditor(rowId: string): void {
@@ -123,6 +121,7 @@ function onQueueRowDoubleClick(rowId: string, e: MouseEvent): void {
   if (t.closest("button")) return;
   if (t.closest('[data-testid="context-queue-review-drag-handle"]')) return;
   if (t.closest("textarea")) return;
+  if (t.closest("[data-context-queue-review-note]")) return;
   if (t.closest("[data-diff-composer]")) return;
   const next = new Set(editorExpandedIds.value);
   if (next.has(rowId)) next.delete(rowId);
@@ -150,7 +149,7 @@ function close(): void {
 
 function confirm(): void {
   if (confirmDisabled.value) return;
-  emit("confirm", cloneItems(internalItems.value));
+  emit("confirm", internalItems.value.map((row) => buildItemForSend(row)));
   open.value = false;
 }
 
@@ -261,7 +260,7 @@ defineExpose({ openReview });
       align="end"
       side="bottom"
       :side-offset="6"
-      class="flex w-[min(28rem,calc(100vw-1.5rem))] max-w-[calc(100vw-1.5rem)] max-h-[min(85vh,calc(100dvh-3rem))] flex-col gap-0 overflow-hidden border-border bg-card p-0 shadow-lg"
+      class="flex w-[min(26rem,calc(100vw-1.5rem))] max-w-[calc(100vw-1.5rem)] max-h-[min(85vh,calc(100dvh-3rem))] flex-col gap-0 overflow-hidden border-0 bg-popover p-0 text-popover-foreground shadow-lg ring-1 ring-border/50"
       @pointerdown.stop
       @escape-key-down.prevent
       @pointer-down-outside.prevent
@@ -269,21 +268,29 @@ defineExpose({ openReview });
     >
       <div class="flex min-h-0 max-h-[inherit] flex-1 flex-col overflow-hidden">
         <div
-          class="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-border bg-muted/25 px-4 py-3"
+          class="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-border/60 bg-muted/20 px-3 py-2"
         >
           <div class="min-w-0 flex-1">
-            <h2 class="text-sm font-semibold leading-tight text-foreground">Review task</h2>
+            <h2 class="text-xs font-semibold leading-tight text-foreground">Review task</h2>
             <p class="sr-only">
               Edit paste text for each queued item, reorder, or remove entries before sending to the agent terminal.
             </p>
           </div>
-          <div class="flex shrink-0 flex-wrap items-center justify-end gap-2">
-            <Button type="button" variant="outline" size="sm" data-testid="context-queue-review-cancel" @click="close">
+          <div class="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              class="h-8 px-2.5 text-xs"
+              data-testid="context-queue-review-cancel"
+              @click="close"
+            >
               Cancel
             </Button>
             <Button
               type="button"
               size="sm"
+              class="h-8 px-2.5 text-xs"
               data-testid="context-queue-review-confirm"
               :disabled="confirmDisabled"
               @click="confirm"
@@ -294,84 +301,124 @@ defineExpose({ openReview });
         </div>
 
         <!-- Body -->
-        <div class="min-h-0 flex-1 overflow-y-auto px-4 py-3">
-          <p v-if="internalItems.length === 0" class="text-sm text-muted-foreground">No items in queue.</p>
+        <TooltipProvider :delay-duration="220">
+          <div class="min-h-0 flex-1 overflow-y-auto px-2.5 py-2">
+            <p v-if="internalItems.length === 0" class="text-xs text-muted-foreground">No items in queue.</p>
 
-          <div
-            v-for="(row, index) in internalItems"
-            :key="row.id"
-            class="mb-3 flex flex-col gap-2 rounded-md border border-border bg-muted/20 p-3 transition-shadow last:mb-0"
-            :class="{
-              'opacity-50 ring-2 ring-primary/40': dragFromIndex === index,
-              'ring-2 ring-primary ring-offset-2 ring-offset-background':
-                dragOverIndex === index && dragFromIndex !== index
-            }"
-            data-testid="context-queue-review-row"
-            title="Double-click to show or hide the editor"
-            @dragenter.prevent="onDragOverRow(index, $event)"
-            @dragover="onDragOverRow(index, $event)"
-            @dragleave="onDragLeaveRow(index, $event)"
-            @drop="onDropRow(index, $event)"
-            @dblclick="onQueueRowDoubleClick(row.id, $event)"
-          >
-            <div class="flex min-h-9 flex-wrap items-center gap-2">
-              <button
-                type="button"
-                class="touch-none cursor-grab rounded border border-transparent p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground active:cursor-grabbing"
-                draggable="true"
-                title="Drag to reorder"
-                aria-label="Drag to reorder"
-                data-testid="context-queue-review-drag-handle"
-                @dblclick.stop
-                @dragstart="onDragStart(index, $event)"
-                @dragend="onDragEnd"
-              >
-                <GripVertical class="size-4 shrink-0" aria-hidden="true" />
-              </button>
-              <Badge variant="secondary" class="max-w-[min(12rem,45%)] shrink-0 gap-1 truncate px-2 py-0.5 text-[11px] font-medium">
-                <span aria-hidden="true">{{ sourceEmoji(row) }}</span>
-                <span class="truncate">{{ row.source }}</span>
-              </Badge>
-            </div>
-            <button
-              v-show="!isRowEditorExpanded(row.id)"
-              type="button"
-              data-testid="context-queue-review-chip"
-              class="flex w-full min-w-0 max-w-full items-center gap-2 rounded-full border border-border bg-muted/40 px-3 py-1.5 text-left text-xs text-foreground shadow-sm transition-colors hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-              :aria-label="row.pasteText.trim() ? 'Expand to edit queued text' : 'Expand to enter queued text'"
-              @click="expandRowEditor(row.id)"
+            <div
+              v-for="(row, index) in internalItems"
+              :key="row.id"
+              class="mb-2 flex flex-col gap-1.5 rounded-md bg-muted/15 px-2 py-1.5 transition-shadow last:mb-0"
+              :class="{
+                'opacity-50 ring-2 ring-primary/40': dragFromIndex === index,
+                'ring-2 ring-primary ring-offset-1 ring-offset-background':
+                  dragOverIndex === index && dragFromIndex !== index
+              }"
+              data-testid="context-queue-review-row"
+              title="Double-click row to show or hide context editor"
+              @dragenter.prevent="onDragOverRow(index, $event)"
+              @dragover="onDragOverRow(index, $event)"
+              @dragleave="onDragLeaveRow(index, $event)"
+              @drop="onDropRow(index, $event)"
+              @dblclick="onQueueRowDoubleClick(row.id, $event)"
             >
-              <span class="shrink-0 text-[13px] leading-none" aria-hidden="true">{{ sourceEmoji(row) }}</span>
-              <span v-if="!row.pasteText.trim()" class="min-w-0 truncate text-muted-foreground">Empty — click or double-click row to edit</span>
-              <span v-else class="min-w-0 truncate font-mono text-[11px]">{{ chipSummary(row) }}</span>
-            </button>
-            <ContextQueueDiffPasteComposer
-              v-if="isRowEditorExpanded(row.id) && useDiffPasteComposer(row)"
-              v-model="row.pasteText"
-            />
-            <textarea
-              v-else-if="isRowEditorExpanded(row.id)"
-              v-model="row.pasteText"
-              draggable="false"
-              class="min-h-[6.5rem] w-full resize-y rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground ring-offset-background placeholder:text-muted-foreground focus-visible:border-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(212,92%,45%)] focus-visible:ring-offset-0 dark:focus-visible:ring-[hsl(212,92%,58%)]"
-              data-testid="context-queue-review-paste"
-              :aria-label="`Paste text from ${row.source}`"
-              @dblclick.stop
-            />
-            <div class="flex justify-end">
-              <Button
+              <div class="flex min-h-7 flex-wrap items-center gap-1.5">
+                <button
+                  type="button"
+                  class="touch-none cursor-grab rounded p-0.5 text-muted-foreground hover:bg-muted/80 hover:text-foreground active:cursor-grabbing"
+                  draggable="true"
+                  title="Drag to reorder"
+                  aria-label="Drag to reorder"
+                  data-testid="context-queue-review-drag-handle"
+                  @dblclick.stop
+                  @dragstart="onDragStart(index, $event)"
+                  @dragend="onDragEnd"
+                >
+                  <GripVertical class="size-3.5 shrink-0" aria-hidden="true" />
+                </button>
+                <Badge
+                  variant="secondary"
+                  class="max-w-[min(10rem,42%)] shrink-0 gap-0.5 truncate px-1.5 py-0 text-[10px] font-medium"
+                >
+                  <span aria-hidden="true">{{ sourceEmoji(row) }}</span>
+                  <span class="truncate">{{ row.source }}</span>
+                </Badge>
+                <div class="ms-auto flex shrink-0">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    class="h-7 px-2 text-[11px] text-muted-foreground hover:text-destructive"
+                    data-testid="context-queue-review-delete"
+                    :aria-label="`Remove ${row.source} entry`"
+                    @click.stop="removeAt(index)"
+                  >
+                    Remove
+                  </Button>
+                </div>
+              </div>
+
+              <button
+                v-if="!isRowEditorExpanded(row.id) && !row.pasteText.trim()"
                 type="button"
-                variant="outline"
-                size="sm"
-                data-testid="context-queue-review-delete"
-                :aria-label="`Remove ${row.source} entry`"
-                @click.stop="removeAt(index)"
+                data-testid="context-queue-review-chip"
+                class="flex w-full min-w-0 max-w-full items-center justify-center rounded-md bg-muted/50 px-2 py-1 text-center text-xs text-foreground transition-colors hover:bg-muted/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background"
+                aria-label="Empty context; click to edit"
+                @click="expandRowEditor(row.id)"
               >
-                Delete
-              </Button>
+                <span class="truncate text-muted-foreground">Empty context</span>
+              </button>
+              <Tooltip v-else-if="!isRowEditorExpanded(row.id)">
+                <TooltipTrigger as-child>
+                  <button
+                    type="button"
+                    data-testid="context-queue-review-chip"
+                    class="flex w-full min-w-0 max-w-full items-center justify-center rounded-md bg-muted/50 px-2 py-1 text-center text-xs text-foreground transition-colors hover:bg-muted/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background"
+                    aria-label="Hover for snippet preview; click to edit context"
+                    @click="expandRowEditor(row.id)"
+                  >
+                    <span class="truncate font-mono text-[11px] tracking-tight">{{ queueContextBadgeLabel(row) }}</span>
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent
+                  side="right"
+                  align="start"
+                  class="max-h-52 max-w-[min(22rem,calc(100vw-2rem))] overflow-auto border border-border/80 p-2 text-xs shadow-md"
+                >
+                  <pre
+                    class="whitespace-pre-wrap break-words font-mono text-[11px] leading-snug text-popover-foreground"
+                    >{{ queueSnippetPreview(row) }}</pre
+                  >
+                </TooltipContent>
+              </Tooltip>
+
+              <div data-context-queue-review-note>
+                <PromptWithFileAttachments
+                  v-model:prompt="row.reviewComment"
+                  v-model:attachments="row.reviewAttachments"
+                  :rows="2"
+                  textarea-class="min-h-[3.25rem] resize-y text-[13px] leading-snug"
+                  placeholder="Comment for the agent (optional) — images via paperclip"
+                  test-id-prefix="context-queue-review-note"
+                />
+              </div>
+
+              <ContextQueueDiffPasteComposer
+                v-if="isRowEditorExpanded(row.id) && useDiffPasteComposer(row)"
+                v-model="row.pasteText"
+              />
+              <textarea
+                v-else-if="isRowEditorExpanded(row.id)"
+                v-model="row.pasteText"
+                draggable="false"
+                class="min-h-[5rem] w-full resize-y rounded-md border border-input bg-background px-2.5 py-1.5 text-sm text-foreground ring-offset-background placeholder:text-muted-foreground focus-visible:border-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(212,92%,45%)] focus-visible:ring-offset-0 dark:focus-visible:ring-[hsl(212,92%,58%)]"
+                data-testid="context-queue-review-paste"
+                :aria-label="`Paste text from ${row.source}`"
+                @dblclick.stop
+              />
             </div>
           </div>
-        </div>
+        </TooltipProvider>
       </div>
     </PopoverContent>
   </Popover>

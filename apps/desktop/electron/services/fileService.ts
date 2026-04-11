@@ -148,6 +148,10 @@ async function collectFileSummaries(
   const entries = await fs.readdir(currentDir, { withFileTypes: true });
 
   for (const entry of entries) {
+    /** Yield so huge workspaces do not block the Electron main process indefinitely. */
+    if (output.length > 0 && output.length % 384 === 0) {
+      await new Promise<void>((resolve) => setImmediate(resolve));
+    }
     if (entry.isDirectory()) {
       if (IGNORED_DIRECTORY_NAMES.has(entry.name)) continue;
       const absoluteDir = path.join(currentDir, entry.name);
@@ -181,6 +185,71 @@ export class FileService {
   /** Cap size for inlining images as `data:` URLs (Markdown + image preview). */
   private static readonly MAX_IMAGE_DATA_URL_BYTES = 32 * 1024 * 1024;
 
+  /**
+   * Shared workspace file tree index: used by `searchFiles`, the `files:list` IPC (Files pane +
+   * workspace launcher), so we scan each root once per TTL instead of duplicating full walks.
+   * Bump `searchFilesSummaryGeneration` on writes so the cache cannot serve stale paths.
+   */
+  private static readonly SEARCH_FILES_SUMMARY_TTL_MS = 45_000;
+  private readonly searchFilesSummaryCache = new Map<
+    string,
+    { generation: number; cachedAtMs: number; summaries: FileSummary[] }
+  >();
+  private readonly searchFilesSummaryInflight = new Map<string, Promise<FileSummary[]>>();
+  private readonly searchFilesSummaryGeneration = new Map<string, number>();
+
+  private invalidateSearchFilesSummaryCache(root: string): void {
+    const key = path.resolve(root);
+    this.searchFilesSummaryCache.delete(key);
+    this.searchFilesSummaryGeneration.set(key, (this.searchFilesSummaryGeneration.get(key) ?? 0) + 1);
+  }
+
+  private generationForSearchFilesSummary(rootKey: string): number {
+    return this.searchFilesSummaryGeneration.get(rootKey) ?? 0;
+  }
+
+  /**
+   * Cached/coalesced `listFileSummaries` for a root. Prefer this for UI that only needs the
+   * current tree snapshot (`files:list`, @-mention path search).
+   */
+  async listFileSummariesCached(root: string): Promise<FileSummary[]> {
+    const key = path.resolve(root);
+    const now = Date.now();
+    const gen = this.generationForSearchFilesSummary(key);
+    const hit = this.searchFilesSummaryCache.get(key);
+    if (
+      hit &&
+      hit.generation === gen &&
+      now - hit.cachedAtMs < FileService.SEARCH_FILES_SUMMARY_TTL_MS
+    ) {
+      return hit.summaries;
+    }
+
+    let inflight = this.searchFilesSummaryInflight.get(key);
+    if (!inflight) {
+      const startGen = this.generationForSearchFilesSummary(key);
+      inflight = (async () => {
+        try {
+          let summaries = await this.listFileSummaries(key);
+          if (this.generationForSearchFilesSummary(key) !== startGen) {
+            summaries = await this.listFileSummaries(key);
+          }
+          const endGen = this.generationForSearchFilesSummary(key);
+          this.searchFilesSummaryCache.set(key, {
+            generation: endGen,
+            cachedAtMs: Date.now(),
+            summaries
+          });
+          return summaries;
+        } finally {
+          this.searchFilesSummaryInflight.delete(key);
+        }
+      })();
+      this.searchFilesSummaryInflight.set(key, inflight);
+    }
+    return inflight;
+  }
+
   async listFileSummaries(root: string): Promise<FileSummary[]> {
     const resolvedRoot = path.resolve(root);
     const summaries: FileSummary[] = [];
@@ -191,7 +260,7 @@ export class FileService {
 
   async searchFiles(root: string, query: string): Promise<string[]> {
     const trimmedQuery = query.trim().toLowerCase();
-    const allFiles = await this.listFileSummaries(root);
+    const allFiles = await this.listFileSummariesCached(root);
     if (!trimmedQuery) return allFiles.map((file) => file.relativePath);
 
     return allFiles
@@ -340,6 +409,7 @@ export class FileService {
   async writeFile(root: string, relativePath: string, content: string): Promise<void> {
     const absolutePath = assertPathWithinRoot(root, relativePath);
     await fs.writeFile(absolutePath, content, "utf8");
+    this.invalidateSearchFilesSummaryCache(root);
   }
 
   async createFile(root: string, relativePath: string): Promise<void> {
@@ -352,6 +422,7 @@ export class FileService {
     await fs.mkdir(path.dirname(absolutePath), { recursive: true });
     const handle = await fs.open(absolutePath, "wx");
     await handle.close();
+    this.invalidateSearchFilesSummaryCache(root);
   }
 
   async deleteFile(root: string, relativePath: string): Promise<void> {
@@ -366,6 +437,7 @@ export class FileService {
       throw new Error("Not a regular file");
     }
     await fs.unlink(absolutePath);
+    this.invalidateSearchFilesSummaryCache(root);
   }
 
   async createFolder(root: string, relativePath: string): Promise<void> {
@@ -395,6 +467,7 @@ export class FileService {
         (err as NodeJS.ErrnoException).code === "ENOENT"
       ) {
         await fs.mkdir(absolutePath, { recursive: true });
+        this.invalidateSearchFilesSummaryCache(root);
         return;
       }
       throw err;
@@ -413,5 +486,6 @@ export class FileService {
       throw new Error("Not a folder");
     }
     await fs.rm(absolutePath, { recursive: true, force: true });
+    this.invalidateSearchFilesSummaryCache(root);
   }
 }

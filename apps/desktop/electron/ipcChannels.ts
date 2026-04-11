@@ -1,0 +1,77 @@
+/** Canonical IPC channel names for main/renderer. Sandboxed preload inlines the same strings (see `preload.ts`). */
+
+export const IPC_CHANNELS = {
+  workspaceGetSnapshot: "workspace:getSnapshot",
+  workspaceAddProject: "workspace:addProject",
+  workspaceRemoveProject: "workspace:removeProject",
+  workspaceReorderProjects: "workspace:reorderProjects",
+  workspaceAddWorktree: "workspace:addWorktree",
+  workspaceSetActive: "workspace:setActive",
+  workspaceCreateThread: "workspace:createThread",
+  workspaceSetActiveThread: "workspace:setActiveThread",
+  workspaceDeleteThread: "workspace:deleteThread",
+  workspaceRenameThread: "workspace:renameThread",
+  workspaceDidChange: "workspace:didChange",
+  /** Repo working tree may have changed (save, patch, etc.); refresh diff / git state in renderer. */
+  workingTreeFilesDidChange: "diff:workingTreeFilesDidChange",
+  runStart: "run:start",
+  runSendInput: "run:sendInput",
+  runInterrupt: "run:interrupt",
+  diffChangedFiles: "diff:changedFiles",
+  diffRepoStatus: "diff:repoStatus",
+  diffFileDiff: "diff:fileDiff",
+  diffFileMergeSides: "diff:fileMergeSides",
+  diffWorkingTree: "diff:workingTree",
+  diffStageAll: "diff:stageAll",
+  diffUnstageAll: "diff:unstageAll",
+  diffDiscardAll: "diff:discardAll",
+  diffStagePaths: "diff:stagePaths",
+  diffUnstagePaths: "diff:unstagePaths",
+  diffDiscardPaths: "diff:discardPaths",
+  diffGitFetch: "diff:gitFetch",
+  diffGitPush: "diff:gitPush",
+  diffGitCommit: "diff:gitCommit",
+  /** Checkout an existing local branch in the given worktree directory. */
+  diffGitCheckoutBranch: "diff:gitCheckoutBranch",
+  diffIsGitRepository: "diff:isGitRepository",
+  diffInitGitRepository: "diff:initGitRepository",
+  filesList: "files:list",
+  filesSearch: "files:search",
+  filesSearchContent: "files:searchContent",
+  filesRead: "files:read",
+  /** Resolve `![](href)` in a Markdown file to a loadable URL (`data:` for workspace images, pass-through for http(s)). */
+  filesResolveMarkdownImageUrl: "files:resolveMarkdownImageUrl",
+  /** Read an image outside the worktree (e.g. temp screencapture) as `data:` — restricted to temp + user media folders. */
+  filesReadImageDataUrlFromAbsolutePath: "files:readImageDataUrlFromAbsolutePath",
+  filesWrite: "files:write",
+  filesCreate: "files:create",
+  filesDelete: "files:delete",
+  filesCreateFolder: "files:createFolder",
+  filesDeleteFolder: "files:deleteFolder",
+  editApplyPatch: "edit:applyPatch",
+  previewSetUrl: "preview:setUrl",
+  previewProbeUrl: "preview:probeUrl",
+  terminalPtyCreate: "terminal:ptyCreate",
+  terminalPtyWrite: "terminal:ptyWrite",
+  terminalPtyResize: "terminal:ptyResize",
+  terminalPtyKill: "terminal:ptyKill",
+  terminalPtyListSessions: "terminal:ptyListSessions",
+  terminalPtyGetBuffer: "terminal:ptyGetBuffer",
+  terminalPtyData: "terminal:ptyData",
+  dialogPickRepoDirectory: "dialog:pickRepoDirectory",
+  workspaceCreateWorktreeGroup: "workspace:createWorktreeGroup",
+  workspaceDeleteWorktreeGroup: "workspace:deleteWorktreeGroup",
+  workspaceListBranches: "workspace:listBranches",
+  workspaceWorktreeHealth: "workspace:worktreeHealth",
+  workspaceSyncWorktrees: "workspace:syncWorktrees",
+  /** macOS often captures ⌘, for the app menu; main sends this so the renderer can open settings. */
+  uiOpenWorkspaceSettings: "ui:openWorkspaceSettings",
+  /** Running app semver from Electron `app.getVersion()`. */
+  appGetVersion: "app:getVersion",
+  /** GitHub-style release tag for this build (from bundled `package.json` semver when available). */
+  appGetReleaseTag: "app:getReleaseTag",
+  /** Packaged app only: GitHub latest release vs bundled app semver (same source as release tag). */
+  appGetUpdateAvailability: "app:getUpdateAvailability",
+  /** Open a validated https URL in the system browser (GitHub only). */
+  appOpenExternalUrl: "app:openExternalUrl"
+} as const;
