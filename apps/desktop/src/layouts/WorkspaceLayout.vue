@@ -44,6 +44,7 @@ import {
 } from "@/composables/threadCreateDialog";
 import { useWorkspaceKeybindings } from "@/composables/useWorkspaceKeybindings";
 import { formatShortcut, MOD_DIGIT_SLOT_CODES, shortcutForId, titleWithShortcut } from "@/keybindings/registry";
+import { LruMap } from "@/lib/lruMap";
 import { useWorkspaceStore } from "@/stores/workspaceStore";
 import { useThreadPtyRunStatus } from "@/composables/useThreadPtyRunStatus";
 import { visibleTerminalSessionId } from "@/terminal/attentionRules";
@@ -83,7 +84,9 @@ const selectedScmPath = ref<string | null>(null);
 const selectedScmScope = ref<FileDiffScope | null>(null);
 const selectedDiff = ref("");
 const selectedDiffLoading = ref(false);
-const diffCache = new Map<string, string>();
+/** Cap for merged diff text cache (LRU by read + write). */
+const DIFF_MERGE_CACHE_MAX = 24;
+const diffCache = new LruMap<string, string>(DIFF_MERGE_CACHE_MAX);
 
 const THREADS_SIDEBAR_COLLAPSED_KEY = "instrument.threadsSidebarCollapsed";
 
@@ -434,8 +437,8 @@ async function refreshSnapshot(snapshot?: WorkspaceSnapshot): Promise<void> {
   workspace.hydrate(next);
 }
 
-function cacheKey(path: string, scope: FileDiffScope): string {
-  return `${scope}:${path}`;
+function cacheKey(cwd: string, path: string, scope: FileDiffScope): string {
+  return `${cwd}\0${scope}\0${path}`;
 }
 
 function normalizeRepoStatusResult(
@@ -479,7 +482,7 @@ async function loadSelectedDiff(): Promise<void> {
   }
   const seq = ++selectedDiffSeq;
   const cwd = workspace.activeWorktree.path;
-  const key = cacheKey(path, scope);
+  const key = cacheKey(cwd, path, scope);
   const cached = diffCache.get(key);
   if (cached != null) {
     selectedDiff.value = cached;
@@ -492,11 +495,6 @@ async function loadSelectedDiff(): Promise<void> {
     if (seq !== selectedDiffSeq || workspace.activeWorktree?.path !== cwd) return;
     selectedDiff.value = diff;
     diffCache.set(key, diff);
-    while (diffCache.size > 24) {
-      const oldest = diffCache.keys().next().value;
-      if (!oldest) break;
-      diffCache.delete(oldest);
-    }
   } catch (error) {
     if (seq !== selectedDiffSeq || workspace.activeWorktree?.path !== cwd) return;
     selectedDiff.value =
