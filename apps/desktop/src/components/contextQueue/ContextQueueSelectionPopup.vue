@@ -50,13 +50,44 @@ function updatePosition(): void {
   position.value = clampPopupRect(props.anchor, w, h);
 }
 
+/** Two rAF passes so layout uses measured popup size after `v-if` mounts. */
+function scheduleReposition(): void {
+  requestAnimationFrame(() => {
+    updatePosition();
+    requestAnimationFrame(() => updatePosition());
+  });
+}
+
 const showPopup = computed(() => props.visible && props.anchor != null);
+
+let popupResizeObserver: ResizeObserver | null = null;
+
+function unbindGlobalLayout(): void {
+  window.removeEventListener("resize", scheduleReposition);
+  window.visualViewport?.removeEventListener("resize", scheduleReposition);
+  window.visualViewport?.removeEventListener("scroll", scheduleReposition);
+}
+
+function bindGlobalLayout(): void {
+  unbindGlobalLayout();
+  window.addEventListener("resize", scheduleReposition);
+  window.visualViewport?.addEventListener("resize", scheduleReposition);
+  window.visualViewport?.addEventListener("scroll", scheduleReposition);
+}
 
 watch(
   () => [props.visible, props.anchor] as const,
   async () => {
     await nextTick();
-    updatePosition();
+    if (showPopup.value && popupEl.value) {
+      popupResizeObserver?.disconnect();
+      popupResizeObserver = new ResizeObserver(() => scheduleReposition());
+      popupResizeObserver.observe(popupEl.value);
+    } else if (!showPopup.value) {
+      popupResizeObserver?.disconnect();
+      popupResizeObserver = null;
+    }
+    scheduleReposition();
   },
   { immediate: true, deep: true }
 );
@@ -94,9 +125,13 @@ watch(
     if (visible) {
       window.addEventListener("keydown", onPopupKeydown, keydownCaptureOpts);
       document.addEventListener("scroll", onGlobalScroll, true);
+      bindGlobalLayout();
     } else {
       window.removeEventListener("keydown", onPopupKeydown, keydownCaptureOpts);
       document.removeEventListener("scroll", onGlobalScroll, true);
+      unbindGlobalLayout();
+      popupResizeObserver?.disconnect();
+      popupResizeObserver = null;
     }
   },
   { immediate: true }
@@ -105,6 +140,9 @@ watch(
 onUnmounted(() => {
   window.removeEventListener("keydown", onPopupKeydown, keydownCaptureOpts);
   document.removeEventListener("scroll", onGlobalScroll, true);
+  unbindGlobalLayout();
+  popupResizeObserver?.disconnect();
+  popupResizeObserver = null;
 });
 </script>
 
@@ -114,8 +152,15 @@ onUnmounted(() => {
       v-if="showPopup"
       ref="popupEl"
       data-testid="context-queue-selection-popup"
-      class="pointer-events-auto fixed z-[9999] flex items-center gap-0.5 rounded-lg border border-border bg-background p-0.5 shadow-md"
-      :style="{ left: `${position.left}px`, top: `${position.top}px` }"
+      class="pointer-events-auto flex items-center gap-0.5 rounded-lg border border-border bg-background p-0.5 shadow-md"
+      :style="{
+        position: 'fixed',
+        left: `${position.left}px`,
+        top: `${position.top}px`,
+        right: 'auto',
+        bottom: 'auto',
+        zIndex: 9999
+      }"
       @pointerdown.stop
     >
       <Button

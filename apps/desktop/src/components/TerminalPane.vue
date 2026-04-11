@@ -11,6 +11,31 @@ import type { QueueCapture, QueueItem } from "@/contextQueue/types";
 import type { Rect } from "@/lib/contextQueueAnchor";
 import { useToast } from "@/composables/useToast";
 
+/** Union `.xterm-selection` rects (viewport coords) when the DOM renderer exposes them. */
+function mergeXtermSelectionRects(wrap: HTMLElement): Rect | null {
+  const nodes = wrap.querySelectorAll(".xterm-selection");
+  if (!nodes.length) return null;
+  let minL = Infinity;
+  let minT = Infinity;
+  let maxR = -Infinity;
+  let maxB = -Infinity;
+  for (const n of nodes) {
+    const r = (n as HTMLElement).getBoundingClientRect();
+    if (r.width < 1 && r.height < 1) continue;
+    minL = Math.min(minL, r.left);
+    minT = Math.min(minT, r.top);
+    maxR = Math.max(maxR, r.right);
+    maxB = Math.max(maxB, r.bottom);
+  }
+  if (minL === Infinity) return null;
+  return {
+    left: minL,
+    top: minT,
+    width: Math.max(4, maxR - minL),
+    height: Math.max(4, maxB - minT)
+  };
+}
+
 const props = withDefaults(
   defineProps<{
     worktreeId: string;
@@ -45,6 +70,25 @@ const toast = useToast();
 const terminalQueueVisible = ref(false);
 const terminalQueueAnchor = ref<Rect | null>(null);
 const pendingTerminalText = ref("");
+/** Last pointer-up inside the terminal (viewport); used when xterm has no DOM selection layer. */
+const lastTerminalPointerClient = ref<{ x: number; y: number } | null>(null);
+let terminalQueuePointerCleanup: (() => void) | null = null;
+
+function terminalSelectionAnchorRect(wrap: HTMLElement): Rect {
+  const merged = mergeXtermSelectionRects(wrap);
+  if (merged) return merged;
+  const p = lastTerminalPointerClient.value;
+  if (p) {
+    return { left: p.x - 6, top: p.y - 6, width: 12, height: 12 };
+  }
+  const r = wrap.getBoundingClientRect();
+  return {
+    left: r.left + 12,
+    top: r.bottom - 48,
+    width: 24,
+    height: 12
+  };
+}
 
 const containerRef = ref<HTMLElement | null>(null);
 const ptyBusy = ref(false);
@@ -203,6 +247,17 @@ onMounted(async () => {
   fitAddon = new FitAddon();
   terminal.loadAddon(fitAddon);
   terminal.open(el);
+
+  function onTerminalPointerUp(e: PointerEvent): void {
+    if (e.button !== 0) return;
+    lastTerminalPointerClient.value = { x: e.clientX, y: e.clientY };
+  }
+  el.addEventListener("pointerup", onTerminalPointerUp);
+  terminalQueuePointerCleanup = () => {
+    el.removeEventListener("pointerup", onTerminalPointerUp);
+    terminalQueuePointerCleanup = null;
+  };
+
   terminal.attachCustomKeyEventHandler((domEvent) => {
     if (domEvent.type !== "keydown") return true;
     const mod = domEvent.ctrlKey || domEvent.metaKey;
@@ -299,13 +354,7 @@ onMounted(async () => {
       pendingTerminalText.value = terminal.getSelection();
       const wrap = containerRef.value;
       if (wrap) {
-        const r = wrap.getBoundingClientRect();
-        terminalQueueAnchor.value = {
-          left: r.right - 48,
-          top: r.bottom - 56,
-          width: 12,
-          height: 12
-        };
+        terminalQueueAnchor.value = terminalSelectionAnchorRect(wrap);
         terminalQueueVisible.value = true;
       }
     });
@@ -380,6 +429,7 @@ async function onInjectTerminalSelectionToAgent(): Promise<void> {
 }
 
 onBeforeUnmount(() => {
+  terminalQueuePointerCleanup?.();
   dropHandlersCleanup?.();
   resizeObserver?.disconnect();
   resizeObserver = null;

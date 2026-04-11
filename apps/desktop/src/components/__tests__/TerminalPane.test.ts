@@ -1,4 +1,5 @@
 import { mount, flushPromises } from "@vue/test-utils";
+import { createPinia, setActivePinia } from "pinia";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import TerminalPane from "@/components/TerminalPane.vue";
 
@@ -38,6 +39,7 @@ vi.mock("xterm", () => ({
 
 describe("TerminalPane", () => {
   beforeEach(() => {
+    setActivePinia(createPinia());
     fitMock.mockReset();
     resetMock.mockReset();
     writeMock.mockReset();
