@@ -334,7 +334,8 @@ onMounted(async () => {
 
   terminal.onSelectionChange(() => {
     window.requestAnimationFrame(() => {
-      if (!terminal || props.ptyKind !== "agent" || !threadQueue || !props.threadId) {
+      // Agent PTY and overlay shell PTYs: same queue / inject-to-agent bar when a thread is active.
+      if (!terminal || !threadQueue || !props.threadId) {
         terminalQueueVisible.value = false;
         terminalQueueAnchor.value = null;
         return;
