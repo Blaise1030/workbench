@@ -172,7 +172,7 @@ Examples:
 Renderer sends `{ cwd: "/etc" }` to `filesSearch` → main process searches `/etc` and returns results. Combined with CRITICAL-1, `cwd: "/"` enables full-disk access.
 
 **Recommended fix:**  
-In `registerIpc`, validate that `cwd` is either a path that exists in `workspaceService.getSnapshot().worktrees` or a sub-path thereof before delegating to services:
+In `registerIpc`, validate that `cwd` is either a registered worktree path or a sub-path thereof before delegating to services. Two handlers must be exempt: `diffIsGitRepository` and `diffInitGitRepository` are called with unregistered paths during the "add project" flow (the path hasn't been added to the store yet).
 
 ```ts
 function assertCwdIsRegistered(cwd: string, snapshot: WorkspaceSnapshot): void {
@@ -181,6 +181,9 @@ function assertCwdIsRegistered(cwd: string, snapshot: WorkspaceSnapshot): void {
   );
   if (!registered) throw new Error(`Unregistered cwd: ${cwd}`);
 }
+// Usage: call in every ipcMain.handle that receives cwd, EXCEPT:
+//   - IPC_CHANNELS.diffIsGitRepository
+//   - IPC_CHANNELS.diffInitGitRepository
 ```
 
 ---
@@ -203,10 +206,12 @@ await git.raw(["worktree", "add", worktreePath, branch]);
 User creates a worktree with branch name `--detach`, changing the git command's behaviour silently.
 
 **Recommended fix:**  
-Insert `--` before user-controlled positional arguments:
+Insert `--` before the path positional arguments (after the branch name, not before it — placing `--` after `-b` would make git interpret `--` as the branch name):
 
 ```ts
-await git.raw(["worktree", "add", "-b", "--", branch, worktreePath, baseBranch]);
+// With -b: branch comes first, then -- before the path args
+await git.raw(["worktree", "add", "-b", branch, "--", worktreePath, baseBranch]);
+// Without -b: -- before path and commit-ish
 await git.raw(["worktree", "add", "--", worktreePath, branch]);
 ```
 
