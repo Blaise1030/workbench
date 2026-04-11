@@ -1,5 +1,76 @@
 import { contextBridge, ipcRenderer, webUtils } from "electron";
-import { IPC_CHANNELS, type AppUpdateAvailability } from "../src/shared/ipc.js";
+import type { AppUpdateAvailability } from "../src/shared/ipc.js";
+
+/**
+ * Sandboxed preload may only `require("electron")`, not sibling modules — keep these strings in sync
+ * with `electron/ipcChannels.ts` (see `electron/__tests__/preloadIpcChannelsParity.test.ts`).
+ */
+const IPC_CHANNELS = {
+  workspaceGetSnapshot: "workspace:getSnapshot",
+  workspaceAddProject: "workspace:addProject",
+  workspaceRemoveProject: "workspace:removeProject",
+  workspaceReorderProjects: "workspace:reorderProjects",
+  workspaceAddWorktree: "workspace:addWorktree",
+  workspaceSetActive: "workspace:setActive",
+  workspaceCreateThread: "workspace:createThread",
+  workspaceSetActiveThread: "workspace:setActiveThread",
+  workspaceDeleteThread: "workspace:deleteThread",
+  workspaceRenameThread: "workspace:renameThread",
+  workspaceDidChange: "workspace:didChange",
+  workingTreeFilesDidChange: "diff:workingTreeFilesDidChange",
+  runStart: "run:start",
+  runSendInput: "run:sendInput",
+  runInterrupt: "run:interrupt",
+  diffChangedFiles: "diff:changedFiles",
+  diffRepoStatus: "diff:repoStatus",
+  diffFileDiff: "diff:fileDiff",
+  diffFileMergeSides: "diff:fileMergeSides",
+  diffWorkingTree: "diff:workingTree",
+  diffStageAll: "diff:stageAll",
+  diffUnstageAll: "diff:unstageAll",
+  diffDiscardAll: "diff:discardAll",
+  diffStagePaths: "diff:stagePaths",
+  diffUnstagePaths: "diff:unstagePaths",
+  diffDiscardPaths: "diff:discardPaths",
+  diffGitFetch: "diff:gitFetch",
+  diffGitPush: "diff:gitPush",
+  diffGitCommit: "diff:gitCommit",
+  diffGitCheckoutBranch: "diff:gitCheckoutBranch",
+  diffIsGitRepository: "diff:isGitRepository",
+  diffInitGitRepository: "diff:initGitRepository",
+  filesList: "files:list",
+  filesSearch: "files:search",
+  filesSearchContent: "files:searchContent",
+  filesRead: "files:read",
+  filesResolveMarkdownImageUrl: "files:resolveMarkdownImageUrl",
+  filesReadImageDataUrlFromAbsolutePath: "files:readImageDataUrlFromAbsolutePath",
+  filesWrite: "files:write",
+  filesCreate: "files:create",
+  filesDelete: "files:delete",
+  filesCreateFolder: "files:createFolder",
+  filesDeleteFolder: "files:deleteFolder",
+  editApplyPatch: "edit:applyPatch",
+  previewSetUrl: "preview:setUrl",
+  previewProbeUrl: "preview:probeUrl",
+  terminalPtyCreate: "terminal:ptyCreate",
+  terminalPtyWrite: "terminal:ptyWrite",
+  terminalPtyResize: "terminal:ptyResize",
+  terminalPtyKill: "terminal:ptyKill",
+  terminalPtyListSessions: "terminal:ptyListSessions",
+  terminalPtyGetBuffer: "terminal:ptyGetBuffer",
+  terminalPtyData: "terminal:ptyData",
+  dialogPickRepoDirectory: "dialog:pickRepoDirectory",
+  workspaceCreateWorktreeGroup: "workspace:createWorktreeGroup",
+  workspaceDeleteWorktreeGroup: "workspace:deleteWorktreeGroup",
+  workspaceListBranches: "workspace:listBranches",
+  workspaceWorktreeHealth: "workspace:worktreeHealth",
+  workspaceSyncWorktrees: "workspace:syncWorktrees",
+  uiOpenWorkspaceSettings: "ui:openWorkspaceSettings",
+  appGetVersion: "app:getVersion",
+  appGetReleaseTag: "app:getReleaseTag",
+  appGetUpdateAvailability: "app:getUpdateAvailability",
+  appOpenExternalUrl: "app:openExternalUrl"
+} as const;
 
 /** Absolute repo root from the first file in a webkitdirectory pick (Electron only). */
 function resolveRepoRootFromWebkitFile(file: File): string {

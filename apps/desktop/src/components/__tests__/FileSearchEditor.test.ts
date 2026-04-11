@@ -206,7 +206,7 @@ describe("FileSearchEditor", () => {
     expect(input.classes()).toContain("h-8");
     expect(input.classes()).toContain("rounded-md");
     expect(input.classes()).toContain("border");
-    expect(input.classes()).toContain("bg-background");
+    expect(input.classes()).toContain("bg-muted");
     expect(input.classes()).toContain("focus-visible:ring-2");
     expect(input.classes()).toContain("disabled:bg-input/50");
   });
@@ -235,7 +235,7 @@ describe("FileSearchEditor", () => {
 
     const header = wrapper.get('[data-testid="file-search-header"]');
     expect(header.classes()).toContain("gap-1");
-    expect(header.classes()).toContain("px-2.5");
+    expect(header.classes()).toContain("p-1");
   });
 
   it("collapses and expands the file sidebar", async () => {
@@ -366,9 +366,10 @@ describe("FileSearchEditor", () => {
 
     await flushPromises();
 
-    const tabs = wrapper.findAll('[role="tab"]');
-    expect(tabs.length).toBeGreaterThanOrEqual(2);
-    await tabs[1]!.trigger("click");
+    const modeButtons = wrapper.get('[data-testid="file-search-mode-tabs"]').findAll("button");
+    const textMode = modeButtons.find((b) => b.text() === "Text");
+    expect(textMode).toBeDefined();
+    await textMode!.trigger("click");
     await flushPromises();
 
     await wrapper.get('[data-testid="file-search-input"]').setValue("hello");

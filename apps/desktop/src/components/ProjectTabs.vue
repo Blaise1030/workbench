@@ -264,8 +264,7 @@ function onRemoveClick(projectId: string, event: MouseEvent): void {
               'p-0',
               project.id === activeProjectId
                 ? 'opacity-100'
-                : 'opacity-0 group-hover:opacity-100 focus-visible:opacity-100',
-              'mt-1.5 me-1'
+                : 'opacity-0 group-hover:opacity-100 focus-visible:opacity-100'
             ]"
             :aria-label="`Remove ${project.name} from workspace tabs`"
             :title="`Remove ${project.name}`"

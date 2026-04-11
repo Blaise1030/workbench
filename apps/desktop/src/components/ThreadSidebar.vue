@@ -744,8 +744,7 @@ async function openAppUpdateUrl(url: string): Promise<void> {
           <ul
             :data-testid="`thread-group-threads-${group.uiKey}`"
             v-show="!effectiveCollapsedGroups.has(group.uiKey)"
-            class="min-w-0 space-y-0.5 px-2 pt-2"
-            :class="'pl-3'"
+            class="min-w-0 space-y-0.5 pl-3 pr-2 pt-2"
           >
             <template
               v-for="(subgroup, sgIdx) in displayThreadDateSubgroups(group)"

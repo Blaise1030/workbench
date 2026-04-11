@@ -2,7 +2,7 @@
 appId: com.workbench.desktop
 productName: workbench
 copyright: Copyright © workbench contributors
-electronVersion: 35.1.5
+electronVersion: 38.8.6
 
 directories:
   output: release

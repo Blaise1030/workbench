@@ -1,23 +1,12 @@
 <script setup lang="ts">
-import {
-  Bold,
-  Code2,
-  GripVertical,
-  Heading2,
-  Italic,
-  Link2,
-  ListOrdered,
-  Paperclip,
-  Quote,
-  User,
-  X
-} from "lucide-vue-next";
-import { computed, nextTick, onUnmounted, ref, watch } from "vue";
+import { GripVertical, ListOrdered } from "lucide-vue-next";
+import { computed, ref, watch } from "vue";
 import type { QueueItem } from "@/contextQueue/types";
+import { basenamePath, parseDiffQueuePaste } from "@/contextQueue/diffPasteParse";
 import Badge from "@/components/ui/Badge.vue";
 import Button from "@/components/ui/Button.vue";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { renderMarkdownToHtml } from "@/lib/markdown";
+import ContextQueueDiffPasteComposer from "@/components/contextQueue/ContextQueueDiffPasteComposer.vue";
+import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
 
 const props = defineProps<{
   threadId: string | null;
@@ -29,32 +18,11 @@ const emit = defineEmits<{
 }>();
 
 const open = ref(false);
-/** Root of panel content — scrolls inside here must not close the popover. */
-const popoverPanelRef = ref<HTMLElement | null>(null);
 
-const editorTab = ref<"write" | "preview">("write");
-const focusedItemId = ref<string | null>(null);
-/** DOM refs keyed by queue row id (not reactive; only used for selection APIs). */
-const textareaById: Record<string, HTMLTextAreaElement | undefined> = {};
-
-function onGlobalScroll(ev: Event): void {
-  if (!open.value) return;
-  const t = ev.target;
-  if (t instanceof Node && popoverPanelRef.value?.contains(t)) return;
-  open.value = false;
+/** Opens the review panel; while open, the toolbar button does not toggle closed (use Cancel). */
+function onQueueToolbarClick(): void {
+  if (!open.value) open.value = true;
 }
-
-watch(open, (isOpen) => {
-  if (isOpen) {
-    document.addEventListener("scroll", onGlobalScroll, true);
-  } else {
-    document.removeEventListener("scroll", onGlobalScroll, true);
-  }
-});
-
-onUnmounted(() => {
-  document.removeEventListener("scroll", onGlobalScroll, true);
-});
 
 function cloneItems(items: QueueItem[]): QueueItem[] {
   return items.map((item) => ({
@@ -66,14 +34,15 @@ function cloneItems(items: QueueItem[]): QueueItem[] {
 const internalItems = ref<QueueItem[]>([]);
 const dragFromIndex = ref<number | null>(null);
 const dragOverIndex = ref<number | null>(null);
+/** Row ids whose paste editor is visible (shown after double-click on the row). */
+const editorExpandedIds = ref<Set<string>>(new Set());
 
 watch(
   () => open.value,
   (isOpen) => {
     if (isOpen) {
       internalItems.value = cloneItems(props.items);
-      editorTab.value = "write";
-      focusedItemId.value = internalItems.value[0]?.id ?? null;
+      editorExpandedIds.value = new Set();
     }
   }
 );
@@ -83,20 +52,83 @@ watch(
   () => {
     if (open.value) {
       internalItems.value = cloneItems(props.items);
+      pruneExpandedEditors();
     }
   },
   { deep: true }
 );
 
-watch(
-  internalItems,
-  (rows) => {
-    if (!rows.some((r) => r.id === focusedItemId.value)) {
-      focusedItemId.value = rows[0]?.id ?? null;
+function pruneExpandedEditors(): void {
+  const allowed = new Set(internalItems.value.map((r) => r.id));
+  const next = new Set<string>();
+  for (const id of editorExpandedIds.value) {
+    if (allowed.has(id)) next.add(id);
+  }
+  editorExpandedIds.value = next;
+}
+
+function isRowEditorExpanded(id: string): boolean {
+  return editorExpandedIds.value.has(id);
+}
+
+function sourceEmoji(row: QueueItem): string {
+  switch (row.source) {
+    case "diff":
+      return "❗";
+    case "file":
+      return "📄";
+    case "folder":
+      return "📁";
+    case "terminal":
+      return row.pasteText.includes("[Agent Tab]") ? "🤖" : "🖥️";
+  }
+}
+
+function useDiffPasteComposer(row: QueueItem): boolean {
+  return row.source === "diff" && parseDiffQueuePaste(row.pasteText) != null;
+}
+
+/** One-line summary for the collapsed chip (full paste stays in the editor when expanded). */
+function chipSummary(row: QueueItem): string {
+  if (row.source === "diff") {
+    const p = parseDiffQueuePaste(row.pasteText);
+    if (p) {
+      const base = basenamePath(p.capture.filePath);
+      const ln =
+        p.capture.lineStart != null && p.capture.lineEnd != null
+          ? ` L${p.capture.lineStart}-${p.capture.lineEnd}`
+          : "";
+      const hint = p.prefix.trim() || p.suffix.trim() ? " · …" : "";
+      return `${base}${ln}${hint}`;
     }
-  },
-  { deep: true }
-);
+  }
+  const t = row.pasteText.trim();
+  if (!t) return "";
+  const lines = t.split(/\r?\n/).filter((l) => l.trim() !== "");
+  const first = lines[0] ?? t;
+  if (first.length > 56) return `${first.slice(0, 53)}…`;
+  if (lines.length <= 1) return first;
+  return `${first} · +${lines.length - 1}`;
+}
+
+function expandRowEditor(rowId: string): void {
+  const next = new Set(editorExpandedIds.value);
+  next.add(rowId);
+  editorExpandedIds.value = next;
+}
+
+function onQueueRowDoubleClick(rowId: string, e: MouseEvent): void {
+  const t = e.target as HTMLElement | null;
+  if (!t) return;
+  if (t.closest("button")) return;
+  if (t.closest('[data-testid="context-queue-review-drag-handle"]')) return;
+  if (t.closest("textarea")) return;
+  if (t.closest("[data-diff-composer]")) return;
+  const next = new Set(editorExpandedIds.value);
+  if (next.has(rowId)) next.delete(rowId);
+  else next.add(rowId);
+  editorExpandedIds.value = next;
+}
 
 const confirmDisabled = computed(
   () =>
@@ -106,23 +138,11 @@ const confirmDisabled = computed(
 
 const itemCount = computed(() => props.items.length);
 
-const headerSubtitle = computed(() => {
+const sendToAgentLabel = computed(() => {
   const n = internalItems.value.length;
-  const parts: string[] = [];
-  if (props.threadId) {
-    parts.push(`Thread ${props.threadId}`);
-  }
-  parts.push(n === 1 ? "1 queued item" : `${n} queued items`);
-  return parts.join(" · ");
+  if (n === 1) return "Send 1 task to agent";
+  return `Send ${n} tasks to agent`;
 });
-
-const previewMarkdown = computed(() =>
-  internalItems.value
-    .map((row, i) => `### Context ${i + 1} · ${row.source}\n\n${row.pasteText}`)
-    .join("\n\n---\n\n")
-);
-
-const previewHtml = computed(() => renderMarkdownToHtml(previewMarkdown.value));
 
 function close(): void {
   open.value = false;
@@ -135,25 +155,13 @@ function confirm(): void {
 }
 
 function removeAt(index: number): void {
+  const id = internalItems.value[index]?.id;
   internalItems.value = internalItems.value.filter((_, i) => i !== index);
-}
-
-function moveUp(index: number): void {
-  if (index <= 0) return;
-  const next = [...internalItems.value];
-  const tmp = next[index - 1];
-  next[index - 1] = next[index]!;
-  next[index] = tmp!;
-  internalItems.value = next;
-}
-
-function moveDown(index: number): void {
-  if (index >= internalItems.value.length - 1) return;
-  const next = [...internalItems.value];
-  const tmp = next[index + 1];
-  next[index + 1] = next[index]!;
-  next[index] = tmp!;
-  internalItems.value = next;
+  if (id) {
+    const next = new Set(editorExpandedIds.value);
+    next.delete(id);
+    editorExpandedIds.value = next;
+  }
 }
 
 function onDragStart(index: number, e: DragEvent): void {
@@ -216,80 +224,6 @@ function onDropRow(toIndex: number, e: DragEvent): void {
   clearDragUi();
 }
 
-function registerTextarea(id: string, el: unknown): void {
-  if (el instanceof HTMLTextAreaElement) {
-    textareaById[id] = el;
-  } else {
-    delete textareaById[id];
-  }
-}
-
-function focusedRow(): QueueItem | undefined {
-  const id = focusedItemId.value;
-  return id ? internalItems.value.find((r) => r.id === id) : undefined;
-}
-
-function focusedTextarea(): HTMLTextAreaElement | undefined {
-  const id = focusedItemId.value;
-  return id ? textareaById[id] : undefined;
-}
-
-function insertAroundSelection(before: string, after: string): void {
-  const row = focusedRow();
-  const ta = focusedTextarea();
-  if (!row || !ta) return;
-  const start = ta.selectionStart;
-  const end = ta.selectionEnd;
-  const text = row.pasteText;
-  const sel = text.slice(start, end);
-  row.pasteText = text.slice(0, start) + before + sel + after + text.slice(end);
-  const newStart = start + before.length;
-  const newEnd = newStart + sel.length;
-  void nextTick(() => {
-    ta.focus();
-    ta.setSelectionRange(newStart, newEnd);
-  });
-}
-
-function insertHeading(): void {
-  const row = focusedRow();
-  const ta = focusedTextarea();
-  if (!row || !ta) return;
-  const pos = ta.selectionStart;
-  const text = row.pasteText;
-  const lineStart = text.lastIndexOf("\n", pos - 1) + 1;
-  row.pasteText = `${text.slice(0, lineStart)}## ${text.slice(lineStart)}`;
-  void nextTick(() => {
-    ta.focus();
-    const at = lineStart + 3;
-    ta.setSelectionRange(at, at);
-  });
-}
-
-function insertQuote(): void {
-  const row = focusedRow();
-  const ta = focusedTextarea();
-  if (!row || !ta) return;
-  const start = ta.selectionStart;
-  const end = ta.selectionEnd;
-  const text = row.pasteText;
-  const block = text.slice(start, end);
-  const lines = block.split("\n");
-  const quoted = lines.map((ln) => (ln.length ? `> ${ln}` : ">")).join("\n");
-  row.pasteText = text.slice(0, start) + quoted + text.slice(end);
-  void nextTick(() => {
-    ta.focus();
-    const at = start + quoted.length;
-    ta.setSelectionRange(at, at);
-  });
-}
-
-function insertLink(): void {
-  const url = window.prompt("Link URL");
-  if (!url) return;
-  insertAroundSelection("[", `](${url})`);
-}
-
 /** Open the queue review panel (e.g. after enqueueing from the editor). */
 function openReview(): void {
   open.value = true;
@@ -300,281 +234,50 @@ defineExpose({ openReview });
 
 <template>
   <Popover v-model:open="open">
-    <PopoverTrigger as-child>
+    <PopoverAnchor as-child>
       <Button
         type="button"
-        variant="ghost"
-        size="icon-sm"
-        class="ms-1 shrink-0 gap-0.5 text-muted-foreground hover:text-foreground"
+        variant="outline"
+        size="sm"
+        class="ms-1 shrink-0 gap-1.5 text-foreground shadow-sm ring-1 ring-border/80 hover:bg-muted/80"
         data-testid="workspace-context-queue-button"
         title="Review and send queued context to the agent terminal"
+        aria-haspopup="dialog"
+        :aria-expanded="open"
+        @click="onQueueToolbarClick"
       >
-        <span class="sr-only">Queue</span>
-        <ListOrdered class="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+        <ListOrdered class="size-3.5 shrink-0 text-foreground" aria-hidden="true" />
+        <span class="text-[0.8rem] font-medium">Queue</span>
         <Badge
           v-if="itemCount > 0"
-          variant="secondary"
-          class="h-4 min-w-4 rounded-full px-0.5 text-[9px] tabular-nums leading-none"
-          >{{ itemCount }}</Badge
+          variant="default"
+          class="ms-0.5 inline-flex h-5 min-w-5 items-center justify-center gap-0.5 rounded-full px-1.5 text-[10px] font-semibold tabular-nums leading-none"
+          ><span aria-hidden="true">📋</span>{{ itemCount }}</Badge
         >
       </Button>
-    </PopoverTrigger>
+    </PopoverAnchor>
 
     <PopoverContent
       align="end"
       side="bottom"
       :side-offset="6"
-      class="flex w-[min(40rem,calc(100vw-1.5rem))] max-w-[calc(100vw-1.5rem)] max-h-[min(85vh,calc(100dvh-3rem))] flex-col gap-0 overflow-hidden border-border bg-card p-0 shadow-lg"
+      class="flex w-[min(28rem,calc(100vw-1.5rem))] max-w-[calc(100vw-1.5rem)] max-h-[min(85vh,calc(100dvh-3rem))] flex-col gap-0 overflow-hidden border-border bg-card p-0 shadow-lg"
       @pointerdown.stop
+      @escape-key-down.prevent
+      @pointer-down-outside.prevent
+      @focus-outside.prevent
     >
-      <div ref="popoverPanelRef" class="flex min-h-0 max-h-[inherit] flex-1 flex-col overflow-hidden">
-        <!-- GitHub-style review header -->
-        <div class="flex shrink-0 items-start gap-3 border-b border-border bg-muted/25 px-4 py-3">
-          <div
-            class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/12 text-primary"
-            aria-hidden="true"
-          >
-            <User class="h-4 w-4" />
-          </div>
-          <div class="min-w-0 flex-1 pt-0.5">
-            <h2 class="text-sm font-semibold leading-tight text-foreground">Agent context review</h2>
-            <p class="mt-0.5 truncate text-xs text-muted-foreground">{{ headerSubtitle }}</p>
+      <div class="flex min-h-0 max-h-[inherit] flex-1 flex-col overflow-hidden">
+        <div
+          class="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-border bg-muted/25 px-4 py-3"
+        >
+          <div class="min-w-0 flex-1">
+            <h2 class="text-sm font-semibold leading-tight text-foreground">Review task</h2>
             <p class="sr-only">
               Edit paste text for each queued item, reorder, or remove entries before sending to the agent terminal.
             </p>
           </div>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            class="h-8 w-8 shrink-0 text-muted-foreground hover:text-foreground"
-            aria-label="Close"
-            data-testid="context-queue-review-close-header"
-            @click="close"
-          >
-            <X class="h-4 w-4" />
-          </Button>
-        </div>
-
-        <!-- Write / Preview + toolbar -->
-        <div class="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-border px-2 py-1.5">
-          <div
-            class="inline-flex rounded-md bg-muted/50 p-0.5"
-            role="tablist"
-            aria-label="Editor mode"
-          >
-            <button
-              type="button"
-              role="tab"
-              :aria-selected="editorTab === 'write'"
-              class="rounded px-2.5 py-1 text-xs font-medium transition-colors"
-              :class="
-                editorTab === 'write'
-                  ? 'bg-background text-foreground shadow-sm'
-                  : 'text-muted-foreground hover:text-foreground'
-              "
-              data-testid="context-queue-review-tab-write"
-              @click="editorTab = 'write'"
-            >
-              Write
-            </button>
-            <button
-              type="button"
-              role="tab"
-              :aria-selected="editorTab === 'preview'"
-              class="rounded px-2.5 py-1 text-xs font-medium transition-colors"
-              :class="
-                editorTab === 'preview'
-                  ? 'bg-background text-foreground shadow-sm'
-                  : 'text-muted-foreground hover:text-foreground'
-              "
-              data-testid="context-queue-review-tab-preview"
-              @click="editorTab = 'preview'"
-            >
-              Preview
-            </button>
-          </div>
-          <div
-            v-show="editorTab === 'write'"
-            class="flex flex-wrap items-center gap-0.5"
-            aria-label="Formatting"
-          >
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              class="h-8 w-8 text-muted-foreground"
-              title="Heading"
-              aria-label="Insert heading"
-              @click="insertHeading"
-            >
-              <Heading2 class="h-4 w-4" />
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              class="h-8 w-8 text-muted-foreground"
-              title="Bold"
-              aria-label="Bold"
-              @click="insertAroundSelection('**', '**')"
-            >
-              <Bold class="h-4 w-4" />
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              class="h-8 w-8 text-muted-foreground"
-              title="Italic"
-              aria-label="Italic"
-              @click="insertAroundSelection('*', '*')"
-            >
-              <Italic class="h-4 w-4" />
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              class="h-8 w-8 text-muted-foreground"
-              title="Quote"
-              aria-label="Quote"
-              @click="insertQuote"
-            >
-              <Quote class="h-4 w-4" />
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              class="h-8 w-8 text-muted-foreground"
-              title="Code"
-              aria-label="Code"
-              @click="insertAroundSelection('`', '`')"
-            >
-              <Code2 class="h-4 w-4" />
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              class="h-8 w-8 text-muted-foreground"
-              title="Link"
-              aria-label="Link"
-              @click="insertLink"
-            >
-              <Link2 class="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-
-        <!-- Body -->
-        <div class="min-h-0 flex-1 overflow-y-auto px-4 py-3">
-          <template v-if="editorTab === 'write'">
-            <p v-if="internalItems.length === 0" class="text-sm text-muted-foreground">No items in queue.</p>
-
-            <div
-              v-for="(row, index) in internalItems"
-              :key="row.id"
-              class="mb-3 flex flex-col gap-2 rounded-md border border-border bg-muted/20 p-3 transition-shadow last:mb-0"
-              :class="{
-                'opacity-50 ring-2 ring-primary/40': dragFromIndex === index,
-                'ring-2 ring-primary ring-offset-2 ring-offset-background':
-                  dragOverIndex === index && dragFromIndex !== index
-              }"
-              data-testid="context-queue-review-row"
-              @dragenter.prevent="onDragOverRow(index, $event)"
-              @dragover="onDragOverRow(index, $event)"
-              @dragleave="onDragLeaveRow(index, $event)"
-              @drop="onDropRow(index, $event)"
-            >
-              <div class="flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  class="touch-none cursor-grab rounded border border-transparent p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground active:cursor-grabbing"
-                  draggable="true"
-                  title="Drag to reorder"
-                  :aria-label="`Drag item ${index + 1} to reorder`"
-                  data-testid="context-queue-review-drag-handle"
-                  @dragstart="onDragStart(index, $event)"
-                  @dragend="onDragEnd"
-                >
-                  <GripVertical class="size-4 shrink-0" aria-hidden="true" />
-                </button>
-                <span class="text-xs font-medium text-muted-foreground">Item {{ index + 1 }}</span>
-                <span class="text-xs text-muted-foreground">({{ row.source }})</span>
-                <div class="ml-auto flex flex-wrap gap-1">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    :disabled="index === 0"
-                    data-testid="context-queue-review-move-up"
-                    :aria-label="`Move item ${index + 1} up`"
-                    @click="moveUp(index)"
-                  >
-                    Up
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    :disabled="index === internalItems.length - 1"
-                    data-testid="context-queue-review-move-down"
-                    :aria-label="`Move item ${index + 1} down`"
-                    @click="moveDown(index)"
-                  >
-                    Down
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    data-testid="context-queue-review-delete"
-                    :aria-label="`Remove item ${index + 1}`"
-                    @click="removeAt(index)"
-                  >
-                    Delete
-                  </Button>
-                </div>
-              </div>
-              <textarea
-                :ref="(el) => registerTextarea(row.id, el)"
-                v-model="row.pasteText"
-                draggable="false"
-                class="min-h-[6.5rem] w-full resize-y rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground ring-offset-background placeholder:text-muted-foreground focus-visible:border-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(212,92%,45%)] focus-visible:ring-offset-0 dark:focus-visible:ring-[hsl(212,92%,58%)]"
-                data-testid="context-queue-review-paste"
-                :aria-label="`Paste text for item ${index + 1}`"
-                @focus="focusedItemId = row.id"
-              />
-            </div>
-          </template>
-
-          <div v-else class="context-queue-preview rounded-md border border-border bg-muted/15 px-3 py-3 text-sm">
-            <p v-if="internalItems.length === 0" class="text-muted-foreground">Nothing to preview.</p>
-            <div
-              v-else
-              class="context-queue-preview-md text-foreground"
-              data-testid="context-queue-review-preview"
-              v-html="previewHtml"
-            />
-          </div>
-        </div>
-
-        <!-- Footer -->
-        <div class="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t border-border bg-muted/15 px-4 py-3">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            class="gap-1.5 text-muted-foreground"
-            disabled
-            title="Attachments are not available for the context queue yet"
-          >
-            <Paperclip class="h-3.5 w-3.5" aria-hidden="true" />
-            Add files
-          </Button>
-          <div class="flex flex-wrap justify-end gap-2">
+          <div class="flex shrink-0 flex-wrap items-center justify-end gap-2">
             <Button type="button" variant="outline" size="sm" data-testid="context-queue-review-cancel" @click="close">
               Cancel
             </Button>
@@ -585,65 +288,91 @@ defineExpose({ openReview });
               :disabled="confirmDisabled"
               @click="confirm"
             >
-              Send to agent
+              {{ sendToAgentLabel }}
             </Button>
+          </div>
+        </div>
+
+        <!-- Body -->
+        <div class="min-h-0 flex-1 overflow-y-auto px-4 py-3">
+          <p v-if="internalItems.length === 0" class="text-sm text-muted-foreground">No items in queue.</p>
+
+          <div
+            v-for="(row, index) in internalItems"
+            :key="row.id"
+            class="mb-3 flex flex-col gap-2 rounded-md border border-border bg-muted/20 p-3 transition-shadow last:mb-0"
+            :class="{
+              'opacity-50 ring-2 ring-primary/40': dragFromIndex === index,
+              'ring-2 ring-primary ring-offset-2 ring-offset-background':
+                dragOverIndex === index && dragFromIndex !== index
+            }"
+            data-testid="context-queue-review-row"
+            title="Double-click to show or hide the editor"
+            @dragenter.prevent="onDragOverRow(index, $event)"
+            @dragover="onDragOverRow(index, $event)"
+            @dragleave="onDragLeaveRow(index, $event)"
+            @drop="onDropRow(index, $event)"
+            @dblclick="onQueueRowDoubleClick(row.id, $event)"
+          >
+            <div class="flex min-h-9 flex-wrap items-center gap-2">
+              <button
+                type="button"
+                class="touch-none cursor-grab rounded border border-transparent p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground active:cursor-grabbing"
+                draggable="true"
+                title="Drag to reorder"
+                aria-label="Drag to reorder"
+                data-testid="context-queue-review-drag-handle"
+                @dblclick.stop
+                @dragstart="onDragStart(index, $event)"
+                @dragend="onDragEnd"
+              >
+                <GripVertical class="size-4 shrink-0" aria-hidden="true" />
+              </button>
+              <Badge variant="secondary" class="max-w-[min(12rem,45%)] shrink-0 gap-1 truncate px-2 py-0.5 text-[11px] font-medium">
+                <span aria-hidden="true">{{ sourceEmoji(row) }}</span>
+                <span class="truncate">{{ row.source }}</span>
+              </Badge>
+            </div>
+            <button
+              v-show="!isRowEditorExpanded(row.id)"
+              type="button"
+              data-testid="context-queue-review-chip"
+              class="flex w-full min-w-0 max-w-full items-center gap-2 rounded-full border border-border bg-muted/40 px-3 py-1.5 text-left text-xs text-foreground shadow-sm transition-colors hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+              :aria-label="row.pasteText.trim() ? 'Expand to edit queued text' : 'Expand to enter queued text'"
+              @click="expandRowEditor(row.id)"
+            >
+              <span class="shrink-0 text-[13px] leading-none" aria-hidden="true">{{ sourceEmoji(row) }}</span>
+              <span v-if="!row.pasteText.trim()" class="min-w-0 truncate text-muted-foreground">Empty — click or double-click row to edit</span>
+              <span v-else class="min-w-0 truncate font-mono text-[11px]">{{ chipSummary(row) }}</span>
+            </button>
+            <ContextQueueDiffPasteComposer
+              v-if="isRowEditorExpanded(row.id) && useDiffPasteComposer(row)"
+              v-model="row.pasteText"
+            />
+            <textarea
+              v-else-if="isRowEditorExpanded(row.id)"
+              v-model="row.pasteText"
+              draggable="false"
+              class="min-h-[6.5rem] w-full resize-y rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground ring-offset-background placeholder:text-muted-foreground focus-visible:border-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(212,92%,45%)] focus-visible:ring-offset-0 dark:focus-visible:ring-[hsl(212,92%,58%)]"
+              data-testid="context-queue-review-paste"
+              :aria-label="`Paste text from ${row.source}`"
+              @dblclick.stop
+            />
+            <div class="flex justify-end">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                data-testid="context-queue-review-delete"
+                :aria-label="`Remove ${row.source} entry`"
+                @click.stop="removeAt(index)"
+              >
+                Delete
+              </Button>
+            </div>
           </div>
         </div>
       </div>
     </PopoverContent>
   </Popover>
 </template>
-
-<style scoped>
-.context-queue-preview-md :deep(p) {
-  margin: 0.4em 0;
-}
-.context-queue-preview-md :deep(p:first-child) {
-  margin-top: 0;
-}
-.context-queue-preview-md :deep(p:last-child) {
-  margin-bottom: 0;
-}
-.context-queue-preview-md :deep(h1),
-.context-queue-preview-md :deep(h2),
-.context-queue-preview-md :deep(h3) {
-  font-size: 0.875rem;
-  font-weight: 600;
-  margin: 0.75em 0 0.35em;
-}
-.context-queue-preview-md :deep(h3:first-child) {
-  margin-top: 0;
-}
-.context-queue-preview-md :deep(pre) {
-  margin: 0.5em 0;
-  overflow-x: auto;
-  border-radius: 0.375rem;
-  padding: 0.5rem 0.65rem;
-  font-size: 0.75rem;
-  background: hsl(var(--muted));
-}
-.context-queue-preview-md :deep(code) {
-  font-size: 0.8em;
-  border-radius: 0.25rem;
-  padding: 0.1em 0.3em;
-  background: hsl(var(--muted));
-}
-.context-queue-preview-md :deep(pre code) {
-  padding: 0;
-  background: transparent;
-}
-.context-queue-preview-md :deep(a) {
-  color: hsl(var(--primary));
-  text-decoration: underline;
-}
-.context-queue-preview-md :deep(ul),
-.context-queue-preview-md :deep(ol) {
-  margin: 0.35em 0;
-  padding-left: 1.25rem;
-}
-.context-queue-preview-md :deep(hr) {
-  margin: 1rem 0;
-  border: 0;
-  border-top: 1px solid hsl(var(--border));
-}
-</style>
