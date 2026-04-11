@@ -303,18 +303,18 @@ defineExpose({ openReview });
     <PopoverTrigger as-child>
       <Button
         type="button"
-        variant="outline"
-        size="xs"
-        class="ms-1 shrink-0 gap-1 px-2"
+        variant="ghost"
+        size="icon-sm"
+        class="ms-1 shrink-0 gap-0.5 text-muted-foreground hover:text-foreground"
         data-testid="workspace-context-queue-button"
         title="Review and send queued context to the agent terminal"
       >
+        <span class="sr-only">Queue</span>
         <ListOrdered class="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-        <span class="hidden sm:inline">Queue</span>
         <Badge
           v-if="itemCount > 0"
           variant="secondary"
-          class="h-5 min-w-5 rounded-full px-1 text-[10px] tabular-nums"
+          class="h-4 min-w-4 rounded-full px-0.5 text-[9px] tabular-nums leading-none"
           >{{ itemCount }}</Badge
         >
       </Button>
