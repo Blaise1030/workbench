@@ -1,19 +1,27 @@
 <script setup lang="ts">
-import { MergeView } from "@codemirror/merge";
-import { type Extension } from "@codemirror/state";
+import { MergeView, unifiedMergeView } from "@codemirror/merge";
+import { EditorState, type Extension } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { minimalSetup } from "codemirror";
 import { onBeforeUnmount, onMounted, ref, shallowRef, watch } from "vue";
 import { codemirrorLanguageIdFromPath, languageExtensionsFor } from "@/lib/codemirrorLanguageExtensions";
 
-const props = defineProps<{
-  original: string;
-  modified: string;
-  filePath: string;
-}>();
+type ScmDiffLayout = "split" | "unified";
+
+const props = withDefaults(
+  defineProps<{
+    original: string;
+    modified: string;
+    filePath: string;
+    /** Split = side‑by‑side merge panes; unified = single column with deleted blocks above changes. */
+    layout?: ScmDiffLayout;
+  }>(),
+  { layout: "split" }
+);
 
 const hostRef = ref<HTMLDivElement | null>(null);
 const mergeViewRef = shallowRef<MergeView | null>(null);
+const editorViewRef = shallowRef<EditorView | null>(null);
 const colorSchemeDark = ref(false);
 
 function isDark(): boolean {
@@ -75,11 +83,41 @@ function baseExtensions(): Extension[] {
   ];
 }
 
+function destroyViews(): void {
+  mergeViewRef.value?.destroy();
+  mergeViewRef.value = null;
+  editorViewRef.value?.destroy();
+  editorViewRef.value = null;
+}
+
 function mountMerge(): void {
   const el = hostRef.value;
   if (!el) return;
-  mergeViewRef.value?.destroy();
-  mergeViewRef.value = null;
+  destroyViews();
+
+  if (props.layout === "unified") {
+    editorViewRef.value = new EditorView({
+      parent: el,
+      state: EditorState.create({
+        doc: props.modified,
+        extensions: [
+          ...baseExtensions(),
+          EditorState.readOnly.of(true),
+          unifiedMergeView({
+            original: props.original,
+            highlightChanges: true,
+            gutter: true,
+            mergeControls: false,
+            allowInlineDiffs: true,
+            collapseUnchanged: { margin: 4, minSize: 6 },
+            diffConfig: { scanLimit: 2000, timeout: 2500 }
+          })
+        ]
+      })
+    });
+    return;
+  }
+
   mergeViewRef.value = new MergeView({
     parent: el,
     orientation: "a-b",
@@ -110,12 +148,11 @@ onMounted(() => {
 onBeforeUnmount(() => {
   colorSchemeObserver?.disconnect();
   colorSchemeObserver = null;
-  mergeViewRef.value?.destroy();
-  mergeViewRef.value = null;
+  destroyViews();
 });
 
 watch(
-  () => [props.original, props.modified, props.filePath] as const,
+  () => [props.original, props.modified, props.filePath, props.layout] as const,
   () => {
     mountMerge();
   }
@@ -138,5 +175,13 @@ watch(
 .scm-merge-diff-host :deep(.cm-mergeViewEditor) {
   flex: 1 1 0%;
   min-width: 0;
+}
+
+.scm-merge-diff-host :deep(.cm-editor) {
+  height: 100%;
+}
+
+.scm-merge-diff-host :deep(.cm-editor .cm-scroller) {
+  height: 100%;
 }
 </style>

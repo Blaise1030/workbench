@@ -29,6 +29,29 @@ import {
 import type { FileMergeSidesResult, RepoStatusEntry } from "@shared/ipc";
 import CodeMirrorMergeDiff from "@/components/CodeMirrorMergeDiff.vue";
 
+const SCM_DIFF_LAYOUT_KEY = "instrument.scmDiffLayout";
+type ScmDiffLayout = "split" | "unified";
+
+function readScmDiffLayout(): ScmDiffLayout {
+  try {
+    return typeof localStorage !== "undefined" && localStorage.getItem(SCM_DIFF_LAYOUT_KEY) === "unified"
+      ? "unified"
+      : "split";
+  } catch {
+    return "split";
+  }
+}
+
+const scmDiffLayout = ref<ScmDiffLayout>(readScmDiffLayout());
+
+watch(scmDiffLayout, (v) => {
+  try {
+    localStorage.setItem(SCM_DIFF_LAYOUT_KEY, v);
+  } catch {
+    /* ignore quota / private mode */
+  }
+});
+
 const commitMessage = defineModel<string>("commitMessage", { default: "" });
 
 type SectionId = "staged" | "unstaged" | "untracked";
@@ -814,6 +837,35 @@ onBeforeUnmount(() => {
             }}
           </p>
         </div>
+        <div
+          v-if="selectedEntry && mergeResult?.kind === 'ok'"
+          class="flex shrink-0 items-center gap-px rounded-md border border-border bg-muted/25 p-px"
+          role="group"
+          aria-label="Diff layout"
+        >
+          <Button
+            type="button"
+            size="xs"
+            :variant="scmDiffLayout === 'split' ? 'default' : 'ghost'"
+            class="h-6 rounded-sm px-2 text-[10px]"
+            title="Two columns: original on the left, working copy on the right"
+            :aria-pressed="scmDiffLayout === 'split'"
+            @click="scmDiffLayout = 'split'"
+          >
+            Split
+          </Button>
+          <Button
+            type="button"
+            size="xs"
+            :variant="scmDiffLayout === 'unified' ? 'default' : 'ghost'"
+            class="h-6 rounded-sm px-2 text-[10px]"
+            title="Single column: removed lines appear above the current file"
+            :aria-pressed="scmDiffLayout === 'unified'"
+            @click="scmDiffLayout = 'unified'"
+          >
+            Unified
+          </Button>
+        </div>
         <Button
           v-if="selectedEntry"
           type="button"
@@ -860,13 +912,22 @@ onBeforeUnmount(() => {
           <p
             class="shrink-0 border-b border-border bg-muted/15 px-2 py-1 font-mono text-[10px] leading-tight text-muted-foreground"
           >
-            <span class="font-medium text-foreground">{{ mergeResult.originalLabel }}</span>
-            · left —
-            <span class="font-medium text-foreground">{{ mergeResult.modifiedLabel }}</span>
-            · right
+            <template v-if="scmDiffLayout === 'split'">
+              <span class="font-medium text-foreground">{{ mergeResult.originalLabel }}</span>
+              · left —
+              <span class="font-medium text-foreground">{{ mergeResult.modifiedLabel }}</span>
+              · right
+            </template>
+            <template v-else>
+              Unified —
+              <span class="font-medium text-foreground">{{ mergeResult.originalLabel }}</span>
+              vs
+              <span class="font-medium text-foreground">{{ mergeResult.modifiedLabel }}</span>
+            </template>
           </p>
           <CodeMirrorMergeDiff
             class="min-h-0 flex-1"
+            :layout="scmDiffLayout"
             :original="mergeResult.original"
             :modified="mergeResult.modified"
             :file-path="selectedEntry?.path ?? ''"
