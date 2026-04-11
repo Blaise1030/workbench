@@ -386,6 +386,12 @@ function addShellTerminal(): void {
   shellOverlayTab.value = `shell:${id}`;
 }
 
+/** Matches bottom bar pill labels (Terminal 1, …) for queued terminal context. */
+function overlayShellQueueSessionLabel(slotId: string): string {
+  const i = shellSlotIds.value.indexOf(slotId);
+  return i >= 0 ? `Terminal ${i + 1}` : "Shell";
+}
+
 const addTerminalTooltipText = computed(() => keybindings.titleWithShortcut("Add terminal", "addTerminal"));
 
 function onCenterTabClose(tabValue: string): void {
@@ -1685,7 +1691,7 @@ watch(
             aria-label="Center panel"
           />
           <ContextQueueReviewDropdown
-            v-if="workspace.activeThreadId"
+            v-if="workspace.activeThreadId && contextQueueItems.length > 0"
             ref="contextQueueReviewRef"
             :thread-id="workspace.activeThreadId"
             :items="contextQueueItems"
@@ -1905,6 +1911,7 @@ watch(
                           :worktree-id="workspace.activeWorktreeId ?? ''"
                           :thread-id="workspace.activeThreadId ?? ''"
                           :cwd="workspace.activeWorktree?.path ?? ''"
+                          :queue-session-label="overlayShellQueueSessionLabel(slotId)"
                           @user-typed="markPtyUserInput"
                         />
                       </div>

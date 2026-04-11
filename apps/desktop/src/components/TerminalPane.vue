@@ -51,8 +51,13 @@ const props = withDefaults(
     ptyKind?: "agent" | "shell";
     /** Distinct id for each extra terminal tab (PTY key includes worktree + this). */
     shellSlotId?: string;
+    /**
+     * Label for queued terminal snippets (overlay shells). E.g. "Terminal 1" to match the tab.
+     * Agent pane ignores this and uses "Agent".
+     */
+    queueSessionLabel?: string | null;
   }>(),
-  { ptyKind: "agent", shellSlotId: "main" }
+  { ptyKind: "agent", shellSlotId: "main", queueSessionLabel: null }
 );
 
 const emit = defineEmits<{
@@ -88,6 +93,12 @@ function terminalSelectionAnchorRect(wrap: HTMLElement): Rect {
     width: 24,
     height: 12
   };
+}
+
+function terminalQueueSessionLabel(): string {
+  if (props.ptyKind === "agent") return "Agent";
+  const custom = props.queueSessionLabel?.trim();
+  return custom && custom.length > 0 ? custom : "Shell";
 }
 
 const containerRef = ref<HTMLElement | null>(null);
@@ -381,7 +392,7 @@ function onQueueTerminalSelection(): void {
   const capture: QueueCapture = {
     source: "terminal",
     selectedText: text,
-    sessionLabel: props.ptyKind === "agent" ? "Agent" : "Terminal"
+    sessionLabel: terminalQueueSessionLabel()
   };
   threadQueue.addItem(props.threadId, {
     id: crypto.randomUUID(),
@@ -413,7 +424,7 @@ async function onInjectTerminalSelectionToAgent(): Promise<void> {
   const capture: QueueCapture = {
     source: "terminal",
     selectedText: text,
-    sessionLabel: props.ptyKind === "agent" ? "Agent" : "Terminal"
+    sessionLabel: terminalQueueSessionLabel()
   };
   const item: QueueItem = {
     id: crypto.randomUUID(),
