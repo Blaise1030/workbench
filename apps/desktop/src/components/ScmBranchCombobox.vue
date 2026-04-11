@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { Check, ChevronsUpDown, GitBranch, Loader2 } from "lucide-vue-next";
+import { Check, ChevronDown, ChevronsUpDown, GitBranch, Loader2 } from "lucide-vue-next";
 import {
   Combobox,
   ComboboxAnchor,
@@ -174,6 +174,11 @@ async function onModelUpdate(branch: string | undefined): Promise<void> {
           <template v-if="variant === 'toolbar'">
             <GitBranch v-if="!checkoutBusy" class="size-3 shrink-0" aria-hidden="true" />
             <span v-if="!checkoutBusy" class="min-w-0 flex-1 truncate text-start">{{ displayTrigger }}</span>
+            <ChevronDown
+              v-if="!checkoutBusy"
+              class="size-2.5 shrink-0 opacity-60"
+              aria-hidden="true"
+            />
           </template>
           <template v-else>
             <span class="min-w-0 flex-1 truncate">{{ displayTrigger }}</span>
