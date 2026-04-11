@@ -2,6 +2,8 @@
 import { computed, nextTick, onUnmounted, ref, watch } from "vue";
 import Button from "@/components/ui/Button.vue";
 import { clampPopupRect, type Rect } from "@/lib/contextQueueAnchor";
+import { eventMatchesBinding, findDefinitionIn } from "@/keybindings/registry";
+import { useKeybindingsStore } from "@/stores/keybindingsStore";
 
 const props = defineProps<{
   visible: boolean;
@@ -15,10 +17,20 @@ const emit = defineEmits<{
   dismiss: [];
 }>();
 
+const keybindings = useKeybindingsStore();
+const queueButtonTitle = computed(() =>
+  keybindings.titleWithShortcut("Queue", "contextQueueSelectionQueue")
+);
+const agentButtonTitle = computed(() =>
+  keybindings.titleWithShortcut("Agent", "contextQueueSelectionSendToAgent")
+);
+
 const popupEl = ref<HTMLElement | null>(null);
 const position = ref({ left: 0, top: 0 });
 
 const fallbackSize = { w: 140, h: 36 };
+
+const keydownCaptureOpts = { capture: true } as const;
 
 function updatePosition(): void {
   if (!props.visible || !props.anchor) return;
@@ -39,8 +51,27 @@ watch(
   { immediate: true, deep: true }
 );
 
-function onKeydown(e: KeyboardEvent): void {
-  if (e.key === "Escape") emit("dismiss");
+function onPopupKeydown(e: KeyboardEvent): void {
+  if (!showPopup.value) return;
+  if (e.key === "Escape") {
+    emit("dismiss");
+    return;
+  }
+  const defs = keybindings.effectiveDefinitions;
+  const queueDef = findDefinitionIn(defs, "contextQueueSelectionQueue");
+  const agentDef = findDefinitionIn(defs, "contextQueueSelectionSendToAgent");
+  if (queueDef && eventMatchesBinding(e, queueDef)) {
+    e.preventDefault();
+    e.stopPropagation();
+    emit("queue");
+    return;
+  }
+  if (agentDef && eventMatchesBinding(e, agentDef)) {
+    e.preventDefault();
+    e.stopPropagation();
+    emit("sendToAgent");
+    return;
+  }
 }
 
 function onGlobalScroll(): void {
@@ -51,10 +82,10 @@ watch(
   () => props.visible,
   (visible) => {
     if (visible) {
-      window.addEventListener("keydown", onKeydown);
+      window.addEventListener("keydown", onPopupKeydown, keydownCaptureOpts);
       document.addEventListener("scroll", onGlobalScroll, true);
     } else {
-      window.removeEventListener("keydown", onKeydown);
+      window.removeEventListener("keydown", onPopupKeydown, keydownCaptureOpts);
       document.removeEventListener("scroll", onGlobalScroll, true);
     }
   },
@@ -62,7 +93,7 @@ watch(
 );
 
 onUnmounted(() => {
-  window.removeEventListener("keydown", onKeydown);
+  window.removeEventListener("keydown", onPopupKeydown, keydownCaptureOpts);
   document.removeEventListener("scroll", onGlobalScroll, true);
 });
 </script>
@@ -82,6 +113,7 @@ onUnmounted(() => {
         size="xs"
         class="text-muted-foreground hover:text-foreground"
         data-testid="context-queue-selection-queue"
+        :title="queueButtonTitle"
         @click="emit('queue')"
       >
         Queue
@@ -91,6 +123,7 @@ onUnmounted(() => {
         size="xs"
         class="text-muted-foreground hover:text-foreground"
         data-testid="context-queue-selection-agent"
+        :title="agentButtonTitle"
         @click="emit('sendToAgent')"
       >
         Agent

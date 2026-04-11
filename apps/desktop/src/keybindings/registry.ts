@@ -15,7 +15,9 @@ export type KeybindingId =
   | "focusFileSearch"
   | "workspaceLauncher"
   | "stageAllDiff"
-  | "openSettings";
+  | "openSettings"
+  | "contextQueueSelectionQueue"
+  | "contextQueueSelectionSendToAgent";
 
 export type PhysicalShortcut = {
   /** Command on macOS, Control elsewhere */
@@ -173,7 +175,8 @@ function codeToDisplayLabel(code: string): string {
     KeyF: "F",
     KeyK: "K",
     KeyN: "N",
-    KeyJ: "J"
+    KeyJ: "J",
+    Enter: "↵"
   };
   return map[code] ?? code.replace(/^Key/, "");
 }
@@ -250,6 +253,20 @@ export const KEYBINDING_DEFINITIONS: KeybindingDefinition[] = [
     label: "Open settings",
     category: "General",
     shortcut: mod("Comma")
+  },
+  {
+    id: "contextQueueSelectionQueue",
+    label: "Queue selection for agent context (when the bar is visible)",
+    category: "General",
+    shortcut: mod("Enter", { shift: true }),
+    notes: "Runs when the Queue / Agent bar appears after you highlight text."
+  },
+  {
+    id: "contextQueueSelectionSendToAgent",
+    label: "Send selection to agent now (when the bar is visible)",
+    category: "General",
+    shortcut: mod("Enter"),
+    notes: "Runs when the Queue / Agent bar is visible; sends straight to the agent terminal."
   }
 ];
 
