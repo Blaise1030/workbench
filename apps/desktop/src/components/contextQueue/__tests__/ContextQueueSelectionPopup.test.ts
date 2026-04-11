@@ -47,7 +47,7 @@ describe("ContextQueueSelectionPopup", () => {
     expect(wrapper.emitted("sendToAgent")).toHaveLength(1);
   });
 
-  it("emits dismiss when dismiss is clicked", async () => {
+  it("emits dismiss when Escape is pressed", async () => {
     wrapper = mount(ContextQueueSelectionPopup, {
       attachTo: document.body,
       props: {
@@ -57,11 +57,7 @@ describe("ContextQueueSelectionPopup", () => {
     });
 
     await wrapper.vm.$nextTick();
-    const dismiss = document.body.querySelector(
-      '[data-testid="context-queue-selection-dismiss"]'
-    ) as HTMLButtonElement;
-    expect(dismiss).toBeTruthy();
-    await dismiss.click();
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
 
     expect(wrapper.emitted("dismiss")).toHaveLength(1);
   });

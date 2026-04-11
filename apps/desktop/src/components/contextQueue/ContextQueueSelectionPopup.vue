@@ -18,7 +18,7 @@ const emit = defineEmits<{
 const popupEl = ref<HTMLElement | null>(null);
 const position = ref({ left: 0, top: 0 });
 
-const fallbackSize = { w: 200, h: 40 };
+const fallbackSize = { w: 140, h: 36 };
 
 function updatePosition(): void {
   if (!props.visible || !props.anchor) return;
@@ -73,25 +73,27 @@ onUnmounted(() => {
       v-if="showPopup"
       ref="popupEl"
       data-testid="context-queue-selection-popup"
-      class="pointer-events-auto fixed z-[9999] flex items-center gap-1 rounded-lg border border-border bg-background p-1 shadow-md"
+      class="pointer-events-auto fixed z-[9999] flex items-center gap-0.5 rounded-lg border border-border bg-background p-0.5 shadow-md"
       :style="{ left: `${position.left}px`, top: `${position.top}px` }"
       @pointerdown.stop
     >
-      <Button variant="outline" size="xs" data-testid="context-queue-selection-queue" @click="emit('queue')">
+      <Button
+        variant="ghost"
+        size="xs"
+        class="text-muted-foreground hover:text-foreground"
+        data-testid="context-queue-selection-queue"
+        @click="emit('queue')"
+      >
         Queue
-      </Button>
-      <Button size="xs" data-testid="context-queue-selection-agent" @click="emit('sendToAgent')">
-        Agent
       </Button>
       <Button
         variant="ghost"
-        size="icon-sm"
-        type="button"
-        aria-label="Dismiss"
-        data-testid="context-queue-selection-dismiss"
-        @click="emit('dismiss')"
+        size="xs"
+        class="text-muted-foreground hover:text-foreground"
+        data-testid="context-queue-selection-agent"
+        @click="emit('sendToAgent')"
       >
-        ×
+        Agent
       </Button>
     </div>
   </Teleport>
