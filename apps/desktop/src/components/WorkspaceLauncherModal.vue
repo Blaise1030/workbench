@@ -1,6 +1,18 @@
 <script setup lang="ts">
-import { Folder, GitBranch, PanelLeft, Search } from "lucide-vue-next";
+import {
+  Bot,
+  Files,
+  Folder,
+  GitBranch,
+  GitFork,
+  MessageSquare,
+  PanelLeft,
+  PanelLeftClose,
+  Search,
+  Settings2
+} from "lucide-vue-next";
 import { computed, nextTick, ref, watch } from "vue";
+import type { CommandCenterFilter, QuickAction } from "@/composables/useCommandCenter";
 import AgentIcon from "@/components/ui/AgentIcon.vue";
 import {
   Dialog,
@@ -32,6 +44,21 @@ const emit = defineEmits<{
   pickProject: [projectId: string];
   pickWorktree: [worktreeId: string];
 }>();
+
+const props = defineProps<{
+  quickActions: QuickAction[];
+  activeFilter: CommandCenterFilter;
+}>();
+
+const ACTION_ICONS: Record<string, typeof Bot> = {
+  agent: Bot,
+  diff: GitBranch,
+  files: Files,
+  searchThreads: MessageSquare,
+  searchWorktrees: GitFork,
+  sidebar: PanelLeftClose,
+  settings: Settings2
+};
 
 const workspace = useWorkspaceStore();
 const keybindings = useKeybindingsStore();
@@ -83,7 +110,9 @@ const rows = computed<LauncherRow[]>(() => {
     branchFiles.value,
     otherWorktreeFiles.value
   );
-  return [...cmds, ...switchRows, ...rest];
+  const all = [...cmds, ...switchRows, ...rest];
+  if (!props.activeFilter) return all;
+  return all.filter((r) => r.section === props.activeFilter);
 });
 
 const emptyHint = computed(() => {
@@ -292,6 +321,22 @@ function showSectionDividerAbove(i: number): boolean {
             data-testid="workspace-launcher-input"
             @keydown="onInputKeydown"
           />
+          <div class="flex shrink-0 items-center gap-1" role="toolbar" aria-label="Quick actions">
+            <button
+              v-for="action in props.quickActions"
+              :key="action.id"
+              type="button"
+              :title="`${action.label} (${action.shortcutLabel})`"
+              :aria-label="action.label"
+              :aria-pressed="action.isFilter && props.activeFilter === action.filterId"
+              class="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              :class="{ 'bg-muted text-foreground': action.isFilter && props.activeFilter === action.filterId }"
+              @click="action.action()"
+              @mousedown.prevent
+            >
+              <component :is="ACTION_ICONS[action.id]" class="size-4" aria-hidden="true" />
+            </button>
+          </div>
         </div>
         <p class="border-b border-border px-3 py-1.5 text-[11px] text-muted-foreground">
           <span class="font-mono">@wt</span>
