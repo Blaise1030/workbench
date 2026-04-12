@@ -102,14 +102,20 @@ describe("searchLauncherRows", () => {
     });
   });
 
-  it("worktree mode empty query returns no rows", () => {
+  it("worktree mode empty query returns results by default", () => {
     const rows = searchLauncherRows(
       { mode: "worktree", query: "" },
       [],
       [],
       [{ worktreeId: "w", worktreeName: "x", files: [{ relativePath: "a.ts" }] }]
     );
-    expect(rows).toEqual([]);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      section: "linkedWorktrees",
+      relativePath: "a.ts",
+      worktreeId: "w",
+      worktreeLabel: "x"
+    });
   });
 });
 

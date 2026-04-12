@@ -235,9 +235,9 @@ describe("ThreadSidebar", () => {
     });
 
     const button = wrapper.get('[aria-label="Add worktree"]');
-    expect(button.attributes("data-size")).toBe("lg");
-    expect(button.classes()).toContain("h-9");
-    expect(button.classes()).toContain("gap-1.5");
+    expect(button.attributes("data-size")).toBe("sm");
+    expect(button.classes()).toContain("h-7");
+    expect(button.classes()).toContain("gap-1");
     expect(button.classes()).toContain("px-2.5");
   });
 
