@@ -9,9 +9,15 @@ import type { KeybindingId } from "@/keybindings/registry";
 import { shortcutForModDigitSlot } from "@/keybindings/registry";
 import { useKeybindingsStore } from "@/stores/keybindingsStore";
 
+const FEEDBACK_ISSUES_URL = "https://github.com/Blaise1030/instrumental/issues/new";
+
 const keybindings = useKeybindingsStore();
 function titleWithShortcut(label: string, id: KeybindingId): string {
   return keybindings.titleWithShortcut(label, id);
+}
+
+async function openFeedbackIssue(): Promise<void> {
+  await window.workspaceApi?.openAppExternalUrl?.(FEEDBACK_ISSUES_URL);
 }
 
 const props = withDefaults(
@@ -387,6 +393,19 @@ onBeforeUnmount(() => {
       </Button>
     </div>
     <div class="ml-1 flex shrink-0 self-center items-center gap-0.5 border-l border-zinc-300/80 pl-1.5 dark:border-zinc-800">
+      <Button
+        type="button"
+        variant="secondary"
+        size="sm"
+        class="shrink-0"
+        aria-label="Raise feedback"
+        title="Raise an issue on GitHub"
+        data-testid="workspace-feedback-button"
+        @click="openFeedbackIssue"
+      >
+        <span aria-hidden="true" class="shrink-0 text-sm leading-none">💬</span>
+        <span class="whitespace-nowrap">Raise feedback</span>
+      </Button>
       <Button
         type="button"
         variant="ghost"
