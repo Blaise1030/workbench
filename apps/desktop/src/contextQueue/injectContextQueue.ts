@@ -28,7 +28,7 @@ export async function injectContextQueue(deps: InjectDeps): Promise<void> {
     if (deps.signal?.aborted) throw new DOMException("aborted", "AbortError");
     const text = deps.items[i]?.pasteText ?? "";
     if (text === "") continue;
-    await deps.ptyWrite(deps.sessionId, `${text}\r`);
+    await deps.ptyWrite(deps.sessionId, text);
     if (i < deps.items.length - 1) await delay(deps.delayMs, deps.signal);
   }
 }

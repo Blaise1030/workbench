@@ -16,7 +16,7 @@ describe("injectContextQueue", () => {
     vi.useRealTimers();
   });
 
-  it("writes in order with \\r suffix for single item", async () => {
+  it("writes without submitting (no \\r suffix) for single item", async () => {
     const ptyWrite = vi.fn().mockResolvedValue(undefined);
     await injectContextQueue({
       sessionId: "sess-1",
@@ -25,7 +25,7 @@ describe("injectContextQueue", () => {
       delayMs: 0
     });
     expect(ptyWrite).toHaveBeenCalledTimes(1);
-    expect(ptyWrite).toHaveBeenCalledWith("sess-1", "hello\r");
+    expect(ptyWrite).toHaveBeenCalledWith("sess-1", "hello");
   });
 
   it("writes two items with delay between", async () => {
@@ -39,8 +39,8 @@ describe("injectContextQueue", () => {
     });
     await vi.runAllTimersAsync();
     await p;
-    expect(ptyWrite).toHaveBeenNthCalledWith(1, "s", "first\r");
-    expect(ptyWrite).toHaveBeenNthCalledWith(2, "s", "second\r");
+    expect(ptyWrite).toHaveBeenNthCalledWith(1, "s", "first");
+    expect(ptyWrite).toHaveBeenNthCalledWith(2, "s", "second");
     expect(ptyWrite).toHaveBeenCalledTimes(2);
   });
 
@@ -53,7 +53,7 @@ describe("injectContextQueue", () => {
       delayMs: 0
     });
     expect(ptyWrite).toHaveBeenCalledTimes(1);
-    expect(ptyWrite).toHaveBeenCalledWith("s", "kept\r");
+    expect(ptyWrite).toHaveBeenCalledWith("s", "kept");
   });
 
   it("throws AbortError when aborted during delay between items", async () => {
