@@ -451,9 +451,9 @@ defineExpose({
       </Button>
       <Button
         type="button"
-        variant="ghost"
+        variant="secondary"
         size="sm"
-        class="h-7 px-2.5 text-[11px] text-muted-foreground hover:text-foreground"
+        class="h-7 px-2.5 text-[11px]"
         :data-testid="`${testIdPrefix}-tiptap-done`"
         @click="onDone"
       >
