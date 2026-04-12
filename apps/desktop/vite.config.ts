@@ -5,18 +5,28 @@ import { defineConfig, type PluginOption } from "vite";
 
 const analyze = process.env.ANALYZE === "1";
 
-export default defineConfig(async () => ({
+export default defineConfig(async () => {
+  const { visualizer } = analyze
+    ? await import("rollup-plugin-visualizer")
+    : { visualizer: null as never };
+
+  return {
   base: "./",
   plugins: [
     tailwindcss(),
     vue(),
     ...(analyze
       ? [
-          (
-            await import("rollup-plugin-visualizer")
-          ).visualizer({
+          visualizer({
             filename: fileURLToPath(new URL("./bundle-stats/report.md", import.meta.url)),
             template: "markdown",
+            gzipSize: true,
+            brotliSize: true,
+            open: false
+          }) as PluginOption,
+          visualizer({
+            filename: fileURLToPath(new URL("./bundle-stats/bundle.html", import.meta.url)),
+            template: "treemap",
             gzipSize: true,
             brotliSize: true,
             open: false
@@ -43,4 +53,5 @@ export default defineConfig(async () => ({
       shadcn: fileURLToPath(new URL("./shadcn", import.meta.url))
     }
   }
-}));
+  };
+});
