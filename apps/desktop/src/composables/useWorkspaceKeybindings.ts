@@ -54,7 +54,6 @@ export type WorkspaceKeybindingContext = {
 
 function findStaticBindingId(ev: KeyboardEvent, definitions: KeybindingDefinition[]): KeybindingId | null {
   for (const d of definitions) {
-    if (d.id === "switchProjectOrTerminalDigit") continue;
     if (eventMatchesBinding(ev, d)) return d.id;
   }
   return null;

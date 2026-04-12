@@ -5,7 +5,6 @@
 export type KeybindingCategory = "Navigation" | "Threads" | "Git diff" | "Files" | "General";
 
 export type KeybindingId =
-  | "switchProjectOrTerminalDigit"
   | "prevThread"
   | "nextThread"
   | "toggleThreadSidebar"
@@ -182,14 +181,6 @@ function codeToDisplayLabel(code: string): string {
 }
 
 export const KEYBINDING_DEFINITIONS: KeybindingDefinition[] = [
-  {
-    id: "switchProjectOrTerminalDigit",
-    label: "Switch project or terminal (number key)",
-    category: "Navigation",
-    shortcut: mod("Digit1"),
-    notes:
-      "⌘1–⌘9 / Ctrl+1–9: first select open projects in order, then terminal tabs. With the bottom terminal panel open and focus in a terminal, ⌘1–⌘9 switch Terminal 1…n only. Agent, Git Diff, and Files have no ⌘-number shortcut."
-  },
   {
     id: "prevThread",
     label: "Previous thread",

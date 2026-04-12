@@ -106,7 +106,6 @@ function stopRecording(): void {
 }
 
 function startRecording(id: KeybindingId): void {
-  if (id === "switchProjectOrTerminalDigit") return;
   stopRecording();
   recordingKeybindingId.value = id;
   recordError.value = null;
@@ -385,7 +384,7 @@ function save(): void {
                     >
                       <td class="py-2 pr-3 text-foreground">{{ row.label }}</td>
                       <td class="py-2">
-                        <div v-if="row.id !== 'switchProjectOrTerminalDigit'" class="flex flex-wrap items-center gap-2">
+                        <div class="flex flex-wrap items-center gap-2">
                           <button
                             type="button"
                             class="max-w-full rounded border border-transparent bg-muted/50 px-1.5 py-0.5 text-left font-mono text-xs text-foreground transition-colors hover:bg-muted"
