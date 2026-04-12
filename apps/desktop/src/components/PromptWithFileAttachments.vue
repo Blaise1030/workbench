@@ -435,7 +435,7 @@ defineExpose({
           ? 'flex flex-col overflow-hidden rounded-md border border-input bg-background focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2'
           : isDocEmpty
             ? 'hidden'
-            : 'w-full cursor-text rounded-md bg-muted/30 px-2 py-1 text-[13px] text-foreground hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1'
+            : 'w-full cursor-text rounded-md border border-input bg-muted/30 px-2 py-1 text-[13px] text-foreground shadow-xs hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1'
       "
       :role="!isEditing && !isDocEmpty ? 'button' : undefined"
       :tabindex="!isEditing && !isDocEmpty ? 0 : undefined"
