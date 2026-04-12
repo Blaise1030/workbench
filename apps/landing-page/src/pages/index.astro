@@ -1,7 +1,18 @@
 ---
 import "../styles/global.css";
-import { CHANGELOG_URL, LATEST_RELEASE_JSON_URL, LATEST_RELEASE_PAGE_URL } from "../constants/releases";
+import { Image } from "astro:assets";
+import { CHANGELOG_URL, GITHUB_REPO_URL, LATEST_RELEASE_JSON_URL, LATEST_RELEASE_PAGE_URL } from "../constants/releases";
 import claudeSymbolSvg from "../../../desktop/src/assets/claude-ai-symbol.svg?raw";
+import imgLogo from "../assets/workbench-logo.png";
+import imgPreviewClean from "../assets/workbench-preview-clean.png";
+import imgPreviewAnnotated from "../assets/workbench-preview-annotated.png";
+import imgFileEditing from "../assets/feature-file-editing.png";
+import imgSearch from "../assets/feature-search.png";
+import imgHandoff from "../assets/feature-handoff.png";
+import imgDiff from "../assets/feature-diff.png";
+import imgSidebar from "../assets/feature-sidebar.png";
+import imgBranchFilter from "../assets/feature-branch-filter.png";
+import imgGatekeeperNotice from "../assets/mac-gatekeeper-notice.png";
 
 /** Same as `apps/desktop/src/constants/appMeta.ts` — threads panel header title */
 const APP_DISPLAY_NAME = "workbench";
@@ -52,19 +63,18 @@ const claudePathD = pathDFromSvg(claudeSymbolSvg);
 	</head>
 	<body class="relative overflow-x-hidden">
 		<header class="bg-transparent">
-			<div class="mx-auto flex max-w-5xl items-center px-6 py-2.5">
+			<div class="mx-auto flex max-w-7xl items-center px-6 py-2.5">
 				<a href="/" class="flex min-w-0 flex-1 items-center gap-1 overflow-hidden" aria-label={`${APP_DISPLAY_NAME} home`}>
 					<h2
 						class="relative m-0 flex min-w-0 flex-1 flex-nowrap items-center gap-1 overflow-hidden p-0 text-zinc-900"
 						data-testid="thread-sidebar-brand"
 					>
-						<img
-							src="/workbench-logo.png"
+						<Image
+							src={imgLogo}
 							alt=""
 							width="32"
 							height="32"
 							loading="eager"
-							decoding="async"
 							draggable="false"
 							class="pointer-events-none size-8 shrink-0 select-none rounded-lg object-cover"
 							aria-hidden="true"
@@ -84,12 +94,22 @@ const claudePathD = pathDFromSvg(claudeSymbolSvg);
 						</span>
 					</h2>
 				</a>
+				<a
+					href={GITHUB_REPO_URL}
+					target="_blank"
+					rel="noopener noreferrer"
+					aria-label="View on GitHub"
+					class="flex items-center gap-1.5 text-xs font-medium text-zinc-500 transition hover:text-zinc-900"
+				>
+					<svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0 1 12 6.844a9.59 9.59 0 0 1 2.504.337c1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.02 10.02 0 0 0 22 12.017C22 6.484 17.522 2 12 2z"/></svg>
+					GitHub
+				</a>
 			</div>
 		</header>
 
 		<main class="px-2">
-			<section class="scroll-scale-in mx-auto max-w-5xl px-6 pb-16 pt-16 text-center md:pb-20 md:pt-20" aria-labelledby="hero-heading">
-				<h1 id="hero-heading" class="mx-auto max-w-5xl text-balance text-4xl font-medium leading-[1.1] tracking-tight text-zinc-900 md:text-5xl lg:text-[3.25rem]">
+			<section class="scroll-scale-in mx-auto max-w-7xl px-6 pb-8 pt-10 text-center md:pb-10 md:pt-12" aria-labelledby="hero-heading">
+				<h1 id="hero-heading" class="mx-auto max-w-7xl text-balance text-4xl font-medium leading-[1.1] tracking-tight text-zinc-900 md:text-5xl lg:text-[3.25rem]">
 					Run every AI agent. No conflicts.
 				</h1>
 				<p class="mx-auto mt-5 max-w-3xl text-lg text-zinc-600">
@@ -115,41 +135,30 @@ const claudePathD = pathDFromSvg(claudeSymbolSvg);
 				</div>
 			</section>
 
-			<section class="scroll-scale-in mx-auto max-w-5xl pb-12" aria-labelledby="preview-heading">
+			<section class="scroll-scale-in mx-auto max-w-7xl pb-6" aria-labelledby="preview-heading">
 				<h2 id="preview-heading" class="sr-only">Product preview</h2>
-				<div
-					class="preview-scale-in flex flex-col overflow-hidden rounded-b-xl border border-zinc-200 bg-white shadow-lg shadow-zinc-900/5"
-				>
-					<div
-						class="shrink-0 border-b border-zinc-200/80 bg-zinc-50/95 px-4 py-3 text-center text-xs text-zinc-600"
-					>
-						workbench — parallel agents, isolated worktrees, no conflicts.
-					</div>
-					<div class="group relative overflow-hidden rounded-b-[10px] bg-zinc-100">
-						<img
-							src="/workbench-preview-clean.png"
-							alt="workbench desktop workspace showing sidebar worktrees, project tabs, and agent panel."
-							loading="lazy"
-							class="relative z-0 block h-auto w-full object-contain object-top"
-							decoding="async"
-							draggable="false"
-						/>
-						<img
-							src="/workbench-preview-annotated.png"
-							alt=""
-							loading="lazy"
-							class="pointer-events-none absolute inset-0 z-10 h-full w-full object-contain object-top opacity-0 transition-opacity duration-300 ease-out motion-reduce:transition-none group-hover:opacity-100"
-							decoding="async"
-							aria-hidden="true"
-							draggable="false"
-						/>
-					</div>
+				<div class="preview-scale-in group relative overflow-hidden">
+					<Image
+						src={imgPreviewClean}
+						alt="workbench desktop workspace showing sidebar worktrees, project tabs, and agent panel."
+						loading="lazy"
+						class="relative z-0 block h-auto w-full object-contain object-top transition-opacity duration-700 ease-in-out motion-reduce:transition-none group-hover:opacity-0"
+						draggable="false"
+					/>
+					<Image
+						src={imgPreviewAnnotated}
+						alt=""
+						loading="lazy"
+						class="pointer-events-none absolute inset-0 z-10 h-full w-full object-contain object-top opacity-0 transition-opacity duration-700 ease-in-out motion-reduce:transition-none group-hover:opacity-100"
+						aria-hidden="true"
+						draggable="false"
+					/>
 				</div>
 			</section>
 		</main>
 
 		<!-- Supported agents -->
-		<section class="scroll-scale-in mx-auto max-w-5xl px-6 py-16" aria-labelledby="agents-heading">
+		<section class="scroll-scale-in mx-auto max-w-7xl px-6 py-8" aria-labelledby="agents-heading">
 			<p id="agents-heading" class="mb-8 text-center text-xs font-semibold uppercase tracking-widest text-zinc-400">Works with your agents</p>
 			<div class="flex flex-wrap items-center justify-center gap-x-10 gap-y-5">
 				{[
@@ -174,9 +183,9 @@ const claudePathD = pathDFromSvg(claudeSymbolSvg);
 						path: "M22.2819 9.8211a5.9847 5.9847 0 0 0-.5157-4.9108 6.0462 6.0462 0 0 0-6.5098-2.9A6.0651 6.0651 0 0 0 4.9807 4.1818a5.9847 5.9847 0 0 0-3.9977 2.9 6.0462 6.0462 0 0 0 .7427 7.0966 5.98 5.98 0 0 0 .511 4.9107 6.051 6.051 0 0 0 6.5146 2.9001A5.9847 5.9847 0 0 0 13.2599 24a6.0557 6.0557 0 0 0 5.7718-4.2058 5.9894 5.9894 0 0 0 3.9977-2.9001 6.0557 6.0557 0 0 0-.7475-7.0729zm-9.022 12.6081a4.4755 4.4755 0 0 1-2.8764-1.0408l.1419-.0804 4.7783-2.7582a.7948.7948 0 0 0 .3927-.6813v-6.7369l2.02 1.1686a.071.071 0 0 1 .038.052v5.5826a4.504 4.504 0 0 1-4.4945 4.4944zm-9.6607-4.1254a4.4708 4.4708 0 0 1-.5346-3.0137l.142.0852 4.783 2.7582a.7712.7712 0 0 0 .7806 0l5.8428-3.3685v2.3324a.0804.0804 0 0 1-.0332.0615L9.74 19.9502a4.4992 4.4992 0 0 1-6.1408-1.6464zM2.3408 7.8956a4.485 4.485 0 0 1 2.3655-1.9728V11.6a.7664.7664 0 0 0 .3879.6765l5.8144 3.3543-2.0201 1.1685a.0757.0757 0 0 1-.071 0l-4.8303-2.7865A4.504 4.504 0 0 1 2.3408 7.872zm16.5963 3.8558L13.1038 8.364 15.1192 7.2a.0757.0757 0 0 1 .071 0l4.8303 2.7913a4.4944 4.4944 0 0 1-.6765 8.1042v-5.6772a.79.79 0 0 0-.407-.667zm2.0107-3.0231l-.142-.0852-4.7735-2.7818a.7759.7759 0 0 0-.7854 0L9.409 9.2297V6.8974a.0662.0662 0 0 1 .0284-.0615l4.8303-2.7866a4.4992 4.4992 0 0 1 6.6802 4.66zM8.3065 12.863l-2.02-1.1638a.0804.0804 0 0 1-.038-.0567V6.0742a4.4992 4.4992 0 0 1 7.3757-3.4537l-.142.0805L8.704 5.459a.7948.7948 0 0 0-.3927.6813zm1.0976-2.3654l2.602-1.4998 2.6069 1.4998v2.9994l-2.5974 1.4997-2.6067-1.4997Z",
 					},
 				].map(({ name, viewBox, path }) => (
-					<div class="flex items-center gap-2 text-sm font-medium text-zinc-600">
+					<div class="fade-up flex items-center gap-2 text-sm font-medium text-zinc-600">
 						<svg
-							class="h-5 w-5 shrink-0 text-zinc-500"
+							class="size-8 shrink-0 text-zinc-500"
 							viewBox={viewBox}
 							fill="currentColor"
 							aria-hidden="true"
@@ -188,89 +197,187 @@ const claudePathD = pathDFromSvg(claudeSymbolSvg);
 				))}
 			</div>
 		</section>
+		
 
-		<!-- Divider -->
-		<div class="mx-auto max-w-5xl px-6">
-			<hr class="border-zinc-100" />
-		</div>
+		<!-- File Editing / Search / Handoff / Review / Notifications bento -->
+		<section class="scroll-scale-in mx-auto max-w-7xl px-6 py-20" aria-labelledby="editing-heading">
+			<h2 id="editing-heading" class="sr-only">File editing, search, handoff, review, and notifications</h2>
+			<div class="grid grid-cols-1 gap-4 md:grid-cols-3">
 
-		<!-- Feature bento grid -->
-		<section class="scroll-scale-in mx-auto max-w-5xl px-6 py-20" aria-labelledby="features-heading">
-			<h2 id="features-heading" class="sr-only">Features</h2>
-			<div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-
-				<!-- Card 1: Parallel agents (large) -->
-				<div class="flex flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-zinc-50 p-7 shadow-sm shadow-zinc-900/5">
-					<h3 class="text-base font-semibold text-zinc-900">Parallel agents, no chaos</h3>
-					<p class="mt-1.5 text-sm leading-relaxed text-zinc-500">Open Claude Code on auth, Gemini CLI on the API, and Cursor on the UI — all at once. Each agent works on its own branch. No conflicts, no shared state.</p>
-					<!-- TODO: replace with thread/terminal snippet screenshot -->
-					<div class="mt-6 flex flex-1 items-center justify-center rounded-xl border border-dashed border-zinc-300 bg-zinc-100 px-4 py-10 text-xs text-zinc-400">
-						screenshot: thread terminal snippet
+				<!-- Row 1: File Editing (2/3, spans 2 rows) + Search & Handoff stacked (1/3) -->
+				<div class="md:col-span-2 md:row-span-2 fade-up flex flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-zinc-50 shadow-sm shadow-zinc-900/5">
+					<div class="p-7 pb-0">
+						<h3 class="text-base font-semibold text-zinc-900">File Editing</h3>
+						<p class="mt-1.5 text-sm leading-relaxed text-zinc-500">Built-in file explorer, source control, and quick-open across the repo — including hidden files. Edit files directly alongside your agents.</p>
+					</div>
+					<div class="flex flex-1 items-center overflow-hidden px-7 py-7">
+						<Image
+							src={imgFileEditing}
+							alt="File explorer tree alongside a code editor showing imports and file structure"
+							loading="lazy"
+							class="block h-auto w-full rounded-xl object-cover object-top"
+							draggable="false"
+						/>
 					</div>
 				</div>
 
-				<!-- Card 2: Worktree isolation (large) -->
-				<div class="flex flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-[#f5f4ff] p-7 shadow-sm shadow-zinc-900/5">
-					<h3 class="text-base font-semibold text-zinc-900">Each agent, its own worktree</h3>
-					<p class="mt-1.5 text-sm leading-relaxed text-zinc-500">Every session gets an isolated git worktree. Changes stay separate until you're ready to review and merge. You decide what lands — not whoever wrote last.</p>
-					<!-- TODO: replace with worktree switcher screenshot -->
-					<div class="mt-6 flex flex-1 items-center justify-center rounded-xl border border-dashed border-violet-200 bg-violet-50 px-4 py-10 text-xs text-violet-300">
-						screenshot: worktree switcher snippet
+				<div class="fade-up flex flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-[#f5f4ff] shadow-sm shadow-zinc-900/5">
+					<div class="p-7 pb-0">
+						<h3 class="text-base font-semibold text-zinc-900">Search</h3>
+						<p class="mt-1.5 text-sm leading-relaxed text-zinc-500">Quick-open files, switch workspaces, and jump to threads — all from one palette. Use <code class="rounded bg-violet-100 px-1 font-mono text-xs text-violet-700">@wt</code> to search across every worktree without leaving your flow.</p>
+					</div>
+					<div class="mt-5 overflow-hidden rounded-b-xl">
+						<Image
+							src={imgSearch}
+							alt="Command palette showing search across commands, workspaces, threads and files"
+							loading="lazy"
+							class="block h-auto w-full object-cover object-top"
+							draggable="false"
+						/>
 					</div>
 				</div>
 
-				<!-- Card 3: BYOK -->
-				<div class="flex flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-[#f0faf4] p-7 shadow-sm shadow-zinc-900/5">
-					<h3 class="text-base font-semibold text-zinc-900">Bring your own subscription</h3>
-					<p class="mt-1.5 text-sm leading-relaxed text-zinc-500">workbench doesn't charge on top of your API spend. Use the subscriptions you already have and pay only for what the models actually cost.</p>
-					<!-- TODO: replace with hero/follow-up snippet screenshot -->
-					<div class="mt-6 flex flex-1 items-center justify-center rounded-xl border border-dashed border-emerald-200 bg-emerald-50 px-4 py-10 text-xs text-emerald-300">
-						screenshot: hero / follow-up snippet
+				<div class="fade-up flex flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-[#f0faf4] shadow-sm shadow-zinc-900/5">
+					<div class="p-7 pb-0">
+						<h3 class="text-base font-semibold text-zinc-900">Handoff</h3>
+						<p class="mt-1.5 text-sm leading-relaxed text-zinc-500">Select any block of code and send it straight to an agent with <kbd class="rounded border border-zinc-200 bg-white px-1 font-mono text-xs text-zinc-700">⌘↵</kbd>. No copy-pasting, no path hunting — context goes where the agent needs it.</p>
+					</div>
+					<div class="mt-5 overflow-hidden rounded-b-xl">
+						<Image
+							src={imgHandoff}
+							alt="Code editor with selected lines and Agent shortcut tooltip"
+							loading="lazy"
+							class="block h-auto w-full object-cover object-top"
+							draggable="false"
+						/>
 					</div>
 				</div>
 
-				<!-- Card 4: Review & merge -->
-				<div class="flex flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-[#fdf8f0] p-7 shadow-sm shadow-zinc-900/5">
-					<h3 class="text-base font-semibold text-zinc-900">Review before you merge</h3>
-					<p class="mt-1.5 text-sm leading-relaxed text-zinc-500">A built-in diff viewer shows exactly what each agent changed. Compare across agents, pick the best result, and merge — without leaving the app.</p>
-					<!-- TODO: replace with git diff snippet screenshot -->
-					<div class="mt-6 flex flex-1 items-center justify-center rounded-xl border border-dashed border-amber-200 bg-amber-50 px-4 py-10 text-xs text-amber-300">
-						screenshot: git diff snippet
+				<!-- Row 3+4: Notifications & Branch Filter stacked (1/3, left) + Review (2/3, right) -->
+				<div class="md:col-start-1 fade-up flex flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-[#f5f4ff] shadow-sm shadow-zinc-900/5">
+					<div class="p-7 pb-0">
+						<h3 class="text-base font-semibold text-zinc-900">Let agents work, stay notified</h3>
+						<p class="mt-1.5 text-sm leading-relaxed text-zinc-500">Spin up an agent in a worktree and step away. workbench notifies you when it needs input or finishes — so you can keep multiple agents running in parallel without babysitting any of them.</p>
+					</div>
+					<div class="mt-5 overflow-hidden rounded-b-xl">
+						<Image
+							src={imgSidebar}
+							alt="Thread sidebar with branch filter toggle showing threads from current branch only"
+							loading="lazy"
+							class="block h-auto w-full object-cover object-top"
+							draggable="false"
+						/>
+					</div>
+				</div>
+
+				<div class="md:col-start-2 md:col-span-2 md:row-span-2 fade-up flex flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-[#fdf8f0] shadow-sm shadow-zinc-900/5">
+					<div class="p-7 pb-0">
+						<h3 class="text-base font-semibold text-zinc-900">Review</h3>
+						<p class="mt-1.5 text-sm leading-relaxed text-zinc-500">Review every change before it lands. The built-in diff viewer shows exactly what each agent modified — jump straight from any diff line to the file, compare across worktrees, and merge only what you approve.</p>
+					</div>
+					<div class="flex flex-1 items-center overflow-hidden px-7 py-7">
+						<Image
+							src={imgDiff}
+							alt="Side-by-side git diff viewer showing added and removed lines with source control panel"
+							loading="lazy"
+							class="block h-auto w-full rounded-xl object-cover object-top"
+							draggable="false"
+						/>
+					</div>
+				</div>
+
+				<div class="md:col-start-1 fade-up flex flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-zinc-50 shadow-sm shadow-zinc-900/5">
+					<div class="p-7 pb-0">
+						<h3 class="text-base font-semibold text-zinc-900">Filter threads by branch</h3>
+						<p class="mt-1.5 text-sm leading-relaxed text-zinc-500">Filter threads by the current branch so you only see what's relevant to where you are. No distractions from other worktrees — just the context you need, right when you need it.</p>
+					</div>
+					<div class="mt-5 overflow-hidden rounded-b-xl">
+						<Image
+							src={imgBranchFilter}
+							alt="Sidebar showing main branch with Threads from this branch only toggle enabled"
+							loading="lazy"
+							class="block h-auto w-full object-cover object-top"
+							draggable="false"
+						/>
 					</div>
 				</div>
 
 			</div>
 		</section>
 
-		<!-- Divider -->
-		<div class="mx-auto max-w-5xl px-6">
-			<hr class="border-zinc-100" />
-		</div>
+		<!-- FAQ -->
+		<section class="scroll-scale-in mx-auto max-w-7xl px-6 py-20" aria-labelledby="faq-heading">
+			<h2 id="faq-heading" class="mb-2 text-center text-2xl font-medium tracking-tight text-zinc-900">Frequently asked questions</h2>
+			<p class="mb-12 text-center text-sm text-zinc-500">Everything you need to know about workbench.</p>
+			<div class="mx-auto max-w-2xl divide-y divide-zinc-100">
 
-		<!-- How it works -->
-		<section class="scroll-scale-in mx-auto max-w-5xl px-6 py-20" aria-labelledby="how-heading">
-			<h2 id="how-heading" class="mb-12 text-center text-2xl font-medium tracking-tight text-zinc-900">How it works</h2>
-			<div class="grid gap-4 md:grid-cols-3">
-				<div class="flex flex-col gap-3 rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm shadow-zinc-900/5">
-					<span class="text-xs font-semibold uppercase tracking-widest text-zinc-400">01</span>
-					<h3 class="text-sm font-semibold text-zinc-900">Open your project</h3>
-					<p class="text-sm leading-relaxed text-zinc-500">Point workbench at any local repo. Your workspace is ready: file tree, git status, and terminal — all in one window.</p>
-				</div>
-				<div class="flex flex-col gap-3 rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm shadow-zinc-900/5">
-					<span class="text-xs font-semibold uppercase tracking-widest text-zinc-400">02</span>
-					<h3 class="text-sm font-semibold text-zinc-900">Spin up agents</h3>
-					<p class="text-sm leading-relaxed text-zinc-500">Add Claude Code, Gemini CLI, or any agent as a thread. Each gets a dedicated worktree so they can run independently on the same codebase.</p>
-				</div>
-				<div class="flex flex-col gap-3 rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm shadow-zinc-900/5">
-					<span class="text-xs font-semibold uppercase tracking-widest text-zinc-400">03</span>
-					<h3 class="text-sm font-semibold text-zinc-900">Review and merge</h3>
-					<p class="text-sm leading-relaxed text-zinc-500">Compare diffs across agents side by side. Pick the best result and merge — without ever leaving the app.</p>
-				</div>
+				<details class="fade-up group py-5">
+					<summary class="flex cursor-pointer list-none items-center justify-between gap-4 text-sm font-semibold text-zinc-900 marker:hidden">
+						What is workbench?
+						<svg class="h-4 w-4 shrink-0 text-zinc-400 transition-transform group-open:rotate-180" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+					</summary>
+					<p class="mt-3 text-sm leading-relaxed text-zinc-500">workbench is a desktop app for running multiple AI coding agents at the same time without conflicts. It gives each agent — Claude Code, Gemini CLI, Cursor Agent, and others — its own isolated git worktree, so they can all work on the same repo in parallel without stepping on each other.</p>
+				</details>
+
+				<details class="fade-up group py-5">
+					<summary class="flex cursor-pointer list-none items-center justify-between gap-4 text-sm font-semibold text-zinc-900 marker:hidden">
+						Is workbench free?
+						<svg class="h-4 w-4 shrink-0 text-zinc-400 transition-transform group-open:rotate-180" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+					</summary>
+					<p class="mt-3 text-sm leading-relaxed text-zinc-500">Yes. workbench is free to download and use. There is no subscription, no usage fee, and no paywall on top of your existing API spend. You bring your own agent subscriptions and pay only what the models cost.</p>
+				</details>
+
+				<details class="fade-up group py-5">
+					<summary class="flex cursor-pointer list-none items-center justify-between gap-4 text-sm font-semibold text-zinc-900 marker:hidden">
+						What agents does workbench support?
+						<svg class="h-4 w-4 shrink-0 text-zinc-400 transition-transform group-open:rotate-180" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+					</summary>
+					<p class="mt-3 text-sm leading-relaxed text-zinc-500">workbench works with any CLI-based coding agent. Claude Code, Gemini CLI, Cursor Agent, and OpenAI Codex are all supported out of the box. If an agent runs in a terminal, workbench can host it.</p>
+				</details>
+
+				<details class="fade-up group py-5">
+					<summary class="flex cursor-pointer list-none items-center justify-between gap-4 text-sm font-semibold text-zinc-900 marker:hidden">
+						How does workbench use git worktrees?
+						<svg class="h-4 w-4 shrink-0 text-zinc-400 transition-transform group-open:rotate-180" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+					</summary>
+					<p class="mt-3 text-sm leading-relaxed text-zinc-500">A git worktree is a separate working directory linked to the same repo. workbench creates one for each agent session, so every agent writes to its own branch and its own files. They never touch each other's work. When you're ready, you review the diff and merge — or discard it.</p>
+				</details>
+
+				<details class="fade-up group py-5">
+					<summary class="flex cursor-pointer list-none items-center justify-between gap-4 text-sm font-semibold text-zinc-900 marker:hidden">
+						Do I need to sign in or create an account?
+						<svg class="h-4 w-4 shrink-0 text-zinc-400 transition-transform group-open:rotate-180" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+					</summary>
+					<p class="mt-3 text-sm leading-relaxed text-zinc-500">No account required. Download, open a project, and start running agents. workbench runs entirely on your machine and does not send your code or credentials anywhere.</p>
+				</details>
+
+				<details class="fade-up group py-5">
+					<summary class="flex cursor-pointer list-none items-center justify-between gap-4 text-sm font-semibold text-zinc-900 marker:hidden">
+						What operating systems does workbench support?
+						<svg class="h-4 w-4 shrink-0 text-zinc-400 transition-transform group-open:rotate-180" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+					</summary>
+					<p class="mt-3 text-sm leading-relaxed text-zinc-500">workbench runs on macOS, Windows, and Linux.</p>
+				</details>
+
 			</div>
 		</section>
 
 		<!-- Closing CTA -->
-		<section class="scroll-scale-in mx-auto max-w-5xl px-6 py-20 text-center" aria-labelledby="cta-heading">
+		<section class="scroll-scale-in mx-auto max-w-7xl px-6 py-20 text-center" aria-labelledby="cta-heading">
+			<div class="mb-6 flex items-center justify-center gap-1">
+				<Image
+					src={imgLogo}
+					alt=""
+					width="40"
+					height="40"
+					loading="lazy"
+					draggable="false"
+					aria-hidden="true"
+					class="size-10 shrink-0 rounded-lg object-cover"
+				/>
+				<span class="font-app-brand-title text-2xl uppercase leading-none text-zinc-900">{APP_DISPLAY_NAME}</span>
+				<span class="shadow-xs ms-0.5 mt-0.5 inline-flex h-3.5 shrink-0 items-center justify-center rounded-sm border border-zinc-200 bg-transparent px-1 py-0 text-[8px] font-semibold uppercase leading-none tracking-wide text-zinc-900">Alpha</span>
+			</div>
 			<p class="mx-auto max-w-xl text-lg text-zinc-600">
 				You're already using AI agents. workbench just lets you run more of them, without the mess.
 			</p>
@@ -284,26 +391,32 @@ const claudePathD = pathDFromSvg(claudeSymbolSvg);
 				</a>
 				<p class="text-xs text-zinc-400">No subscription required. Works on macOS, Windows, and Linux.</p>
 			</div>
-		</section>
+		</section>		
 
-		<!-- Divider -->
-		<div class="mx-auto max-w-5xl px-6">
-			<hr class="border-zinc-100" />
-		</div>
-
-		<footer class="border-t border-zinc-200/80 bg-white py-10">
+		<footer class="border-t bg-zinc-100/50 border-zinc-200/80 bg-white py-10">
 			<div
-				class="mx-auto flex max-w-5xl flex-col items-center gap-3 px-6 text-center text-sm text-zinc-500 md:flex-row md:items-center md:justify-between md:text-left"
+				class="mx-auto flex max-w-7xl flex-col items-center gap-3 px-6 text-center text-sm text-zinc-500 md:flex-row md:items-center md:justify-between md:text-left"
 			>
 				<p class="m-0">© {new Date().getFullYear()} workbench</p>
-				<a
-					href={CHANGELOG_URL}
-					class="font-medium text-zinc-600 underline decoration-zinc-300 underline-offset-4 transition hover:text-zinc-900 hover:decoration-zinc-500"
-					target="_blank"
-					rel="noopener noreferrer"
-				>
-					Changelog
-				</a>
+				<div class="flex items-center gap-6">
+					<a
+						href={GITHUB_REPO_URL}
+						target="_blank"
+						rel="noopener noreferrer"
+						class="flex items-center gap-1.5 font-medium text-zinc-600 transition hover:text-zinc-900"
+					>
+						<svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0 1 12 6.844a9.59 9.59 0 0 1 2.504.337c1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.02 10.02 0 0 0 22 12.017C22 6.484 17.522 2 12 2z"/></svg>
+						GitHub
+					</a>
+					<a
+						href={CHANGELOG_URL}
+						class="font-medium text-zinc-600 transition hover:text-zinc-900"
+						target="_blank"
+						rel="noopener noreferrer"
+					>
+						Changelog
+					</a>
+				</div>
 			</div>
 		</footer>
 

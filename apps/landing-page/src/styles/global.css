@@ -18,7 +18,7 @@
 		color-scheme: light;
 	}
 	body {
-		@apply min-h-dvh bg-[var(--color-canvas)] text-[var(--color-fg)];
+		@apply min-h-dvh text-[var(--color-fg)];
 		font-family: var(--font-sans);
 	}
 }
@@ -74,20 +74,37 @@
 @media (prefers-reduced-motion: no-preference) {
 	.scroll-scale-in {
 		opacity: 0;
-		transform: scale(0.97) translateY(8px);
+		transform: translateY(28px);
+		transition:
+			opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1),
+			transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+	}
+
+	.scroll-scale-in.scroll-scale-in--visible {
+		opacity: 1;
+		transform: translateY(0);
+	}
+
+	/* Stagger children with .fade-up inside revealed sections */
+	.scroll-scale-in .fade-up {
+		opacity: 0;
+		transform: translateY(20px);
 		transition:
 			opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1),
 			transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
 	}
 
-	.scroll-scale-in.scroll-scale-in--visible {
-		opacity: 1;
-		transform: scale(1) translateY(0);
-	}
+	.scroll-scale-in.scroll-scale-in--visible .fade-up:nth-child(1) { opacity: 1; transform: translateY(0); transition-delay: 0.05s; }
+	.scroll-scale-in.scroll-scale-in--visible .fade-up:nth-child(2) { opacity: 1; transform: translateY(0); transition-delay: 0.12s; }
+	.scroll-scale-in.scroll-scale-in--visible .fade-up:nth-child(3) { opacity: 1; transform: translateY(0); transition-delay: 0.19s; }
+	.scroll-scale-in.scroll-scale-in--visible .fade-up:nth-child(4) { opacity: 1; transform: translateY(0); transition-delay: 0.26s; }
+	.scroll-scale-in.scroll-scale-in--visible .fade-up:nth-child(5) { opacity: 1; transform: translateY(0); transition-delay: 0.33s; }
+	.scroll-scale-in.scroll-scale-in--visible .fade-up:nth-child(6) { opacity: 1; transform: translateY(0); transition-delay: 0.40s; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-	.scroll-scale-in {
+	.scroll-scale-in,
+	.scroll-scale-in .fade-up {
 		opacity: 1;
 		transform: none;
 	}
