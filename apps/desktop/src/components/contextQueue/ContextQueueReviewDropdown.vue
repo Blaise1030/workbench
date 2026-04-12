@@ -310,10 +310,10 @@ defineExpose({ openReview });
               @drop="onDropRow(index, $event)"
               @dblclick="onQueueRowDoubleClick(row.id, $event)"
             >
-              <div class="flex min-h-7 flex-wrap items-center gap-1.5">
+              <div class="flex min-w-0 items-start gap-1.5">
                 <button
                   type="button"
-                  class="touch-none cursor-grab rounded p-0.5 text-muted-foreground hover:bg-muted/80 hover:text-foreground active:cursor-grabbing"
+                  class="mt-0.5 shrink-0 touch-none cursor-grab rounded p-0.5 text-muted-foreground hover:bg-muted/80 hover:text-foreground active:cursor-grabbing"
                   draggable="true"
                   title="Drag to reorder"
                   aria-label="Drag to reorder"
@@ -324,47 +324,48 @@ defineExpose({ openReview });
                 >
                   <GripVertical class="size-3.5 shrink-0" aria-hidden="true" />
                 </button>
-              </div>
+                <div class="flex min-w-0 flex-1 flex-col gap-1.5">
+                  <button
+                    v-if="!isRowEditorExpanded(row.id) && !row.pasteText.trim()"
+                    type="button"
+                    data-testid="context-queue-review-chip"
+                    class="flex w-full min-w-0 max-w-full items-center justify-center rounded-md bg-muted/50 px-2 py-1 text-center text-xs text-foreground transition-colors hover:bg-muted/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background"
+                    aria-label="Empty context; click to edit"
+                    @click="expandRowEditor(row.id)"
+                  >
+                    <span class="truncate text-muted-foreground">Empty context</span>
+                  </button>
+                  <div data-context-queue-review-note>
+                    <PromptWithFileAttachments
+                      :key="`${tiptapResetKey}-${row.id}`"
+                      v-model:prompt="row.reviewComment"
+                      v-model:attachments="row.reviewAttachments"
+                      :tiptap="true"
+                      :worktree-path="worktreePath"
+                      :context-tag-label="queueContextBadgeLabel(row)"
+                      show-queue-remove
+                      :queue-remove-aria-label="`Remove ${row.source} entry`"
+                      placeholder="Optional note — @ files, / commands, paperclip for attachments"
+                      test-id-prefix="context-queue-review-note"
+                      @queue-remove="removeAt(index)"
+                    />
+                  </div>
 
-              <button
-                v-if="!isRowEditorExpanded(row.id) && !row.pasteText.trim()"
-                type="button"
-                data-testid="context-queue-review-chip"
-                class="flex w-full min-w-0 max-w-full items-center justify-center rounded-md bg-muted/50 px-2 py-1 text-center text-xs text-foreground transition-colors hover:bg-muted/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background"
-                aria-label="Empty context; click to edit"
-                @click="expandRowEditor(row.id)"
-              >
-                <span class="truncate text-muted-foreground">Empty context</span>
-              </button>
-              <div data-context-queue-review-note>
-                <PromptWithFileAttachments
-                  :key="`${tiptapResetKey}-${row.id}`"
-                  v-model:prompt="row.reviewComment"
-                  v-model:attachments="row.reviewAttachments"
-                  :tiptap="true"
-                  :worktree-path="worktreePath"
-                  :context-tag-label="queueContextBadgeLabel(row)"
-                  show-queue-remove
-                  :queue-remove-aria-label="`Remove ${row.source} entry`"
-                  placeholder="Optional note — @ files, / commands, paperclip for attachments"
-                  test-id-prefix="context-queue-review-note"
-                  @queue-remove="removeAt(index)"
-                />
+                  <ContextQueueDiffPasteComposer
+                    v-if="isRowEditorExpanded(row.id) && useDiffPasteComposer(row)"
+                    v-model="row.pasteText"
+                  />
+                  <textarea
+                    v-else-if="isRowEditorExpanded(row.id)"
+                    v-model="row.pasteText"
+                    draggable="false"
+                    class="min-h-[5rem] w-full resize-none rounded-md border border-input bg-background px-2.5 py-1.5 text-sm text-foreground ring-offset-background placeholder:text-muted-foreground focus-visible:border-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(212,92%,45%)] focus-visible:ring-offset-0 dark:focus-visible:ring-[hsl(212,92%,58%)]"
+                    data-testid="context-queue-review-paste"
+                    :aria-label="`Paste text from ${row.source}`"
+                    @dblclick.stop
+                  />
+                </div>
               </div>
-
-              <ContextQueueDiffPasteComposer
-                v-if="isRowEditorExpanded(row.id) && useDiffPasteComposer(row)"
-                v-model="row.pasteText"
-              />
-              <textarea
-                v-else-if="isRowEditorExpanded(row.id)"
-                v-model="row.pasteText"
-                draggable="false"
-                class="min-h-[5rem] w-full resize-none rounded-md border border-input bg-background px-2.5 py-1.5 text-sm text-foreground ring-offset-background placeholder:text-muted-foreground focus-visible:border-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(212,92%,45%)] focus-visible:ring-offset-0 dark:focus-visible:ring-[hsl(212,92%,58%)]"
-                data-testid="context-queue-review-paste"
-                :aria-label="`Paste text from ${row.source}`"
-                @dblclick.stop
-              />
             </div>
           </div>
       </div>
