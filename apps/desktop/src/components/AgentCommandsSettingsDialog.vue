@@ -22,7 +22,6 @@ import {
 import { usePreferredThreadAgent } from "@/composables/usePreferredThreadAgent";
 import { useTerminalSoundSettings } from "@/composables/useTerminalSoundSettings";
 import type { TerminalActivitySensitivity } from "@/terminal/activitySensitivity";
-import { useColorScheme, type ColorSchemePreference } from "@/composables/useColorScheme";
 import {
   conflictingBindingId,
   findDefinitionIn,
@@ -60,27 +59,17 @@ const panelRef = ref<HTMLElement | null>(null);
 
 const { preferredAgent, setPreferredAgent, syncFromStorage } = usePreferredThreadAgent();
 
-type SettingsSection = "agents" | "terminal" | "appearance" | "keyboard";
+type SettingsSection = "agents" | "terminal" | "keyboard";
 const activeSection = ref<SettingsSection>("agents");
 const settingsSectionTabs: readonly PillTabItem[] = [
   { value: "agents", label: "Agents" },
   { value: "terminal", label: "Terminal" },
-  { value: "appearance", label: "Appearance" },
   { value: "keyboard", label: "Keyboard" }
 ];
 
 const settingsPanelAgentsId = "workspace-settings-panel-agents";
 const settingsPanelTerminalId = "workspace-settings-panel-terminal";
-const settingsPanelAppearanceId = "workspace-settings-panel-appearance";
 const settingsPanelKeyboardId = "workspace-settings-panel-keyboard";
-
-const { preference: colorSchemePreference } = useColorScheme();
-
-const COLOR_SCHEME_OPTIONS: { value: ColorSchemePreference; label: string; hint: string }[] = [
-  { value: "light", label: "Light", hint: "Always use light chrome" },
-  { value: "dark", label: "Dark", hint: "Always use dark chrome" },
-  { value: "system", label: "System", hint: "Match macOS / Windows appearance" }
-];
 
 const KEYBIND_CATEGORY_ORDER: KeybindingCategory[] = [
   "Navigation",
@@ -364,45 +353,6 @@ function save(): void {
                 </SelectContent>
               </Select>
             </div>
-          </div>
-
-          <div
-            v-show="activeSection === 'appearance'"
-            :id="settingsPanelAppearanceId"
-            role="tabpanel"
-            aria-label="Appearance settings"
-          >
-            <p class="text-sm text-muted-foreground">
-              Color mode uses the same design tokens as the rest of the app. Changes apply immediately.
-            </p>
-
-            <fieldset class="mt-4 space-y-2">
-              <legend class="text-sm font-medium text-foreground">Color mode</legend>
-              <div class="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-3">
-                <label
-                  v-for="opt in COLOR_SCHEME_OPTIONS"
-                  :key="opt.value"
-                  class="flex min-w-0 cursor-pointer flex-col gap-2 rounded-md border border-border p-2.5 transition-colors select-none hover:bg-muted/30"
-                  :class="
-                    colorSchemePreference === opt.value
-                      ? 'bg-muted/25 ring-2 ring-ring/60 ring-offset-2 ring-offset-card'
-                      : ''
-                  "
-                >
-                  <div class="flex items-center gap-2">
-                    <input
-                      v-model="colorSchemePreference"
-                      type="radio"
-                      name="settings-color-scheme"
-                      class="size-3.5 shrink-0 rounded-full border-border accent-primary"
-                      :value="opt.value"
-                    />
-                    <span class="text-sm font-medium text-foreground">{{ opt.label }}</span>
-                  </div>
-                  <p class="text-xs leading-snug text-muted-foreground">{{ opt.hint }}</p>
-                </label>
-              </div>
-            </fieldset>
           </div>
 
           <div

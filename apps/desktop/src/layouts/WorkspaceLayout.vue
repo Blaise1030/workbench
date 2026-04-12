@@ -148,7 +148,7 @@ const shellOverlayTab = ref<"agent" | `shell:${string}`>("agent");
 /** One UUID per integrated terminal tab (after Agent + Git Diff). */
 const shellSlotIds = ref<string[]>([]);
 /** Bottom terminal bar (tab strip for shells); toggled with ⌘J / Ctrl+J. */
-const terminalPanelOpen = ref(true);
+const terminalPanelOpen = ref(false);
 
 /** Terminal overlay panel — fixed pixel height, resizable by dragging. */
 const DEFAULT_TERMINAL_HEIGHT_PX = 300;
@@ -471,14 +471,22 @@ function selectFirstShellTerminalIfPanelOpen(): void {
 
 function openTerminalOverlayPanel(): void {
   terminalPanelOpen.value = true;
-  selectFirstShellTerminalIfPanelOpen();
+  if (shellSlotIds.value.length === 0) {
+    addShellTerminal();
+  } else {
+    selectFirstShellTerminalIfPanelOpen();
+  }
 }
 
 function toggleTerminalPanelFromShortcut(): void {
   const next = !terminalPanelOpen.value;
   terminalPanelOpen.value = next;
   if (next) {
-    selectFirstShellTerminalIfPanelOpen();
+    if (shellSlotIds.value.length === 0) {
+      addShellTerminal();
+    } else {
+      selectFirstShellTerminalIfPanelOpen();
+    }
     focusActiveTerminal();
   }
 }
@@ -932,7 +940,6 @@ function resolveNewThreadTitle(payload: ThreadCreateWithAgentPayload, agent: Thr
 async function handleCreateThreadWithAgent(payload: ThreadCreateWithAgentPayload): Promise<void> {
   const { agent, prompt } = payload;
   mainCenterTab.value = "agent";
-  terminalPanelOpen.value = true;
   const api = getApi();
   const defaultWorktreeId = workspace.defaultWorktree?.id;
   if (!api || !workspace.activeProjectId || !defaultWorktreeId) return;

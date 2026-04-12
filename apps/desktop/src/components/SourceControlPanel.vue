@@ -165,7 +165,7 @@ function shortenDirPrefix(dir: string, maxLen: number): string {
 
 /** Fixed row heights for virtualized sidebar (must match template layout). */
 const SECTION_ROW_PX = 22;
-const ENTRY_ROW_PX = 22;
+const ENTRY_ROW_PX = 32;
 /** Extra top padding + border lane after staged block, before working tree. */
 const SECTION_MAJOR_GAP_PX = 10;
 const sidebarScrollRef = ref<HTMLElement | null>(null);
@@ -231,6 +231,14 @@ const canCommit = computed(
 
 const commitExpanded = ref(false);
 const actionsOpen = ref(false);
+const collapsedSections = ref<Set<SectionId>>(new Set());
+
+function toggleSection(id: SectionId): void {
+  const next = new Set(collapsedSections.value);
+  if (next.has(id)) next.delete(id);
+  else next.add(id);
+  collapsedSections.value = next;
+}
 
 function applyLastCommitSubject(): void {
   const s = props.lastCommitSubject;
@@ -248,9 +256,10 @@ const flatItems = computed<FlatItem[]>(() => {
   let needMajorDividerBeforeNextSection = false;
   for (const [id, label, entries] of sections) {
     if (entries.length === 0) continue;
+    const collapsed = collapsedSections.value.has(id);
     if (id === "staged") {
       out.push({ kind: "section", id, label, count: entries.length });
-      out.push(...entries);
+      if (!collapsed) out.push(...entries);
       placedStagedBlock = true;
       needMajorDividerBeforeNextSection = true;
       continue;
@@ -258,7 +267,7 @@ const flatItems = computed<FlatItem[]>(() => {
     const majorDividerAbove = needMajorDividerBeforeNextSection && placedStagedBlock;
     needMajorDividerBeforeNextSection = false;
     out.push({ kind: "section", id, label, count: entries.length, majorDividerAbove });
-    out.push(...entries);
+    if (!collapsed) out.push(...entries);
   }
   return out;
 });
@@ -648,9 +657,18 @@ onBeforeUnmount(() => {
                 :style="{ height: `${SECTION_MAJOR_GAP_PX - 2}px` }"
               />
               <div
-                class="flex min-h-[22px] flex-1 items-center justify-between gap-1 px-2 text-[9px] font-semibold tracking-[0.12em] uppercase"
+                class="flex flex-1 cursor-pointer items-center justify-between gap-1 px-2 text-[9px] font-semibold tracking-[0.12em] uppercase"
+                @click="toggleSection(metric.item.id)"
               >
-                <span class="min-w-0 shrink">{{ metric.item.label }}</span>
+                <span class="flex min-w-0 shrink items-center gap-1">
+                  <ChevronDown
+                    class="h-3 w-3 shrink-0 transition-transform duration-150"
+                    :class="collapsedSections.has(metric.item.id) ? '-rotate-90' : ''"
+                  />
+                  <p>
+                    {{ metric.item.label }}    
+                  </p>                  
+                </span>
                 <div class="flex shrink-0 items-center gap-1.5">
                   <span class="tabular-nums opacity-90">{{ metric.item.count }}</span>
                   <label
@@ -676,7 +694,7 @@ onBeforeUnmount(() => {
             </div>
             <div
               v-else
-              class="absolute inset-x-0 flex items-stretch"
+              class="absolute inset-x-0 flex items-center"
               :class="[
                 selectedPath === metric.item.path && selectedScope === metric.item.scope
                   ? 'z-[1] border-b border-primary/25 bg-primary/18 text-foreground ring-1 ring-inset ring-primary/30 dark:bg-primary/22'
@@ -688,7 +706,7 @@ onBeforeUnmount(() => {
                 type="button"
                 variant="ghost"
                 size="xs"
-                class="flex min-w-0 flex-1 items-center gap-1 px-2 py-0 text-left transition-colors"
+                class="flex min-w-0 flex-1 items-center gap-1 px-2 py-1 text-left transition-colors"
                 :class="
                   selectedPath === metric.item.path && selectedScope === metric.item.scope
                     ? 'text-foreground'
@@ -701,10 +719,16 @@ onBeforeUnmount(() => {
                 >
                   {{ metric.item.badge }}
                 </span>
-                <span class="min-w-0 flex-1 truncate font-mono text-[10px] leading-tight">{{ metric.item.path }}</span>
+                <span
+                  class="min-w-0 flex-1 overflow-hidden font-mono text-[10px] leading-tight"
+                  :title="metric.item.path"
+                >
+                  <span class="block truncate font-semibold">{{ splitRepoPath(metric.item.path).base }}</span>
+                  <span v-if="splitRepoPath(metric.item.path).dir" class="block truncate text-muted-foreground/70">{{ splitRepoPath(metric.item.path).dir }}</span>
+                </span>
               </Button>
               <label
-                class="flex shrink-0 cursor-pointer items-center border-l border-border/40 bg-background/30 px-1.5 dark:bg-background/15"
+                class="flex self-stretch shrink-0 cursor-pointer items-center border-l border-border/40 bg-background/30 px-1.5 dark:bg-background/15"
                 @click.stop
               >
                 <input

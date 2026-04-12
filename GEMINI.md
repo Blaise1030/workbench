@@ -12,7 +12,7 @@ Instead use:
 
 ### Inline HTTP — BLOCKED
 Any shell command containing `fetch('http`, `requests.get(`, `requests.post(`, `http.get(`, or `http.request(` will be intercepted and blocked. Do NOT retry with shell.
-Instead use:
+Instead use: 
 - `mcp__context-mode__ctx_execute(language, code)` to run HTTP calls in sandbox — only stdout enters context
 
 ### WebFetch / web browsing — BLOCKED
