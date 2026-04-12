@@ -356,7 +356,7 @@ const claudePathD = pathDFromSvg(claudeSymbolSvg);
 						What operating systems does workbench support?
 						<svg class="h-4 w-4 shrink-0 text-zinc-400 transition-transform group-open:rotate-180" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
 					</summary>
-					<p class="mt-3 text-sm leading-relaxed text-zinc-500">workbench runs on macOS, Windows, and Linux.</p>
+					<p class="mt-3 text-sm leading-relaxed text-zinc-500">workbench currently supports macOS. Support for Windows and Linux is coming soon.</p>
 				</details>
 
 			</div>
@@ -383,13 +383,14 @@ const claudePathD = pathDFromSvg(claudeSymbolSvg);
 			</p>
 			<div class="mt-8 flex flex-col items-center gap-2">
 				<a
+					id="download-btn-cta"
 					href={ssrDownloadUrl}
 					class="inline-flex items-center gap-2 rounded-full bg-zinc-900 px-7 py-3.5 text-sm font-semibold text-white shadow-lg shadow-zinc-900/15 transition hover:bg-zinc-800"
 					rel="noopener noreferrer"
 				>
-					Download workbench — it's free
+					<span id="download-btn-label-cta">Download workbench — it's free</span>
 				</a>
-				<p class="text-xs text-zinc-400">No subscription required. Works on macOS, Windows, and Linux.</p>
+				<p class="text-xs text-zinc-400">No subscription required. Works on macOS (Windows and Linux support coming soon).</p>
 			</div>
 		</section>		
 
@@ -527,8 +528,8 @@ const claudePathD = pathDFromSvg(claudeSymbolSvg);
 			}
 
 			function labelForPlatform(p) {
-				if (p === "windows") return "Download for Windows — it's free";
-				if (p === "linux") return "Download for Linux — it's free";
+				if (p === "windows") return "Coming soon for Windows";
+				if (p === "linux") return "Coming soon for Linux";
 				return "Download for macOS — it's free";
 			}
 
@@ -547,18 +548,35 @@ const claudePathD = pathDFromSvg(claudeSymbolSvg);
 			(() => {
 				const btn = document.getElementById("download-btn");
 				const labelEl = document.getElementById("download-btn-label");
+				const btnCta = document.getElementById("download-btn-cta");
+				const labelCtaEl = document.getElementById("download-btn-label-cta");
 				const versionEl = document.getElementById("download-version");
 				const macNotice = document.getElementById("mac-gatekeeper-notice");
 				if (!btn || !labelEl) return;
 
 				const platform = pickPlatform();
 				labelEl.textContent = labelForPlatform(platform);
+				if (labelCtaEl) {
+					labelCtaEl.textContent = platform === "mac" ? "Download workbench — it's free" : labelForPlatform(platform);
+				}
+
+				if (platform !== "mac") {
+					btn.setAttribute("href", "#");
+					btn.classList.add("pointer-events-none", "opacity-50");
+					if (btnCta) {
+						btnCta.setAttribute("href", "#");
+						btnCta.classList.add("pointer-events-none", "opacity-50");
+					}
+					return;
+				}
 
 				const entry = SSR_MANIFEST?.downloads?.[platform];
 				if (entry?.url) {
 					btn.setAttribute("href", entry.url);
+					if (btnCta) btnCta.setAttribute("href", entry.url);
 				} else {
 					btn.setAttribute("href", LATEST_RELEASE_PAGE_URL);
+					if (btnCta) btnCta.setAttribute("href", LATEST_RELEASE_PAGE_URL);
 				}
 
 				if (versionEl && SSR_MANIFEST?.version) {
@@ -566,14 +584,21 @@ const claudePathD = pathDFromSvg(claudeSymbolSvg);
 					versionEl.classList.remove("hidden");
 				}
 
-				btn.addEventListener("click", (e) => {
+				const onDownloadClick = (e) => {
 					if (platform !== "mac") return;
 					if (!(macNotice instanceof HTMLDialogElement)) return;
+					
+					const target = e.currentTarget;
+					if (!(target instanceof HTMLAnchorElement)) return;
+					
 					e.preventDefault();
-					const href = btn.getAttribute("href");
+					const href = target.getAttribute("href");
 					macNotice.showModal();
-					if (href) triggerDownloadSameTab(href);
-				});
+					if (href && href !== "#") triggerDownloadSameTab(href);
+				};
+
+				btn.addEventListener("click", onDownloadClick);
+				if (btnCta) btnCta.addEventListener("click", onDownloadClick);
 			})();
 		</script>
 	</body>
