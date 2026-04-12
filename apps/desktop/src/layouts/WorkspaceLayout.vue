@@ -38,7 +38,6 @@ import {
   registerThreadCreateDialogOpener,
   type ThreadCreateDialogOpenOptions
 } from "@/composables/threadCreateDialog";
-import { useCommandCenter } from "@/composables/useCommandCenter";
 import { useWorkspaceKeybindings } from "@/composables/useWorkspaceKeybindings";
 import { formatShortcut, MOD_DIGIT_SLOT_CODES } from "@/keybindings/registry";
 import { useKeybindingsStore } from "@/stores/keybindingsStore";
@@ -1290,13 +1289,7 @@ function toggleThreadsSidebar(): void {
   threadsSidebarCollapsed.value = !threadsSidebarCollapsed.value;
 }
 
-const commandCenter = useCommandCenter({
-  onSelectCenterTab: (tab) => {
-    mainCenterTab.value = tab;
-  },
-  onToggleSidebar: toggleThreadsSidebar,
-  onOpenSettings: handleConfigureCommands
-});
+const workspaceLauncherOpen = ref(false);
 
 function openNewThreadMenuFromShortcut(): void {
   openThreadCreateDialog({
@@ -1313,16 +1306,16 @@ function focusFileSearchShortcut(): void {
 }
 
 function toggleWorkspaceLauncher(): void {
-  commandCenter.toggle();
+  workspaceLauncherOpen.value = !workspaceLauncherOpen.value;
 }
 
 async function onLauncherPickThread(threadId: string): Promise<void> {
-  commandCenter.close();
+  workspaceLauncherOpen.value = false;
   await handleSelectThread(threadId);
 }
 
 function onLauncherPickCommand(id: string): void {
-  commandCenter.close();
+  workspaceLauncherOpen.value = false;
   if (id === "toggle-thread-sidebar") {
     toggleThreadsSidebar();
   }
@@ -1332,7 +1325,7 @@ async function onLauncherPickFile(payload: {
   relativePath: string;
   worktreeId: string | null;
 }): Promise<void> {
-  commandCenter.close();
+  workspaceLauncherOpen.value = false;
   const api = getApi();
   if (!api) return;
   const targetWt =
@@ -1352,12 +1345,12 @@ async function onLauncherPickFile(payload: {
 }
 
 async function onLauncherPickProject(projectId: string): Promise<void> {
-  commandCenter.close();
+  workspaceLauncherOpen.value = false;
   await handleSelectProject(projectId);
 }
 
 async function onLauncherPickWorktree(worktreeId: string): Promise<void> {
-  commandCenter.close();
+  workspaceLauncherOpen.value = false;
   await handleSelectWorktree(worktreeId);
 }
 
@@ -1369,7 +1362,7 @@ useWorkspaceKeybindings(
     shellSlotIds: () => shellSlotIds.value,
     terminalPanelOpen: () => terminalPanelOpen.value,
     scmActionsAvailable: () => hasGitRepository.value === true,
-    launcherConsumesNavShortcuts: () => commandCenter.isOpen.value,
+    launcherConsumesNavShortcuts: () => workspaceLauncherOpen.value,
     onSelectCenterTab: (tab) => {
       if (tab === "agent" || tab === "diff" || tab === "files") {
         mainCenterTab.value = tab;
@@ -1989,9 +1982,7 @@ watch(
     />
 
     <WorkspaceLauncherModal
-      v-model="commandCenter.isOpen"
-      :quick-actions="commandCenter.quickActions"
-      :active-filter="commandCenter.activeFilter"
+      v-model="workspaceLauncherOpen"
       @pick-thread="onLauncherPickThread"
       @pick-file="onLauncherPickFile"
       @pick-command="onLauncherPickCommand"

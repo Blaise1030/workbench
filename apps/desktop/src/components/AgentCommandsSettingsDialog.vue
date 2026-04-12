@@ -90,7 +90,7 @@ const categoryOrderIndex = new Map(
 
 /** One flat list for the keyboard table (same order as before: category, then registry order). */
 const keyboardBindingsRows = computed(() =>
-  [...keybindings.effectiveDefinitions].sort((a, b) => {
+  [...keybindings.effectiveDefinitions].filter((d) => !d.hidden).sort((a, b) => {
     const ca = categoryOrderIndex.get(a.category) ?? 99;
     const cb = categoryOrderIndex.get(b.category) ?? 99;
     if (ca !== cb) return ca - cb;
@@ -233,9 +233,7 @@ function save(): void {
           Settings
         </DialogTitle>
         <p class="mt-2 text-sm leading-relaxed text-muted-foreground">
-          Use the tabs to configure agent launch commands, terminal sounds and notifications, and workspace keyboard
-          shortcuts. Agent command lines are stored when you click Save (Cancel closes without updating saved agent
-          commands). Terminal options and keyboard bindings take effect as soon as you change them.
+          Configure agents, terminal, and keyboard settings. Agent commands require Save; other changes apply instantly.
         </p>
 
         <div class="border rounded-lg w-fit">

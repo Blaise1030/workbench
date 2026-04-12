@@ -90,10 +90,10 @@ const claudePathD = pathDFromSvg(claudeSymbolSvg);
 		<main class="px-2">
 			<section class="scroll-scale-in mx-auto max-w-5xl px-6 pb-16 pt-16 text-center md:pb-20 md:pt-20" aria-labelledby="hero-heading">
 				<h1 id="hero-heading" class="mx-auto max-w-5xl text-balance text-4xl font-medium leading-[1.1] tracking-tight text-zinc-900 md:text-5xl lg:text-[3.25rem]">
-					One terminal to use them all.
+					Run every AI agent. No conflicts.
 				</h1>
 				<p class="mx-auto mt-5 max-w-3xl text-lg text-zinc-600">
-					Run Claude Code, Gemini CLI, Cursor Agent, and more side by side — each isolated on its own worktree. Bring your own subscription. No subscription required.
+					workbench gives Claude Code, Gemini CLI, and Cursor Agent their own isolated git worktree — so they work in parallel without stepping on each other. Bring your own subscription.
 				</p>
 				<div id="download" class="mt-10 flex flex-col items-center gap-2">
 					<a
@@ -107,7 +107,7 @@ const claudePathD = pathDFromSvg(claudeSymbolSvg);
 								d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"
 							/>
 						</svg>
-						<span id="download-btn-label">Download for macOS</span>
+						<span id="download-btn-label">Download for macOS — it's free</span>
 					</a>
 					<p id="download-version" class={`text-xs text-zinc-500${ssrVersion ? "" : " hidden"}`} aria-live="polite">
 						{ssrVersion ? `Version ${ssrVersion}` : ""}
@@ -123,7 +123,7 @@ const claudePathD = pathDFromSvg(claudeSymbolSvg);
 					<div
 						class="shrink-0 border-b border-zinc-200/80 bg-zinc-50/95 px-4 py-3 text-center text-xs text-zinc-600"
 					>
-						workbench — run every AI agent side by side, each isolated on its own worktree.
+						workbench — parallel agents, isolated worktrees, no conflicts.
 					</div>
 					<div class="group relative overflow-hidden rounded-b-[10px] bg-zinc-100">
 						<img
@@ -201,101 +201,41 @@ const claudePathD = pathDFromSvg(claudeSymbolSvg);
 
 				<!-- Card 1: Parallel agents (large) -->
 				<div class="flex flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-zinc-50 p-7 shadow-sm shadow-zinc-900/5">
-					<h3 class="text-base font-semibold text-zinc-900">Agents working in parallel</h3>
-					<p class="mt-1.5 text-sm leading-relaxed text-zinc-500">Open Claude Code, Gemini CLI, and Cursor Agent at the same time. Each session is independent — no conflicts, no context bleed.</p>
-					<!-- Mini UI: two agent panels -->
-					<div class="mt-6 flex flex-1 flex-col gap-2 rounded-xl border border-zinc-200 bg-white p-4 font-mono text-xs shadow-sm">
-						<div class="flex items-center gap-2 border-b border-zinc-100 pb-3">
-							<span class="h-2 w-2 rounded-full bg-emerald-400"></span>
-							<span class="text-zinc-400">claude · feat/auth</span>
-						</div>
-						<div class="space-y-1 py-1 text-zinc-500">
-							<p><span class="text-emerald-600">✓</span> Updated middleware.ts</p>
-							<p><span class="text-emerald-600">✓</span> Added token validation</p>
-							<p class="animate-pulse text-zinc-400">▍ Running tests…</p>
-						</div>
-						<div class="mt-2 flex items-center gap-2 border-t border-zinc-100 pt-3">
-							<span class="h-2 w-2 rounded-full bg-blue-400"></span>
-							<span class="text-zinc-400">cursor agent · feat/ui</span>
-						</div>
-						<div class="space-y-1 py-1 text-zinc-500">
-							<p><span class="text-emerald-600">✓</span> Redesigned login form</p>
-							<p class="animate-pulse text-zinc-400">▍ Writing styles…</p>
-						</div>
+					<h3 class="text-base font-semibold text-zinc-900">Parallel agents, no chaos</h3>
+					<p class="mt-1.5 text-sm leading-relaxed text-zinc-500">Open Claude Code on auth, Gemini CLI on the API, and Cursor on the UI — all at once. Each agent works on its own branch. No conflicts, no shared state.</p>
+					<!-- TODO: replace with thread/terminal snippet screenshot -->
+					<div class="mt-6 flex flex-1 items-center justify-center rounded-xl border border-dashed border-zinc-300 bg-zinc-100 px-4 py-10 text-xs text-zinc-400">
+						screenshot: thread terminal snippet
 					</div>
 				</div>
 
 				<!-- Card 2: Worktree isolation (large) -->
 				<div class="flex flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-[#f5f4ff] p-7 shadow-sm shadow-zinc-900/5">
-					<h3 class="text-base font-semibold text-zinc-900">Each agent, its own branch</h3>
-					<p class="mt-1.5 text-sm leading-relaxed text-zinc-500">Agents run on isolated git worktrees. Changes stay separate until you're ready to review and merge — no stepping on each other's work.</p>
-					<!-- Mini UI: worktree sidebar -->
-					<div class="mt-6 flex flex-1 flex-col gap-1.5 rounded-xl border border-violet-100 bg-white p-4 text-xs shadow-sm">
-						{[
-							{ branch: "feat/auth", agent: "claude", color: "bg-emerald-400", commits: 3 },
-							{ branch: "feat/ui", agent: "cursor agent", color: "bg-blue-400", commits: 7 },
-							{ branch: "fix/api-bug", agent: "gemini cli", color: "bg-amber-400", commits: 1 },
-							{ branch: "chore/deps", agent: "codex", color: "bg-pink-400", commits: 2 },
-						].map(({ branch, agent, color, commits }) => (
-							<div class="flex items-center justify-between rounded-lg px-3 py-2 hover:bg-zinc-50">
-								<div class="flex items-center gap-2">
-									<span class={`h-1.5 w-1.5 rounded-full ${color}`}></span>
-									<span class="font-mono text-zinc-700">{branch}</span>
-								</div>
-								<div class="flex items-center gap-3">
-									<span class="text-zinc-400">{agent}</span>
-									<span class="rounded bg-zinc-100 px-1.5 py-0.5 font-mono text-zinc-500">+{commits}</span>
-								</div>
-							</div>
-						))}
+					<h3 class="text-base font-semibold text-zinc-900">Each agent, its own worktree</h3>
+					<p class="mt-1.5 text-sm leading-relaxed text-zinc-500">Every session gets an isolated git worktree. Changes stay separate until you're ready to review and merge. You decide what lands — not whoever wrote last.</p>
+					<!-- TODO: replace with worktree switcher screenshot -->
+					<div class="mt-6 flex flex-1 items-center justify-center rounded-xl border border-dashed border-violet-200 bg-violet-50 px-4 py-10 text-xs text-violet-300">
+						screenshot: worktree switcher snippet
 					</div>
 				</div>
 
 				<!-- Card 3: BYOK -->
 				<div class="flex flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-[#f0faf4] p-7 shadow-sm shadow-zinc-900/5">
-					<h3 class="text-base font-semibold text-zinc-900">Pay only for what you use</h3>
-					<p class="mt-1.5 text-sm leading-relaxed text-zinc-500">No subscription on top of your API spend. Bring your own subscription and pay only what the models actually cost.</p>
-					<!-- Mini UI: cost breakdown -->
-					<div class="mt-6 flex flex-1 flex-col gap-2 rounded-xl border border-emerald-100 bg-white p-4 text-xs shadow-sm">
-						<p class="mb-1 font-medium text-zinc-400">This session</p>
-						{[
-							{ model: "claude-sonnet-4", tokens: "42k tokens", cost: "$0.18" },
-							{ model: "gemini-2.5-pro", tokens: "18k tokens", cost: "$0.04" },
-							{ model: "gpt-4o", tokens: "9k tokens", cost: "$0.09" },
-						].map(({ model, tokens, cost }) => (
-							<div class="flex items-center justify-between border-b border-zinc-50 py-1.5 last:border-0 font-mono">
-								<div>
-									<p class="text-zinc-700">{model}</p>
-									<p class="text-zinc-400">{tokens}</p>
-								</div>
-								<span class="font-semibold text-emerald-700">{cost}</span>
-							</div>
-						))}
-						<div class="mt-1 flex items-center justify-between border-t border-zinc-100 pt-2">
-							<span class="font-medium text-zinc-500">Total</span>
-							<span class="font-mono font-bold text-zinc-900">$0.31</span>
-						</div>
+					<h3 class="text-base font-semibold text-zinc-900">Bring your own subscription</h3>
+					<p class="mt-1.5 text-sm leading-relaxed text-zinc-500">workbench doesn't charge on top of your API spend. Use the subscriptions you already have and pay only for what the models actually cost.</p>
+					<!-- TODO: replace with hero/follow-up snippet screenshot -->
+					<div class="mt-6 flex flex-1 items-center justify-center rounded-xl border border-dashed border-emerald-200 bg-emerald-50 px-4 py-10 text-xs text-emerald-300">
+						screenshot: hero / follow-up snippet
 					</div>
 				</div>
 
 				<!-- Card 4: Review & merge -->
 				<div class="flex flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-[#fdf8f0] p-7 shadow-sm shadow-zinc-900/5">
 					<h3 class="text-base font-semibold text-zinc-900">Review before you merge</h3>
-					<p class="mt-1.5 text-sm leading-relaxed text-zinc-500">Built-in diff viewer shows exactly what each agent changed. Compare across agents and pick the best result — without leaving the app.</p>
-					<!-- Mini UI: diff view -->
-					<div class="mt-6 flex flex-1 flex-col overflow-hidden rounded-xl border border-amber-100 bg-white font-mono text-xs shadow-sm">
-						<div class="flex items-center gap-2 border-b border-zinc-100 bg-zinc-50 px-4 py-2">
-							<span class="text-zinc-400">middleware.ts</span>
-							<span class="ml-auto rounded bg-emerald-50 px-1.5 py-0.5 text-emerald-700">+12</span>
-							<span class="rounded bg-red-50 px-1.5 py-0.5 text-red-600">-4</span>
-						</div>
-						<div class="space-y-px p-3">
-							<p class="rounded bg-red-50 px-2 py-0.5 text-red-600"><span class="select-none">- </span>if (token) {'{'} next() {'}'}</p>
-							<p class="rounded bg-emerald-50 px-2 py-0.5 text-emerald-700"><span class="select-none">+ </span>const valid = await verify(token)</p>
-							<p class="rounded bg-emerald-50 px-2 py-0.5 text-emerald-700"><span class="select-none">+ </span>if (!valid) return res.status(401)</p>
-							<p class="rounded bg-emerald-50 px-2 py-0.5 text-emerald-700"><span class="select-none">+ </span>next()</p>
-							<p class="px-2 py-0.5 text-zinc-400"><span class="select-none">  </span>{'}'}</p>
-						</div>
+					<p class="mt-1.5 text-sm leading-relaxed text-zinc-500">A built-in diff viewer shows exactly what each agent changed. Compare across agents, pick the best result, and merge — without leaving the app.</p>
+					<!-- TODO: replace with git diff snippet screenshot -->
+					<div class="mt-6 flex flex-1 items-center justify-center rounded-xl border border-dashed border-amber-200 bg-amber-50 px-4 py-10 text-xs text-amber-300">
+						screenshot: git diff snippet
 					</div>
 				</div>
 
@@ -313,19 +253,36 @@ const claudePathD = pathDFromSvg(claudeSymbolSvg);
 			<div class="grid gap-4 md:grid-cols-3">
 				<div class="flex flex-col gap-3 rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm shadow-zinc-900/5">
 					<span class="text-xs font-semibold uppercase tracking-widest text-zinc-400">01</span>
-					<h3 class="text-sm font-semibold text-zinc-900">Open a project</h3>
-					<p class="text-sm leading-relaxed text-zinc-500">Point workbench at any local repo. It becomes your workspace — file tree, git status, and terminal all in one window.</p>
+					<h3 class="text-sm font-semibold text-zinc-900">Open your project</h3>
+					<p class="text-sm leading-relaxed text-zinc-500">Point workbench at any local repo. Your workspace is ready: file tree, git status, and terminal — all in one window.</p>
 				</div>
 				<div class="flex flex-col gap-3 rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm shadow-zinc-900/5">
 					<span class="text-xs font-semibold uppercase tracking-widest text-zinc-400">02</span>
 					<h3 class="text-sm font-semibold text-zinc-900">Spin up agents</h3>
-					<p class="text-sm leading-relaxed text-zinc-500">Add Claude Code, Gemini CLI, or any agent as a thread. Each gets a dedicated worktree so they work independently on the same codebase.</p>
+					<p class="text-sm leading-relaxed text-zinc-500">Add Claude Code, Gemini CLI, or any agent as a thread. Each gets a dedicated worktree so they can run independently on the same codebase.</p>
 				</div>
 				<div class="flex flex-col gap-3 rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm shadow-zinc-900/5">
 					<span class="text-xs font-semibold uppercase tracking-widest text-zinc-400">03</span>
 					<h3 class="text-sm font-semibold text-zinc-900">Review and merge</h3>
-					<p class="text-sm leading-relaxed text-zinc-500">Compare diffs across agents side by side. Pick the best result, review the changes, and merge — without ever leaving the app.</p>
+					<p class="text-sm leading-relaxed text-zinc-500">Compare diffs across agents side by side. Pick the best result and merge — without ever leaving the app.</p>
 				</div>
+			</div>
+		</section>
+
+		<!-- Closing CTA -->
+		<section class="scroll-scale-in mx-auto max-w-5xl px-6 py-20 text-center" aria-labelledby="cta-heading">
+			<p class="mx-auto max-w-xl text-lg text-zinc-600">
+				You're already using AI agents. workbench just lets you run more of them, without the mess.
+			</p>
+			<div class="mt-8 flex flex-col items-center gap-2">
+				<a
+					href={ssrDownloadUrl}
+					class="inline-flex items-center gap-2 rounded-full bg-zinc-900 px-7 py-3.5 text-sm font-semibold text-white shadow-lg shadow-zinc-900/15 transition hover:bg-zinc-800"
+					rel="noopener noreferrer"
+				>
+					Download workbench — it's free
+				</a>
+				<p class="text-xs text-zinc-400">No subscription required. Works on macOS, Windows, and Linux.</p>
 			</div>
 		</section>
 
@@ -457,9 +414,9 @@ const claudePathD = pathDFromSvg(claudeSymbolSvg);
 			}
 
 			function labelForPlatform(p) {
-				if (p === "windows") return "Download for Windows";
-				if (p === "linux") return "Download for Linux";
-				return "Download for macOS";
+				if (p === "windows") return "Download for Windows — it's free";
+				if (p === "linux") return "Download for Linux — it's free";
+				return "Download for macOS — it's free";
 			}
 
 			/** Starts a file download without opening a new tab or navigating this page away. */

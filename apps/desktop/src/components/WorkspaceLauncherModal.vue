@@ -1,12 +1,6 @@
 <script setup lang="ts">
-import {
-  Folder,
-  GitBranch,
-  PanelLeft,
-  Search,
-} from "lucide-vue-next";
+import { Folder, GitBranch, PanelLeft, Search } from "lucide-vue-next";
 import { computed, nextTick, ref, watch } from "vue";
-import type { CommandCenterFilter, QuickAction } from "@/composables/useCommandCenter";
 import AgentIcon from "@/components/ui/AgentIcon.vue";
 import {
   Dialog,
@@ -37,11 +31,6 @@ const emit = defineEmits<{
   pickCommand: [id: LauncherCommandId];
   pickProject: [projectId: string];
   pickWorktree: [worktreeId: string];
-}>();
-
-const props = defineProps<{
-  quickActions: QuickAction[];
-  activeFilter: CommandCenterFilter;
 }>();
 
 const workspace = useWorkspaceStore();
@@ -79,27 +68,6 @@ const commandShortcutHints = computed(() => ({
 }));
 
 const rows = computed<LauncherRow[]>(() => {
-  const mode = parsed.value.mode;
-  // Scoped prefix modes skip commands and cross-section results
-  if (mode === "threads" || mode === "files" || mode === "branches") {
-    const rest = searchLauncherRows(
-      parsed.value,
-      workspace.activeThreads,
-      branchFiles.value,
-      otherWorktreeFiles.value
-    );
-    if (mode === "branches") {
-      return searchLauncherWorkspaceSwitch(
-        parsed.value,
-        commandSearchText.value,
-        workspace.projects,
-        workspace.activeProjectId,
-        workspace.worktrees,
-        workspace.activeWorktreeId
-      );
-    }
-    return rest;
-  }
   const cmds = searchLauncherCommands(commandSearchText.value, commandShortcutHints.value);
   const switchRows = searchLauncherWorkspaceSwitch(
     parsed.value,
@@ -115,26 +83,22 @@ const rows = computed<LauncherRow[]>(() => {
     branchFiles.value,
     otherWorktreeFiles.value
   );
-  const all = [...cmds, ...switchRows, ...rest];
-  if (!props.activeFilter) return all;
-  return all.filter((r) => r.section === props.activeFilter);
+  return [...cmds, ...switchRows, ...rest];
 });
-
-/** When true, show the command-center cheat sheet above results (toolbar + @wt). */
-const showCommandCenterHelp = computed(
-  () => !query.value.trim() && !loading.value && !loadError.value
-);
 
 const emptyHint = computed(() => {
   if (loading.value) return "Loading…";
   if (loadError.value) return loadError.value;
-  if (parsed.value.mode === "worktree" && !parsed.value.query.trim()) {
-    if (otherWorktreeFiles.value.length === 0) return "No other worktrees in this project.";
+  if (parsed.value.mode === "worktree") {
+    if (!query.value.startsWith("@wt")) return "";
+    if (!parsed.value.query.trim()) {
+      return otherWorktreeFiles.value.length === 0
+        ? "No other worktrees in this project."
+        : "Type to search files across linked worktrees.";
+    }
   }
   if (!query.value.trim()) {
-    return rows.value.length === 0
-      ? "Nothing to list yet — type to search workspaces, threads, and files."
-      : "";
+    return "Search commands, other workspaces and worktrees, threads, and files. Use @wt for files in linked worktrees.";
   }
   return "No results.";
 });
@@ -329,57 +293,20 @@ function showSectionDividerAbove(i: number): boolean {
             @keydown="onInputKeydown"
           />
         </div>
+        <p class="border-b border-border px-3 py-1.5 text-[11px] text-muted-foreground">
+          <span class="font-mono">@wt</span>
+          — search files in other worktrees (same project). Press
+          <span class="font-mono">{{ launcherToggleShortcutLabel }}</span>
+          to toggle.
+        </p>
+
         <div
           ref="listRef"
-          class="flex max-h-[min(50vh,360px)] flex-col gap-1 overflow-y-auto px-2 py-1"
-          aria-label="Workspace launcher"
+          class="flex max-h-[min(50vh,320px)] flex-col gap-1 overflow-y-auto px-2 py-1"
+          role="listbox"
+          aria-label="Search results"
         >
-          <div
-            v-if="showCommandCenterHelp"
-            class="mb-1 border-b border-border px-2 pb-3"
-            data-testid="command-center-help"
-          >
-            <p class="px-1 pt-1 text-[10px] font-semibold tracking-wide text-muted-foreground uppercase">
-              Quick actions
-            </p>
-            <ul class="mt-1 space-y-0.5" aria-label="Quick action shortcuts">
-              <li
-                v-for="action in props.quickActions"
-                :key="`help-${action.id}`"
-              >
-                <button
-                  type="button"
-                  :aria-label="`${action.label}: ${action.description}`"
-                  class="flex w-full items-center gap-3 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  @click="action.action()"
-                >
-                  <span class="shrink-0 text-base leading-none" aria-hidden="true">{{ action.emoji }}</span>
-                  <div class="min-w-0 flex-1">
-                    <div class="flex items-center gap-1.5">
-                      <span class="text-xs font-medium text-foreground">{{ action.label }}</span>
-                      <code
-                        v-if="action.searchPrefix"
-                        class="rounded bg-muted px-1 py-px font-mono text-[10px] text-muted-foreground"
-                      >{{ action.searchPrefix }}</code>
-                    </div>
-                    <p class="mt-0.5 text-[11px] leading-snug text-muted-foreground">{{ action.description }}</p>
-                  </div>
-                  <kbd
-                    class="h-fit shrink-0 rounded border border-border bg-muted/60 px-1.5 py-0.5 font-mono text-[11px] text-foreground"
-                  >
-                    {{ action.shortcutLabel }}
-                  </kbd>
-                </button>
-              </li>
-            </ul>
-          </div>
-
-          <div
-            v-if="rows.length > 0"
-            role="listbox"
-            aria-label="Search results"
-            class="flex min-h-0 flex-col gap-1"
-          >
+          <template v-if="rows.length > 0">
             <template
               v-for="(row, i) in rows"
               :key="
@@ -485,9 +412,9 @@ function showSectionDividerAbove(i: number): boolean {
                 </template>
               </div>
             </template>
-          </div>
+          </template>
           <div
-            v-else-if="emptyHint"
+            v-else
             class="py-8 text-center text-sm text-muted-foreground"
             data-testid="workspace-launcher-empty"
           >
