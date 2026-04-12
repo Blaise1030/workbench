@@ -142,6 +142,32 @@ export function useWorkspaceKeybindings(ctx: WorkspaceKeybindingContext, enabled
       return;
     }
 
+    if (id === "focusAgentTab") {
+      const def = findDefinitionIn(definitions, "focusAgentTab");
+      if (def && eventMatchesBinding(ev, def)) {
+        ev.preventDefault();
+        ctx.onSelectCenterTab("agent");
+      }
+      return;
+    }
+    if (id === "focusGitPanel") {
+      if (!ctx.scmActionsAvailable()) return;
+      const def = findDefinitionIn(definitions, "focusGitPanel");
+      if (def && eventMatchesBinding(ev, def)) {
+        ev.preventDefault();
+        ctx.onSelectCenterTab("diff");
+      }
+      return;
+    }
+    if (id === "focusFilesPanel") {
+      const def = findDefinitionIn(definitions, "focusFilesPanel");
+      if (def && eventMatchesBinding(ev, def)) {
+        ev.preventDefault();
+        ctx.onSelectCenterTab("files");
+      }
+      return;
+    }
+
     const def = findDefinitionIn(definitions, id);
 
     if (def && NAV_IDS.includes(def.id) && inTerminal) return;

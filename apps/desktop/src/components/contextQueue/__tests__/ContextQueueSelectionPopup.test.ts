@@ -29,7 +29,7 @@ describe("ContextQueueSelectionPopup", () => {
     document.body.innerHTML = "";
   });
 
-  it("emits queue when Queue is clicked", async () => {
+  it("does not render Queue while selection-queue feature is disabled", async () => {
     wrapper = mount(ContextQueueSelectionPopup, {
       attachTo: document.body,
       props: {
@@ -39,13 +39,9 @@ describe("ContextQueueSelectionPopup", () => {
     });
 
     await wrapper.vm.$nextTick();
-    const queue = document.body.querySelector(
-      '[data-testid="context-queue-selection-queue"]'
-    ) as HTMLButtonElement;
-    expect(queue).toBeTruthy();
-    await queue.click();
-
-    expect(wrapper.emitted("queue")).toHaveLength(1);
+    expect(
+      document.body.querySelector('[data-testid="context-queue-selection-queue"]')
+    ).toBeNull();
   });
 
   it("emits sendToAgent when Agent is clicked", async () => {
@@ -82,7 +78,7 @@ describe("ContextQueueSelectionPopup", () => {
     expect(wrapper.emitted("dismiss")).toHaveLength(1);
   });
 
-  it("emits queue when queue keybinding is pressed (Mod+Shift+Enter)", async () => {
+  it("does not emit queue when queue keybinding is pressed while selection-queue is disabled", async () => {
     wrapper = mount(ContextQueueSelectionPopup, {
       attachTo: document.body,
       props: {
@@ -94,7 +90,7 @@ describe("ContextQueueSelectionPopup", () => {
     await wrapper.vm.$nextTick();
     window.dispatchEvent(modEnter(true));
 
-    expect(wrapper.emitted("queue")).toHaveLength(1);
+    expect(wrapper.emitted("queue")).toBeUndefined();
   });
 
   it("emits sendToAgent when send keybinding is pressed (Mod+Enter)", async () => {

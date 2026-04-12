@@ -936,8 +936,8 @@ async function openAppUpdateUrl(url: string): Promise<void> {
       <Button
         type="button"
         variant="outline"
-        :size="collapsed ? 'icon-xs' : 'lg'"
-        :class="collapsed ? 'w-full shrink-0' : 'self-start'"
+        :size="collapsed ? 'icon-xs' : 'sm'"
+        :class="collapsed ? 'w-full shrink-0' : 'self-center'"
         :aria-label="showBranchPicker ? 'Cancel add worktree' : 'Add worktree'"
         :title="showBranchPicker ? 'Close worktree form' : 'Add a linked worktree'"
         :disabled="!projectId && !showBranchPicker"

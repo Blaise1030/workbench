@@ -29,7 +29,6 @@ import {
   KEYBINDING_DEFINITIONS,
   mergeKeybindingOverrides,
   physicalShortcutFromKeyboardEvent,
-  type KeybindingCategory,
   type KeybindingDefinition,
   type KeybindingId
 } from "@/keybindings/registry";
@@ -71,7 +70,7 @@ const settingsPanelAgentsId = "workspace-settings-panel-agents";
 const settingsPanelTerminalId = "workspace-settings-panel-terminal";
 const settingsPanelKeyboardId = "workspace-settings-panel-keyboard";
 
-const KEYBIND_CATEGORY_ORDER: KeybindingCategory[] = [
+const KEYBIND_CATEGORY_ORDER: KeybindingDefinition["category"][] = [
   "Navigation",
   "Threads",
   "Git diff",
@@ -81,18 +80,23 @@ const KEYBIND_CATEGORY_ORDER: KeybindingCategory[] = [
 
 const keybindings = useKeybindingsStore();
 
-const keyboardBindingsGrouped = computed(() => {
-  const map = new Map<KeybindingCategory, KeybindingDefinition[]>();
-  for (const def of keybindings.effectiveDefinitions) {
-    const list = map.get(def.category) ?? [];
-    list.push(def);
-    map.set(def.category, list);
-  }
-  return KEYBIND_CATEGORY_ORDER.filter((c) => map.has(c)).map((category) => ({
-    category,
-    rows: map.get(category)!
-  }));
-});
+const definitionOrderIndex = new Map(
+  KEYBINDING_DEFINITIONS.map((def, index) => [def.id, index] as const)
+);
+
+const categoryOrderIndex = new Map(
+  KEYBIND_CATEGORY_ORDER.map((category, index) => [category, index] as const)
+);
+
+/** One flat list for the keyboard table (same order as before: category, then registry order). */
+const keyboardBindingsRows = computed(() =>
+  [...keybindings.effectiveDefinitions].sort((a, b) => {
+    const ca = categoryOrderIndex.get(a.category) ?? 99;
+    const cb = categoryOrderIndex.get(b.category) ?? 99;
+    if (ca !== cb) return ca - cb;
+    return (definitionOrderIndex.get(a.id) ?? 0) - (definitionOrderIndex.get(b.id) ?? 0);
+  })
+);
 
 const recordingKeybindingId = ref<KeybindingId | null>(null);
 const recordError = ref<string | null>(null);
@@ -221,17 +225,25 @@ function save(): void {
     <DialogContent
       ref="panelRef"
       aria-labelledby="workspace-settings-dialog-title"
-      class="ui-glass-panel top-[10vh] flex max-h-[min(85vh,calc(100dvh-2rem))] w-full max-w-xl translate-y-0 flex-col overflow-hidden p-0 text-card-foreground outline-none"
+      class="ui-glass-panel top-[10vh] flex max-h-[min(85vh,calc(100dvh-2rem))] w-full max-w-4xl translate-y-0 flex-col overflow-hidden p-0 text-card-foreground outline-none"
     >
       <DialogHeader class="shrink-0 px-4 pt-4">
-        <DialogTitle id="workspace-settings-dialog-title" class="text-base">Settings</DialogTitle>
+        <DialogTitle id="workspace-settings-dialog-title" class="flex items-center gap-2 text-base">
+          <span aria-hidden="true" class="select-none text-lg leading-none">⚙️</span>
+          Settings
+        </DialogTitle>
+        <p class="mt-2 text-sm leading-relaxed text-muted-foreground">
+          Use the tabs to configure agent launch commands, terminal sounds and notifications, and workspace keyboard
+          shortcuts. Agent command lines are stored when you click Save (Cancel closes without updating saved agent
+          commands). Terminal options and keyboard bindings take effect as soon as you change them.
+        </p>
 
-        <div class="mt-4">
+        <div class="border rounded-lg w-fit">
           <PillTabs
             v-model="activeSection"
             aria-label="Settings sections"
             :tabs="settingsSectionTabs"
-            size="default"
+            size="md"
           />
         </div>
       </DialogHeader>
@@ -246,9 +258,10 @@ function save(): void {
             role="tabpanel"
             aria-label="Agents settings"
           >
-            <p class="text-sm text-muted-foreground">
-              Command typed into the thread terminal when you start a new thread with each agent (then Enter is
-              sent). Use the exact CLI you have on your PATH.
+            <p class="text-sm leading-relaxed text-muted-foreground">
+              When you start a thread, Instrument types the command below into that thread’s terminal and sends Enter
+              for you. Use the same executable name you would run in a normal shell (it must be on your
+              <span class="whitespace-nowrap font-mono text-[13px] text-foreground/90">PATH</span>).
             </p>
 
             <div class="mt-3 space-y-3">
@@ -283,7 +296,7 @@ function save(): void {
                 :model-value="preferredAgent"
                 @update:model-value="(v) => setPreferredAgent(v as ThreadAgent)"
               >
-                <SelectTrigger class="h-9 w-full max-w-sm bg-background text-sm">
+                <SelectTrigger class="h-9 w-full max-w-md bg-background text-sm sm:max-w-lg">
                   <SelectValue placeholder="Choose agent" />
                 </SelectTrigger>
                 <SelectContent>
@@ -304,9 +317,10 @@ function save(): void {
             role="tabpanel"
             aria-label="Terminal settings"
           >
-            <p class="text-sm text-muted-foreground">
-              Short sounds for terminal bell, output while you're on another tab or thread, or when a thread goes
-              idle after activity. Idle threads are highlighted in blue until you open them.
+            <p class="text-sm leading-relaxed text-muted-foreground">
+              Optional audio feedback: terminal bell, output while this workspace is in the background, and when a
+              thread goes idle after activity. Threads that may need your attention are highlighted until you open
+              them.
             </p>
             <div class="mt-3 flex items-start gap-2.5 text-sm">
               <Checkbox
@@ -335,7 +349,7 @@ function save(): void {
                   (v) => (terminalActivitySensitivity = v as TerminalActivitySensitivity)
                 "
               >
-                <SelectTrigger class="h-9 w-full max-w-sm bg-background text-sm">
+                <SelectTrigger class="h-9 w-full max-w-md bg-background text-sm sm:max-w-lg">
                   <SelectValue placeholder="Choose sensitivity" />
                 </SelectTrigger>
                 <SelectContent>
@@ -360,79 +374,70 @@ function save(): void {
             role="tabpanel"
             aria-label="Keyboard settings"
           >
-            <p class="text-sm text-muted-foreground">
-              Shortcuts are disabled while this dialog is open. Most shortcuts are ignored when focus is in the
-              integrated terminal or in a text field (search, agent command inputs, code editor).
+            <p class="text-sm leading-relaxed text-muted-foreground">
+              Workspace shortcuts are paused while this dialog is open. With the workspace focused, most navigation
+              shortcuts are also skipped when you are typing in the integrated terminal, search, agent fields, or the
+              editor—click a shortcut cell to record a new chord, or Reset row to restore one binding.
             </p>
-            <div class="mt-4 space-y-5">
-              <div v-for="group in keyboardBindingsGrouped" :key="group.category">
-                <h3 class="mb-2 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-                  {{ group.category }}
-                </h3>
-                <table class="w-full border-collapse text-left text-sm">
-                  <thead>
-                    <tr class="border-b border-border text-muted-foreground">
-                      <th class="py-1.5 pr-3 font-medium">Action</th>
-                      <th class="py-1.5 font-medium">Shortcut</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr
-                      v-for="row in group.rows"
-                      :key="row.id"
-                      class="border-b border-border/60 align-top"
-                    >
-                      <td class="py-2 pr-3 text-foreground">{{ row.label }}</td>
-                      <td class="py-2">
-                        <div class="flex flex-wrap items-center gap-2">
-                          <button
-                            type="button"
-                            class="max-w-full rounded border border-transparent bg-muted/50 px-1.5 py-0.5 text-left font-mono text-xs text-foreground transition-colors hover:bg-muted"
-                            :class="
-                              recordingKeybindingId === row.id
-                                ? 'ring-2 ring-ring ring-offset-2 ring-offset-card'
-                                : ''
-                            "
-                            @click="startRecording(row.id)"
-                          >
-                            {{ formatBindingDisplay(row) }}
-                            <span
-                              v-if="recordingKeybindingId === row.id"
-                              class="ml-2 inline-block font-sans text-[11px] font-normal text-muted-foreground"
-                            >
-                              Press new shortcut… Esc cancels
-                            </span>
-                          </button>
-                          <Button
-                            v-if="keybindings.overrides[row.id]"
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            class="h-7 px-2 text-xs"
-                            @click="keybindings.clearOverride(row.id)"
-                          >
-                            Reset row
-                          </Button>
-                        </div>
-                        <kbd
-                          v-else
-                          class="rounded border border-border bg-muted/50 px-1.5 py-0.5 font-mono text-xs text-foreground"
-                          >{{ formatBindingDisplay(row) }}</kbd
+            <div class="mt-4 overflow-x-auto">
+              <table class="w-full min-w-[20rem] border-collapse text-left text-sm">
+                <thead>
+                  <tr class="border-b border-border text-muted-foreground">
+                    <th class="py-1.5 pr-3 font-medium">Action</th>
+                    <th class="py-1.5 font-medium">Shortcut</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr
+                    v-for="row in keyboardBindingsRows"
+                    :key="row.id"
+                    class="border-b border-border/60 align-top"
+                  >
+                    <td class="py-2 pr-3 text-foreground">{{ row.label }}</td>
+                    <td class="py-2">
+                      <div class="flex flex-wrap items-center gap-2">
+                        <button
+                          type="button"
+                          class="max-w-full rounded border border-transparent bg-muted/50 px-1.5 py-0.5 text-left font-mono text-xs text-foreground transition-colors hover:bg-muted"
+                          :class="
+                            recordingKeybindingId === row.id
+                              ? 'ring-2 ring-ring ring-offset-2 ring-offset-card'
+                              : ''
+                          "
+                          @click="startRecording(row.id)"
                         >
-                        <p
-                          v-if="recordingKeybindingId === row.id && recordError"
-                          class="mt-1 max-w-sm text-xs text-destructive"
+                          {{ formatBindingDisplay(row) }}
+                          <span
+                            v-if="recordingKeybindingId === row.id"
+                            class="ml-2 inline-block font-sans text-[11px] font-normal text-muted-foreground"
+                          >
+                            Press new shortcut… Esc cancels
+                          </span>
+                        </button>
+                        <Button
+                          v-if="keybindings.overrides[row.id]"
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          class="h-7 px-2 text-xs"
+                          @click="keybindings.clearOverride(row.id)"
                         >
-                          {{ recordError }}
-                        </p>
-                        <p v-if="row.notes" class="mt-1 max-w-sm text-xs text-muted-foreground">
-                          {{ row.notes }}
-                        </p>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
+                          Reset row
+                        </Button>
+                      </div>
+                      <p
+                        v-if="recordingKeybindingId === row.id && recordError"
+                        class="mt-1 max-w-sm text-xs text-destructive"
+                      >
+                        {{ recordError }}
+                      </p>
+                      <p v-if="row.notes" class="mt-1 max-w-sm text-xs text-muted-foreground">
+                        {{ row.notes }}
+                      </p>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
           </div>
         </div>
@@ -446,7 +451,7 @@ function save(): void {
           <Button
             v-if="activeSection === 'agents'"
             type="button"
-            variant="ghost"
+            variant="outline"
             size="sm"
             @click="resetDraftToDefaults"
           >
@@ -455,7 +460,7 @@ function save(): void {
           <Button
             v-if="activeSection === 'keyboard'"
             type="button"
-            variant="ghost"
+            variant="outline"
             size="sm"
             @click="keybindings.resetAll()"
           >

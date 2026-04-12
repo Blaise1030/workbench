@@ -5,6 +5,9 @@ import { clampPopupRect, type Rect } from "@/lib/contextQueueAnchor";
 import { eventMatchesBinding, findDefinitionIn, type KeybindingId } from "@/keybindings/registry";
 import { useKeybindingsStore } from "@/stores/keybindingsStore";
 
+/** Selection popup “Queue” target (review basket); off until re-enabled. */
+const CONTEXT_QUEUE_SELECTION_QUEUE_ENABLED = false;
+
 const props = defineProps<{
   visible: boolean;
   anchor: Rect | null;
@@ -107,7 +110,11 @@ function onPopupKeydown(e: KeyboardEvent): void {
     emit("sendToAgent");
     return;
   }
-  if (queueDef && eventMatchesBinding(e, queueDef)) {
+  if (
+    CONTEXT_QUEUE_SELECTION_QUEUE_ENABLED &&
+    queueDef &&
+    eventMatchesBinding(e, queueDef)
+  ) {
     e.preventDefault();
     e.stopPropagation();
     emit("queue");
@@ -179,6 +186,7 @@ onUnmounted(() => {
         >
       </Button>
       <Button
+        v-if="CONTEXT_QUEUE_SELECTION_QUEUE_ENABLED"
         variant="ghost"
         size="xs"
         class="gap-1 text-muted-foreground hover:text-foreground"

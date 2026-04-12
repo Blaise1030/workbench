@@ -12,6 +12,9 @@ export type KeybindingId =
   | "addTerminal"
   | "toggleTerminalPanel"
   | "focusFileSearch"
+  | "focusAgentTab"
+  | "focusGitPanel"
+  | "focusFilesPanel"
   | "workspaceLauncher"
   | "stageAllDiff"
   | "openSettings"
@@ -175,6 +178,9 @@ function codeToDisplayLabel(code: string): string {
     KeyK: "K",
     KeyN: "N",
     KeyJ: "J",
+    KeyG: "G",
+    KeyE: "E",
+    KeyA: "A",
     Enter: "↵"
   };
   return map[code] ?? code.replace(/^Key/, "");
@@ -212,7 +218,7 @@ export const KEYBINDING_DEFINITIONS: KeybindingDefinition[] = [
     id: "addTerminal",
     label: "Add terminal tab",
     category: "Navigation",
-    shortcut: mod("Backquote", { shift: true })
+    shortcut: mod("Digit1", { shift: true })
   },
   {
     id: "toggleTerminalPanel",
@@ -225,6 +231,27 @@ export const KEYBINDING_DEFINITIONS: KeybindingDefinition[] = [
     label: "Focus file search",
     category: "Files",
     shortcut: mod("KeyF", { shift: true })
+  },
+  {
+    id: "focusAgentTab",
+    label: "Switch to Agent tab",
+    category: "Navigation",
+    shortcut: mod("KeyA", { shift: true }),
+    notes: "Center panel; works while the integrated terminal is focused."
+  },
+  {
+    id: "focusGitPanel",
+    label: "Switch to Git tab",
+    category: "Navigation",
+    shortcut: mod("KeyG", { shift: true }),
+    notes: "Only when the workspace has a Git repository."
+  },
+  {
+    id: "focusFilesPanel",
+    label: "Switch to Files tab",
+    category: "Navigation",
+    shortcut: mod("KeyE", { shift: true }),
+    notes: "Center file explorer; works while the integrated terminal is focused."
   },
   {
     id: "workspaceLauncher",

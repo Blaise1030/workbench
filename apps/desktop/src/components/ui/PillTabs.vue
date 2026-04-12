@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import Button from "@/components/ui/Button.vue";
-import { buttonSizeClassMap } from "@/components/ui/button";
 
 /** Tab trigger height / typography; matches `Button` size tokens used for each pill. */
 export type PillTabSize = "xs" | "sm" | "default" | "lg";
@@ -14,7 +13,7 @@ export type PillTabItem = {
   closable?: boolean;
   /** When true, a vertical rule is drawn after this tab (e.g. before shell tabs). */
   dividerAfter?: boolean;
-  /** Shown as native tooltip (keyboard shortcut). */
+  /** Keyboard shortcut: shown on the pill and in the native tooltip. */
   shortcutHint?: string;
   /** Extra classes when this tab is selected (e.g. accent border). */
   activeClass?: string;
@@ -31,9 +30,21 @@ const props = withDefaults(
   { ariaLabel: "Tabs", size: "xs" }
 );
 
-const tabTriggerSizeClass = computed(() => buttonSizeClassMap[props.size]);
+/**
+ * Dense pill triggers (narrower than generic `Button` sizes) so tab strips fit toolbars.
+ * Keeps radius / icon rules aligned with `buttonSizeClassMap` where it matters.
+ */
+const pillTabTriggerClassMap: Record<PillTabSize, string> = {
+  xs: "h-6 gap-1 rounded-[min(var(--radius-md),10px)] px-1.5 text-xs leading-none in-data-[slot=button-group]:rounded-lg has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 [&_svg:not([class*='size-'])]:size-3",
+  sm: "h-6 gap-1 rounded-[min(var(--radius-md),12px)] px-2 text-[0.8rem] leading-tight in-data-[slot=button-group]:rounded-lg has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 [&_svg:not([class*='size-'])]:size-3.5",
+  default:
+    "h-7 gap-1 rounded-lg px-2 py-0 text-sm leading-tight in-data-[slot=button-group]:rounded-lg has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2 [&_svg:not([class*='size-'])]:size-4",
+  lg: "h-8 gap-1 rounded-lg px-2.5 py-0 text-sm leading-tight in-data-[slot=button-group]:rounded-lg [&_svg:not([class*='size-'])]:size-4"
+};
 
-const tablistPaddingClass = computed(() => (props.size === "xs" ? "py-0.5" : "py-1"));
+const tabTriggerSizeClass = computed(() => pillTabTriggerClassMap[props.size]);
+
+const tablistPaddingClass = computed(() => (props.size === "xs" ? "py-0.5" : "py-0.5"));
 
 const closeButtonSize = computed(() => {
   switch (props.size) {
@@ -49,7 +60,7 @@ const closeButtonSize = computed(() => {
 });
 
 const dividerClass = computed(() =>
-  props.size === "xs" ? "h-4" : props.size === "sm" ? "h-5" : "h-6"
+  props.size === "xs" ? "h-4" : props.size === "sm" ? "h-4" : "h-5"
 );
 
 const emit = defineEmits<{
@@ -88,7 +99,7 @@ function onTabKeydown(event: KeyboardEvent, index: number) {
     data-slot="button-group"
     :aria-label="ariaLabel"
     :class="[
-      'flex min-w-0 max-w-full flex-nowrap select-none items-center gap-1 overflow-x-auto overflow-y-hidden px-1.5 [scrollbar-width:thin]',
+      'flex min-w-0 max-w-full flex-nowrap select-none items-center gap-0.5 overflow-x-auto overflow-y-hidden px-1 [scrollbar-width:thin]',
       tablistPaddingClass
     ]"
   >
@@ -108,18 +119,27 @@ function onTabKeydown(event: KeyboardEvent, index: number) {
               : 'text-muted-foreground hover:bg-muted/50',
             modelValue === tab.value ? tab.activeClass : undefined
           ]"
-          :title="tab.shortcutHint"
+          :title="tab.shortcutHint ? `${tab.label} (${tab.shortcutHint})` : tab.label"
           @click="select(tab.value)"
           @keydown="onTabKeydown($event, index)"
         >
-          <span
-            v-if="tab.tag"
-            class="rounded border border-border bg-background px-1 py-0 text-[10px] font-semibold leading-none text-muted-foreground"
-            data-testid="pill-tab-tag"
-          >
-            {{ tab.tag }}
+          <span class="flex min-w-0 max-w-full items-center gap-1">
+            <span
+              v-if="tab.tag"
+              class="rounded border border-border bg-background px-1 py-0 text-[10px] font-semibold leading-none text-muted-foreground"
+              data-testid="pill-tab-tag"
+            >
+              {{ tab.tag }}
+            </span>
+            <span class="min-w-0 truncate">{{ tab.label }}</span>
+            <kbd
+              v-if="tab.shortcutHint"
+              class="pointer-events-none shrink-0 rounded border border-border/80 bg-muted/40 px-1 py-px font-mono text-[10px] font-normal leading-none text-muted-foreground tabular-nums"
+              data-testid="pill-tab-shortcut"
+            >
+              {{ tab.shortcutHint }}
+            </kbd>
           </span>
-          <span class="min-w-0 truncate">{{ tab.label }}</span>
         </Button>
         <Button
           v-if="tab.closable"

@@ -1,5 +1,6 @@
 import { ref, onMounted, onBeforeUnmount, type Ref } from "vue";
 import { eventMatchesShortcut, isMacPlatform, type PhysicalShortcut } from "@/keybindings/registry";
+import { useKeybindingsStore } from "@/stores/keybindingsStore";
 
 function modKey(mac: boolean, ev: KeyboardEvent): boolean {
   return mac ? ev.metaKey : ev.ctrlKey;
@@ -10,16 +11,30 @@ export type CommandCenterFilter = "agents" | "worktrees" | null;
 export type QuickAction = {
   id: string;
   label: string;
+  emoji: string;
+  /** Human-readable shortcut for this app (e.g. ⌘1); shown in help and tooltips. */
   shortcutLabel: string;
+  /** One-line explanation for the command center help list. */
+  description: string;
+  /** Typed prefix that activates this action's search scope (e.g. "@threads"). */
+  searchPrefix?: string;
   isFilter: boolean;
   filterId: CommandCenterFilter;
   action: () => void;
+};
+
+/** Workspace-wide center-tab shortcuts (from Keyboard settings); shown on launcher help rows. */
+export type CenterPaneShortcutLabels = {
+  agent: string;
+  git: string;
+  files: string;
 };
 
 export type CommandCenterContext = {
   onSelectCenterTab: (tab: "agent" | "diff" | "files") => void;
   onToggleSidebar: () => void;
   onOpenSettings: () => void;
+  centerPaneShortcutLabels?: CenterPaneShortcutLabels;
 };
 
 export type CommandCenterInstance = {
@@ -79,11 +94,18 @@ export function createCommandCenter(ctx: CommandCenterContext): CommandCenterIns
     activeFilter.value = activeFilter.value === filterId ? null : filterId;
   }
 
+  const pane = ctx.centerPaneShortcutLabels;
+  const agentWorkspace = pane?.agent ?? "⌘⇧A";
+  const gitWorkspace = pane?.git ?? "⌘⇧G";
+  const filesWorkspace = pane?.files ?? "⌘⇧E";
+
   const quickActions: QuickAction[] = [
     {
       id: "agent",
       label: "Agent",
-      shortcutLabel: "⌘1",
+      emoji: "🤖",
+      shortcutLabel: agentWorkspace,
+      description: `Open the Agent view (chat and tools) in the center panel (${agentWorkspace} from the workspace, or ⌘1 with the launcher open).`,
       isFilter: false,
       filterId: null,
       action: () => {
@@ -94,7 +116,9 @@ export function createCommandCenter(ctx: CommandCenterContext): CommandCenterIns
     {
       id: "diff",
       label: "Git Diff",
-      shortcutLabel: "⌘2",
+      emoji: "🔀",
+      shortcutLabel: gitWorkspace,
+      description: `Open source control and the diff view for the active worktree (${gitWorkspace} from the workspace, or ⌘2 with the launcher open).`,
       isFilter: false,
       filterId: null,
       action: () => {
@@ -105,7 +129,9 @@ export function createCommandCenter(ctx: CommandCenterContext): CommandCenterIns
     {
       id: "files",
       label: "Files",
-      shortcutLabel: "⌘3",
+      emoji: "📁",
+      shortcutLabel: filesWorkspace,
+      description: `Open the file tree and editor for the active worktree (${filesWorkspace} from the workspace, or ⌘3 with the launcher open).`,
       isFilter: false,
       filterId: null,
       action: () => {
@@ -116,7 +142,11 @@ export function createCommandCenter(ctx: CommandCenterContext): CommandCenterIns
     {
       id: "searchThreads",
       label: "Search Threads",
+      emoji: "💬",
       shortcutLabel: "⌘4",
+      description:
+        "Limit the list below to threads in this worktree; press again to clear the filter.",
+      searchPrefix: "@threads",
       isFilter: true,
       filterId: "agents",
       action: () => toggleFilter("agents")
@@ -124,15 +154,32 @@ export function createCommandCenter(ctx: CommandCenterContext): CommandCenterIns
     {
       id: "searchWorktrees",
       label: "Search Worktrees",
+      emoji: "🌿",
       shortcutLabel: "⌘5",
+      description:
+        "Limit the list below to branch checkouts in this project; press again to clear the filter.",
+      searchPrefix: "@branches",
       isFilter: true,
       filterId: "worktrees",
       action: () => toggleFilter("worktrees")
     },
     {
+      id: "searchFiles",
+      label: "Search Files",
+      emoji: "🗂️",
+      shortcutLabel: "⌘6",
+      description: "Search files in the active worktree by path.",
+      searchPrefix: "@files",
+      isFilter: false,
+      filterId: null,
+      action: () => close()
+    },
+    {
       id: "sidebar",
       label: "Toggle Sidebar",
+      emoji: "📌",
       shortcutLabel: "⌘B",
+      description: "Show or hide the threads sidebar on the left.",
       isFilter: false,
       filterId: null,
       action: () => {
@@ -143,7 +190,9 @@ export function createCommandCenter(ctx: CommandCenterContext): CommandCenterIns
     {
       id: "settings",
       label: "Settings",
+      emoji: "⚙️",
       shortcutLabel: "⌘S",
+      description: "Open agent commands and keyboard shortcut settings.",
       isFilter: false,
       filterId: null,
       action: () => {
@@ -161,10 +210,25 @@ export function createCommandCenter(ctx: CommandCenterContext): CommandCenterIns
  * Must be called from within a Vue component's setup().
  */
 export function useCommandCenter(ctx: CommandCenterContext): CommandCenterInstance {
-  const cc = createCommandCenter(ctx);
+  const kb = useKeybindingsStore();
+  const cc = createCommandCenter({
+    ...ctx,
+    centerPaneShortcutLabels: {
+      agent: kb.shortcutLabelForId("focusAgentTab"),
+      git: kb.shortcutLabelForId("focusGitPanel"),
+      files: kb.shortcutLabelForId("focusFilesPanel")
+    }
+  });
 
   function onKeydown(ev: KeyboardEvent): void {
     if (!cc.isOpen.value) return;
+
+    if (ev.key === "Escape") {
+      ev.preventDefault();
+      ev.stopPropagation();
+      cc.close();
+      return;
+    }
 
     if (matchesScoped(ev, "Digit1")) {
       ev.preventDefault();
@@ -189,6 +253,11 @@ export function useCommandCenter(ctx: CommandCenterContext): CommandCenterInstan
     if (matchesScoped(ev, "Digit5")) {
       ev.preventDefault();
       cc.quickActions.find((a) => a.id === "searchWorktrees")?.action();
+      return;
+    }
+    if (matchesScoped(ev, "Digit6")) {
+      ev.preventDefault();
+      cc.quickActions.find((a) => a.id === "searchFiles")?.action();
       return;
     }
     if (matchesScoped(ev, "KeyB")) {

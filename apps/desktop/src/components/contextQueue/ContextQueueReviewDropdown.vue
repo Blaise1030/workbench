@@ -10,6 +10,9 @@ import ContextQueueDiffPasteComposer from "@/components/contextQueue/ContextQueu
 import PromptWithFileAttachments from "@/components/PromptWithFileAttachments.vue";
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
 
+/** Optional per-item note (@mentions, attachments) merged into paste on send — off until re-enabled. */
+const QUEUE_REVIEW_MESSAGE_ENABLED = false;
+
 const props = defineProps<{
   threadId: string | null;
   items: QueueItem[];
@@ -127,11 +130,13 @@ function useDiffPasteComposer(row: QueueItem): boolean {
 
 function buildItemForSend(row: QueueItem): QueueItem {
   const parts: string[] = [row.pasteText];
-  const note = row.reviewComment?.trim();
-  if (note) parts.push(note);
-  const att = row.reviewAttachments;
-  if (att?.length) {
-    parts.push(`[Attached files]\n${att.map((a) => a.path).join("\n")}`);
+  if (QUEUE_REVIEW_MESSAGE_ENABLED) {
+    const note = row.reviewComment?.trim();
+    if (note) parts.push(note);
+    const att = row.reviewAttachments;
+    if (att?.length) {
+      parts.push(`[Attached files]\n${att.map((a) => a.path).join("\n")}`);
+    }
   }
   return {
     id: row.id,
@@ -397,7 +402,7 @@ defineExpose({ openReview });
                     </div>
                   </template>
                   <template v-else>
-                    <div data-context-queue-review-note>
+                    <div v-if="QUEUE_REVIEW_MESSAGE_ENABLED" data-context-queue-review-note>
                       <PromptWithFileAttachments
                         :key="`${tiptapResetKey}-${row.id}`"
                         v-model:prompt="row.reviewComment"

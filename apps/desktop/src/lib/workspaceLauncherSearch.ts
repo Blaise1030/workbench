@@ -1,7 +1,7 @@
 import Fuse from "fuse.js";
 import type { Project, Thread, ThreadAgent, Worktree } from "@shared/domain";
 
-export type LauncherSearchMode = "default" | "worktree";
+export type LauncherSearchMode = "default" | "worktree" | "threads" | "branches" | "files";
 
 export interface ParsedLauncherQuery {
   mode: LauncherSearchMode;
@@ -13,11 +13,20 @@ export interface ParsedLauncherQuery {
  * `@wt` at start (case-sensitive) switches to worktree-only file search per design spec.
  * Strips one space after `@wt` when present.
  */
+const PREFIX_MAP: { prefix: string; mode: LauncherSearchMode }[] = [
+  { prefix: "@wt", mode: "worktree" },
+  { prefix: "@threads", mode: "threads" },
+  { prefix: "@branches", mode: "branches" },
+  { prefix: "@files", mode: "files" }
+];
+
 export function parseLauncherQuery(raw: string): ParsedLauncherQuery {
-  if (raw.startsWith("@wt")) {
-    let rest = raw.slice(3);
-    if (rest.startsWith(" ")) rest = rest.slice(1);
-    return { mode: "worktree", query: rest };
+  for (const { prefix, mode } of PREFIX_MAP) {
+    if (raw.startsWith(prefix)) {
+      let rest = raw.slice(prefix.length);
+      if (rest.startsWith(" ")) rest = rest.slice(1);
+      return { mode, query: rest };
+    }
   }
   return { mode: "default", query: raw };
 }
@@ -210,7 +219,7 @@ export function searchLauncherWorkspaceSwitch(
   worktrees: readonly Worktree[],
   activeWorktreeId: string | null
 ): LauncherRow[] {
-  if (parsed.mode === "worktree") return [];
+  if (parsed.mode !== "default" && parsed.mode !== "branches") return [];
 
   const q = commandSearchText.trim();
 
@@ -303,7 +312,6 @@ export function searchLauncherRows(
   const q = parsed.query.trim();
 
   if (parsed.mode === "worktree") {
-    if (!q) return [];
     const flat = otherWorktreeFiles.flatMap((wt) =>
       wt.files.map((f) => ({
         relativePath: f.relativePath,
@@ -312,6 +320,16 @@ export function searchLauncherRows(
       }))
     );
     if (flat.length === 0) return [];
+    if (!q) {
+      return flat.slice(0, MAX_WORKTREE_FILE_RESULTS).map((f) => ({
+        section: "linkedWorktrees" as const,
+        kind: "file" as const,
+        relativePath: f.relativePath,
+        worktreeId: f.worktreeId,
+        worktreeLabel: f.worktreeName,
+        score: 0
+      }));
+    }
     const fuse = new Fuse(flat, WT_FILE_FUSE);
     return fuse.search(q, { limit: MAX_WORKTREE_FILE_RESULTS }).map((hit) => ({
       section: "linkedWorktrees" as const,
@@ -323,37 +341,53 @@ export function searchLauncherRows(
     }));
   }
 
-  if (!q) return [];
+  const includeThreads = parsed.mode === "default" || parsed.mode === "threads";
+  const includeFiles = parsed.mode === "default" || parsed.mode === "files";
+
+  // For scoped modes with no query, show defaults; for default mode, only show on query
+  if (!q && parsed.mode === "default") return [];
 
   const rows: LauncherRow[] = [];
 
-  const threadDocs = activeThreads.map((t) => ({
-    id: t.id,
-    title: t.title,
-    agent: t.agent
-  }));
-  const tf = new Fuse(threadDocs, THREAD_FUSE);
-  for (const hit of tf.search(q, { limit: MAX_THREAD_RESULTS })) {
-    rows.push({
-      section: "agents",
-      kind: "thread",
-      id: hit.item.id,
-      title: hit.item.title,
-      agent: hit.item.agent,
-      score: fuseScore(hit)
-    });
+  if (includeThreads) {
+    const threadDocs = activeThreads.map((t) => ({ id: t.id, title: t.title, agent: t.agent }));
+    if (!q) {
+      for (const t of threadDocs.slice(0, MAX_THREAD_RESULTS)) {
+        rows.push({ section: "agents", kind: "thread", id: t.id, title: t.title, agent: t.agent, score: 0 });
+      }
+    } else {
+      const tf = new Fuse(threadDocs, THREAD_FUSE);
+      for (const hit of tf.search(q, { limit: MAX_THREAD_RESULTS })) {
+        rows.push({
+          section: "agents",
+          kind: "thread",
+          id: hit.item.id,
+          title: hit.item.title,
+          agent: hit.item.agent,
+          score: fuseScore(hit)
+        });
+      }
+    }
   }
 
-  const ff = new Fuse(branchFiles, FILE_FUSE);
-  for (const hit of ff.search(q, { limit: MAX_BRANCH_FILE_RESULTS })) {
-    rows.push({
-      section: "files",
-      kind: "file",
-      relativePath: hit.item.relativePath,
-      worktreeId: null,
-      worktreeLabel: null,
-      score: fuseScore(hit)
-    });
+  if (includeFiles) {
+    if (!q) {
+      for (const f of branchFiles.slice(0, MAX_BRANCH_FILE_RESULTS)) {
+        rows.push({ section: "files", kind: "file", relativePath: f.relativePath, worktreeId: null, worktreeLabel: null, score: 0 });
+      }
+    } else {
+      const ff = new Fuse(branchFiles, FILE_FUSE);
+      for (const hit of ff.search(q, { limit: MAX_BRANCH_FILE_RESULTS })) {
+        rows.push({
+          section: "files",
+          kind: "file",
+          relativePath: hit.item.relativePath,
+          worktreeId: null,
+          worktreeLabel: null,
+          score: fuseScore(hit)
+        });
+      }
+    }
   }
 
   return rows;

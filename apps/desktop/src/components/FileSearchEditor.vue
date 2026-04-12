@@ -1775,7 +1775,7 @@ defineExpose({
           >
             <PillTabs
               v-model="mdViewMode"
-              class="min-w-0 shrink-0 [&_[role=tablist]]:px-0 [&_[role=tablist]]:py-0"
+              class="min-w-0 shrink-0 [&_[role=tablist]]:px-0 [&_[role=tablist]]:py-0 [&_[role=tab][aria-selected='true']]:bg-foreground [&_[role=tab][aria-selected='true']]:text-background [&_[role=tab][aria-selected='true']]:shadow-sm [&_[role=tab][aria-selected='false']]:hover:bg-transparent"
               aria-label="Markdown view"
               :tabs="mdViewTabs"
             />
@@ -1802,7 +1802,7 @@ defineExpose({
           >
             <PillTabs
               :model-value="imageFileViewMode"
-              class="min-w-0 shrink-0 [&_[role=tablist]]:px-0 [&_[role=tablist]]:py-0"
+              class="min-w-0 shrink-0 [&_[role=tablist]]:px-0 [&_[role=tablist]]:py-0 [&_[role=tab][aria-selected='true']]:bg-foreground [&_[role=tab][aria-selected='true']]:text-background [&_[role=tab][aria-selected='true']]:shadow-sm [&_[role=tab][aria-selected='false']]:hover:bg-transparent"
               aria-label="Image view"
               :tabs="imageViewTabs"
               @update:model-value="onImageViewModeRequest"

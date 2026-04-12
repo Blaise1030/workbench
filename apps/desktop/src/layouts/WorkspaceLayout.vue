@@ -21,16 +21,6 @@ import type { QueueItem } from "@/contextQueue/types";
 import { useThreadContextQueue } from "@/composables/useThreadContextQueue";
 import ThreadSidebar from "@/components/ThreadSidebar.vue";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle
-} from "@/components/ui/alert-dialog";
 import { useAgentBootstrapCommands } from "@/composables/useAgentBootstrapCommands";
 import { threadAgentResumeCommand } from "@shared/threadAgentBootstrap";
 import { isValidResumeSessionId } from "@shared/resumeSessionId";
@@ -196,16 +186,6 @@ const shellOverlaySplitFlexStyle = computed(
       height: `${terminalPanelHeight.value}px`
     }) as Record<string, string>
 );
-const pendingCloseShellTabValue = ref<string | null>(null);
-
-const pendingCloseShellLabel = computed(() => {
-  const v = pendingCloseShellTabValue.value;
-  if (!v?.startsWith("shell:")) return "this terminal";
-  const id = v.slice("shell:".length);
-  const idx = shellSlotIds.value.indexOf(id);
-  return idx >= 0 ? `Terminal ${idx + 1}` : "this terminal";
-});
-
 const agentTerminalPaneRef = ref<InstanceType<typeof TerminalPane> | null>(null);
 
 async function injectContextItemsToActiveAgent(
@@ -322,15 +302,21 @@ const topCenterPanelTabs = computed<PillTabItem[]>(() => {
   const tabs: PillTabItem[] = [
     {
       value: "agent",
-      label: "🤖 Agent"
+      label: "🤖 Agent",
+      shortcutHint: keybindings.shortcutLabelForId("focusAgentTab")
     }
   ];
   if (hasGitRepository.value === true) {
-    tabs.push({ value: "diff", label: "🌿 Git" });
+    tabs.push({
+      value: "diff",
+      label: "🌿 Git",
+      shortcutHint: keybindings.shortcutLabelForId("focusGitPanel")
+    });
   }
   tabs.push({
     value: "files",
-    label: "📄 Files"
+    label: "📄 Files",
+    shortcutHint: keybindings.shortcutLabelForId("focusFilesPanel")
   });
   return tabs;
 });
@@ -415,9 +401,21 @@ function overlayShellQueueSessionLabel(slotId: string): string {
 
 const addTerminalTooltipText = computed(() => keybindings.titleWithShortcut("Add terminal", "addTerminal"));
 
+function labelForShellTabClose(tabValue: string): string {
+  if (!tabValue.startsWith("shell:")) return "this terminal";
+  const id = tabValue.slice("shell:".length);
+  const idx = shellSlotIds.value.indexOf(id);
+  return idx >= 0 ? `Terminal ${idx + 1}` : "this terminal";
+}
+
 function onCenterTabClose(tabValue: string): void {
   if (!tabValue.startsWith("shell:")) return;
-  pendingCloseShellTabValue.value = tabValue;
+  const label = labelForShellTabClose(tabValue);
+  const addShortcut = keybindings.shortcutLabelForId("addTerminal");
+  const ok = window.confirm(
+    `Close ${label}?\n\nThe shell session for this tab will end. You can add a new terminal tab later (${addShortcut}).`
+  );
+  if (ok) void performCloseShellTab(tabValue);
 }
 
 async function performCloseShellTab(tabValue: string): Promise<void> {
@@ -436,16 +434,6 @@ async function performCloseShellTab(tabValue: string): Promise<void> {
   if (shellOverlayTab.value === tabValue) {
     shellOverlayTab.value = "agent";
   }
-}
-
-function confirmCloseShellTerminal(): void {
-  const tabValue = pendingCloseShellTabValue.value;
-  pendingCloseShellTabValue.value = null;
-  if (tabValue) void performCloseShellTab(tabValue);
-}
-
-function cancelCloseShellTerminal(): void {
-  pendingCloseShellTabValue.value = null;
 }
 
 function focusActiveTerminal(): void {
@@ -1383,6 +1371,10 @@ useWorkspaceKeybindings(
     scmActionsAvailable: () => hasGitRepository.value === true,
     launcherConsumesNavShortcuts: () => commandCenter.isOpen.value,
     onSelectCenterTab: (tab) => {
+      if (tab === "agent" || tab === "diff" || tab === "files") {
+        mainCenterTab.value = tab;
+        return;
+      }
       if (tab.startsWith("shell:")) {
         shellOverlayTab.value = tab as `shell:${string}`;
         terminalPanelOpen.value = true;
@@ -2013,24 +2005,5 @@ watch(
       @save="onSaveAgentSettings"
     />
 
-    <AlertDialog
-      :open="pendingCloseShellTabValue !== null"
-      @update:open="(open: boolean) => { if (!open) cancelCloseShellTerminal() }"
-    >
-      <AlertDialogContent data-testid="close-terminal-confirm-dialog">
-        <AlertDialogHeader>
-          <AlertDialogTitle>Close {{ pendingCloseShellLabel }}?</AlertDialogTitle>
-          <AlertDialogDescription>
-            The shell session for this tab will end. You can add a new terminal tab later ({{
-              keybindings.shortcutLabelForId("addTerminal")
-            }}).
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel type="button" @click="cancelCloseShellTerminal">Cancel</AlertDialogCancel>
-          <AlertDialogAction type="button" @click="confirmCloseShellTerminal">Close terminal</AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
   </main>
 </template>

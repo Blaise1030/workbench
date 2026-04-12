@@ -40,9 +40,16 @@ describe("createCommandCenter", () => {
     expect(cc.activeFilter.value).toBeNull();
   });
 
-  it("quickActions has 7 entries", () => {
+  it("quickActions has 8 entries", () => {
     const cc = createCommandCenter(ctx);
-    expect(cc.quickActions).toHaveLength(7);
+    expect(cc.quickActions).toHaveLength(8);
+  });
+
+  it("quickActions include descriptions for the command center help list", () => {
+    const cc = createCommandCenter(ctx);
+    for (const a of cc.quickActions) {
+      expect(a.description.trim().length).toBeGreaterThan(12);
+    }
   });
 
   it("agent action calls onSelectCenterTab('agent') and closes", () => {
