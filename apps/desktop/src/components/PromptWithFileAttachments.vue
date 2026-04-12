@@ -3,7 +3,7 @@ import type { Editor } from "@tiptap/core";
 import Placeholder from "@tiptap/extension-placeholder";
 import StarterKit from "@tiptap/starter-kit";
 import { EditorContent, useEditor } from "@tiptap/vue-3";
-import { Paperclip, X } from "lucide-vue-next";
+import { Paperclip, Send, X } from "lucide-vue-next";
 import type { Ref } from "vue";
 import { computed, nextTick, ref, watch } from "vue";
 import Button from "@/components/ui/Button.vue";
@@ -509,13 +509,14 @@ defineExpose({
         </Button>
         <Button
           type="button"
-          variant="secondary"
+          variant="outline"
           size="sm"
-          class="h-7 px-2.5 text-[11px]"
+          class="inline-flex h-7 items-center gap-1.5 px-2.5 text-[11px]"
           :data-testid="`${testIdPrefix}-tiptap-done`"
           @click="onDone"
         >
-          Done
+          <Send class="size-3.5 shrink-0" stroke-width="2" aria-hidden="true" />
+          <span>Done</span>
         </Button>
       </div>
     </div>
