@@ -27,14 +27,11 @@ export type WorkspaceKeybindingContext = {
   workspaceUiActive: () => boolean;
   settingsOpen: () => boolean;
   centerTab: () => string;
-  /** Project ids in tab order; first nine get ⌘1–⌘9. */
-  projectIds: () => readonly string[];
   shellSlotIds: () => readonly string[];
   /** Bottom shell overlay / bar visible (⌘J). When true and focus is in a terminal, ⌘1–⌘9 switch shell tabs only. */
   terminalPanelOpen: () => boolean;
   /** When false, stage-all shortcut on diff tab is ignored. */
   scmActionsAvailable: () => boolean;
-  onSelectProject: (projectId: string) => void;
   onSelectCenterTab: (tab: string) => void;
   onPrevThread: () => void;
   onNextThread: () => void;
@@ -99,11 +96,9 @@ export function useWorkspaceKeybindings(ctx: WorkspaceKeybindingContext, enabled
     }
 
     if (digitSlot != null && workspaceUi) {
-      const panelOpen = ctx.terminalPanelOpen();
-      // While focus is inside the integrated terminal, global ⌘1…⌘9 project/shell routing
-      // is suppressed — unless the bottom terminal panel is open, in which case ⌘1…⌘n
-      // select Terminal 1…n (shell tabs only).
-      if (panelOpen && inTerminal) {
+      // While focus is in the integrated terminal and the bottom panel is open,
+      // ⌘1…⌘n switch terminal tabs only.
+      if (ctx.terminalPanelOpen() && inTerminal) {
         const shells = ctx.shellSlotIds();
         if (digitSlot < shells.length) {
           ev.preventDefault();
@@ -111,27 +106,6 @@ export function useWorkspaceKeybindings(ctx: WorkspaceKeybindingContext, enabled
           if (slotId) ctx.onSelectCenterTab(`shell:${slotId}`);
         }
         return;
-      }
-
-      if (!inTerminal && !typing) {
-        const projects = ctx.projectIds();
-        const projectSlots = Math.min(MOD_DIGIT_SLOT_CODES.length, projects.length);
-        if (digitSlot < projectSlots) {
-          const pid = projects[digitSlot];
-          if (pid) {
-            ev.preventDefault();
-            ctx.onSelectProject(pid);
-          }
-          return;
-        }
-        const shellIdx = digitSlot - projectSlots;
-        const shells = ctx.shellSlotIds();
-        if (shellIdx >= 0 && shellIdx < shells.length) {
-          ev.preventDefault();
-          const slotId = shells[shellIdx];
-          if (slotId) ctx.onSelectCenterTab(`shell:${slotId}`);
-          return;
-        }
       }
     }
 
