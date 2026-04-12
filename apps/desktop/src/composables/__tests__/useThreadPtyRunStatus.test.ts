@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Thread, ThreadAgent } from "@shared/domain";
 import { useThreadPtyRunStatus } from "../useThreadPtyRunStatus";
 import * as chirp from "@/terminal/playTerminalChirp";
-import type { TerminalActivitySensitivity } from "@/terminal/attentionRules";
+import type { TerminalActivitySensitivity } from "@/terminal/activitySensitivity";
 
 vi.mock("@/terminal/playTerminalChirp", () => ({
   playTerminalChirp: vi.fn()
@@ -47,43 +47,46 @@ describe("useThreadPtyRunStatus", () => {
 
   function mountHarness(
     threads: Thread[],
-    visibleSessionId: string | null,
+    activeThreadId: string | null,
     notificationsEnabled = true,
     sensitivity: TerminalActivitySensitivity = "low"
   ): {
-    vis: Ref<string | null>;
+    active: Ref<string | null>;
     runStatusByThreadId: Ref<Record<string, import("@shared/domain").RunStatus>>;
     idleAttentionByThreadId: Ref<Record<string, boolean>>;
     clearIdleAttention: (threadId: string) => void;
+    markUserInput: (sessionId: string) => void;
   } {
     const threadsRef = ref(threads);
-    const vis = ref<string | null>(visibleSessionId);
+    const active = ref<string | null>(activeThreadId);
     const notif = ref(notificationsEnabled);
     const bag = {} as {
       runStatusByThreadId: Ref<Record<string, import("@shared/domain").RunStatus>>;
       idleAttentionByThreadId: Ref<Record<string, boolean>>;
       clearIdleAttention: (threadId: string) => void;
+      markUserInput: (sessionId: string) => void;
     };
 
     const Test = defineComponent({
       setup() {
         const r = useThreadPtyRunStatus(threadsRef, {
-          visibleSessionId: vis,
+          activeThreadId: active,
           notificationsEnabled: notif,
           activitySensitivity: ref(sensitivity)
         });
         bag.runStatusByThreadId = r.runStatusByThreadId;
         bag.idleAttentionByThreadId = r.idleAttentionByThreadId;
         bag.clearIdleAttention = r.clearIdleAttention;
+        bag.markUserInput = r.markUserInput;
         return {};
       },
       template: "<div />"
     });
     mount(Test);
-    return { vis, ...bag };
+    return { active, ...bag };
   }
 
-  it("sets idle attention and chirps when running thread goes idle while not visible", async () => {
+  it("sets idle attention and chirps when running thread goes idle while not the active thread", async () => {
     const { runStatusByThreadId, idleAttentionByThreadId } = mountHarness(
       [thread("t-a"), thread("t-b")],
       "t-a"
@@ -102,11 +105,8 @@ describe("useThreadPtyRunStatus", () => {
     expect(chirp.playTerminalChirp).toHaveBeenCalledTimes(1);
   });
 
-  it("does not set idle attention when the idle thread is the visible session", async () => {
-    const { runStatusByThreadId, idleAttentionByThreadId } = mountHarness(
-      [thread("t-a")],
-      "t-a"
-    );
+  it("does not set idle attention when output thread is the active thread", async () => {
+    const { runStatusByThreadId, idleAttentionByThreadId } = mountHarness([thread("t-a")], "t-a");
     await flushPromises();
 
     ptyHandler!("t-a", "hello\n");
@@ -134,8 +134,8 @@ describe("useThreadPtyRunStatus", () => {
     expect(chirp.playTerminalChirp).not.toHaveBeenCalled();
   });
 
-  it("clears idle attention when visible session becomes that thread", async () => {
-    const { runStatusByThreadId, idleAttentionByThreadId, vis } = mountHarness(
+  it("clears idle attention when activeThreadId becomes that thread", async () => {
+    const { runStatusByThreadId, idleAttentionByThreadId, active } = mountHarness(
       [thread("t-a"), thread("t-b")],
       "t-a"
     );
@@ -146,7 +146,7 @@ describe("useThreadPtyRunStatus", () => {
     await flushPromises();
     expect(idleAttentionByThreadId.value["t-b"]).toBe(true);
 
-    vis.value = "t-b";
+    active.value = "t-b";
     await flushPromises();
     expect(idleAttentionByThreadId.value["t-b"]).toBeUndefined();
     expect(runStatusByThreadId.value["t-b"]).toBeUndefined();
@@ -230,5 +230,46 @@ describe("useThreadPtyRunStatus", () => {
     expect(runStatusByThreadId.value["t-b"]).toBeUndefined();
     expect(idleAttentionByThreadId.value["t-b"]).toBeUndefined();
     expect(chirp.playTerminalChirp).not.toHaveBeenCalled();
+  });
+
+  it("does not set attention or chirp after idle when output thread matches activeThreadId (shell-tab vs focus)", async () => {
+    const { runStatusByThreadId, idleAttentionByThreadId } = mountHarness(
+      [thread("t-a"), thread("t-b")],
+      "t-b"
+    );
+    await flushPromises();
+
+    ptyHandler!("t-b", "hello\n");
+    vi.advanceTimersByTime(5000);
+    await flushPromises();
+
+    expect(runStatusByThreadId.value["t-b"]).toBeUndefined();
+    expect(idleAttentionByThreadId.value["t-b"]).toBeUndefined();
+    expect(chirp.playTerminalChirp).not.toHaveBeenCalled();
+  });
+
+  it("suppresses idle attention when markUserInput precedes immediate PTY output", async () => {
+    const { idleAttentionByThreadId, markUserInput } = mountHarness([thread("t-a"), thread("t-b")], "t-a");
+    await flushPromises();
+
+    markUserInput("t-b");
+    ptyHandler!("t-b", "echoed\n");
+    vi.advanceTimersByTime(5000);
+    await flushPromises();
+
+    expect(idleAttentionByThreadId.value["t-b"]).toBeUndefined();
+    expect(chirp.playTerminalChirp).not.toHaveBeenCalled();
+  });
+
+  it("sets idle attention without markUserInput for the same chunk pattern", async () => {
+    const { idleAttentionByThreadId } = mountHarness([thread("t-a"), thread("t-b")], "t-a");
+    await flushPromises();
+
+    ptyHandler!("t-b", "echoed\n");
+    vi.advanceTimersByTime(5000);
+    await flushPromises();
+
+    expect(idleAttentionByThreadId.value["t-b"]).toBe(true);
+    expect(chirp.playTerminalChirp).toHaveBeenCalledTimes(1);
   });
 });

@@ -12,5 +12,5 @@
     "rootDir": "."
   },
   "include": ["electron/**/*.ts", "src/shared/**/*.ts"],
-  "exclude": ["node_modules", "dist", "dist-electron"]
+  "exclude": ["node_modules", "dist", "dist-electron", "electron/**/__tests__/**"]
 }

@@ -110,12 +110,12 @@ describe("workspaceStore", () => {
     setActivePinia(createPinia());
   });
 
-  it("orders grouped contexts with the default worktree first and labels it Primary", () => {
+  it("orders grouped contexts with the default worktree first and labels it with the checked-out branch", () => {
     const store = useWorkspaceStore();
     store.hydrate(makeSnapshot());
 
     expect(store.threadContexts.map((context) => context.displayLabel)).toEqual([
-      "Primary",
+      "main",
       "feat/auth",
       "feat/refactor"
     ]);
@@ -138,13 +138,13 @@ describe("workspaceStore", () => {
     expect(store.ungroupedThreads.map((thread) => thread.id)).toEqual(["thread-default-1"]);
   });
 
-  it("exposes active context badge data for the default worktree as Primary", () => {
+  it("exposes active context badge data for the default worktree using the branch label", () => {
     const store = useWorkspaceStore();
     store.hydrate(makeSnapshot());
 
     expect(store.activeContextBadge).toEqual({
       worktreeId: "worktree-default",
-      displayLabel: "Primary",
+      displayLabel: "main",
       isDefault: true,
       threadCount: 1
     });

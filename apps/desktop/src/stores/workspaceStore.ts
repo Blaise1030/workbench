@@ -30,7 +30,11 @@ function orderProjectWorktrees(worktrees: Worktree[]): Worktree[] {
 }
 
 function worktreeDisplayLabel(worktree: Worktree): string {
-  return worktree.isDefault ? "Primary" : worktree.name;
+  if (worktree.isDefault) {
+    const branch = worktree.branch?.trim() ?? "";
+    return branch.length > 0 ? branch : "Primary";
+  }
+  return worktree.name;
 }
 
 /** Newest threads first within a worktree. */

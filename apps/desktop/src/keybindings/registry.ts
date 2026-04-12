@@ -15,7 +15,9 @@ export type KeybindingId =
   | "focusFileSearch"
   | "workspaceLauncher"
   | "stageAllDiff"
-  | "openSettings";
+  | "openSettings"
+  | "contextQueueSelectionQueue"
+  | "contextQueueSelectionSendToAgent";
 
 export type PhysicalShortcut = {
   /** Command on macOS, Control elsewhere */
@@ -37,6 +39,98 @@ export type KeybindingDefinition = {
   /** Shown in Settings when shortcut is dynamic (e.g. terminal tab index) */
   notes?: string;
 };
+
+/** User override (primary chord only in v1; aliases fall back to defaults when omitted). */
+export type KeybindingOverride = {
+  shortcut: PhysicalShortcut;
+  aliases?: PhysicalShortcut[];
+};
+
+export function mergeKeybindingOverrides(
+  defaults: KeybindingDefinition[],
+  overrides: Partial<Record<KeybindingId, KeybindingOverride>>
+): KeybindingDefinition[] {
+  return defaults.map((def) => {
+    const o = overrides[def.id];
+    if (!o) return def;
+    return {
+      ...def,
+      shortcut: o.shortcut,
+      aliases: o.aliases ?? def.aliases
+    };
+  });
+}
+
+export function findDefinitionIn(
+  defs: KeybindingDefinition[],
+  id: KeybindingId
+): KeybindingDefinition | undefined {
+  return defs.find((d) => d.id === id);
+}
+
+export function shortcutsEqual(a: PhysicalShortcut, b: PhysicalShortcut): boolean {
+  return (
+    a.code === b.code &&
+    a.mod === b.mod &&
+    Boolean(a.shift) === Boolean(b.shift) &&
+    Boolean(a.alt) === Boolean(b.alt)
+  );
+}
+
+export function isMacPlatform(): boolean {
+  if (typeof navigator === "undefined") return false;
+  return /Mac|iPhone|iPod|iPad/i.test(navigator.platform) || navigator.userAgent.includes("Mac");
+}
+
+const MODIFIER_CODES = new Set([
+  "AltLeft",
+  "AltRight",
+  "ControlLeft",
+  "ControlRight",
+  "MetaLeft",
+  "MetaRight",
+  "ShiftLeft",
+  "ShiftRight"
+]);
+
+/**
+ * Build a `PhysicalShortcut` from a keydown event for rebinding UI.
+ * Returns null for modifier-only keys or combos the app does not treat as workspace shortcuts (e.g. Ctrl+key on macOS).
+ */
+export function physicalShortcutFromKeyboardEvent(ev: KeyboardEvent): PhysicalShortcut | null {
+  if (ev.repeat) return null;
+  const code = ev.code;
+  if (!code || MODIFIER_CODES.has(code)) return null;
+  const mac = isMacPlatform();
+  if (mac && ev.ctrlKey) return null;
+  if (!mac && ev.metaKey) return null;
+  const mod = mac ? ev.metaKey : ev.ctrlKey;
+  const shift = ev.shiftKey;
+  const alt = ev.altKey;
+  const s: PhysicalShortcut = { mod, code };
+  if (shift) s.shift = true;
+  if (alt) s.alt = true;
+  return s;
+}
+
+/** True if `needle` equals this binding’s primary or any alias. */
+export function bindingUsesShortcut(def: KeybindingDefinition, needle: PhysicalShortcut): boolean {
+  if (shortcutsEqual(def.shortcut, needle)) return true;
+  return Boolean(def.aliases?.some((a) => shortcutsEqual(a, needle)));
+}
+
+/** First other action that already uses this chord, or null. */
+export function conflictingBindingId(
+  defs: KeybindingDefinition[],
+  forId: KeybindingId,
+  needle: PhysicalShortcut
+): KeybindingId | null {
+  for (const d of defs) {
+    if (d.id === forId) continue;
+    if (bindingUsesShortcut(d, needle)) return d.id;
+  }
+  return null;
+}
 
 const mod = (code: string, opts?: { shift?: boolean; alt?: boolean }): PhysicalShortcut => ({
   mod: true,
@@ -81,7 +175,8 @@ function codeToDisplayLabel(code: string): string {
     KeyF: "F",
     KeyK: "K",
     KeyN: "N",
-    KeyJ: "J"
+    KeyJ: "J",
+    Enter: "↵"
   };
   return map[code] ?? code.replace(/^Key/, "");
 }
@@ -158,13 +253,22 @@ export const KEYBINDING_DEFINITIONS: KeybindingDefinition[] = [
     label: "Open settings",
     category: "General",
     shortcut: mod("Comma")
+  },
+  {
+    id: "contextQueueSelectionQueue",
+    label: "Queue selection for agent context (when the bar is visible)",
+    category: "General",
+    shortcut: mod("Enter", { shift: true }),
+    notes: "Runs when the Queue / Agent bar appears after you highlight text."
+  },
+  {
+    id: "contextQueueSelectionSendToAgent",
+    label: "Send selection to agent now (when the bar is visible)",
+    category: "General",
+    shortcut: mod("Enter"),
+    notes: "Runs when the Queue / Agent bar is visible; sends straight to the agent terminal."
   }
 ];
-
-export function isMacPlatform(): boolean {
-  if (typeof navigator === "undefined") return false;
-  return /Mac|iPhone|iPod|iPad/i.test(navigator.platform) || navigator.userAgent.includes("Mac");
-}
 
 /** Human-readable shortcut for tooltips and Settings */
 export function formatShortcut(s: PhysicalShortcut): string {

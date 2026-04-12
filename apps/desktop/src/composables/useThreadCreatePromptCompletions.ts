@@ -85,7 +85,7 @@ export function parseSlashCommandAtCursor(
   return { active: true, start: slash, query: afterSlash };
 }
 
-function filterSlashCommands(query: string): ThreadSlashCommand[] {
+export function filterSlashCommands(query: string): ThreadSlashCommand[] {
   const q = query.trim().toLowerCase();
   if (!q) return [...THREAD_CREATE_SLASH_COMMANDS];
   return THREAD_CREATE_SLASH_COMMANDS.filter((c) => {
@@ -97,9 +97,11 @@ function filterSlashCommands(query: string): ThreadSlashCommand[] {
 export type PromptCompletionKind = "mention" | "slash";
 
 export function useThreadCreatePromptCompletions(options: {
-  promptText: Ref<string>;
   worktreePath: Ref<string | null | undefined>;
-  getPromptTextarea: () => HTMLTextAreaElement | null;
+  /** Plain prompt text (same shape as slash / @ parsers). */
+  getPlainText: () => string;
+  /** Cursor offset in `getPlainText()`. */
+  getCursor: () => number;
   onPickMention: (item: ThreadMentionItem, replaceFrom: number, replaceTo: number) => void;
   onPickSlash: (command: ThreadSlashCommand, replaceFrom: number, replaceTo: number) => void;
 }): {
@@ -132,6 +134,7 @@ export function useThreadCreatePromptCompletions(options: {
     const api = getApi();
     if (!api || !cwd) {
       mentionItems.value = [];
+      mentionLoading.value = false;
       return;
     }
     const seq = ++fetchSeq;
@@ -155,9 +158,8 @@ export function useThreadCreatePromptCompletions(options: {
   }
 
   function syncFromPrompt(): void {
-    const el = options.getPromptTextarea();
-    const cursor = el?.selectionStart ?? options.promptText.value.length;
-    const text = options.promptText.value;
+    const text = options.getPlainText();
+    const cursor = Math.min(options.getCursor(), text.length);
     const m = parseMentionAtCursor(text, cursor);
     const s = parseSlashCommandAtCursor(text, cursor);
 
@@ -203,9 +205,9 @@ export function useThreadCreatePromptCompletions(options: {
   function pickMention(): void {
     const item = mentionItems.value[selectedIndex.value];
     if (!item) return;
-    const el = options.getPromptTextarea();
-    const cursor = el?.selectionStart ?? options.promptText.value.length;
-    const parsed = parseMentionAtCursor(options.promptText.value, cursor);
+    const text = options.getPlainText();
+    const cursor = Math.min(options.getCursor(), text.length);
+    const parsed = parseMentionAtCursor(text, cursor);
     if (!parsed.active) return;
     options.onPickMention(item, parsed.start, cursor);
     menuKind.value = null;
@@ -214,9 +216,9 @@ export function useThreadCreatePromptCompletions(options: {
   function pickSlash(): void {
     const item = slashItems.value[selectedIndex.value];
     if (!item) return;
-    const el = options.getPromptTextarea();
-    const cursor = el?.selectionStart ?? options.promptText.value.length;
-    const parsed = parseSlashCommandAtCursor(options.promptText.value, cursor);
+    const text = options.getPlainText();
+    const cursor = Math.min(options.getCursor(), text.length);
+    const parsed = parseSlashCommandAtCursor(text, cursor);
     if (!parsed.active) return;
     options.onPickSlash(item, parsed.start, cursor);
     menuKind.value = null;
@@ -226,9 +228,9 @@ export function useThreadCreatePromptCompletions(options: {
     const item = mentionItems.value[index];
     if (!item) return;
     selectedIndex.value = index;
-    const el = options.getPromptTextarea();
-    const cursor = el?.selectionStart ?? options.promptText.value.length;
-    const parsed = parseMentionAtCursor(options.promptText.value, cursor);
+    const text = options.getPlainText();
+    const cursor = Math.min(options.getCursor(), text.length);
+    const parsed = parseMentionAtCursor(text, cursor);
     if (!parsed.active) return;
     options.onPickMention(item, parsed.start, cursor);
     menuKind.value = null;
@@ -238,9 +240,9 @@ export function useThreadCreatePromptCompletions(options: {
     const item = slashItems.value[index];
     if (!item) return;
     selectedIndex.value = index;
-    const el = options.getPromptTextarea();
-    const cursor = el?.selectionStart ?? options.promptText.value.length;
-    const parsed = parseSlashCommandAtCursor(options.promptText.value, cursor);
+    const text = options.getPlainText();
+    const cursor = Math.min(options.getCursor(), text.length);
+    const parsed = parseSlashCommandAtCursor(text, cursor);
     if (!parsed.active) return;
     options.onPickSlash(item, parsed.start, cursor);
     menuKind.value = null;

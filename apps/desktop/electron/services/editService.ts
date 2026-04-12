@@ -1,5 +1,5 @@
 import fs from "node:fs/promises";
-import path from "node:path";
+import { assertPathWithinRoot } from "../utils/pathGuard.js";
 
 export interface QuickPatchInput {
   cwd: string;
@@ -9,7 +9,7 @@ export interface QuickPatchInput {
 
 export class EditService {
   async applyPatch(input: QuickPatchInput): Promise<void> {
-    const target = path.resolve(input.cwd, input.relativeFilePath);
+    const target = assertPathWithinRoot(input.cwd, input.relativeFilePath);
     await fs.writeFile(target, input.content, "utf8");
   }
 }

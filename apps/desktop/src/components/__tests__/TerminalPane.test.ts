@@ -1,4 +1,5 @@
 import { mount, flushPromises } from "@vue/test-utils";
+import { createPinia, setActivePinia } from "pinia";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import TerminalPane from "@/components/TerminalPane.vue";
 
@@ -28,11 +29,17 @@ vi.mock("xterm", () => ({
     dispose = disposeMock;
     onData = onDataMock;
     onResize = onResizeMock;
+    onSelectionChange = vi.fn((_listener: () => void) => ({ dispose: vi.fn() }));
+    hasSelection = vi.fn(() => false);
+    getSelection = vi.fn(() => "");
+    clearSelection = vi.fn();
+    scrollToBottom = vi.fn();
   }
 }));
 
 describe("TerminalPane", () => {
   beforeEach(() => {
+    setActivePinia(createPinia());
     fitMock.mockReset();
     resetMock.mockReset();
     writeMock.mockReset();
@@ -66,6 +73,13 @@ describe("TerminalPane", () => {
       interruptRun: vi.fn(),
       changedFiles: vi.fn(),
       fileDiff: vi.fn(),
+      fileMergeSides: vi.fn().mockResolvedValue({
+        kind: "ok" as const,
+        original: "",
+        modified: "",
+        originalLabel: "HEAD",
+        modifiedLabel: "Staged"
+      }),
       stageAll: vi.fn(),
       discardAll: vi.fn(),
       listFiles: vi.fn(),

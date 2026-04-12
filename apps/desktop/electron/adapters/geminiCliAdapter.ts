@@ -10,7 +10,7 @@ export class GeminiCliAdapter implements AgentAdapter {
 
   command(input: AdapterStartInput): { file: string; args: string[] } {
     // PTY `cwd` is already the worktree; prompt is passed as a single argument.
-    return { file: "gemini", args: [input.prompt] };
+    return { file: "gemini", args: ["--", input.prompt] };
   }
 
   detectState(chunk: string): AdapterRunState | null {

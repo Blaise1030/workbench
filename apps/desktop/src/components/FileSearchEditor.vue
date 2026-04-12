@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { watchDebounced } from "@vueuse/core";
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
+import { computed, inject, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import {
   FilePlus,
   FolderPlus,
@@ -24,7 +24,14 @@ import {
   ContextMenuTrigger
 } from "@/components/ui/context-menu";
 import FileTreeNode, { type FileTreeNodeData } from "@/components/FileTreeNode.vue";
-import CodeMirrorEditor from "@/components/CodeMirrorEditor.vue";
+import CodeMirrorEditor, { type QueueableEditorSelection } from "@/components/CodeMirrorEditor.vue";
+import ContextQueueSelectionPopup from "@/components/contextQueue/ContextQueueSelectionPopup.vue";
+import { buildPasteText } from "@/contextQueue/formatters";
+import { formatFolderListingFromFiles } from "@/contextQueue/folderListing";
+import { injectContextToAgentKey, threadContextQueueKey } from "@/contextQueue/injectionKeys";
+import type { QueueCapture, QueueItem } from "@/contextQueue/types";
+import type { Rect } from "@/lib/contextQueueAnchor";
+import { useToast } from "@/composables/useToast";
 import Input from "@/components/ui/Input.vue";
 import PillTabs, { type PillTabItem } from "@/components/ui/PillTabs.vue";
 import {
@@ -49,7 +56,13 @@ import { renderMarkdownToHtml } from "@/lib/markdown";
 
 const props = defineProps<{
   worktreePath: string | null;
+  /** When set, file editor / tree can enqueue context for this thread. */
+  activeThreadId?: string | null;
 }>();
+
+const threadQueue = inject(threadContextQueueKey, undefined);
+const injectContextToAgent = inject(injectContextToAgentKey, undefined);
+const toast = useToast();
 
 function basenameFromPath(absPath: string): string {
   const parts = absPath.split(/[/\\]/).filter(Boolean);
@@ -90,10 +103,51 @@ function fileEmojiForPath(relativePath: string): string {
     yml: "⚙️",
     yaml: "⚙️",
     toml: "⚙️",
-    sql: "🗃️"
+    sql: "🗃️",
+    png: "🖼️",
+    jpg: "🖼️",
+    jpeg: "🖼️",
+    webp: "🖼️",
+    gif: "🖼️",
+    svg: "🖼️",
+    avif: "🖼️",
+    bmp: "🖼️",
+    ico: "🖼️"
   };
   return map[ext] ?? "📄";
 }
+
+/** Lowercase extension without dot (e.g. `docs/a.PNG` → `png`). */
+function fileExtensionLower(relativePath: string): string {
+  const lower = relativePath.toLowerCase();
+  const dot = lower.lastIndexOf(".");
+  return dot >= 0 ? lower.slice(dot + 1) : "";
+}
+
+/** Shown as image preview first; Source loads UTF-8 text (binary will look garbled). */
+const IMAGE_PREVIEW_EXTENSIONS = new Set([
+  "png",
+  "jpg",
+  "jpeg",
+  "gif",
+  "webp",
+  "bmp",
+  "ico",
+  "svg",
+  "avif"
+]);
+
+/** Saving UTF-8 edits would corrupt these; block Save when dirty in Source mode. */
+const RASTER_IMAGE_EXTENSIONS = new Set([
+  "png",
+  "jpg",
+  "jpeg",
+  "gif",
+  "webp",
+  "bmp",
+  "ico",
+  "avif"
+]);
 
 const searchInput = ref<InstanceType<typeof Input> | null>(null);
 const query = ref("");
@@ -121,6 +175,7 @@ const error = ref<string | null>(null);
 const SIDEBAR_COLLAPSED_KEY = "instrument.fileSearchSidebarCollapsed";
 const EDITOR_COLLAPSED_KEY = "instrument.fileSearchEditorCollapsed";
 const LINE_NUMBERS_VISIBLE_KEY = "instrument.fileSearchLineNumbersVisible";
+const MD_SOURCE_IMAGE_PREVIEWS_KEY = "instrument.markdownSourceImagePreviewsVisible";
 
 function readLocalStorageFlag(key: string, fallback = false): boolean {
   try {
@@ -135,6 +190,7 @@ function readLocalStorageFlag(key: string, fallback = false): boolean {
 const sidebarCollapsed = ref(readLocalStorageFlag(SIDEBAR_COLLAPSED_KEY));
 const editorCollapsed = ref(readLocalStorageFlag(EDITOR_COLLAPSED_KEY));
 const showLineNumbers = ref(readLocalStorageFlag(LINE_NUMBERS_VISIBLE_KEY, true));
+const mdSourceImagePreviews = ref(readLocalStorageFlag(MD_SOURCE_IMAGE_PREVIEWS_KEY, true));
 
 watch(sidebarCollapsed, (collapsed) => {
   try {
@@ -160,20 +216,25 @@ watch(showLineNumbers, (visible) => {
   }
 });
 
+watch(mdSourceImagePreviews, (on) => {
+  try {
+    if (typeof localStorage === "undefined") return;
+    localStorage.setItem(MD_SOURCE_IMAGE_PREVIEWS_KEY, on ? "1" : "0");
+  } catch {
+    /* ignore quota / private mode */
+  }
+});
+
 let disposeWorkspaceChanged: (() => void) | null = null;
 let disposeWorkingTreeFilesChanged: (() => void) | null = null;
 let fileSummariesSeq = 0;
 let openFileSeq = 0;
 
-const newFileDialogOpen = ref(false);
-const newFilePathDraft = ref("");
-const newFilePathInputRef = ref<InstanceType<typeof Input> | null>(null);
-const newFileDialogFieldError = ref<string | null>(null);
-
-const newFolderDialogOpen = ref(false);
-const newFolderPathDraft = ref("");
-const newFolderPathInputRef = ref<InstanceType<typeof Input> | null>(null);
-const newFolderDialogFieldError = ref<string | null>(null);
+/** `null` when closed; distinguishes new file vs new folder in a single shadcn `Dialog`. */
+const newEntryDialogKind = ref<"file" | "folder" | null>(null);
+const newEntryPathDraft = ref("");
+const newEntryPathInputRef = ref<InstanceType<typeof Input> | null>(null);
+const newEntryDialogFieldError = ref<string | null>(null);
 
 type ConfirmActionState = {
   title: string;
@@ -185,6 +246,10 @@ type ConfirmActionState = {
 
 const confirmAction = ref<ConfirmActionState | null>(null);
 
+const newEntryPathInputId = computed(() =>
+  newEntryDialogKind.value === "folder" ? "new-folder-path-input" : "new-file-path-input"
+);
+
 const hasWorkspace = computed(() => Boolean(props.worktreePath));
 const dirty = computed(
   () => selectedPath.value !== null && draftContent.value !== loadedContent.value
@@ -194,6 +259,19 @@ const isMarkdownFile = computed(() => {
   return p.endsWith(".md") || p.endsWith(".markdown");
 });
 
+const isImagePreviewFile = computed(() => {
+  const p = selectedPath.value;
+  return Boolean(p && IMAGE_PREVIEW_EXTENSIONS.has(fileExtensionLower(p)));
+});
+
+const isRasterImageFile = computed(() => {
+  const p = selectedPath.value;
+  return Boolean(p && RASTER_IMAGE_EXTENSIONS.has(fileExtensionLower(p)));
+});
+
+/** Raster images edited as text cannot be saved safely as UTF-8. */
+const rasterImageSaveBlocked = computed(() => isRasterImageFile.value && dirty.value);
+
 const mdViewMode = ref<"read" | "source">("read");
 
 const mdViewTabs = computed<PillTabItem[]>(() => [
@@ -201,7 +279,107 @@ const mdViewTabs = computed<PillTabItem[]>(() => [
   { value: "source", label: "Source" }
 ]);
 
+const imageFileViewMode = ref<"preview" | "text">("preview");
+
+const imageViewTabs = computed<PillTabItem[]>(() => [
+  { value: "preview", label: "Preview" },
+  { value: "text", label: "Source" }
+]);
+
+/** `data:` URL for `<img src>` when the open file is an image in the worktree. */
+const imagePreviewSrc = ref<string | null>(null);
+
+/** Dropped OS file (e.g. screencapture in temp) — not a worktree-relative selection. */
+const externalDropPreview = ref<{ src: string; title: string } | null>(null);
+
 const codeMirrorRef = ref<InstanceType<typeof CodeMirrorEditor> | null>(null);
+
+const fileEditorQueueVisible = ref(false);
+const fileEditorQueueAnchor = ref<Rect | null>(null);
+const pendingFileEditorSelection = ref<{ text: string; lineStart: number; lineEnd: number } | null>(null);
+
+function dismissFileEditorQueuePopup(): void {
+  fileEditorQueueVisible.value = false;
+  fileEditorQueueAnchor.value = null;
+  pendingFileEditorSelection.value = null;
+}
+
+function onEditorQueueableSelection(payload: QueueableEditorSelection | null): void {
+  if (!threadQueue || !props.activeThreadId) {
+    dismissFileEditorQueuePopup();
+    return;
+  }
+  const path = selectedPath.value;
+  if (!payload || !path) {
+    dismissFileEditorQueuePopup();
+    return;
+  }
+  pendingFileEditorSelection.value = {
+    text: payload.selectedText,
+    lineStart: payload.lineStart,
+    lineEnd: payload.lineEnd
+  };
+  fileEditorQueueAnchor.value = payload.anchor;
+  fileEditorQueueVisible.value = true;
+}
+
+function confirmFileEditorQueue(): void {
+  const tid = props.activeThreadId;
+  const path = selectedPath.value;
+  const p = pendingFileEditorSelection.value;
+  if (!tid || !threadQueue || !path || !p) {
+    toast.error("Cannot queue", "Select a thread, open a file, and highlight text first.");
+    dismissFileEditorQueuePopup();
+    return;
+  }
+  const capture: QueueCapture = {
+    source: "file",
+    filePath: path,
+    selectedText: p.text,
+    lineStart: p.lineStart,
+    lineEnd: p.lineEnd
+  };
+  threadQueue.addItem(tid, {
+    id: crypto.randomUUID(),
+    source: "file",
+    pasteText: buildPasteText(capture),
+    meta: { filePath: path }
+  });
+  dismissFileEditorQueuePopup();
+}
+
+async function injectFileEditorSelectionToAgent(): Promise<void> {
+  const tid = props.activeThreadId;
+  const path = selectedPath.value;
+  const p = pendingFileEditorSelection.value;
+  if (!tid || !path || !p) {
+    toast.error("Cannot send", "Select a thread, open a file, and highlight text first.");
+    dismissFileEditorQueuePopup();
+    return;
+  }
+  if (!injectContextToAgent) {
+    toast.error("Unavailable", "Sending to the agent is not available here.");
+    dismissFileEditorQueuePopup();
+    return;
+  }
+  const capture: QueueCapture = {
+    source: "file",
+    filePath: path,
+    selectedText: p.text,
+    lineStart: p.lineStart,
+    lineEnd: p.lineEnd
+  };
+  const item: QueueItem = {
+    id: crypto.randomUUID(),
+    source: "file",
+    pasteText: buildPasteText(capture),
+    meta: { filePath: path }
+  };
+  const ok = await injectContextToAgent([item], { sessionId: tid });
+  if (ok) {
+    dismissFileEditorQueuePopup();
+  }
+}
 
 const findInFileShortcutHint = computed(() =>
   typeof navigator !== "undefined" && /Mac|iPhone|iPod|iPad/i.test(navigator.platform)
@@ -214,7 +392,12 @@ const canFindInFile = computed(
     Boolean(selectedPath.value) &&
     !editorCollapsed.value &&
     !isLoadingFile.value &&
-    !(isMarkdownFile.value && mdViewMode.value === "read")
+    !(isMarkdownFile.value && mdViewMode.value === "read") &&
+    !(isImagePreviewFile.value && imageFileViewMode.value === "preview")
+);
+
+const queueSelectionHintsEnabled = computed(
+  () => Boolean(threadQueue && props.activeThreadId && selectedPath.value)
 );
 
 function openFindInFile(): void {
@@ -451,11 +634,6 @@ const visibleTree = computed(() => {
   return filterTreeNodes(fileTree.value, debouncedQuery.value);
 });
 
-const searchModeTabs = computed<PillTabItem[]>(() => [
-  { value: "path", label: "Path" },
-  { value: "content", label: "Text" }
-]);
-
 const searchPlaceholder = computed(() =>
   searchMode.value === "content" ? "Search text in files…" : "Search paths…"
 );
@@ -570,6 +748,56 @@ function getApi(): WorkspaceApi | null {
   return window.workspaceApi ?? null;
 }
 
+async function onQueueTreeItemForAgent(payload: { kind: "file" | "folder"; path: string }): Promise<void> {
+  const tid = props.activeThreadId;
+  if (!tid || !threadQueue) {
+    toast.error("No active thread", "Select a thread before queuing context.");
+    return;
+  }
+  const cwd = props.worktreePath;
+  if (!cwd) return;
+  const api = getApi();
+  if (!api?.listFiles) return;
+  const files = await api.listFiles(cwd);
+  if (payload.kind === "folder") {
+    const listing = formatFolderListingFromFiles(payload.path, files);
+    const capture: QueueCapture = {
+      source: "folder",
+      folderPath: payload.path,
+      listingText: listing
+    };
+    threadQueue.addItem(tid, {
+      id: crypto.randomUUID(),
+      source: "folder",
+      pasteText: buildPasteText(capture),
+      meta: { folderPath: payload.path }
+    });
+    return;
+  }
+  let body = "";
+  try {
+    if (api.readFile) {
+      body = await api.readFile(cwd, payload.path);
+      if (body.length > 8000) body = `${body.slice(0, 8000)}\n… (truncated)`;
+    }
+  } catch {
+    body = "(could not read file)";
+  }
+  const capture: QueueCapture = {
+    source: "file",
+    filePath: payload.path,
+    selectedText: body || "(empty file)",
+    lineStart: undefined,
+    lineEnd: undefined
+  };
+  threadQueue.addItem(tid, {
+    id: crypto.randomUUID(),
+    source: "file",
+    pasteText: buildPasteText(capture),
+    meta: { filePath: payload.path }
+  });
+}
+
 function normalizeNewFilePathInput(raw: string): string {
   return raw.trim().replace(/\\/g, "/").replace(/^\/+/, "");
 }
@@ -587,14 +815,9 @@ function computeNewFileDefaultValue(folderPathPrefix?: string): string {
   return folderHint === "" ? "new-file.txt" : folderHint ? `${folderHint}/` : "src/";
 }
 
-function closeNewFileDialog(): void {
-  newFileDialogOpen.value = false;
-  newFileDialogFieldError.value = null;
-}
-
-function closeNewFolderDialog(): void {
-  newFolderDialogOpen.value = false;
-  newFolderDialogFieldError.value = null;
+function closeNewEntryDialog(): void {
+  newEntryDialogKind.value = null;
+  newEntryDialogFieldError.value = null;
 }
 
 function computeNewFolderDefaultValue(folderPathPrefix?: string): string {
@@ -615,13 +838,13 @@ async function openNewFileDialog(folderPathPrefix?: string): Promise<void> {
   const cwd = props.worktreePath;
   if (!api || !cwd) return;
 
-  newFilePathDraft.value = computeNewFileDefaultValue(
+  newEntryPathDraft.value = computeNewFileDefaultValue(
     typeof folderPathPrefix === "string" ? folderPathPrefix : undefined
   );
-  newFileDialogFieldError.value = null;
-  newFileDialogOpen.value = true;
+  newEntryDialogFieldError.value = null;
+  newEntryDialogKind.value = "file";
   await nextTick();
-  const el = newFilePathInputRef.value;
+  const el = newEntryPathInputRef.value;
   el?.focus();
   el?.select();
 }
@@ -631,61 +854,61 @@ async function openNewFolderDialog(folderPathPrefix?: string): Promise<void> {
   const cwd = props.worktreePath;
   if (!api?.createFolder || !cwd) return;
 
-  newFolderPathDraft.value = computeNewFolderDefaultValue(
+  newEntryPathDraft.value = computeNewFolderDefaultValue(
     typeof folderPathPrefix === "string" ? folderPathPrefix : undefined
   );
-  newFolderDialogFieldError.value = null;
-  newFolderDialogOpen.value = true;
+  newEntryDialogFieldError.value = null;
+  newEntryDialogKind.value = "folder";
   await nextTick();
-  const el = newFolderPathInputRef.value;
+  const el = newEntryPathInputRef.value;
   el?.focus();
   el?.select();
 }
 
-async function submitNewFile(): Promise<void> {
+async function submitNewEntry(): Promise<void> {
+  const kind = newEntryDialogKind.value;
   const api = getApi();
   const cwd = props.worktreePath;
-  if (!api || !cwd) return;
+  if (!kind || !api || !cwd) return;
 
-  const normalized = normalizeNewFilePathInput(newFilePathDraft.value);
-  if (!normalized || normalized.endsWith("/")) {
-    newFileDialogFieldError.value = "Enter a file path (not a folder).";
+  if (kind === "file") {
+    const normalized = normalizeNewFilePathInput(newEntryPathDraft.value);
+    if (!normalized || normalized.endsWith("/")) {
+      newEntryDialogFieldError.value = "Enter a file path (not a folder).";
+      return;
+    }
+
+    newEntryDialogFieldError.value = null;
+    error.value = null;
+
+    try {
+      await api.createFile(cwd, normalized);
+      closeNewEntryDialog();
+      await loadFileSummaries();
+      expandAncestorFolders(normalized);
+      if (!(await confirmDiscardIfDirty())) return;
+      await openFile(normalized);
+    } catch (createError) {
+      error.value =
+        createError instanceof Error ? createError.message : "Could not create the file.";
+    }
     return;
   }
 
-  newFileDialogFieldError.value = null;
-  error.value = null;
+  if (!api.createFolder) return;
 
-  try {
-    await api.createFile(cwd, normalized);
-    closeNewFileDialog();
-    await loadFileSummaries();
-    expandAncestorFolders(normalized);
-    if (!(await confirmDiscardIfDirty())) return;
-    await openFile(normalized);
-  } catch (createError) {
-    error.value =
-      createError instanceof Error ? createError.message : "Could not create the file.";
-  }
-}
-
-async function submitNewFolder(): Promise<void> {
-  const api = getApi();
-  const cwd = props.worktreePath;
-  if (!api?.createFolder || !cwd) return;
-
-  const normalized = normalizeNewFilePathInput(newFolderPathDraft.value).replace(/\/+$/, "");
+  const normalized = normalizeNewFilePathInput(newEntryPathDraft.value).replace(/\/+$/, "");
   if (!normalized) {
-    newFolderDialogFieldError.value = "Enter a folder path.";
+    newEntryDialogFieldError.value = "Enter a folder path.";
     return;
   }
 
-  newFolderDialogFieldError.value = null;
+  newEntryDialogFieldError.value = null;
   error.value = null;
 
   try {
     await api.createFolder(cwd, normalized);
-    closeNewFolderDialog();
+    closeNewEntryDialog();
     await loadFileSummaries();
     expandAncestorFolders(normalized);
   } catch (createError) {
@@ -713,12 +936,8 @@ function onGlobalKeydown(e: KeyboardEvent): void {
       settleConfirmation(false);
       return;
     }
-    if (newFileDialogOpen.value) {
-      closeNewFileDialog();
-      return;
-    }
-    if (newFolderDialogOpen.value) {
-      closeNewFolderDialog();
+    if (newEntryDialogKind.value) {
+      closeNewEntryDialog();
       return;
     }
   }
@@ -728,6 +947,85 @@ function clearSelection(): void {
   selectedPath.value = null;
   loadedContent.value = "";
   draftContent.value = "";
+  imagePreviewSrc.value = null;
+  imageFileViewMode.value = "preview";
+  externalDropPreview.value = null;
+}
+
+function clearExternalDropPreview(): void {
+  externalDropPreview.value = null;
+}
+
+async function onImageDropFromOs(e: DragEvent): Promise<void> {
+  e.preventDefault();
+  const df = e.dataTransfer;
+  if (!df?.files?.length) return;
+  const file = df.files[0];
+  if (!file) return;
+  const api = getApi();
+  if (!api?.readImageDataUrlFromAbsolutePath || !api.getPathForFile) return;
+  try {
+    const abs = api.getPathForFile(file);
+    const imageish =
+      Boolean(file.type && file.type.startsWith("image/")) ||
+      /\.(png|jpe?g|gif|webp|bmp|ico|svg|avif)$/i.test(abs);
+    if (!imageish) return;
+    const url = await api.readImageDataUrlFromAbsolutePath(abs);
+    if (url) externalDropPreview.value = { src: url, title: abs };
+  } catch {
+    /* ignore invalid drops */
+  }
+}
+
+async function refreshImagePreviewUrl(): Promise<void> {
+  const path = selectedPath.value;
+  const cwd = props.worktreePath;
+  const api = getApi();
+  if (!path || !cwd || !api?.resolveMarkdownImageUrl) {
+    imagePreviewSrc.value = null;
+    return;
+  }
+  const name = basenameFromPath(path);
+  imagePreviewSrc.value = (await api.resolveMarkdownImageUrl(cwd, path, name)) ?? null;
+}
+
+async function loadImageFileAsText(): Promise<void> {
+  const path = selectedPath.value;
+  const cwd = props.worktreePath;
+  const api = getApi();
+  if (!path || !cwd || !api) return;
+
+  isLoadingFile.value = true;
+  error.value = null;
+  try {
+    const content = await api.readFile(cwd, path);
+    loadedContent.value = content;
+    draftContent.value = content;
+  } catch (readError) {
+    error.value =
+      readError instanceof Error ? readError.message : "Could not read the image file as text.";
+  } finally {
+    isLoadingFile.value = false;
+  }
+}
+
+async function onImageViewModeRequest(next: string): Promise<void> {
+  if (next !== "preview" && next !== "text") return;
+  if (next === imageFileViewMode.value) return;
+
+  if (next === "preview") {
+    if (imageFileViewMode.value === "text" && dirty.value) {
+      if (!(await confirmDiscardIfDirty())) return;
+    }
+    imageFileViewMode.value = "preview";
+    loadedContent.value = "";
+    draftContent.value = "";
+    await refreshImagePreviewUrl();
+    return;
+  }
+
+  imageFileViewMode.value = "text";
+  await loadImageFileAsText();
 }
 
 async function handleCloseFileTab(): Promise<void> {
@@ -759,8 +1057,7 @@ function resetState(): void {
   isSearching.value = false;
   isLoadingFile.value = false;
   isSaving.value = false;
-  closeNewFileDialog();
-  closeNewFolderDialog();
+  closeNewEntryDialog();
   clearSelection();
 }
 
@@ -851,6 +1148,18 @@ async function openFile(relativePath: string): Promise<void> {
   error.value = null;
 
   try {
+    imagePreviewSrc.value = null;
+    const ext = fileExtensionLower(relativePath);
+    if (IMAGE_PREVIEW_EXTENSIONS.has(ext)) {
+      selectedPath.value = relativePath;
+      imageFileViewMode.value = "preview";
+      loadedContent.value = "";
+      draftContent.value = "";
+      await refreshImagePreviewUrl();
+      if (seq !== openFileSeq || props.worktreePath !== cwd) return;
+      return;
+    }
+
     const content = await api.readFile(cwd, relativePath);
     if (seq !== openFileSeq || props.worktreePath !== cwd) return;
     selectedPath.value = relativePath;
@@ -985,6 +1294,12 @@ async function handleSave(): Promise<void> {
   const relativePath = selectedPath.value;
   if (!api || !cwd || !relativePath) return;
 
+  if (isRasterImageFile.value && dirty.value) {
+    error.value =
+      "Raster images cannot be saved from Source view; that would corrupt the file. Revert or switch back to Preview.";
+    return;
+  }
+
   isSaving.value = true;
   error.value = null;
 
@@ -1025,6 +1340,7 @@ async function confirmContextSwitch(nextWorktreePath: string | null): Promise<bo
 }
 
 watch(selectedPath, (path) => {
+  externalDropPreview.value = null;
   if (path && /\.(md|markdown)$/i.test(path)) {
     mdViewMode.value = "read";
   }
@@ -1110,7 +1426,7 @@ defineExpose({
       <template v-else>
         <div
           data-testid="file-search-header"
-          class="flex flex-col gap-1 border-b border-border px-2.5 pt-2.5 pb-2"
+          class="flex flex-col gap-1 border-b border-border p-1"
         >
           <div class="relative min-w-0 text-muted-foreground">
             <Search
@@ -1123,19 +1439,44 @@ defineExpose({
               data-testid="file-search-input"
               type="text"
               :placeholder="searchPlaceholder"
-              class="h-8 min-w-0 w-full rounded-md bg-background py-1 pr-2 pl-8 text-xs focus-visible:ring-2"
+              class="h-8 min-w-0 w-full rounded-md bg-muted py-1 pr-2 pl-8 text-xs focus-visible:ring-2"
               :disabled="!hasWorkspace"
             />
           </div>
           <div class="flex min-h-[1.75rem] flex-wrap items-center justify-between gap-x-2 gap-y-2">
-            <PillTabs
-              v-model="searchMode"
+            <div
               data-testid="file-search-mode-tabs"
-              size="sm"
-              class="min-w-0 flex-1 [&_[role=tablist]]:justify-start [&_[role=tablist]]:gap-1 [&_[role=tablist]]:px-0"
-              aria-label="File search mode"
-              :tabs="searchModeTabs"
-            />
+              class="flex min-w-0 flex-1 items-center justify-start"
+            >
+              <div
+                class="flex shrink-0 items-center gap-px rounded-md border border-border bg-muted/25 p-px"
+                role="group"
+                aria-label="File search mode"
+              >
+                <Button
+                  type="button"
+                  size="xs"
+                  :variant="searchMode === 'path' ? 'default' : 'ghost'"
+                  class="h-6 rounded-sm px-2 text-[10px]"
+                  title="Filter the file list by path or name"
+                  :aria-pressed="searchMode === 'path'"
+                  @click="searchMode = 'path'"
+                >
+                  Path
+                </Button>
+                <Button
+                  type="button"
+                  size="xs"
+                  :variant="searchMode === 'content' ? 'default' : 'ghost'"
+                  class="h-6 rounded-sm px-2 text-[10px]"
+                  title="Search text inside workspace files"
+                  :aria-pressed="searchMode === 'content'"
+                  @click="searchMode = 'content'"
+                >
+                  Text
+                </Button>
+              </div>
+            </div>
             <div
               class="flex shrink-0 items-center gap-0.5 rounded-md border border-border/70 bg-muted/20 p-0.5"
               role="toolbar"
@@ -1256,6 +1597,7 @@ defineExpose({
                   @add-folder="onCtxAddFolder"
                   @delete-folder="onCtxDeleteFolder"
                   @delete-file="onCtxDeleteFile"
+                  @queue-for-agent="onQueueTreeItemForAgent"
                 />
               </ul>
             </div>
@@ -1272,7 +1614,11 @@ defineExpose({
       </template>
     </div>
 
-    <div class="flex min-h-0 min-w-0 flex-1 flex-col">
+    <div
+      class="flex min-h-0 min-w-0 flex-1 flex-col"
+      @dragover.prevent
+      @drop="onImageDropFromOs"
+    >
       <header
         data-testid="file-editor-header"
         class="flex items-center justify-between gap-3 border-b border-border px-4 py-1.5"
@@ -1343,7 +1689,7 @@ defineExpose({
             data-testid="toggle-line-numbers"
             variant="outline"
             size="xs"
-            :disabled="!selectedPath"
+            :disabled="!selectedPath || (isImagePreviewFile && imageFileViewMode === 'preview')"
             :aria-pressed="showLineNumbers"
             :title="showLineNumbers ? 'Hide line numbers' : 'Show line numbers'"
             @click="toggleLineNumbers"
@@ -1390,7 +1736,7 @@ defineExpose({
             data-testid="save-file"
             variant="default"
             size="xs"
-            :disabled="!selectedPath || !dirty || isSaving"
+            :disabled="!selectedPath || !dirty || isSaving || rasterImageSaveBlocked"
             @click="handleSave"
           >
             Save
@@ -1425,13 +1771,41 @@ defineExpose({
         <template v-else>
           <div
             v-if="isMarkdownFile && selectedPath"
-            class="absolute top-2 right-3 z-20 rounded-lg border border-border/60 bg-background/95 p-0.5 shadow-sm backdrop-blur-sm supports-[backdrop-filter]:bg-background/80"
+            class="absolute top-2 right-3 z-20 flex flex-col items-end gap-1 rounded-lg border border-border/60 bg-background/95 p-0.5 shadow-sm backdrop-blur-sm supports-[backdrop-filter]:bg-background/80"
           >
             <PillTabs
               v-model="mdViewMode"
               class="min-w-0 shrink-0 [&_[role=tablist]]:px-0 [&_[role=tablist]]:py-0"
               aria-label="Markdown view"
               :tabs="mdViewTabs"
+            />
+            <Button
+              v-if="mdViewMode === 'source'"
+              data-testid="markdown-source-image-previews-toggle"
+              type="button"
+              variant="ghost"
+              size="xs"
+              class="h-7 shrink-0 px-2 text-[11px] text-muted-foreground hover:text-foreground"
+              :title="
+                mdSourceImagePreviews
+                  ? 'Show Markdown source without inline image previews'
+                  : 'Show resolved images under image syntax in the editor'
+              "
+              @click="mdSourceImagePreviews = !mdSourceImagePreviews"
+            >
+              {{ mdSourceImagePreviews ? "Hide image previews" : "Show image previews" }}
+            </Button>
+          </div>
+          <div
+            v-if="isImagePreviewFile && selectedPath"
+            class="absolute top-2 right-3 z-20 rounded-lg border border-border/60 bg-background/95 p-0.5 shadow-sm backdrop-blur-sm supports-[backdrop-filter]:bg-background/80"
+          >
+            <PillTabs
+              :model-value="imageFileViewMode"
+              class="min-w-0 shrink-0 [&_[role=tablist]]:px-0 [&_[role=tablist]]:py-0"
+              aria-label="Image view"
+              :tabs="imageViewTabs"
+              @update:model-value="onImageViewModeRequest"
             />
           </div>
           <p
@@ -1459,6 +1833,36 @@ defineExpose({
             Loading file…
           </p>
           <div
+            v-else-if="isImagePreviewFile && imageFileViewMode === 'preview' && imagePreviewSrc"
+            data-testid="image-file-preview"
+            class="flex min-h-[18rem] flex-1 flex-col items-center justify-center overflow-auto rounded-md bg-muted/10 px-4 py-6"
+          >
+            <img
+              :src="imagePreviewSrc"
+              :alt="`Preview of ${selectedPath}`"
+              class="max-h-[min(70vh,48rem)] max-w-full rounded-md border border-border/60 object-contain shadow-sm"
+              draggable="false"
+            />
+          </div>
+          <div
+            v-else-if="isImagePreviewFile && imageFileViewMode === 'preview' && !imagePreviewSrc"
+            data-testid="image-file-preview-unavailable"
+            class="flex min-h-[18rem] flex-1 flex-col items-center justify-center gap-2 rounded-md bg-muted/10 px-4 py-6 text-center text-xs text-muted-foreground"
+            role="status"
+          >
+            <p class="max-w-sm">
+              Could not build a preview (missing binary, Git LFS pointer not smudged, wrong file type, or over 32 MB).
+            </p>
+            <p>
+              Use <span class="font-medium text-foreground">Source</span> to inspect the file, or run
+              <span class="font-mono">git lfs pull</span> if this is an LFS asset.
+            </p>
+            <p class="text-[11px] text-muted-foreground/90">
+              For screenshots in macOS TemporaryItems: drag the file onto this pane (temp folder is allowed), or copy
+              the image into the repo.
+            </p>
+          </div>
+          <div
             v-else-if="isMarkdownFile && mdViewMode === 'read'"
             data-testid="markdown-preview"
             class="markdown-reader h-full min-h-[18rem] overflow-y-auto rounded-md bg-muted/10 px-3 py-3"
@@ -1472,105 +1876,120 @@ defineExpose({
             :show-line-numbers="showLineNumbers"
             :markdown-workspace-root="markdownImageWorkspaceRoot"
             :markdown-file-path="markdownImageFilePath"
+            :markdown-image-preview-enabled="mdSourceImagePreviews"
+            :queue-selection-hints="queueSelectionHintsEnabled"
             :aria-label="
               selectedPath
                 ? `Source code, ${editorLanguage ?? 'plain text'}, ${selectedPath}`
                 : undefined
             "
+            @queueable-text-selection="onEditorQueueableSelection"
           />
         </template>
       </div>
+      <div
+        v-if="externalDropPreview"
+        data-testid="external-image-drop-preview"
+        class="shrink-0 border-t border-border bg-muted/25 px-4 py-3"
+      >
+        <div class="flex items-start justify-between gap-2">
+          <p class="min-w-0 text-[11px] leading-snug text-muted-foreground">
+            <span class="font-medium text-foreground">Dropped image</span>
+            (not in the file tree). Save a copy under the worktree to open it in the editor.
+          </p>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-xs"
+            class="shrink-0"
+            aria-label="Dismiss dropped image preview"
+            @click="clearExternalDropPreview"
+          >
+            <X class="h-3.5 w-3.5" aria-hidden="true" />
+          </Button>
+        </div>
+        <p
+          class="mt-1 truncate font-mono text-[10px] text-muted-foreground"
+          :title="externalDropPreview.title"
+        >
+          {{ externalDropPreview.title }}
+        </p>
+        <img
+          :src="externalDropPreview.src"
+          alt=""
+          class="mt-2 max-h-72 max-w-full rounded-md border border-border/60 object-contain shadow-sm"
+          draggable="false"
+        />
+      </div>
     </div>
 
-    <Dialog :open="newFileDialogOpen" @update:open="(open) => (!open ? closeNewFileDialog() : undefined)">
-      <DialogContent data-testid="new-file-dialog" class="sm:max-w-md">
+    <Dialog
+      :open="newEntryDialogKind !== null"
+      @update:open="(open) => (!open ? closeNewEntryDialog() : undefined)"
+    >
+      <DialogContent
+        :data-testid="newEntryDialogKind === 'folder' ? 'new-folder-dialog' : 'new-file-dialog'"
+        class="sm:max-w-md"
+      >
         <DialogHeader>
-          <DialogTitle id="new-file-dialog-title" class="text-sm">New file</DialogTitle>
-          <DialogDescription class="text-xs">
+          <DialogTitle
+            :id="newEntryDialogKind === 'folder' ? 'new-folder-dialog-title' : 'new-file-dialog-title'"
+          >
+            {{ newEntryDialogKind === "folder" ? "New folder" : "New file" }}
+          </DialogTitle>
+          <DialogDescription v-if="newEntryDialogKind === 'file'" class="text-xs">
             Path relative to the workspace (use <span class="font-mono">/</span> for folders).
           </DialogDescription>
-        </DialogHeader>
-        <form class="space-y-3" @submit.prevent="submitNewFile">
-          <div>
-            <label for="new-file-path-input" class="sr-only">File path</label>
-            <Input
-              id="new-file-path-input"
-              ref="newFilePathInputRef"
-              v-model="newFilePathDraft"
-              data-testid="new-file-path-input"
-              type="text"
-              autocomplete="off"
-              spellcheck="false"
-              class="h-9 w-full rounded-md bg-background px-2.5 text-xs focus-visible:ring-2"
-              placeholder="e.g. src/components/MyFile.ts"
-            />
-            <p
-              v-if="newFileDialogFieldError"
-              data-testid="new-file-dialog-error"
-              class="mt-1.5 text-xs text-destructive"
-            >
-              {{ newFileDialogFieldError }}
-            </p>
-          </div>
-          <DialogFooter>
-            <Button
-              type="button"
-              data-testid="new-file-cancel"
-              variant="outline"
-              size="xs"
-              @click="closeNewFileDialog"
-            >
-              Cancel
-            </Button>
-            <Button type="submit" data-testid="new-file-confirm" variant="default" size="xs">
-              Create
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
-
-    <Dialog :open="newFolderDialogOpen" @update:open="(open) => (!open ? closeNewFolderDialog() : undefined)">
-      <DialogContent data-testid="new-folder-dialog" class="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle id="new-folder-dialog-title" class="text-sm">New folder</DialogTitle>
-          <DialogDescription class="text-xs">
+          <DialogDescription v-else-if="newEntryDialogKind === 'folder'" class="text-xs">
             Path relative to the workspace (nested folders are created as needed).
           </DialogDescription>
         </DialogHeader>
-        <form class="space-y-3" @submit.prevent="submitNewFolder">
+        <form class="space-y-3" @submit.prevent="submitNewEntry">
           <div>
-            <label for="new-folder-path-input" class="sr-only">Folder path</label>
+            <label :for="newEntryPathInputId" class="sr-only">
+              {{ newEntryDialogKind === "folder" ? "Folder path" : "File path" }}
+            </label>
             <Input
-              id="new-folder-path-input"
-              ref="newFolderPathInputRef"
-              v-model="newFolderPathDraft"
-              data-testid="new-folder-path-input"
+              :id="newEntryPathInputId"
+              ref="newEntryPathInputRef"
+              v-model="newEntryPathDraft"
+              :data-testid="
+                newEntryDialogKind === 'folder' ? 'new-folder-path-input' : 'new-file-path-input'
+              "
               type="text"
               autocomplete="off"
               spellcheck="false"
               class="h-9 w-full rounded-md bg-background px-2.5 text-xs focus-visible:ring-2"
-              placeholder="e.g. src/components/MyFolder"
+              :placeholder="
+                newEntryDialogKind === 'folder'
+                  ? 'e.g. src/components/MyFolder'
+                  : 'e.g. src/components/MyFile.ts'
+              "
             />
             <p
-              v-if="newFolderDialogFieldError"
-              data-testid="new-folder-dialog-error"
+              v-if="newEntryDialogFieldError"
+              :data-testid="
+                newEntryDialogKind === 'folder' ? 'new-folder-dialog-error' : 'new-file-dialog-error'
+              "
               class="mt-1.5 text-xs text-destructive"
             >
-              {{ newFolderDialogFieldError }}
+              {{ newEntryDialogFieldError }}
             </p>
           </div>
           <DialogFooter>
             <Button
               type="button"
-              data-testid="new-folder-cancel"
+              :data-testid="newEntryDialogKind === 'folder' ? 'new-folder-cancel' : 'new-file-cancel'"
               variant="outline"
-              size="xs"
-              @click="closeNewFolderDialog"
+              @click="closeNewEntryDialog"
             >
               Cancel
             </Button>
-            <Button type="submit" data-testid="new-folder-confirm" variant="default" size="xs">
+            <Button
+              type="submit"
+              :data-testid="newEntryDialogKind === 'folder' ? 'new-folder-confirm' : 'new-file-confirm'"
+              variant="default"
+            >
               Create
             </Button>
           </DialogFooter>
@@ -1585,27 +2004,36 @@ defineExpose({
           <AlertDialogDescription>{{ confirmAction?.description }}</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel
-            data-testid="confirm-action-cancel"
-            class="inline-flex h-6 items-center justify-center rounded-[min(var(--radius-md),10px)] border px-2 text-xs font-medium"
-            @click="settleConfirmation(false)"
-          >
-            Cancel
+          <AlertDialogCancel as-child>
+            <Button
+              type="button"
+              variant="outline"
+              data-testid="confirm-action-cancel"
+              @click="settleConfirmation(false)"
+            >
+              Cancel
+            </Button>
           </AlertDialogCancel>
-          <AlertDialogAction
-            data-testid="confirm-action-confirm"
-            class="inline-flex h-6 items-center justify-center rounded-[min(var(--radius-md),10px)] px-2 text-xs font-medium"
-            :class="
-              confirmAction?.variant === 'destructive'
-                ? 'bg-destructive text-destructive-foreground'
-                : 'bg-primary text-primary-foreground'
-            "
-            @click="settleConfirmation(true)"
-          >
-            {{ confirmAction?.confirmLabel ?? "Continue" }}
+          <AlertDialogAction as-child>
+            <Button
+              type="button"
+              :variant="confirmAction?.variant === 'destructive' ? 'destructive' : 'default'"
+              data-testid="confirm-action-confirm"
+              @click="settleConfirmation(true)"
+            >
+              {{ confirmAction?.confirmLabel ?? "Continue" }}
+            </Button>
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
+
+    <ContextQueueSelectionPopup
+      :visible="fileEditorQueueVisible"
+      :anchor="fileEditorQueueAnchor"
+      @queue="confirmFileEditorQueue"
+      @send-to-agent="injectFileEditorSelectionToAgent"
+      @dismiss="dismissFileEditorQueuePopup"
+    />
   </section>
 </template>

@@ -40,6 +40,7 @@ const emit = defineEmits<{
   addFolder: [folderPath?: string];
   deleteFolder: [path: string];
   deleteFile: [path: string];
+  queueForAgent: [payload: { kind: "file" | "folder"; path: string }];
 }>();
 
 function isExpanded(path: string): boolean {
@@ -53,6 +54,7 @@ function isExpanded(path: string): boolean {
       <ContextMenuTrigger as-child>
         <Button
           :data-testid="`folder-toggle-${node.path}`"
+          :data-file-tree-row="node.path"
           type="button"
           variant="ghost"
           size="xs"
@@ -81,6 +83,13 @@ function isExpanded(path: string): boolean {
         >
           Delete folder
         </ContextMenuItem>
+        <ContextMenuItem
+          data-testid="ctx-queue-folder"
+          class="text-xs"
+          @select="emit('queueForAgent', { kind: 'folder', path: node.path })"
+        >
+          Queue folder for agent
+        </ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>
 
@@ -88,6 +97,7 @@ function isExpanded(path: string): boolean {
       <ContextMenuTrigger as-child>
         <Button
           :data-testid="`file-node-${node.path}`"
+          :data-file-tree-row="node.path"
           type="button"
           variant="ghost"
           size="xs"
@@ -109,6 +119,13 @@ function isExpanded(path: string): boolean {
         >
           Delete file
         </ContextMenuItem>
+        <ContextMenuItem
+          data-testid="ctx-queue-file"
+          class="text-xs"
+          @select="emit('queueForAgent', { kind: 'file', path: node.path })"
+        >
+          Queue file for agent
+        </ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>
 
@@ -129,6 +146,7 @@ function isExpanded(path: string): boolean {
         @add-folder="emit('addFolder', $event)"
         @delete-folder="emit('deleteFolder', $event)"
         @delete-file="emit('deleteFile', $event)"
+        @queue-for-agent="emit('queueForAgent', $event)"
       />
     </ul>
   </li>

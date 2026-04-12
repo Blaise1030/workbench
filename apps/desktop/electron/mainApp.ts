@@ -5,9 +5,11 @@ import {
   IPC_CHANNELS,
   type AddProjectInput,
   type AddWorktreeInput,
+  type AppUpdateAvailability,
   type CreateThreadInput,
   type CreateWorktreeGroupInput,
   type DeleteThreadInput,
+  type FileAbsolutePathInput,
   type FileReadInput,
   type FileResolveMarkdownImageUrlInput,
   type FileWriteInput,
@@ -27,17 +29,110 @@ import { buildCloseConfirmationDetail } from "./lifecycle/closeConfirmation.js";
 import { captureResumeIdsBeforeQuit } from "./lifecycle/quitResumeCapture.js";
 import { collectResumeIdsFromActiveTerminals } from "./lifecycle/quitResumeCapture.js";
 import { extractResumeIdFromStdout, RESUME_CAPTURE_TAIL_CHARS } from "./adapters/resumeIdCapture.js";
+import { GitHeadWatcher } from "./services/gitHeadWatcher.js";
 import { WorkspaceService } from "./services/workspaceService.js";
 import { WorkspaceStore } from "./storage/store.js";
 
 /** Threads whose PTY we scan for resume IDs (stdout + submitted command lines). */
 const AGENTS_WITH_RESUME_CAPTURE: ThreadAgent[] = ["cursor", "claude", "codex", "gemini"];
 
+const WORKBENCH_RELEASES_LATEST_API =
+  "https://api.github.com/repos/Blaise1030/workbench/releases/latest";
+const WORKBENCH_REPO_COMPARE_BASE = "https://github.com/Blaise1030/workbench/compare";
+
+function readBundledPackageJsonVersion(): string | null {
+  try {
+    const pkgPath = path.join(app.getAppPath(), "package.json");
+    const raw = fs.readFileSync(pkgPath, "utf8");
+    const parsed: unknown = JSON.parse(raw);
+    if (typeof parsed !== "object" || parsed === null || !("version" in parsed)) return null;
+    const v = (parsed as { version?: unknown }).version;
+    return typeof v === "string" && v.trim() ? v.trim() : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Ship semver for update checks and release-tag display (bundled package.json first, then `app.getVersion()`). */
+function getWorkbenchAppSemver(): string {
+  return readBundledPackageJsonVersion() ?? app.getVersion()?.trim() ?? "";
+}
+
+/** GitHub-style tag string for the running build (e.g. `v0.6.0`). */
+function getAppReleaseTag(): string {
+  const s = getWorkbenchAppSemver();
+  if (!s) return "";
+  return /^v\d/i.test(s) ? s : `v${s}`;
+}
+
+function githubCompareRefForCurrent(currentSemver: string, latestTag: string): string {
+  const cur = currentSemver.replace(/^v/i, "");
+  return /^v\d/i.test(latestTag) ? `v${cur}` : cur;
+}
+
+async function fetchWorkbenchUpdateFromGitHub(): Promise<AppUpdateAvailability | null> {
+  try {
+    const res = await fetch(WORKBENCH_RELEASES_LATEST_API, {
+      headers: { Accept: "application/vnd.github+json", "User-Agent": "workbench-app" }
+    });
+    if (!res.ok) return null;
+    const data = (await res.json()) as { tag_name?: string; html_url?: string };
+    const latestTag = data.tag_name ?? "";
+    const latestVersion = latestTag.replace(/^v/i, "");
+    const currentVersion = getWorkbenchAppSemver().replace(/^v/i, "");
+    if (!latestVersion || latestVersion === currentVersion) return null;
+    const releasePageUrl =
+      typeof data.html_url === "string"
+        ? data.html_url
+        : "https://github.com/Blaise1030/workbench/releases/latest";
+    const lhs = githubCompareRefForCurrent(currentVersion, latestTag);
+    const compareUrl = `${WORKBENCH_REPO_COMPARE_BASE}/${encodeURIComponent(lhs)}...${encodeURIComponent(latestTag)}`;
+    return {
+      currentVersion,
+      latestVersion,
+      latestTag,
+      releasePageUrl,
+      compareUrl
+    };
+  } catch {
+    return null;
+  }
+}
+
+/** Single in-flight / resolved result per app run (startup check + renderer IPC share one GitHub request). */
+let workbenchUpdateCheckPromise: Promise<AppUpdateAvailability | null> | null = null;
+
+function getWorkbenchUpdateAvailability(): Promise<AppUpdateAvailability | null> {
+  if (!app.isPackaged) return Promise.resolve(null);
+  workbenchUpdateCheckPromise ??= fetchWorkbenchUpdateFromGitHub();
+  return workbenchUpdateCheckPromise;
+}
+
+/** Packaged builds: probe GitHub for a newer release shortly after launch (UI uses IPC). */
+async function checkForUpdate(): Promise<void> {
+  if (!app.isPackaged) return;
+  try {
+    await getWorkbenchUpdateAvailability();
+  } catch {
+    // network / parse failures already yield null from fetch
+  }
+}
+
+function isAllowedAppOpenExternalUrl(url: string): boolean {
+  try {
+    const u = new URL(url);
+    return u.protocol === "https:" && u.hostname === "github.com";
+  } catch {
+    return false;
+  }
+}
+
 const runService = new RunService();
 const diffService = new DiffService();
 const editService = new EditService();
 const fileService = new FileService();
 const ptyService = new PtyService();
+let gitHeadWatcher: GitHeadWatcher | null = null;
 let hasConfirmedClose = false;
 let closeConfirmationInFlight = false;
 
@@ -72,6 +167,7 @@ function emitWorkspaceDidChange(): void {
   for (const win of BrowserWindow.getAllWindows()) {
     win.webContents.send(IPC_CHANNELS.workspaceDidChange);
   }
+  gitHeadWatcher?.syncFromSnapshot(workspaceService.getSnapshot());
 }
 
 function emitWorkingTreeFilesDidChange(): void {
@@ -94,7 +190,7 @@ function createMainWindow(): BrowserWindow {
       preload: preloadPath,
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false
+      sandbox: true
     }
   });
 
@@ -150,6 +246,20 @@ function readWorkspaceSchemaSql(): string {
   throw new Error(`workspace schema not found. Tried:\n${candidates.join("\n")}`);
 }
 
+/**
+ * Asserts that `cwd` is a registered worktree path or a sub-path of one.
+ * Exempt handlers: diffIsGitRepository, diffInitGitRepository (used before project is registered).
+ */
+function assertCwdIsRegistered(cwd: string): void {
+  const snapshot = workspaceService.getSnapshot();
+  const registered = snapshot.worktrees.some(
+    (wt) => cwd === wt.path || cwd.startsWith(wt.path + path.sep)
+  );
+  if (!registered) {
+    throw new Error(`Operation refused: cwd is not a registered worktree path: "${cwd}"`);
+  }
+}
+
 function registerIpc(workspaceService: WorkspaceService): void {
   ipcMain.handle(IPC_CHANNELS.workspaceGetSnapshot, () => workspaceService.getSnapshot());
   ipcMain.handle(IPC_CHANNELS.workspaceAddProject, (_, payload: AddProjectInput) => {
@@ -176,8 +286,12 @@ function registerIpc(workspaceService: WorkspaceService): void {
     workspaceService.setActive(payload.projectId, payload.worktreeId, payload.threadId);
     emitWorkspaceDidChange();
   });
-  ipcMain.handle(IPC_CHANNELS.workspaceCreateThread, (_, payload: CreateThreadInput) => {
-    const thread = workspaceService.createThread(payload);
+  ipcMain.handle(IPC_CHANNELS.workspaceCreateThread, async (_, payload: CreateThreadInput) => {
+    const snapshot = workspaceService.getSnapshot();
+    const wt = snapshot.worktrees.find((w) => w.id === payload.worktreeId);
+    const createdBranchOverride =
+      wt == null ? undefined : (await diffService.readAbbrevRefHead(wt.path)) ?? wt.branch ?? null;
+    const thread = workspaceService.createThread(payload, createdBranchOverride);
     emitWorkspaceDidChange();
     return thread;
   });
@@ -218,80 +332,119 @@ function registerIpc(workspaceService: WorkspaceService): void {
     return workspaceService.getSnapshot();
   });
 
-  ipcMain.handle(IPC_CHANNELS.runStart, (_, payload: { agent: ThreadAgent; cwd: string; prompt: string }) =>
-    runService.start(payload.agent, payload.cwd, payload.prompt, () => {}, () => {})
-  );
+  ipcMain.handle(IPC_CHANNELS.runStart, (_, payload: { agent: ThreadAgent; cwd: string; prompt: string }) => {
+    assertCwdIsRegistered(payload.cwd);
+    return runService.start(payload.agent, payload.cwd, payload.prompt, () => {}, () => {});
+  });
   ipcMain.handle(IPC_CHANNELS.runSendInput, (_, payload: { runId: string; input: string }) => runService.sendInput(payload.runId, payload.input));
   ipcMain.handle(IPC_CHANNELS.runInterrupt, (_, runId: string) => runService.interrupt(runId));
 
-  ipcMain.handle(IPC_CHANNELS.diffChangedFiles, (_, cwd: string) => diffService.changedFiles(cwd));
+  ipcMain.handle(IPC_CHANNELS.diffChangedFiles, (_, cwd: string) => { assertCwdIsRegistered(cwd); return diffService.changedFiles(cwd); });
   ipcMain.handle(IPC_CHANNELS.diffIsGitRepository, (_, cwd: string) => diffService.isGitRepository(cwd));
   ipcMain.handle(IPC_CHANNELS.diffInitGitRepository, (_, cwd: string) => diffService.initGitRepository(cwd));
-  ipcMain.handle(IPC_CHANNELS.diffRepoStatus, (_, cwd: string) => diffService.repoStatus(cwd));
+  ipcMain.handle(IPC_CHANNELS.diffRepoStatus, (_, cwd: string) => { assertCwdIsRegistered(cwd); return diffService.repoStatus(cwd); });
   ipcMain.handle(
     IPC_CHANNELS.diffFileDiff,
-    (_, payload: { cwd: string; file: string; scope?: "staged" | "unstaged" | "combined" }) =>
-      diffService.fileDiff(payload.cwd, payload.file, payload.scope)
+    (_, payload: { cwd: string; file: string; scope?: "staged" | "unstaged" | "combined" }) => {
+      assertCwdIsRegistered(payload.cwd);
+      return diffService.fileDiff(payload.cwd, payload.file, payload.scope);
+    }
   );
-  ipcMain.handle(IPC_CHANNELS.diffWorkingTree, (_, cwd: string) => diffService.workingTreeDiff(cwd));
-  ipcMain.handle(IPC_CHANNELS.diffStageAll, (_, cwd: string) => diffService.stageAll(cwd));
-  ipcMain.handle(IPC_CHANNELS.diffUnstageAll, (_, cwd: string) => diffService.unstageAll(cwd));
-  ipcMain.handle(IPC_CHANNELS.diffDiscardAll, (_, cwd: string) => diffService.discardAll(cwd));
-  ipcMain.handle(IPC_CHANNELS.diffStagePaths, (_, payload: { cwd: string; paths: string[] }) =>
-    diffService.stagePaths(payload.cwd, payload.paths)
+  ipcMain.handle(
+    IPC_CHANNELS.diffFileMergeSides,
+    (_, payload: { cwd: string; file: string; scope: "staged" | "unstaged" }) => {
+      assertCwdIsRegistered(payload.cwd);
+      return diffService.fileMergeSides(payload.cwd, payload.file, payload.scope);
+    }
   );
-  ipcMain.handle(IPC_CHANNELS.diffUnstagePaths, (_, payload: { cwd: string; paths: string[] }) =>
-    diffService.unstagePaths(payload.cwd, payload.paths)
-  );
-  ipcMain.handle(IPC_CHANNELS.diffDiscardPaths, (_, payload: { cwd: string; paths: string[] }) =>
-    diffService.discardPaths(payload.cwd, payload.paths)
-  );
-  ipcMain.handle(IPC_CHANNELS.diffGitFetch, (_, cwd: string) => diffService.gitFetch(cwd));
-  ipcMain.handle(IPC_CHANNELS.diffGitPush, (_, cwd: string) => diffService.gitPush(cwd));
-  ipcMain.handle(IPC_CHANNELS.diffGitCommit, (_, payload: { cwd: string; message: string }) =>
-    diffService.commitStaged(payload.cwd, payload.message)
-  );
-  ipcMain.handle(IPC_CHANNELS.filesList, (_, cwd: string) => fileService.listFileSummaries(cwd));
-  ipcMain.handle(IPC_CHANNELS.filesSearch, (_, payload: { cwd: string; query: string }) =>
-    fileService.searchFiles(payload.cwd, payload.query)
-  );
-  ipcMain.handle(IPC_CHANNELS.filesSearchContent, (_, payload: { cwd: string; query: string }) =>
-    fileService.searchFileContents(payload.cwd, payload.query)
-  );
-  ipcMain.handle(IPC_CHANNELS.filesRead, (_, payload: FileReadInput) =>
-    fileService.readFile(payload.cwd, payload.relativePath)
-  );
+  ipcMain.handle(IPC_CHANNELS.diffWorkingTree, (_, cwd: string) => { assertCwdIsRegistered(cwd); return diffService.workingTreeDiff(cwd); });
+  ipcMain.handle(IPC_CHANNELS.diffStageAll, (_, cwd: string) => { assertCwdIsRegistered(cwd); return diffService.stageAll(cwd); });
+  ipcMain.handle(IPC_CHANNELS.diffUnstageAll, (_, cwd: string) => { assertCwdIsRegistered(cwd); return diffService.unstageAll(cwd); });
+  ipcMain.handle(IPC_CHANNELS.diffDiscardAll, (_, cwd: string) => { assertCwdIsRegistered(cwd); return diffService.discardAll(cwd); });
+  ipcMain.handle(IPC_CHANNELS.diffStagePaths, (_, payload: { cwd: string; paths: string[] }) => {
+    assertCwdIsRegistered(payload.cwd);
+    return diffService.stagePaths(payload.cwd, payload.paths);
+  });
+  ipcMain.handle(IPC_CHANNELS.diffUnstagePaths, (_, payload: { cwd: string; paths: string[] }) => {
+    assertCwdIsRegistered(payload.cwd);
+    return diffService.unstagePaths(payload.cwd, payload.paths);
+  });
+  ipcMain.handle(IPC_CHANNELS.diffDiscardPaths, (_, payload: { cwd: string; paths: string[] }) => {
+    assertCwdIsRegistered(payload.cwd);
+    return diffService.discardPaths(payload.cwd, payload.paths);
+  });
+  ipcMain.handle(IPC_CHANNELS.diffGitFetch, (_, cwd: string) => { assertCwdIsRegistered(cwd); return diffService.gitFetch(cwd); });
+  ipcMain.handle(IPC_CHANNELS.diffGitPush, (_, cwd: string) => { assertCwdIsRegistered(cwd); return diffService.gitPush(cwd); });
+  ipcMain.handle(IPC_CHANNELS.diffGitCommit, (_, payload: { cwd: string; message: string }) => {
+    assertCwdIsRegistered(payload.cwd);
+    return diffService.commitStaged(payload.cwd, payload.message);
+  });
+  ipcMain.handle(IPC_CHANNELS.diffGitCheckoutBranch, async (_, payload: { cwd: string; branch: string }) => {
+    assertCwdIsRegistered(payload.cwd);
+    await diffService.checkoutBranch(payload.cwd, payload.branch);
+    workspaceService.updateWorktreeBranchAtPath(payload.cwd, payload.branch);
+    emitWorkspaceDidChange();
+    emitWorkingTreeFilesDidChange();
+  });
+  ipcMain.handle(IPC_CHANNELS.filesList, (_, cwd: string) => {
+    assertCwdIsRegistered(cwd);
+    return fileService.listFileSummariesCached(cwd);
+  });
+  ipcMain.handle(IPC_CHANNELS.filesSearch, (_, payload: { cwd: string; query: string }) => {
+    assertCwdIsRegistered(payload.cwd);
+    return fileService.searchFiles(payload.cwd, payload.query);
+  });
+  ipcMain.handle(IPC_CHANNELS.filesSearchContent, (_, payload: { cwd: string; query: string }) => {
+    assertCwdIsRegistered(payload.cwd);
+    return fileService.searchFileContents(payload.cwd, payload.query);
+  });
+  ipcMain.handle(IPC_CHANNELS.filesRead, (_, payload: FileReadInput) => {
+    assertCwdIsRegistered(payload.cwd);
+    return fileService.readFile(payload.cwd, payload.relativePath);
+  });
   ipcMain.handle(IPC_CHANNELS.filesResolveMarkdownImageUrl, (_, payload: FileResolveMarkdownImageUrlInput) =>
     fileService.resolveMarkdownImageUrl(payload.cwd, payload.relativePath, payload.href)
   );
+  ipcMain.handle(
+    IPC_CHANNELS.filesReadImageDataUrlFromAbsolutePath,
+    (_, payload: FileAbsolutePathInput) => fileService.readImageDataUrlFromAbsolutePath(payload.absolutePath)
+  );
   ipcMain.handle(IPC_CHANNELS.filesWrite, async (_, payload: FileWriteInput) => {
+    assertCwdIsRegistered(payload.cwd);
     await fileService.writeFile(payload.cwd, payload.relativePath, payload.content);
     emitWorkingTreeFilesDidChange();
   });
   ipcMain.handle(IPC_CHANNELS.filesCreate, async (_, payload: FileReadInput) => {
+    assertCwdIsRegistered(payload.cwd);
     await fileService.createFile(payload.cwd, payload.relativePath);
     emitWorkingTreeFilesDidChange();
   });
   ipcMain.handle(IPC_CHANNELS.filesDelete, async (_, payload: FileReadInput) => {
+    assertCwdIsRegistered(payload.cwd);
     await fileService.deleteFile(payload.cwd, payload.relativePath);
     emitWorkingTreeFilesDidChange();
   });
   ipcMain.handle(IPC_CHANNELS.filesCreateFolder, async (_, payload: FileReadInput) => {
+    assertCwdIsRegistered(payload.cwd);
     await fileService.createFolder(payload.cwd, payload.relativePath);
     emitWorkingTreeFilesDidChange();
   });
   ipcMain.handle(IPC_CHANNELS.filesDeleteFolder, async (_, payload: FileReadInput) => {
+    assertCwdIsRegistered(payload.cwd);
     await fileService.deleteFolder(payload.cwd, payload.relativePath);
     emitWorkingTreeFilesDidChange();
   });
   ipcMain.handle(IPC_CHANNELS.editApplyPatch, async (_, payload) => {
+    assertCwdIsRegistered(payload.cwd);
     await editService.applyPatch(payload);
     emitWorkingTreeFilesDidChange();
   });
   ipcMain.handle(
     IPC_CHANNELS.terminalPtyCreate,
-    (_, payload: { sessionId: string; cwd: string; worktreeId: string }) =>
-      ptyService.getOrCreate(payload.sessionId, payload.cwd, payload.worktreeId)
+    (_, payload: { sessionId: string; cwd: string; worktreeId: string }) => {
+      assertCwdIsRegistered(payload.cwd);
+      return ptyService.getOrCreate(payload.sessionId, payload.cwd, payload.worktreeId);
+    }
   );
   ipcMain.handle(IPC_CHANNELS.terminalPtyWrite, (_, payload: { sessionId: string; data: string }) => {
     ptyService.write(payload.sessionId, payload.data);
@@ -322,6 +475,14 @@ function registerIpc(workspaceService: WorkspaceService): void {
     if (canceled || filePaths.length === 0) return null;
     return filePaths[0];
   });
+
+  ipcMain.handle(IPC_CHANNELS.appGetVersion, () => app.getVersion());
+  ipcMain.handle(IPC_CHANNELS.appGetReleaseTag, () => getAppReleaseTag());
+  ipcMain.handle(IPC_CHANNELS.appGetUpdateAvailability, () => getWorkbenchUpdateAvailability());
+  ipcMain.handle(IPC_CHANNELS.appOpenExternalUrl, async (_, url: unknown) => {
+    if (typeof url !== "string" || !isAllowedAppOpenExternalUrl(url)) return;
+    await shell.openExternal(url);
+  });
 }
 
 const dataDir = app.getPath("userData");
@@ -330,6 +491,12 @@ const store = new WorkspaceStore(dataDir);
 store.migrate(schemaSql);
 const gitAdapter = createGitAdapter();
 const workspaceService = new WorkspaceService(store, gitAdapter);
+gitHeadWatcher = new GitHeadWatcher({
+  diffService,
+  workspaceService,
+  onWorkingTreeChanged: emitWorkingTreeFilesDidChange,
+  onWorkspaceMetadataChanged: emitWorkspaceDidChange
+});
 ptyService.setSubmittedInputListener((sessionId, input) => {
   let didChange = workspaceService.maybeRenameThreadFromPrompt(sessionId, input);
   // Capture resume/session UUID from a submitted shell line (e.g. `gemini --resume <uuid>` Enter).
@@ -361,6 +528,12 @@ ptyService.setSessionOutputListener((sessionId) => {
   }
 });
 registerIpc(workspaceService);
+gitHeadWatcher.syncFromSnapshot(workspaceService.getSnapshot());
+
+app.on("will-quit", () => {
+  gitHeadWatcher?.dispose();
+  gitHeadWatcher = null;
+});
 
 let allowQuitAfterResumeCapture = false;
 let resumeCaptureOnQuitInFlight = false;
@@ -396,37 +569,4 @@ app.on("activate", () => {
 
 if (app.isPackaged) {
   void checkForUpdate();
-}
-
-async function checkForUpdate(): Promise<void> {
-  try {
-    const res = await fetch("https://api.github.com/repos/Blaise1030/instrumental/releases/latest", {
-      headers: { Accept: "application/vnd.github+json", "User-Agent": "workbench-app" }
-    });
-    if (!res.ok) return;
-    const data = await res.json() as { tag_name?: string; html_url?: string };
-    const latestTag = data.tag_name ?? "";
-    const latestVersion = latestTag.replace(/^v/, "");
-    const currentVersion = app.getVersion();
-    if (!latestVersion || latestVersion === currentVersion) return;
-
-    const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0];
-    const opts = {
-      type: "info" as const,
-      buttons: ["Download", "Later"],
-      defaultId: 0,
-      title: "Update available",
-      message: `workbench ${latestVersion} is available (you have ${currentVersion}).`,
-      detail: "Click Download to open the release page in your browser."
-    };
-    const { response } = win
-      ? await dialog.showMessageBox(win, opts)
-      : await dialog.showMessageBox(opts);
-    if (response === 0) {
-      const url = typeof data.html_url === "string" ? data.html_url : `https://github.com/Blaise1030/instrumental/releases/latest`;
-      void shell.openExternal(url);
-    }
-  } catch {
-    // silently ignore — no network, rate limit, etc.
-  }
 }

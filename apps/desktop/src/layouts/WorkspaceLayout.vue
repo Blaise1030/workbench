@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeMount, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { computed, nextTick, onBeforeMount, onBeforeUnmount, onMounted, provide, ref, watch } from "vue";
 import { ChevronDown, ChevronUp, Plus, Settings } from "lucide-vue-next";
 import Button from "@/components/ui/Button.vue";
 import Badge from "@/components/ui/Badge.vue";
 import SourceControlPanel from "@/components/SourceControlPanel.vue";
+import ScmBranchCombobox from "@/components/ScmBranchCombobox.vue";
 import PillTabs, { type PillTabItem } from "@/components/ui/PillTabs.vue";
 import ProjectTabs from "@/components/ProjectTabs.vue";
 import TerminalPane from "@/components/TerminalPane.vue";
@@ -13,8 +14,13 @@ import FileSearchEditor from "@/components/FileSearchEditor.vue";
 import WorkspaceLauncherModal from "@/components/WorkspaceLauncherModal.vue";
 import ThreadCreateButton from "@/components/ThreadCreateButton.vue";
 import BranchPicker from "@/components/BranchPicker.vue";
+import ContextQueueReviewDropdown from "@/components/contextQueue/ContextQueueReviewDropdown.vue";
+import { injectContextQueue } from "@/contextQueue/injectContextQueue";
+import { injectContextToAgentKey, threadContextQueueKey } from "@/contextQueue/injectionKeys";
+import type { QueueItem } from "@/contextQueue/types";
+import { useThreadContextQueue } from "@/composables/useThreadContextQueue";
 import ThreadSidebar from "@/components/ThreadSidebar.vue";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -43,7 +49,9 @@ import {
   type ThreadCreateDialogOpenOptions
 } from "@/composables/threadCreateDialog";
 import { useWorkspaceKeybindings } from "@/composables/useWorkspaceKeybindings";
-import { formatShortcut, MOD_DIGIT_SLOT_CODES, shortcutForId, titleWithShortcut } from "@/keybindings/registry";
+import { formatShortcut, MOD_DIGIT_SLOT_CODES } from "@/keybindings/registry";
+import { useKeybindingsStore } from "@/stores/keybindingsStore";
+import { LruMap } from "@/lib/lruMap";
 import { useWorkspaceStore } from "@/stores/workspaceStore";
 import { useThreadPtyRunStatus } from "@/composables/useThreadPtyRunStatus";
 import { visibleTerminalSessionId } from "@/terminal/attentionRules";
@@ -53,6 +61,7 @@ import type {
   CreateThreadInput,
   DeleteThreadInput,
   FileDiffScope,
+  FileMergeSidesResult,
   RemoveProjectInput,
   RepoScmSnapshot,
   RepoStatusEntry,
@@ -60,6 +69,14 @@ import type {
   WorkspaceSnapshot
 } from "@shared/ipc";
 const workspace = useWorkspaceStore();
+const threadContextQueue = useThreadContextQueue();
+provide(threadContextQueueKey, threadContextQueue);
+
+const contextQueueItems = computed((): QueueItem[] => {
+  const id = workspace.activeThreadId;
+  return id ? threadContextQueue.itemsFor(id) : [];
+});
+
 const { terminalNotificationsEnabled, terminalActivitySensitivity } = useTerminalSoundSettings();
 /** Fixed policy: bell and background-output rules (settings UI removed). */
 const terminalBellSound = ref(true);
@@ -81,9 +98,11 @@ const scmPushBusy = ref(false);
 const scmCommitBusy = ref(false);
 const selectedScmPath = ref<string | null>(null);
 const selectedScmScope = ref<FileDiffScope | null>(null);
-const selectedDiff = ref("");
+const selectedMergeResult = ref<FileMergeSidesResult | null>(null);
 const selectedDiffLoading = ref(false);
-const diffCache = new Map<string, string>();
+/** Cap for merge diff result cache (LRU by read + write). */
+const DIFF_MERGE_CACHE_MAX = 24;
+const diffCache = new LruMap<string, FileMergeSidesResult>(DIFF_MERGE_CACHE_MAX);
 
 const THREADS_SIDEBAR_COLLAPSED_KEY = "instrument.threadsSidebarCollapsed";
 
@@ -108,6 +127,20 @@ watch(threadsSidebarCollapsed, (collapsed) => {
     /* ignore quota / private mode */
   }
 });
+
+const contextQueueReviewRef = ref<InstanceType<typeof ContextQueueReviewDropdown> | null>(null);
+
+watch(
+  () => threadContextQueue.lastEnqueueEvent.value,
+  (evt) => {
+    if (!evt) return;
+    if (evt.threadId !== workspace.activeThreadId) return;
+    void nextTick(() => {
+      contextQueueReviewRef.value?.openReview();
+    });
+  }
+);
+
 /** Top pills: Agent / Git Diff / Files (never `shell:*`). */
 const mainCenterTab = ref<"agent" | "diff" | "files">("agent");
 /** Lower overlay: thread agent vs extra shell tab. */
@@ -173,6 +206,55 @@ const pendingCloseShellLabel = computed(() => {
 });
 
 const agentTerminalPaneRef = ref<InstanceType<typeof TerminalPane> | null>(null);
+
+async function injectContextItemsToActiveAgent(
+  items: QueueItem[],
+  opts?: { sessionId?: string }
+): Promise<boolean> {
+  const tid = opts?.sessionId ?? workspace.activeThreadId;
+  if (!tid) return false;
+  mainCenterTab.value = "agent";
+  shellOverlayTab.value = "agent";
+  await nextTick();
+  agentTerminalPaneRef.value?.focus?.();
+  const api = window.workspaceApi;
+  if (!api?.ptyWrite) {
+    toast.error("Terminal unavailable", "PTY is not available in this environment.");
+    return false;
+  }
+  try {
+    await injectContextQueue({
+      sessionId: tid,
+      items,
+      ptyWrite: api.ptyWrite,
+      delayMs: 200
+    });
+    return true;
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Injection failed";
+    toast.error("Could not send to agent", msg);
+    return false;
+  }
+}
+
+provide(injectContextToAgentKey, injectContextItemsToActiveAgent);
+
+async function onContextQueueConfirmed(items: QueueItem[]): Promise<void> {
+  const tid = workspace.activeThreadId;
+  if (!tid) return;
+  const ok = await injectContextItemsToActiveAgent(items);
+  if (!ok) return;
+  for (const row of items) {
+    threadContextQueue.removeItem(tid, row.id);
+  }
+}
+
+function onContextQueuePersistDraft(items: QueueItem[]): void {
+  const tid = workspace.activeThreadId;
+  if (!tid) return;
+  threadContextQueue.replaceItems(tid, items);
+}
+
 /**
  * Function refs fire during render/mount; keep this registry non-reactive so storing pane
  * instances does not feed back into WorkspaceLayout updates.
@@ -198,17 +280,31 @@ const threadCreateDestinationLabel = ref<string | null>(null);
 const threadCreateWorktreePath = computed(() => {
   const t = threadCreateSubmitTarget.value;
   if (t.kind === "group") {
-    return workspace.threadGroups.find((w) => w.id === t.worktreeId)?.path ?? null;
+    const projectId = workspace.activeProjectId;
+    if (!projectId) return null;
+    // `threadGroups` omits the primary checkout; "new thread on main" still uses worktreeGroup + default id.
+    return (
+      workspace.worktrees.find((w) => w.id === t.worktreeId && w.projectId === projectId)?.path ?? null
+    );
   }
-  return workspace.defaultWorktree?.path ?? null;
+  return workspace.defaultWorktree?.path ?? workspace.activeWorktree?.path ?? null;
 });
 const fileSearchRef = ref<InstanceType<typeof FileSearchEditor> | null>(null);
 const workspaceLauncherOpen = ref(false);
+const keybindings = useKeybindingsStore();
 const keybindingsEnabled = ref(true);
 const showBranchPicker = ref(false);
 const staleWorktreeIds = ref<Set<string>>(new Set());
 const activeContextBadge = computed(() => workspace.activeContextBadge);
 const activeContextLabel = computed(() => activeContextBadge.value?.displayLabel ?? null);
+
+/** Center bar: branch combobox replaces the "Primary" badge only for single-worktree + Git repos. */
+const showTopBarBranchSwitcher = computed(
+  () =>
+    hasGitRepository.value === true &&
+    workspace.threadGroups.length === 0 &&
+    Boolean(workspace.activeProjectId && workspace.activeWorktree?.path)
+);
 const projectDigitSlotCount = computed(() => Math.min(MOD_DIGIT_SLOT_CODES.length, workspace.projects.length));
 
 /** Top row: workspace views only (terminal sessions switch from the bottom terminal bar). */
@@ -289,9 +385,10 @@ useTerminalAttentionSounds({
 const {
   runStatusByThreadId: ptyRunStatusByThreadId,
   idleAttentionByThreadId: ptyIdleAttentionByThreadId,
-  clearIdleAttention: clearPtyIdleAttention
+  clearIdleAttention: clearPtyIdleAttention,
+  markUserInput: markPtyUserInput
 } = useThreadPtyRunStatus(computed(() => workspace.threads), {
-  visibleSessionId: visiblePtySessionId,
+  activeThreadId: computed(() => workspace.activeThreadId),
   notificationsEnabled: terminalNotificationsEnabled,
   activitySensitivity: terminalActivitySensitivity
 });
@@ -303,7 +400,13 @@ function addShellTerminal(): void {
   shellOverlayTab.value = `shell:${id}`;
 }
 
-const addTerminalTooltipText = titleWithShortcut("Add terminal", "addTerminal");
+/** Matches bottom bar pill labels (Terminal 1, …) for queued terminal context. */
+function overlayShellQueueSessionLabel(slotId: string): string {
+  const i = shellSlotIds.value.indexOf(slotId);
+  return i >= 0 ? `Terminal ${i + 1}` : "Shell";
+}
+
+const addTerminalTooltipText = computed(() => keybindings.titleWithShortcut("Add terminal", "addTerminal"));
 
 function onCenterTabClose(tabValue: string): void {
   if (!tabValue.startsWith("shell:")) return;
@@ -342,8 +445,11 @@ function focusActiveTerminal(): void {
   void nextTick(() => {
     if (shellOverlayTab.value.startsWith("shell:")) {
       const id = shellOverlayTab.value.slice("shell:".length);
-      shellTerminalPaneRefs.get(id)?.focus?.();
+      const pane = shellTerminalPaneRefs.get(id);
+      pane?.refresh?.();
+      pane?.focus?.();
     } else {
+      agentTerminalPaneRef.value?.refresh?.();
       agentTerminalPaneRef.value?.focus?.();
     }
   });
@@ -419,6 +525,10 @@ const activeWorktreeHasThreads = computed(() => workspace.activeThreads.length >
 /** Files is always rooted at the accepted active worktree context. */
 const fileExplorerWorktree = computed(() => workspace.activeWorktree);
 
+const activeWorktreePath = computed(
+  () => workspace.worktrees.find((w) => w.id === workspace.activeWorktreeId)?.path ?? null
+);
+
 function getApi(): WorkspaceApi | null {
   return window.workspaceApi ?? null;
 }
@@ -434,8 +544,8 @@ async function refreshSnapshot(snapshot?: WorkspaceSnapshot): Promise<void> {
   workspace.hydrate(next);
 }
 
-function cacheKey(path: string, scope: FileDiffScope): string {
-  return `${scope}:${path}`;
+function cacheKey(cwd: string, path: string, scope: FileDiffScope): string {
+  return `${cwd}\0${scope}\0${path}`;
 }
 
 function normalizeRepoStatusResult(
@@ -468,41 +578,53 @@ function applyRepoStatusSelection(status: RepoStatusEntry[]): void {
   selectedScmScope.value = firstUnstaged ? "unstaged" : null;
 }
 
-async function loadSelectedDiff(): Promise<void> {
+async function loadSelectedMerge(): Promise<void> {
   const api = getApi();
   const path = selectedScmPath.value;
   const scope = selectedScmScope.value;
   if (!api || !workspace.activeWorktree || !path || !scope) {
-    selectedDiff.value = "";
+    selectedMergeResult.value = null;
+    selectedDiffLoading.value = false;
+    return;
+  }
+  if (scope === "combined") {
+    selectedMergeResult.value = {
+      kind: "error",
+      message: "Combined diff scope is not supported for merge view."
+    };
     selectedDiffLoading.value = false;
     return;
   }
   const seq = ++selectedDiffSeq;
   const cwd = workspace.activeWorktree.path;
-  const key = cacheKey(path, scope);
+  const key = cacheKey(cwd, path, scope);
   const cached = diffCache.get(key);
   if (cached != null) {
-    selectedDiff.value = cached;
+    selectedMergeResult.value = cached;
     selectedDiffLoading.value = false;
     return;
   }
+  if (!api.fileMergeSides) {
+    selectedMergeResult.value = {
+      kind: "error",
+      message: "Update the desktop app to show merge diff in source control."
+    };
+    selectedDiffLoading.value = false;
+    return;
+  }
+  selectedMergeResult.value = null;
   selectedDiffLoading.value = true;
   try {
-    const diff = await api.fileDiff(cwd, path, scope);
+    const result = await api.fileMergeSides(cwd, path, scope);
     if (seq !== selectedDiffSeq || workspace.activeWorktree?.path !== cwd) return;
-    selectedDiff.value = diff;
-    diffCache.set(key, diff);
-    while (diffCache.size > 24) {
-      const oldest = diffCache.keys().next().value;
-      if (!oldest) break;
-      diffCache.delete(oldest);
-    }
+    selectedMergeResult.value = result;
+    diffCache.set(key, result);
   } catch (error) {
     if (seq !== selectedDiffSeq || workspace.activeWorktree?.path !== cwd) return;
-    selectedDiff.value =
-      error instanceof Error
-        ? `Could not load diff: ${error.message}`
-        : "Could not load diff.";
+    selectedMergeResult.value = {
+      kind: "error",
+      message: error instanceof Error ? error.message : "Could not load diff."
+    };
   } finally {
     if (seq === selectedDiffSeq) selectedDiffLoading.value = false;
   }
@@ -516,7 +638,7 @@ async function refreshRepoStatus(): Promise<void> {
     scmMeta.value = { shortLabel: "", branch: "", lastCommitSubject: null };
     selectedScmPath.value = null;
     selectedScmScope.value = null;
-    selectedDiff.value = "";
+    selectedMergeResult.value = null;
     selectedDiffLoading.value = false;
     diffCache.clear();
     return;
@@ -538,7 +660,7 @@ async function refreshRepoStatus(): Promise<void> {
       scmMeta.value = { shortLabel: "", branch: "", lastCommitSubject: null };
       selectedScmPath.value = null;
       selectedScmScope.value = null;
-      selectedDiff.value = "";
+      selectedMergeResult.value = null;
       selectedDiffLoading.value = false;
       diffCache.clear();
       return;
@@ -572,7 +694,7 @@ async function refreshRepoStatus(): Promise<void> {
     }
     applyRepoStatusSelection(statusEntries);
     diffCache.clear();
-    await loadSelectedDiff();
+    await loadSelectedMerge();
   } catch (error) {
     if (seq !== diffRefreshSeq || workspace.activeWorktree?.path !== cwd) return;
     repoStatus.value = [];
@@ -582,10 +704,15 @@ async function refreshRepoStatus(): Promise<void> {
       hasGitRepository.value = false;
       selectedScmPath.value = null;
       selectedScmScope.value = null;
-      selectedDiff.value = "";
+      selectedMergeResult.value = null;
     } else {
-      selectedDiff.value =
-        error instanceof Error ? `Could not load source control status: ${error.message}` : "Could not load source control status.";
+      selectedMergeResult.value = {
+        kind: "error",
+        message:
+          error instanceof Error
+            ? `Could not load source control status: ${error.message}`
+            : "Could not load source control status."
+      };
     }
     selectedDiffLoading.value = false;
   }
@@ -1124,7 +1251,7 @@ async function handleScmCommit(): Promise<void> {
 function handleSelectScmEntry(payload: { path: string; scope: "staged" | "unstaged" }): void {
   selectedScmPath.value = payload.path;
   selectedScmScope.value = payload.scope;
-  void loadSelectedDiff();
+  void loadSelectedMerge();
 }
 
 async function handleScmOpenFileInEditor(path: string): Promise<void> {
@@ -1388,6 +1515,40 @@ watch(
         fileSearchRef.value?.focusSearch?.();
       });
     }
+    if (tab === "agent") {
+      void nextTick(() => agentTerminalPaneRef.value?.refresh?.());
+    }
+  },
+  { flush: "post" }
+);
+
+watch(
+  () => terminalPanelOpen.value,
+  (open) => {
+    if (!open) return;
+    void nextTick(() => {
+      const tab = shellOverlayTab.value;
+      if (tab.startsWith("shell:")) {
+        shellTerminalPaneRefs.get(tab.slice("shell:".length))?.refresh?.();
+      } else {
+        agentTerminalPaneRef.value?.refresh?.();
+      }
+    });
+  },
+  { flush: "post" }
+);
+
+watch(
+  () => shellOverlayTab.value,
+  (tab) => {
+    if (!terminalPanelOpen.value) return;
+    void nextTick(() => {
+      if (tab.startsWith("shell:")) {
+        shellTerminalPaneRefs.get(tab.slice("shell:".length))?.refresh?.();
+      } else {
+        agentTerminalPaneRef.value?.refresh?.();
+      }
+    });
   },
   { flush: "post" }
 );
@@ -1417,7 +1578,7 @@ watch(
           variant="outline"
           size="icon-xs"
           aria-label="Settings"
-          :title="titleWithShortcut('Settings', 'openSettings')"
+          :title="keybindings.titleWithShortcut('Settings', 'openSettings')"
           @click="handleConfigureCommands"
         >
           <Settings class="h-3.5 w-3.5" />
@@ -1522,7 +1683,17 @@ watch(
           v-if="activeWorktreeHasThreads"
           class="flex min-h-0 min-w-0 shrink-0 items-center gap-1 overflow-hidden border-b border-border bg-muted/25 py-px pr-1 pl-0.5"
         >
-          <Badge variant="outline" class="ms-2 shrink-0 text-[10px] text-muted-foreground">
+          <ScmBranchCombobox
+            v-if="showTopBarBranchSwitcher"
+            variant="toolbar"
+            :branch-line="scmBranchLine"
+            :current-branch="scmMeta.branch"
+            :project-id="workspace.activeProjectId ?? ''"
+            :cwd="workspace.activeWorktree?.path ?? ''"
+            switcher-enabled
+            @branch-changed="void refreshRepoStatus()"
+          />
+          <Badge v-else variant="outline" class="ms-2 shrink-0 text-[10px] text-muted-foreground">
             {{ activeContextLabel }}
           </Badge>
           <div class="h-5 shrink-0 border-s ms-2" aria-hidden="true" />
@@ -1531,6 +1702,15 @@ watch(
             class="min-w-0 flex-[1_1_0%] basis-0"
             :tabs="topCenterPanelTabs"
             aria-label="Center panel"
+          />
+          <ContextQueueReviewDropdown
+            v-if="workspace.activeThreadId && contextQueueItems.length > 0"
+            ref="contextQueueReviewRef"
+            :thread-id="workspace.activeThreadId"
+            :items="contextQueueItems"
+            :worktree-path="activeWorktreePath"
+            @confirm="onContextQueueConfirmed"
+            @persist-draft="onContextQueuePersistDraft"
           />
         </div>
         <div
@@ -1577,7 +1757,7 @@ watch(
               type="button"
               data-testid="workspace-create-thread-empty-state"
               aria-label="Add thread"
-              :title="titleWithShortcut('Add thread', 'newThreadMenu')"
+              :title="keybindings.titleWithShortcut('Add thread', 'newThreadMenu')"
               variant="outline"
               size="sm"
               @click="openAddThreadFromToolbarOrEmpty"
@@ -1602,6 +1782,10 @@ watch(
                       :context-label="activeContextLabel"
                       :repo-status="repoStatus"
                       :branch-line="scmBranchLine"
+                      :scm-branch="scmMeta.branch"
+                      :project-id="workspace.activeProjectId"
+                      :scm-cwd="workspace.activeWorktree?.path ?? null"
+                      :allow-scm-branch-switcher="workspace.threadGroups.length === 0"
                       :last-commit-subject="scmMeta.lastCommitSubject"
                       :scm-fetch-available="scmFetchAvailable"
                       :scm-push-available="scmPushAvailable"
@@ -1611,8 +1795,9 @@ watch(
                       :scm-commit-busy="scmCommitBusy"
                       :selected-path="selectedScmPath"
                       :selected-scope="selectedScmScope"
-                      :selected-diff="selectedDiff"
-                      :diff-loading="selectedDiffLoading"
+                      :merge-result="selectedMergeResult"
+                      :merge-loading="selectedDiffLoading"
+                      :active-thread-id="workspace.activeThreadId"
                       @select-entry="handleSelectScmEntry"
                       @stage-all="handleStageAll"
                       @unstage-all="handleUnstageAll"
@@ -1624,6 +1809,7 @@ watch(
                       @push="handleScmPush"
                       @commit="handleScmCommit"
                       @open-file-in-editor="handleScmOpenFileInEditor"
+                      @branch-changed="void refreshRepoStatus()"
                     />
                   </div>
                   <div
@@ -1634,6 +1820,7 @@ watch(
                     <FileSearchEditor
                       ref="fileSearchRef"
                       :worktree-path="fileExplorerWorktree?.path ?? null"
+                      :active-thread-id="workspace.activeThreadId"
                     />
                   </div>
                   <div v-show="mainCenterTab === 'agent'" class="flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -1645,6 +1832,7 @@ watch(
                       :cwd="workspace.activeWorktree?.path ?? ''"
                       :pending-agent-bootstrap="pendingAgentBootstrap"
                       @bootstrap-consumed="onTerminalBootstrapConsumed"
+                      @user-typed="markPtyUserInput"
                     />
                   </div>
                 </div>
@@ -1681,47 +1869,43 @@ watch(
                           aria-label="Terminal sessions"
                           @tab-close="onCenterTabClose"
                         />
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger as-child>
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                class="shrink-0 border-border bg-transparent shadow-none hover:bg-muted/50 dark:border-input dark:bg-transparent dark:hover:bg-input/40"
-                                aria-label="Add terminal"
-                                @click="addShellTerminal"
-                              >
-                                <span class="inline-flex items-center gap-1.5">
-                                  <span class="text-sm leading-none shrink-0" aria-hidden="true">💻</span>
-                                  <span>Add terminal</span>
-                                </span>
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent side="top" data-testid="add-terminal-tooltip">
-                              {{ addTerminalTooltipText }}
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger as-child>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon-sm"
-                                class="shrink-0 text-muted-foreground"
-                                :aria-label="titleWithShortcut('Hide overlay terminals', 'toggleTerminalPanel')"
-                                @click="terminalPanelOpen = false"
-                              >
-                                <ChevronDown class="h-4 w-4" aria-hidden="true" />
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent side="top">
-                              {{ titleWithShortcut("Hide overlay terminals", "toggleTerminalPanel") }}
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger as-child>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              class="shrink-0 border-border bg-transparent shadow-none hover:bg-muted/50 dark:border-input dark:bg-transparent dark:hover:bg-input/40"
+                              aria-label="Add terminal"
+                              @click="addShellTerminal"
+                            >
+                              <span class="inline-flex items-center gap-1.5">
+                                <span class="text-sm leading-none shrink-0" aria-hidden="true">💻</span>
+                                <span>Add terminal</span>
+                              </span>
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent side="top" data-testid="add-terminal-tooltip">
+                            {{ addTerminalTooltipText }}
+                          </TooltipContent>
+                        </Tooltip>
+                        <Tooltip>
+                          <TooltipTrigger as-child>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon-sm"
+                              class="shrink-0 text-muted-foreground"
+                              :aria-label="keybindings.titleWithShortcut('Hide overlay terminals', 'toggleTerminalPanel')"
+                              @click="terminalPanelOpen = false"
+                            >
+                              <ChevronDown class="h-4 w-4" aria-hidden="true" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent side="top">
+                            {{ keybindings.titleWithShortcut("Hide overlay terminals", "toggleTerminalPanel") }}
+                          </TooltipContent>
+                        </Tooltip>
                       </div>
                     </div>
                     <div class="flex min-h-0 flex-1 flex-col overflow-hidden bg-muted/15">
@@ -1738,6 +1922,8 @@ watch(
                           :worktree-id="workspace.activeWorktreeId ?? ''"
                           :thread-id="workspace.activeThreadId ?? ''"
                           :cwd="workspace.activeWorktree?.path ?? ''"
+                          :queue-session-label="overlayShellQueueSessionLabel(slotId)"
+                          @user-typed="markPtyUserInput"
                         />
                       </div>
                       <div
@@ -1758,15 +1944,15 @@ watch(
                   v-if="!terminalPanelOpen"
                   type="button"
                   class="pointer-events-auto flex w-full shrink-0 items-center justify-center gap-2 border-t border-border bg-card py-1 text-xs font-medium text-muted-foreground hover:bg-muted/50"
-                  :title="titleWithShortcut('Show lower terminals', 'toggleTerminalPanel')"
-                  :aria-label="titleWithShortcut('Show lower terminals', 'toggleTerminalPanel')"
+:title="keybindings.titleWithShortcut('Show lower terminals', 'toggleTerminalPanel')"
+                  :aria-label="keybindings.titleWithShortcut('Show lower terminals', 'toggleTerminalPanel')"
                   @click="openTerminalOverlayPanel"
                 >
                   <ChevronUp class="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
                   <span>Terminals</span>
                   <kbd
                     class="pointer-events-none rounded border border-border/80 bg-muted/40 px-1 py-px font-mono text-[10px] font-normal text-muted-foreground tabular-nums"
-                    >{{ shortcutForId("toggleTerminalPanel") }}</kbd
+                    >{{ keybindings.shortcutLabelForId("toggleTerminalPanel") }}</kbd
                   >
                 </button>
               </div>
@@ -1810,7 +1996,7 @@ watch(
           <AlertDialogTitle>Close {{ pendingCloseShellLabel }}?</AlertDialogTitle>
           <AlertDialogDescription>
             The shell session for this tab will end. You can add a new terminal tab later ({{
-              shortcutForId("addTerminal")
+              keybindings.shortcutLabelForId("addTerminal")
             }}).
           </AlertDialogDescription>
         </AlertDialogHeader>

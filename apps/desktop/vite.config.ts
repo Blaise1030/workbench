@@ -1,13 +1,38 @@
 import { fileURLToPath, URL } from "node:url";
 import tailwindcss from "@tailwindcss/vite";
 import vue from "@vitejs/plugin-vue";
-import { defineConfig } from "vite";
+import { defineConfig, type PluginOption } from "vite";
 
-export default defineConfig({
+const analyze = process.env.ANALYZE === "1";
+
+export default defineConfig(async () => {
+  const { visualizer } = analyze
+    ? await import("rollup-plugin-visualizer")
+    : { visualizer: null as never };
+
+  return {
   base: "./",
   plugins: [
     tailwindcss(),
-    vue()
+    vue(),
+    ...(analyze
+      ? [
+          visualizer({
+            filename: fileURLToPath(new URL("./bundle-stats/report.md", import.meta.url)),
+            template: "markdown",
+            gzipSize: true,
+            brotliSize: true,
+            open: false
+          }) as PluginOption,
+          visualizer({
+            filename: fileURLToPath(new URL("./bundle-stats/bundle.html", import.meta.url)),
+            template: "treemap",
+            gzipSize: true,
+            brotliSize: true,
+            open: false
+          }) as PluginOption
+        ]
+      : [])
   ],
   server: {
     watch: {
@@ -28,4 +53,5 @@ export default defineConfig({
       shadcn: fileURLToPath(new URL("./shadcn", import.meta.url))
     }
   }
+  };
 });

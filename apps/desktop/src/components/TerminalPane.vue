@@ -3,7 +3,38 @@ import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "xterm";
 import "xterm/css/xterm.css";
 import { Loader2 } from "lucide-vue-next";
-import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { computed, inject, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import ContextQueueSelectionPopup from "@/components/contextQueue/ContextQueueSelectionPopup.vue";
+import { buildPasteText } from "@/contextQueue/formatters";
+import { injectContextToAgentKey, threadContextQueueKey } from "@/contextQueue/injectionKeys";
+import type { QueueCapture, QueueItem } from "@/contextQueue/types";
+import type { Rect } from "@/lib/contextQueueAnchor";
+import { useToast } from "@/composables/useToast";
+
+/** Union `.xterm-selection` rects (viewport coords) when the DOM renderer exposes them. */
+function mergeXtermSelectionRects(wrap: HTMLElement): Rect | null {
+  const nodes = wrap.querySelectorAll(".xterm-selection");
+  if (!nodes.length) return null;
+  let minL = Infinity;
+  let minT = Infinity;
+  let maxR = -Infinity;
+  let maxB = -Infinity;
+  for (const n of nodes) {
+    const r = (n as HTMLElement).getBoundingClientRect();
+    if (r.width < 1 && r.height < 1) continue;
+    minL = Math.min(minL, r.left);
+    minT = Math.min(minT, r.top);
+    maxR = Math.max(maxR, r.right);
+    maxB = Math.max(maxB, r.bottom);
+  }
+  if (minL === Infinity) return null;
+  return {
+    left: minL,
+    top: minT,
+    width: Math.max(4, maxR - minL),
+    height: Math.max(4, maxB - minT)
+  };
+}
 
 const props = withDefaults(
   defineProps<{
@@ -20,17 +51,61 @@ const props = withDefaults(
     ptyKind?: "agent" | "shell";
     /** Distinct id for each extra terminal tab (PTY key includes worktree + this). */
     shellSlotId?: string;
+    /**
+     * Label for queued terminal snippets (overlay shells). E.g. "Terminal 1" to match the tab.
+     * Agent pane ignores this and uses "Agent".
+     */
+    queueSessionLabel?: string | null;
   }>(),
-  { ptyKind: "agent", shellSlotId: "main" }
+  { ptyKind: "agent", shellSlotId: "main", queueSessionLabel: null }
 );
 
 const emit = defineEmits<{
   bootstrapConsumed: [];
+  "user-typed": [sessionId: string];
 }>();
 
 const paneAriaLabel = computed(() =>
   props.ptyKind === "shell" ? "Terminal" : "Agent"
 );
+
+const threadQueue = inject(threadContextQueueKey, undefined);
+const injectContextToAgent = inject(injectContextToAgentKey, undefined);
+const toast = useToast();
+const terminalQueueVisible = ref(false);
+const terminalQueueAnchor = ref<Rect | null>(null);
+const pendingTerminalText = ref("");
+/** Last pointer-up inside the terminal (viewport); used when xterm has no DOM selection layer. */
+const lastTerminalPointerClient = ref<{ x: number; y: number } | null>(null);
+let terminalQueuePointerCleanup: (() => void) | null = null;
+
+function terminalSelectionAnchorRect(wrap: HTMLElement): Rect {
+  const merged = mergeXtermSelectionRects(wrap);
+  if (merged) return merged;
+  const p = lastTerminalPointerClient.value;
+  if (p) {
+    return { left: p.x - 6, top: p.y - 6, width: 12, height: 12 };
+  }
+  const r = wrap.getBoundingClientRect();
+  return {
+    left: r.left + 12,
+    top: r.bottom - 48,
+    width: 24,
+    height: 12
+  };
+}
+
+function terminalQueueSessionLabel(): string {
+  const custom = props.queueSessionLabel?.trim();
+  return custom && custom.length > 0 ? custom : "Shell";
+}
+
+function terminalQueueCapture(text: string): QueueCapture {
+  if (props.ptyKind === "agent") {
+    return { source: "terminal", selectedText: text, agentTab: true };
+  }
+  return { source: "terminal", selectedText: text, sessionLabel: terminalQueueSessionLabel() };
+}
 
 const containerRef = ref<HTMLElement | null>(null);
 const ptyBusy = ref(false);
@@ -189,6 +264,17 @@ onMounted(async () => {
   fitAddon = new FitAddon();
   terminal.loadAddon(fitAddon);
   terminal.open(el);
+
+  function onTerminalPointerUp(e: PointerEvent): void {
+    if (e.button !== 0) return;
+    lastTerminalPointerClient.value = { x: e.clientX, y: e.clientY };
+  }
+  el.addEventListener("pointerup", onTerminalPointerUp);
+  terminalQueuePointerCleanup = () => {
+    el.removeEventListener("pointerup", onTerminalPointerUp);
+    terminalQueuePointerCleanup = null;
+  };
+
   terminal.attachCustomKeyEventHandler((domEvent) => {
     if (domEvent.type !== "keydown") return true;
     const mod = domEvent.ctrlKey || domEvent.metaKey;
@@ -207,11 +293,17 @@ onMounted(async () => {
   if (api) {
     terminal.onData((data) => {
       const sid = activeSessionId.value;
-      if (sid) void api.ptyWrite(sid, data);
+      if (sid) {
+        emit("user-typed", sid);
+        void api.ptyWrite(sid, data);
+      }
     });
     terminal.onResize(({ cols, rows }) => {
       const sid = activeSessionId.value;
-      if (sid) void api.ptyResize(sid, cols, rows);
+      if (sid) {
+        emit("user-typed", sid);
+        void api.ptyResize(sid, cols, rows);
+      }
     });
   }
 
@@ -244,6 +336,7 @@ onMounted(async () => {
     const api = getApi();
     if (!sid || !api) return;
     const payload = paths.map(shellQuotePathForPty).join(" ");
+    emit("user-typed", sid);
     void api.ptyWrite(sid, payload);
     terminal?.focus();
   };
@@ -255,9 +348,98 @@ onMounted(async () => {
     el.removeEventListener("drop", onDrop);
     dropHandlersCleanup = null;
   };
+
+  terminal.onSelectionChange(() => {
+    window.requestAnimationFrame(() => {
+      // Agent PTY and overlay shell PTYs: same queue / inject-to-agent bar when a thread is active.
+      if (!terminal || !threadQueue || !props.threadId) {
+        terminalQueueVisible.value = false;
+        terminalQueueAnchor.value = null;
+        return;
+      }
+      if (!terminal.hasSelection()) {
+        terminalQueueVisible.value = false;
+        terminalQueueAnchor.value = null;
+        pendingTerminalText.value = "";
+        return;
+      }
+      const text = terminal.getSelection().trim();
+      if (!text) {
+        terminalQueueVisible.value = false;
+        terminalQueueAnchor.value = null;
+        return;
+      }
+      pendingTerminalText.value = terminal.getSelection();
+      const wrap = containerRef.value;
+      if (wrap) {
+        terminalQueueAnchor.value = terminalSelectionAnchorRect(wrap);
+        terminalQueueVisible.value = true;
+      }
+    });
+  });
 });
 
+function dismissTerminalQueuePopup(): void {
+  terminalQueueVisible.value = false;
+  terminalQueueAnchor.value = null;
+}
+
+function onQueueTerminalSelection(): void {
+  if (!threadQueue || !props.threadId) {
+    toast.error("No thread", "Cannot queue terminal output without a thread session.");
+    dismissTerminalQueuePopup();
+    return;
+  }
+  const text = pendingTerminalText.value.trim();
+  if (!text) {
+    dismissTerminalQueuePopup();
+    return;
+  }
+  const capture = terminalQueueCapture(text);
+  threadQueue.addItem(props.threadId, {
+    id: crypto.randomUUID(),
+    source: "terminal",
+    pasteText: buildPasteText(capture),
+    meta: {}
+  });
+  terminal?.clearSelection();
+  dismissTerminalQueuePopup();
+  pendingTerminalText.value = "";
+}
+
+async function onInjectTerminalSelectionToAgent(): Promise<void> {
+  if (!props.threadId) {
+    toast.error("No thread", "Cannot send terminal output without a thread session.");
+    dismissTerminalQueuePopup();
+    return;
+  }
+  const text = pendingTerminalText.value.trim();
+  if (!text) {
+    dismissTerminalQueuePopup();
+    return;
+  }
+  if (!injectContextToAgent) {
+    toast.error("Unavailable", "Sending to the agent is not available here.");
+    dismissTerminalQueuePopup();
+    return;
+  }
+  const capture = terminalQueueCapture(text);
+  const item: QueueItem = {
+    id: crypto.randomUUID(),
+    source: "terminal",
+    pasteText: buildPasteText(capture),
+    meta: {}
+  };
+  const ok = await injectContextToAgent([item], { sessionId: props.threadId });
+  if (ok) {
+    terminal?.clearSelection();
+    dismissTerminalQueuePopup();
+    pendingTerminalText.value = "";
+  }
+}
+
 onBeforeUnmount(() => {
+  terminalQueuePointerCleanup?.();
   dropHandlersCleanup?.();
   resizeObserver?.disconnect();
   resizeObserver = null;
@@ -293,7 +475,25 @@ function focusTerminal(): void {
   terminal?.focus();
 }
 
-defineExpose({ focus: focusTerminal });
+function runResizePass(): void {
+  fit();
+  applyTheme();
+}
+
+/**
+ * Refit after the pane becomes visible (e.g. lower terminal tab change). Two animation-frame passes
+ * mimic a resize “toggle” so xterm measures non-zero layout after `v-show` turns the pane on.
+ */
+function refreshTerminal(): void {
+  requestAnimationFrame(() => {
+    runResizePass();
+    requestAnimationFrame(() => {
+      runResizePass();
+    });
+  });
+}
+
+defineExpose({ focus: focusTerminal, refresh: refreshTerminal });
 </script>
 
 <template>
@@ -315,6 +515,13 @@ defineExpose({ focus: focusTerminal });
       <Loader2 class="h-8 w-8 animate-spin text-muted-foreground" aria-hidden="true" />
       <span class="text-sm text-muted-foreground">Starting terminal…</span>
     </div>
+    <ContextQueueSelectionPopup
+      :visible="terminalQueueVisible"
+      :anchor="terminalQueueAnchor"
+      @queue="onQueueTerminalSelection"
+      @send-to-agent="onInjectTerminalSelectionToAgent"
+      @dismiss="dismissTerminalQueuePopup"
+    />
   </section>
 </template>
 

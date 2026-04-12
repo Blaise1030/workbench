@@ -1,8 +1,13 @@
 import { mount } from "@vue/test-utils";
-import { afterEach, describe, expect, it } from "vitest";
+import { createPinia, setActivePinia } from "pinia";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import ThreadGroupHeader from "@/components/ThreadGroupHeader.vue";
 
 describe("ThreadGroupHeader", () => {
+  beforeEach(() => {
+    setActivePinia(createPinia());
+  });
+
   afterEach(() => {
     document.body.innerHTML = "";
   });

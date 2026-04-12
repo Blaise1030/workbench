@@ -1,6 +1,8 @@
-import { mount } from "@vue/test-utils";
+import { flushPromises, mount } from "@vue/test-utils";
+import { createPinia, setActivePinia } from "pinia";
 import { nextTick } from "vue";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import type { Editor } from "@tiptap/core";
 import ThreadCreateButton from "@/components/ThreadCreateButton.vue";
 
 function getDialog(): HTMLElement {
@@ -9,6 +11,10 @@ function getDialog(): HTMLElement {
 
 describe("ThreadCreateButton", () => {
   let wrapper: ReturnType<typeof mount<typeof ThreadCreateButton>>;
+
+  beforeEach(() => {
+    setActivePinia(createPinia());
+  });
 
   afterEach(() => {
     wrapper?.unmount();
@@ -41,12 +47,12 @@ describe("ThreadCreateButton", () => {
     await wrapper.get('button[aria-label="New thread"]').trigger("click");
     await nextTick();
 
-    const promptEl = document.querySelector(
-      '[data-testid="thread-create-prompt-input"]'
-    ) as HTMLTextAreaElement;
-    expect(promptEl).toBeTruthy();
-    promptEl.value = "Refactor auth";
-    await promptEl.dispatchEvent(new Event("input", { bubbles: true }));
+    const promptHost = document.querySelector('[data-testid="thread-create-prompt-input"]');
+    expect(promptHost).toBeTruthy();
+    await flushPromises();
+    const exposed = wrapper.vm as unknown as { threadPromptEditor?: Editor };
+    expect(exposed.threadPromptEditor).toBeTruthy();
+    exposed.threadPromptEditor!.commands.setContent("<p>Refactor auth</p>");
     await nextTick();
 
     const dialog = getDialog();
@@ -71,5 +77,38 @@ describe("ThreadCreateButton", () => {
 
     const dialog = getDialog();
     expect(dialog.querySelector('[data-testid="thread-create-add-file"]')).toBeTruthy();
+  });
+
+  it("inserts an image badge into the TipTap prompt when attaching an image via the file input", async () => {
+    wrapper = mount(ThreadCreateButton, {
+      attachTo: document.body,
+      slots: { default: "Add thread" }
+    });
+
+    await wrapper.get('button[aria-label="New thread"]').trigger("click");
+    await nextTick();
+    await flushPromises();
+
+    const dialog = getDialog();
+    const input = dialog.querySelector('input[type="file"]') as HTMLInputElement;
+    expect(input).toBeTruthy();
+
+    const file = new File([""], "Screenshot 2026-04-12.png", { type: "image/png" });
+    const fileList = {
+      length: 1,
+      item: (index: number) => (index === 0 ? file : null),
+      0: file,
+      *[Symbol.iterator]() {
+        yield file;
+      }
+    } as FileList;
+    Object.defineProperty(input, "files", { value: fileList, configurable: true });
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+    await nextTick();
+
+    const badge = dialog.querySelector("[data-thread-image-badge]");
+    expect(badge).toBeTruthy();
+    expect(badge?.getAttribute("data-name")).toBe("Screenshot 2026-04-12.png");
+    expect(dialog.querySelector('[data-testid="thread-create-files-strip"]')).toBeNull();
   });
 });

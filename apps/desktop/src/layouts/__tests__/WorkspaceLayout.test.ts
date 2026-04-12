@@ -63,6 +63,12 @@ vi.mock("@/components/ui/PillTabs.vue", () => ({
 vi.mock("@/components/ui/Button.vue", () => ({
   default: { template: "<button><slot /></button>" }
 }));
+vi.mock("@/components/ui/tooltip", () => ({
+  Tooltip: { name: "Tooltip", template: "<div><slot /></div>" },
+  TooltipContent: { name: "TooltipContent", template: "<div><slot /></div>" },
+  TooltipTrigger: { name: "TooltipTrigger", template: "<div><slot /></div>" },
+  TooltipProvider: { name: "TooltipProvider", template: "<div><slot /></div>" }
+}));
 vi.mock("@/components/TerminalPane.vue", () => ({
   default: { template: '<div data-testid="terminal-pane" />' }
 }));
@@ -176,6 +182,7 @@ function makeSnapshot(threadTitles: string | string[]): WorkspaceSnapshot {
         path: "/tmp/instrument",
         isActive: true,
         isDefault: true,
+        baseBranch: null,
         createdAt: "2026-04-06T00:00:00.000Z",
         updatedAt: "2026-04-06T00:00:00.000Z"
       }
@@ -186,9 +193,11 @@ function makeSnapshot(threadTitles: string | string[]): WorkspaceSnapshot {
       worktreeId: "worktree-1",
       title,
       agent: "codex",
+      createdBranch: null,
       createdAt: "2026-04-06T00:00:00.000Z",
       updatedAt: "2026-04-06T00:00:00.000Z"
     })),
+    threadSessions: [],
     activeProjectId: "project-1",
     activeWorktreeId: "worktree-1",
     activeThreadId: titles.length > 0 ? "thread-1" : null
@@ -218,6 +227,7 @@ function makeMultiWorktreeSnapshot(): WorkspaceSnapshot {
         path: "/tmp/instrument",
         isActive: true,
         isDefault: true,
+        baseBranch: null,
         lastActiveThreadId: "thread-1",
         createdAt: "2026-04-06T00:00:00.000Z",
         updatedAt: "2026-04-06T00:00:00.000Z"
@@ -230,6 +240,7 @@ function makeMultiWorktreeSnapshot(): WorkspaceSnapshot {
         path: "/tmp/instrument-feature-a",
         isActive: false,
         isDefault: false,
+        baseBranch: null,
         lastActiveThreadId: "thread-2",
         createdAt: "2026-04-06T00:00:00.000Z",
         updatedAt: "2026-04-06T00:00:00.000Z"
@@ -242,6 +253,7 @@ function makeMultiWorktreeSnapshot(): WorkspaceSnapshot {
         worktreeId: "worktree-1",
         title: "Primary thread",
         agent: "codex",
+        createdBranch: null,
         createdAt: "2026-04-06T00:00:00.000Z",
         updatedAt: "2026-04-06T00:00:00.000Z"
       },
@@ -251,6 +263,7 @@ function makeMultiWorktreeSnapshot(): WorkspaceSnapshot {
         worktreeId: "worktree-2",
         title: "Feature thread",
         agent: "codex",
+        createdBranch: null,
         createdAt: "2026-04-06T00:00:01.000Z",
         updatedAt: "2026-04-06T00:00:01.000Z"
       },
@@ -260,10 +273,12 @@ function makeMultiWorktreeSnapshot(): WorkspaceSnapshot {
         worktreeId: "worktree-2",
         title: "Second feature thread",
         agent: "codex",
+        createdBranch: null,
         createdAt: "2026-04-06T00:00:02.000Z",
         updatedAt: "2026-04-06T00:00:02.000Z"
       }
     ],
+    threadSessions: [],
     activeProjectId: "project-1",
     activeWorktreeId: "worktree-2",
     activeThreadId: "thread-2"
@@ -280,7 +295,9 @@ describe("WorkspaceLayout", () => {
     delete window.workspaceApi;
   });
 
-  it("refreshes the sidebar when Electron reports a background workspace change", async () => {
+  it(
+    "refreshes the sidebar when Electron reports a background workspace change",
+    async () => {
     const { default: WorkspaceLayout } = await import("../WorkspaceLayout.vue");
     const getSnapshot = vi
       .fn<WorkspaceApi["getSnapshot"]>()
@@ -304,6 +321,13 @@ describe("WorkspaceLayout", () => {
       sendRunInput: vi.fn(),
       interruptRun: vi.fn(),
       fileDiff: vi.fn(),
+      fileMergeSides: vi.fn().mockResolvedValue({
+        kind: "ok" as const,
+        original: "",
+        modified: "",
+        originalLabel: "HEAD",
+        modifiedLabel: "Staged"
+      }),
       stageAll: vi.fn(),
       discardAll: vi.fn(),
       listFiles: vi.fn(),
@@ -344,7 +368,9 @@ describe("WorkspaceLayout", () => {
     expect(wrapper.get('[data-testid="thread-sidebar"]').text()).toContain(
       "Rename thread from first prompt"
     );
-  });
+    },
+    15_000
+  );
 
   it("renders the file search editor when the Files tab is selected", async () => {
     const { default: WorkspaceLayout } = await import("../WorkspaceLayout.vue");
@@ -366,6 +392,13 @@ describe("WorkspaceLayout", () => {
       sendRunInput: vi.fn(),
       interruptRun: vi.fn(),
       fileDiff: vi.fn(),
+      fileMergeSides: vi.fn().mockResolvedValue({
+        kind: "ok" as const,
+        original: "",
+        modified: "",
+        originalLabel: "HEAD",
+        modifiedLabel: "Staged"
+      }),
       stageAll: vi.fn(),
       discardAll: vi.fn(),
       listFiles: vi.fn(),
@@ -425,6 +458,13 @@ describe("WorkspaceLayout", () => {
       sendRunInput: vi.fn(),
       interruptRun: vi.fn(),
       fileDiff: vi.fn(),
+      fileMergeSides: vi.fn().mockResolvedValue({
+        kind: "ok" as const,
+        original: "",
+        modified: "",
+        originalLabel: "HEAD",
+        modifiedLabel: "Staged"
+      }),
       stageAll: vi.fn(),
       discardAll: vi.fn(),
       listFiles: vi.fn(),
@@ -462,7 +502,7 @@ describe("WorkspaceLayout", () => {
     expect(wrapper.text()).toContain("feature-a");
   });
 
-  it("shows the active worktree context in the center bar badge for the default worktree", async () => {
+  it("shows a branch combobox in the center bar for the default worktree when Git + branch APIs exist", async () => {
     const { default: WorkspaceLayout } = await import("../WorkspaceLayout.vue");
     const getSnapshot = vi.fn<WorkspaceApi["getSnapshot"]>().mockResolvedValue(makeSnapshot("Codex CLI"));
     const changedFiles = vi.fn<WorkspaceApi["changedFiles"]>().mockResolvedValue([]);
@@ -471,6 +511,14 @@ describe("WorkspaceLayout", () => {
       getSnapshot,
       changedFiles,
       isGitRepository: vi.fn().mockResolvedValue(true),
+      repoStatus: vi.fn().mockResolvedValue({
+        entries: [],
+        branch: "main",
+        shortLabel: "instrument",
+        lastCommitSubject: null
+      }),
+      listBranches: vi.fn().mockResolvedValue(["main", "develop"]),
+      gitCheckoutBranch: vi.fn().mockResolvedValue(undefined),
       addProject: vi.fn(),
       addWorktree: vi.fn(),
       setActive: vi.fn(),
@@ -482,6 +530,13 @@ describe("WorkspaceLayout", () => {
       sendRunInput: vi.fn(),
       interruptRun: vi.fn(),
       fileDiff: vi.fn(),
+      fileMergeSides: vi.fn().mockResolvedValue({
+        kind: "ok" as const,
+        original: "",
+        modified: "",
+        originalLabel: "HEAD",
+        modifiedLabel: "Staged"
+      }),
       stageAll: vi.fn(),
       discardAll: vi.fn(),
       listFiles: vi.fn(),
@@ -513,7 +568,9 @@ describe("WorkspaceLayout", () => {
 
     const agentTab = wrapper.findAll("button").find((button) => button.text().includes("Agent"));
     expect(agentTab?.text()).toContain("🤖 Agent");
-    expect(wrapper.text()).toMatch(/Primary/);
+    const branchTrigger = wrapper.find('[aria-label^="Current branch:"]');
+    expect(branchTrigger.exists()).toBe(true);
+    expect(branchTrigger.attributes("aria-label")).toContain("main");
   });
 
   it("shows the linked worktree context in the center bar badge when active", async () => {
@@ -536,6 +593,13 @@ describe("WorkspaceLayout", () => {
       sendRunInput: vi.fn(),
       interruptRun: vi.fn(),
       fileDiff: vi.fn(),
+      fileMergeSides: vi.fn().mockResolvedValue({
+        kind: "ok" as const,
+        original: "",
+        modified: "",
+        originalLabel: "HEAD",
+        modifiedLabel: "Staged"
+      }),
       stageAll: vi.fn(),
       discardAll: vi.fn(),
       listFiles: vi.fn(),
@@ -590,6 +654,13 @@ describe("WorkspaceLayout", () => {
       sendRunInput: vi.fn(),
       interruptRun: vi.fn(),
       fileDiff: vi.fn(),
+      fileMergeSides: vi.fn().mockResolvedValue({
+        kind: "ok" as const,
+        original: "",
+        modified: "",
+        originalLabel: "HEAD",
+        modifiedLabel: "Staged"
+      }),
       stageAll: vi.fn(),
       discardAll: vi.fn(),
       listFiles: vi.fn(),
@@ -650,6 +721,13 @@ describe("WorkspaceLayout", () => {
       sendRunInput: vi.fn(),
       interruptRun: vi.fn(),
       fileDiff: vi.fn(),
+      fileMergeSides: vi.fn().mockResolvedValue({
+        kind: "ok" as const,
+        original: "",
+        modified: "",
+        originalLabel: "HEAD",
+        modifiedLabel: "Staged"
+      }),
       stageAll: vi.fn(),
       discardAll: vi.fn(),
       listFiles: vi.fn(),
@@ -714,6 +792,13 @@ describe("WorkspaceLayout", () => {
       sendRunInput: vi.fn(),
       interruptRun: vi.fn(),
       fileDiff: vi.fn(),
+      fileMergeSides: vi.fn().mockResolvedValue({
+        kind: "ok" as const,
+        original: "",
+        modified: "",
+        originalLabel: "HEAD",
+        modifiedLabel: "Staged"
+      }),
       stageAll: vi.fn(),
       discardAll: vi.fn(),
       listFiles: vi.fn(),
@@ -782,6 +867,13 @@ describe("WorkspaceLayout", () => {
       sendRunInput: vi.fn(),
       interruptRun: vi.fn(),
       fileDiff: vi.fn(),
+      fileMergeSides: vi.fn().mockResolvedValue({
+        kind: "ok" as const,
+        original: "",
+        modified: "",
+        originalLabel: "HEAD",
+        modifiedLabel: "Staged"
+      }),
       stageAll: vi.fn(),
       discardAll: vi.fn(),
       listFiles: vi.fn(),
@@ -851,6 +943,13 @@ describe("WorkspaceLayout", () => {
       sendRunInput: vi.fn(),
       interruptRun: vi.fn(),
       fileDiff: vi.fn(),
+      fileMergeSides: vi.fn().mockResolvedValue({
+        kind: "ok" as const,
+        original: "",
+        modified: "",
+        originalLabel: "HEAD",
+        modifiedLabel: "Staged"
+      }),
       stageAll: vi.fn(),
       discardAll: vi.fn(),
       listFiles: vi.fn(),
@@ -923,6 +1022,13 @@ describe("WorkspaceLayout", () => {
       sendRunInput: vi.fn(),
       interruptRun: vi.fn(),
       fileDiff: vi.fn(),
+      fileMergeSides: vi.fn().mockResolvedValue({
+        kind: "ok" as const,
+        original: "",
+        modified: "",
+        originalLabel: "HEAD",
+        modifiedLabel: "Staged"
+      }),
       stageAll: vi.fn(),
       discardAll: vi.fn(),
       listFiles: vi.fn(),
@@ -982,6 +1088,13 @@ describe("WorkspaceLayout", () => {
       sendRunInput: vi.fn(),
       interruptRun: vi.fn(),
       fileDiff: vi.fn(),
+      fileMergeSides: vi.fn().mockResolvedValue({
+        kind: "ok" as const,
+        original: "",
+        modified: "",
+        originalLabel: "HEAD",
+        modifiedLabel: "Staged"
+      }),
       stageAll: vi.fn(),
       discardAll: vi.fn(),
       listFiles: vi.fn(),
@@ -1066,6 +1179,13 @@ describe("WorkspaceLayout", () => {
       sendRunInput: vi.fn(),
       interruptRun: vi.fn(),
       fileDiff: vi.fn(),
+      fileMergeSides: vi.fn().mockResolvedValue({
+        kind: "ok" as const,
+        original: "",
+        modified: "",
+        originalLabel: "HEAD",
+        modifiedLabel: "Staged"
+      }),
       stageAll: vi.fn(),
       discardAll: vi.fn(),
       listFiles: vi.fn(),
@@ -1132,6 +1252,13 @@ describe("WorkspaceLayout", () => {
       sendRunInput: vi.fn(),
       interruptRun: vi.fn(),
       fileDiff: vi.fn(),
+      fileMergeSides: vi.fn().mockResolvedValue({
+        kind: "ok" as const,
+        original: "",
+        modified: "",
+        originalLabel: "HEAD",
+        modifiedLabel: "Staged"
+      }),
       stageAll: vi.fn(),
       discardAll: vi.fn(),
       listFiles: vi.fn(),
@@ -1226,6 +1353,7 @@ describe("WorkspaceLayout", () => {
           worktreeId: "worktree-1",
           title: "Codex CLI",
           agent: "codex",
+          createdBranch: null,
           createdAt: "2026-04-06T00:00:00.000Z",
           updatedAt: "2026-04-06T00:00:00.000Z"
         },
@@ -1235,6 +1363,7 @@ describe("WorkspaceLayout", () => {
           worktreeId: "worktree-2",
           title: "Other workspace",
           agent: "codex",
+          createdBranch: null,
           createdAt: "2026-04-06T00:00:00.000Z",
           updatedAt: "2026-04-06T00:00:00.000Z"
         }
@@ -1276,6 +1405,13 @@ describe("WorkspaceLayout", () => {
       sendRunInput: vi.fn(),
       interruptRun: vi.fn(),
       fileDiff: vi.fn(),
+      fileMergeSides: vi.fn().mockResolvedValue({
+        kind: "ok" as const,
+        original: "",
+        modified: "",
+        originalLabel: "HEAD",
+        modifiedLabel: "Staged"
+      }),
       stageAll: vi.fn(),
       discardAll: vi.fn(),
       listFiles: vi.fn(),

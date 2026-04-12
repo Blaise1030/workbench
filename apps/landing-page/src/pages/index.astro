@@ -1,6 +1,6 @@
 ---
 import "../styles/global.css";
-import { LATEST_RELEASE_JSON_URL, LATEST_RELEASE_PAGE_URL } from "../constants/releases";
+import { CHANGELOG_URL, LATEST_RELEASE_JSON_URL, LATEST_RELEASE_PAGE_URL } from "../constants/releases";
 import claudeSymbolSvg from "../../../desktop/src/assets/claude-ai-symbol.svg?raw";
 
 /** Same as `apps/desktop/src/constants/appMeta.ts` — threads panel header title */
@@ -335,10 +335,64 @@ const claudePathD = pathDFromSvg(claudeSymbolSvg);
 		</div>
 
 		<footer class="border-t border-zinc-200/80 bg-white py-10">
-			<div class="mx-auto max-w-5xl px-6 text-center text-sm text-zinc-500 md:text-left">
-				<p>© {new Date().getFullYear()} workbench</p>
+			<div
+				class="mx-auto flex max-w-5xl flex-col items-center gap-3 px-6 text-center text-sm text-zinc-500 md:flex-row md:items-center md:justify-between md:text-left"
+			>
+				<p class="m-0">© {new Date().getFullYear()} workbench</p>
+				<a
+					href={CHANGELOG_URL}
+					class="font-medium text-zinc-600 underline decoration-zinc-300 underline-offset-4 transition hover:text-zinc-900 hover:decoration-zinc-500"
+					target="_blank"
+					rel="noopener noreferrer"
+				>
+					Changelog
+				</a>
 			</div>
 		</footer>
+
+		<!-- Top-level: must stay outside `.scroll-scale-in` (transform breaks positioning). Centering: global.css -->
+		<dialog
+			id="mac-gatekeeper-notice"
+			class="z-[300] max-w-none bg-transparent shadow-none"
+			aria-labelledby="mac-gatekeeper-title"
+			aria-describedby="mac-gatekeeper-desc"
+		>
+			<div
+				class="mac-gatekeeper-panel rounded-2xl border border-zinc-200 bg-white p-6 text-left shadow-2xl shadow-zinc-900/10"
+			>
+				<h2 id="mac-gatekeeper-title" class="text-base font-semibold text-zinc-900">
+					workbench is downloading
+				</h2>
+				<p id="mac-gatekeeper-desc" class="mt-3 text-sm leading-relaxed text-zinc-600">
+					The file should appear in your Downloads folder in a moment. We are not on the Apple Developer Program, so macOS may show a security warning the first time you open workbench. If it does, use System Settings (below) or in Finder right-click workbench and choose <span class="whitespace-nowrap">Open</span>.
+				</p>
+				<div class="mt-4 max-w-xl">
+					<figure class="m-0 min-w-0 overflow-hidden rounded-xl border border-zinc-200 bg-zinc-50">
+						<img
+							src="/mac-gatekeeper-notice.png"
+							alt="Screenshot: macOS System Settings → Security, message that workbench was blocked, with Open Anyway indicated."
+							width="492"
+							height="198"
+							loading="lazy"
+							decoding="async"
+							class="block h-auto w-full"
+						/>
+						<figcaption class="border-t border-zinc-200 bg-white px-3 py-2 text-center text-[11px] font-medium leading-snug text-zinc-700">
+							<span class="block">If macOS blocked the app: System Settings → Privacy &amp; Security → click <span class="whitespace-nowrap">Open Anyway</span>.</span>
+							<span class="mt-1 block text-zinc-600">Or in Finder: right-click workbench → <span class="whitespace-nowrap">Open</span>.</span>
+						</figcaption>
+					</figure>
+				</div>
+				<form method="dialog" class="mt-6 flex justify-end">
+					<button
+						type="submit"
+						class="rounded-full bg-zinc-900 px-5 py-2 text-sm font-semibold text-white transition hover:bg-zinc-800"
+					>
+						Got it
+					</button>
+				</form>
+			</div>
+		</dialog>
 
 		<script>
 			const preview = document.querySelector(".preview-scale-in");
@@ -408,10 +462,23 @@ const claudePathD = pathDFromSvg(claudeSymbolSvg);
 				return "Download for macOS";
 			}
 
+			/** Starts a file download without opening a new tab or navigating this page away. */
+			function triggerDownloadSameTab(url) {
+				const iframe = document.createElement("iframe");
+				iframe.setAttribute("aria-hidden", "true");
+				iframe.tabIndex = -1;
+				iframe.style.cssText =
+					"position:fixed;width:0;height:0;border:0;margin:0;padding:0;opacity:0;pointer-events:none;visibility:hidden";
+				iframe.src = url;
+				document.body.appendChild(iframe);
+				window.setTimeout(() => iframe.remove(), 180_000);
+			}
+
 			(() => {
 				const btn = document.getElementById("download-btn");
 				const labelEl = document.getElementById("download-btn-label");
 				const versionEl = document.getElementById("download-version");
+				const macNotice = document.getElementById("mac-gatekeeper-notice");
 				if (!btn || !labelEl) return;
 
 				const platform = pickPlatform();
@@ -428,6 +495,15 @@ const claudePathD = pathDFromSvg(claudeSymbolSvg);
 					versionEl.textContent = `Version ${SSR_MANIFEST.version}`;
 					versionEl.classList.remove("hidden");
 				}
+
+				btn.addEventListener("click", (e) => {
+					if (platform !== "mac") return;
+					if (!(macNotice instanceof HTMLDialogElement)) return;
+					e.preventDefault();
+					const href = btn.getAttribute("href");
+					macNotice.showModal();
+					if (href) triggerDownloadSameTab(href);
+				});
 			})();
 		</script>
 	</body>

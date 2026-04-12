@@ -92,3 +92,24 @@
 		transform: none;
 	}
 }
+
+/* macOS download notice: center native <dialog> without translate (avoids UA + stacking quirks). */
+#mac-gatekeeper-notice {
+	position: fixed;
+	inset: 0;
+	width: min(calc(100vw - 1.5rem), 36rem);
+	max-height: min(90dvh, 44rem);
+	height: max-content;
+	margin: auto;
+	border-width: 0;
+	padding: 0;
+	background: transparent;
+	overflow: visible;
+}
+#mac-gatekeeper-notice::backdrop {
+	background: rgb(24 24 27 / 0.4);
+}
+#mac-gatekeeper-notice .mac-gatekeeper-panel {
+	max-height: min(90dvh, 44rem);
+	overflow-y: auto;
+}

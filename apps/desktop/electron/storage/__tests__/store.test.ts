@@ -148,6 +148,7 @@ function makeThread(overrides: Partial<StoreThread> = {}): StoreThread {
     worktreeId: "worktree-1",
     title: "Codex CLI",
     agent: "codex",
+    createdBranch: null,
     createdAt: "2026-04-06T00:00:00.000Z",
     updatedAt: "2026-04-06T00:00:00.000Z",
     ...overrides

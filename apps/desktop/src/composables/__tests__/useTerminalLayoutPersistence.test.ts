@@ -15,14 +15,14 @@ describe("useTerminalLayoutPersistence", () => {
     saveTerminalLayout("wt-1", {
       centerTab: "diff",
       shellSlotIds: ["a", "b"],
-      terminalPanelOpen: false,
-      agentShellSplitUpperFraction: 0.62
+      terminalPanelOpen: false
     });
     expect(loadTerminalLayout("wt-1")).toEqual({
       centerTab: "diff",
       shellSlotIds: ["a", "b"],
       terminalPanelOpen: false,
-      agentShellSplitUpperFraction: 0.62
+      shellOverlayTab: undefined,
+      terminalPanelHeightPx: undefined
     });
   });
 

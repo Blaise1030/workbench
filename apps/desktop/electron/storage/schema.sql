@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS threads (
   worktree_id TEXT NOT NULL,
   title TEXT NOT NULL,
   agent TEXT NOT NULL,
+  created_branch TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
   FOREIGN KEY(project_id) REFERENCES projects(id),

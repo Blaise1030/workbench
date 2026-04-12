@@ -1,21 +1,17 @@
-<script lang="ts">
-import { titleWithShortcut } from "@/keybindings/registry";
-
-export const threadCreateButtonDefaultTitle = titleWithShortcut(
-  "New thread",
-  "newThreadMenu"
-);
-</script>
-
 <script setup lang="ts">
 import type { ThreadAgent, ThreadCreateWithAgentPayload } from "@shared/domain";
-import { BookMarked, MessageSquarePlus, Paperclip, Slash, X } from "lucide-vue-next";
-import { computed, nextTick, onBeforeUnmount, ref, toRef, watch } from "vue";
+import Placeholder from "@tiptap/extension-placeholder";
+import StarterKit from "@tiptap/starter-kit";
+import { EditorContent, useEditor } from "@tiptap/vue-3";
+import { BookMarked, MessageSquarePlus, Paperclip, X } from "lucide-vue-next";
+import { computed, nextTick, onBeforeUnmount, ref, unref, watch } from "vue";
+import { useKeybindingsStore } from "@/stores/keybindingsStore";
 import AgentIcon from "@/components/ui/AgentIcon.vue";
 import Button from "@/components/ui/Button.vue";
 import { badgeVariants } from "@/components/ui/badge";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { isImageFile, pathFromFile, type LocalFileAttachment } from "@/lib/localFileAttachment";
 import {
   Dialog,
   DialogContent,
@@ -31,13 +27,16 @@ import {
   SelectLabel,
   SelectTrigger
 } from "@/components/ui/select";
-import Textarea from "@/components/ui/Textarea.vue";
 import { readPreferredThreadAgent } from "@/composables/usePreferredThreadAgent";
-import { absolutePathInWorktree, type ThreadMentionItem } from "@/composables/useThreadCreateMentions";
 import {
-  useThreadCreatePromptCompletions,
-  type ThreadSlashCommand
-} from "@/composables/useThreadCreatePromptCompletions";
+  createThreadCreatePromptExtensions,
+  isThreadCreateSuggestionActive,
+  ThreadImageBadge
+} from "@/lib/threadCreateEditorExtensions";
+import { collectDocAttachmentPaths } from "@/lib/threadCreatePromptSerialize";
+
+const THREAD_CREATE_PROMPT_PLACEHOLDER =
+  "What do you want to build? Use @ for files or / for commands…";
 
 const props = withDefaults(
   defineProps<{
@@ -55,7 +54,7 @@ const props = withDefaults(
   }>(),
   {
     ariaLabel: "New thread",
-    title: threadCreateButtonDefaultTitle,
+    title: undefined,
     variant: "outline",
     size: "icon-xs",
     buttonClass: "",
@@ -69,6 +68,9 @@ const emit = defineEmits<{
   createWithAgent: [payload: ThreadCreateWithAgentPayload];
 }>();
 
+const keybindings = useKeybindingsStore();
+const resolvedTitle = computed(() => props.title ?? keybindings.titleWithShortcut("New thread", "newThreadMenu"));
+
 const AGENT_OPTIONS: { agent: ThreadAgent; label: string }[] = [
   { agent: "claude", label: "Claude Code" },
   { agent: "cursor", label: "Cursor Agent" },
@@ -76,12 +78,7 @@ const AGENT_OPTIONS: { agent: ThreadAgent; label: string }[] = [
   { agent: "gemini", label: "Gemini CLI" }
 ];
 
-type Attachment = {
-  id: string;
-  path: string;
-  name: string;
-  isImage: boolean;
-};
+type Attachment = LocalFileAttachment;
 
 function attachmentEmoji(name: string, isImage: boolean): string {
   if (isImage) return "🖼️";
@@ -107,7 +104,6 @@ function attachmentEmoji(name: string, isImage: boolean): string {
 }
 
 const overlayOpen = ref(false);
-const promptText = ref("");
 const selectedAgent = ref<ThreadAgent>(readPreferredThreadAgent());
 
 const selectedAgentLabel = computed(
@@ -119,61 +115,85 @@ const trimmedDestinationContext = computed(() => {
   return t && t.length > 0 ? t : null;
 });
 
-const promptInputRef = ref<InstanceType<typeof Textarea> | null>(null);
-const worktreePathRef = toRef(props, "worktreePath");
+const threadPromptEditor = useEditor({
+  extensions: [
+    StarterKit.configure({
+      heading: { levels: [2, 3] },
+      bulletList: { HTMLAttributes: { class: "list-disc pl-4" } },
+      orderedList: { HTMLAttributes: { class: "list-decimal pl-4" } }
+    }),
+    Placeholder.configure({
+      placeholder: THREAD_CREATE_PROMPT_PLACEHOLDER
+    }),
+    ThreadImageBadge,
+    createThreadCreatePromptExtensions({
+      getWorktreePath: () => props.worktreePath
+    })
+  ],
+  content: "<p></p>",
+  immediatelyRender: false,
+  editorProps: {
+    attributes: {
+      class:
+        "tiptap thread-create-prompt-editor min-h-[12rem] max-h-[min(40vh,22rem)] overflow-y-auto px-4 py-4 text-[15px] leading-relaxed text-foreground outline-none focus:outline-none [&_.ProseMirror]:min-h-[12rem] [&_p]:my-1 [&_ul]:my-1 [&_ol]:my-1",
+      role: "textbox",
+      "aria-multiline": "true",
+      "aria-label": "Thread goal or prompt",
+      "aria-placeholder": THREAD_CREATE_PROMPT_PLACEHOLDER,
+      tabindex: "0"
+    },
+    handleKeyDown(view, event) {
+      if (isThreadCreateSuggestionActive(view)) {
+        if (event.key === "Enter" && !event.shiftKey) return false;
+        if (event.key === "Escape") return false;
+      }
+      if (event.key === "Escape") {
+        overlayOpen.value = false;
+        return true;
+      }
+      if (event.key === "Enter" && !event.shiftKey) {
+        event.preventDefault();
+        submit();
+        return true;
+      }
+      return false;
+    },
+    handleDOMEvents: {
+      drop(view, event) {
+        const dt = event.dataTransfer;
+        if (!dt?.files?.length) return false;
+        const target = event.target as HTMLElement | null;
+        if (!target?.closest?.(".ProseMirror")) return false;
+        event.preventDefault();
+        event.stopPropagation();
+        const editor = threadPromptEditor.value;
+        if (!editor) return true;
+        const coords = view.posAtCoords({ left: event.clientX, top: event.clientY });
+        if (coords == null) return true;
+        const pos = coords.pos;
+        const imageNodes: { type: string; attrs: { path: string; name: string } }[] = [];
+        for (const file of Array.from(dt.files)) {
+          if (isImageFile(file)) {
+            imageNodes.push({
+              type: "threadImageBadge",
+              attrs: { path: pathFromFile(file), name: file.name }
+            });
+          } else {
+            addFilesFromList([file]);
+          }
+        }
+        if (imageNodes.length > 0) {
+          editor.chain().focus().insertContentAt(pos, imageNodes).run();
+        }
+        return true;
+      }
+    }
+  }
+});
+
 const fileInputRef = ref<HTMLInputElement | null>(null);
 const skillAttachments = ref<Attachment[]>([]);
 const fileAttachments = ref<Attachment[]>([]);
-
-function handleMentionPick(item: ThreadMentionItem, replaceFrom: number, replaceTo: number): void {
-  const cwd = props.worktreePath;
-  if (!cwd) return;
-  const abs = absolutePathInWorktree(cwd, item.relativePath);
-  const name = item.relativePath.split("/").pop() ?? item.relativePath;
-  const att: Attachment = {
-    id: crypto.randomUUID(),
-    path: abs,
-    name,
-    isImage: false
-  };
-  if (item.kind === "skill") {
-    if (!skillAttachments.value.some((a) => a.path === abs)) skillAttachments.value.push(att);
-  } else if (!fileAttachments.value.some((a) => a.path === abs)) {
-    fileAttachments.value.push(att);
-  }
-  promptText.value = promptText.value.slice(0, replaceFrom) + promptText.value.slice(replaceTo);
-  void nextTick(() => promptInputRef.value?.focus());
-}
-
-function handleSlashPick(cmd: ThreadSlashCommand, replaceFrom: number, replaceTo: number): void {
-  promptText.value =
-    promptText.value.slice(0, replaceFrom) + cmd.insert + promptText.value.slice(replaceTo);
-  void nextTick(() => {
-    const el = promptInputRef.value?.element;
-    const pos = replaceFrom + cmd.insert.length;
-    el?.setSelectionRange(pos, pos);
-    promptInputRef.value?.focus();
-  });
-}
-
-const {
-  menuKind,
-  mentionLoading,
-  mentionItems,
-  slashItems,
-  selectedIndex,
-  onPromptInput,
-  handlePromptKeydown,
-  closeMenu,
-  pickSlashAtIndex,
-  pickMentionAtIndex
-} = useThreadCreatePromptCompletions({
-  promptText,
-  worktreePath: worktreePathRef,
-  getPromptTextarea: () => promptInputRef.value?.element ?? null,
-  onPickMention: handleMentionPick,
-  onPickSlash: handleSlashPick
-});
 
 function clearAttachments(): void {
   skillAttachments.value = [];
@@ -181,7 +201,7 @@ function clearAttachments(): void {
 }
 
 function resetOverlay(): void {
-  promptText.value = "";
+  unref(threadPromptEditor)?.commands.setContent("<p></p>", false);
   selectedAgent.value = readPreferredThreadAgent();
   clearAttachments();
 }
@@ -189,10 +209,11 @@ function resetOverlay(): void {
 watch(overlayOpen, (open) => {
   if (!open) {
     resetOverlay();
-    closeMenu();
     return;
   }
-  void nextTick(() => promptInputRef.value?.focus());
+  void nextTick(() => {
+    threadPromptEditor.value?.commands.focus("end");
+  });
 });
 
 function openOverlay(): void {
@@ -200,31 +221,29 @@ function openOverlay(): void {
   overlayOpen.value = true;
 }
 
-function pathFromFile(file: File): string {
-  const getPath = window.workspaceApi?.getPathForFile;
-  if (getPath) {
-    try {
-      const p = getPath(file);
-      if (p && p.length > 0) return p;
-    } catch {
-      /* invalid / non-local file */
-    }
-  }
-  const legacy = (file as File & { path?: string }).path;
-  if (legacy && legacy.length > 0) return legacy;
-  return file.name;
-}
-
-function isImageFile(file: File): boolean {
-  if (file.type.startsWith("image/")) return true;
-  return /\.(png|jpe?g|gif|webp|bmp|svg|ico)$/i.test(file.name);
-}
-
 function addFilesFromList(files: FileList | File[]): void {
+  const editor = threadPromptEditor.value;
   for (const file of Array.from(files)) {
     const path = pathFromFile(file);
     const name = file.name;
     const isImage = isImageFile(file);
+    if (isImage) {
+      if (editor) {
+        editor
+          .chain()
+          .focus("end")
+          .insertContent([{ type: "threadImageBadge", attrs: { path, name } }])
+          .run();
+      } else {
+        fileAttachments.value.push({
+          id: crypto.randomUUID(),
+          path,
+          name,
+          isImage
+        });
+      }
+      continue;
+    }
     fileAttachments.value.push({
       id: crypto.randomUUID(),
       path,
@@ -265,6 +284,8 @@ function onThreadCreateDragOver(e: DragEvent): void {
 
 function onThreadCreateDrop(e: DragEvent): void {
   if (!isFileDrag(e.dataTransfer)) return;
+  const target = e.target as HTMLElement | null;
+  if (target?.closest?.(".ProseMirror")) return;
   e.preventDefault();
   e.stopPropagation();
   const dt = e.dataTransfer;
@@ -273,15 +294,24 @@ function onThreadCreateDrop(e: DragEvent): void {
 }
 
 function buildFullPrompt(): string {
-  const body = promptText.value;
+  const ed = threadPromptEditor.value;
+  if (!ed) return "";
+  const body = ed.getText({ blockSeparator: "\n" }).trimEnd();
+  const fromDoc = collectDocAttachmentPaths(ed.state.doc);
+  const skillPaths = new Set<string>([
+    ...fromDoc.skillPaths,
+    ...skillAttachments.value.map((a) => a.path)
+  ]);
+  const filePaths = new Set<string>([
+    ...fromDoc.filePaths,
+    ...fileAttachments.value.map((a) => a.path)
+  ]);
   const parts: string[] = [];
-  if (skillAttachments.value.length > 0) {
-    parts.push(
-      `[Attached skills]\n${skillAttachments.value.map((a) => a.path).join("\n")}`
-    );
+  if (skillPaths.size > 0) {
+    parts.push(`[Attached skills]\n${[...skillPaths].join("\n")}`);
   }
-  if (fileAttachments.value.length > 0) {
-    parts.push(`[Attached files]\n${fileAttachments.value.map((a) => a.path).join("\n")}`);
+  if (filePaths.size > 0) {
+    parts.push(`[Attached files]\n${[...filePaths].join("\n")}`);
   }
   if (parts.length === 0) return body;
   const attachmentBlock = `\n\n${parts.join("\n\n")}`;
@@ -290,7 +320,8 @@ function buildFullPrompt(): string {
 }
 
 function deriveThreadTitle(): string | undefined {
-  const first = promptText.value.trim().split(/\n/)[0]?.trim() ?? "";
+  const flat = threadPromptEditor.value?.getText({ blockSeparator: "\n" }) ?? "";
+  const first = flat.trim().split(/\n/)[0]?.trim() ?? "";
   if (first) return first.length > 120 ? `${first.slice(0, 117)}…` : first;
   if (fileAttachments.value.length) {
     const n = fileAttachments.value[0]!.name;
@@ -315,18 +346,11 @@ function submit(): void {
   overlayOpen.value = false;
 }
 
-function onPromptKeydown(e: KeyboardEvent): void {
-  if (handlePromptKeydown(e)) return;
-  if (e.key !== "Enter" || e.shiftKey) return;
-  e.preventDefault();
-  submit();
-}
-
 onBeforeUnmount(() => {
   clearAttachments();
 });
 
-defineExpose({ openMenu: openOverlay });
+defineExpose({ openMenu: openOverlay, threadPromptEditor });
 </script>
 
 <template>
@@ -337,7 +361,7 @@ defineExpose({ openMenu: openOverlay });
         :size="size"
         :variant="variant"
         :aria-label="ariaLabel"
-        :title="title"
+        :title="resolvedTitle"
         :class="buttonClass"
       >
         <slot />
@@ -354,108 +378,23 @@ defineExpose({ openMenu: openOverlay });
       <Card
         class="gap-0 overflow-hidden rounded-2xl border border-border bg-card py-0 shadow-none ring-0"
       >        
-        <CardContent class="relative p-0">          
+        <CardContent class="relative p-0">
           <DialogTitle id="thread-create-overlay-title" class="sr-only">New thread</DialogTitle>
           <DialogDescription class="sr-only">
             Start a thread with a coding agent. Attach files with the paperclip, choose an agent, then press Enter or
             Start thread.
           </DialogDescription>
-          <Textarea
-            ref="promptInputRef"
-            v-model="promptText"
+          <div
             data-testid="thread-create-prompt-input"
-            :rows="4"
-            placeholder="I want to build ...."
-            aria-label="Thread goal or prompt"
-            class="min-h-[8.5rem] resize-none rounded-none border-0 bg-transparent px-4 py-4 text-[15px] leading-relaxed text-foreground shadow-none placeholder:text-muted-foreground focus-visible:ring-0"
-            @input="onPromptInput"
-            @click="onPromptInput"
-            @keydown="onPromptKeydown"
-          />
-
-          <div
-            v-if="menuKind === 'slash'"
-            data-testid="thread-create-slash-popup"
-            class="absolute left-2 right-2 top-full z-[100] mt-0 max-h-52 overflow-y-auto rounded-lg border border-border bg-popover py-1 text-popover-foreground shadow-lg"
-            role="listbox"
-            aria-label="Slash commands"
+            class="thread-create-prompt-host min-h-[12rem] w-full rounded-none border-0 bg-transparent shadow-none"
+            role="presentation"
           >
-            <div class="px-2 pb-0.5 pt-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-              Commands
-            </div>
-            <template v-if="slashItems.length === 0">
-              <p class="px-3 py-2 text-xs text-muted-foreground">No matching commands.</p>
-            </template>
-            <template v-else>
-              <button
-                v-for="(cmd, idx) in slashItems"
-                :key="cmd.id"
-                type="button"
-                role="option"
-                class="flex w-full min-w-0 flex-col gap-0.5 px-2 py-1.5 text-left text-xs hover:bg-accent"
-                :class="idx === selectedIndex ? 'bg-accent' : ''"
-                :aria-selected="idx === selectedIndex"
-                @mousedown.prevent="pickSlashAtIndex(idx)"
-              >
-                <span class="flex min-w-0 items-center gap-2">
-                  <Slash class="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
-                  <span class="font-mono text-[11px] font-medium text-foreground">{{ cmd.insert }}</span>
-                </span>
-                <span class="pl-5 text-[11px] text-muted-foreground">{{ cmd.description }}</span>
-              </button>
-            </template>
+            <editor-content
+              v-if="threadPromptEditor"
+              :editor="threadPromptEditor"
+              class="min-h-[inherit] w-full rounded-none border-0 bg-transparent"
+            />
           </div>
-
-          <div
-            v-if="menuKind === 'mention' && worktreePath"
-            data-testid="thread-create-mention-popup"
-            class="absolute left-2 right-2 top-full z-[100] mt-0 max-h-52 overflow-y-auto rounded-lg border border-border bg-popover py-1 text-popover-foreground shadow-lg"
-            role="listbox"
-            aria-label="Repository files and skills"
-          >
-            <div v-if="mentionLoading" class="px-3 py-2 text-xs text-muted-foreground">
-              Searching repository…
-            </div>
-            <template v-else-if="mentionItems.length === 0">
-              <p class="px-3 py-2 text-xs text-muted-foreground">No matching files.</p>
-            </template>
-            <template v-else>
-              <template v-for="(item, idx) in mentionItems" :key="item.relativePath">
-                <div
-                  v-if="idx === 0 || item.kind !== mentionItems[idx - 1]!.kind"
-                  class="px-2 pb-0.5 pt-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground first:pt-1"
-                >
-                  {{ item.kind === "skill" ? "Skills" : "Files" }}
-                </div>
-                <button
-                  type="button"
-                  role="option"
-                  class="flex w-full min-w-0 items-center gap-2 px-2 py-1.5 text-left text-xs hover:bg-accent"
-                  :class="idx === selectedIndex ? 'bg-accent' : ''"
-                  :aria-selected="idx === selectedIndex"
-                  @mousedown.prevent="pickMentionAtIndex(idx)"
-                >
-                  <BookMarked
-                    v-if="item.kind === 'skill'"
-                    class="size-3.5 shrink-0 text-muted-foreground"
-                    aria-hidden="true"
-                  />
-                  <Paperclip
-                    v-else
-                    class="size-3.5 shrink-0 text-muted-foreground"
-                    aria-hidden="true"
-                  />
-                  <span class="min-w-0 flex-1 truncate font-mono text-[11px]">{{ item.relativePath }}</span>
-                </button>
-              </template>
-            </template>
-          </div>
-          <p
-            v-if="menuKind === 'mention' && !worktreePath"
-            class="absolute left-2 right-2 top-full z-[100] mt-0 rounded-lg border border-border bg-muted px-3 py-2 text-xs text-muted-foreground"
-          >
-            Open a workspace to use @ mentions.
-          </p>
 
           <div
             v-if="skillAttachments.length || fileAttachments.length"
@@ -613,3 +552,15 @@ defineExpose({ openMenu: openOverlay });
     </DialogContent>
   </Dialog>
 </template>
+
+<style scoped>
+/* TipTap Placeholder extension (v3): empty paragraphs get .is-empty + data-placeholder via decoration */
+.thread-create-prompt-host :deep(.ProseMirror p.is-empty::before) {
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+  user-select: none;
+  color: var(--muted-foreground);
+}
+</style>

@@ -9,6 +9,7 @@ function buildThread(overrides: Partial<Thread> = {}): Thread {
     worktreeId: "worktree-1",
     title: "Codex CLI",
     agent: "codex",
+    createdBranch: null,
     createdAt: "2026-04-06T00:00:00.000Z",
     updatedAt: "2026-04-06T00:00:00.000Z",
     ...overrides
@@ -642,7 +643,23 @@ describe("WorkspaceService thread ordering", () => {
     const upsertThread = vi.fn();
     const setActiveState = vi.fn();
     const store = {
-      getSnapshot: vi.fn(),
+      getSnapshot: vi.fn(() => ({
+        worktrees: [
+          {
+            id: "worktree-1",
+            projectId: "project-1",
+            name: "feature",
+            branch: "feature/x",
+            path: "/tmp/wt",
+            isActive: true,
+            isDefault: false,
+            baseBranch: null,
+            lastActiveThreadId: null,
+            createdAt: "2026-04-06T00:00:00.000Z",
+            updatedAt: "2026-04-06T00:00:00.000Z"
+          }
+        ]
+      })),
       upsertProject: vi.fn(),
       setActiveState,
       upsertWorktree: vi.fn(),
@@ -666,7 +683,24 @@ describe("WorkspaceService thread ordering", () => {
         projectId: "project-1",
         worktreeId: "worktree-1",
         title: "New thread",
+        agent: "codex",
+        createdBranch: "feature/x"
+      })
+    );
+
+    const withOverride = service.createThread(
+      {
+        projectId: "project-1",
+        worktreeId: "worktree-1",
+        title: "Second",
         agent: "codex"
+      },
+      "feature/live-head"
+    );
+    expect(upsertThread).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: withOverride.id,
+        createdBranch: "feature/live-head"
       })
     );
     expect(created.createdAt).toEqual(expect.any(String));

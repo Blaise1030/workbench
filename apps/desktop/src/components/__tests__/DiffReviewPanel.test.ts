@@ -1,5 +1,6 @@
 import { mount } from "@vue/test-utils";
-import { describe, expect, it } from "vitest";
+import { createPinia, setActivePinia } from "pinia";
+import { beforeEach, describe, expect, it } from "vitest";
 import DiffReviewPanel from "@/components/DiffReviewPanel.vue";
 
 function mountPanel(overrides: Record<string, unknown> = {}) {
@@ -14,6 +15,10 @@ function mountPanel(overrides: Record<string, unknown> = {}) {
 }
 
 describe("DiffReviewPanel", () => {
+  beforeEach(() => {
+    setActivePinia(createPinia());
+  });
+
   it("renders the sticky toolbar without a top border and with the background token", () => {
     const wrapper = mountPanel({
       selectedDiff: "diff --git a/a.txt b/a.txt\n--- a/a.txt\n+++ b/a.txt\n@@ -1 +1 @@\n-a\n+b\n",

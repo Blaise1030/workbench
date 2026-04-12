@@ -23,12 +23,18 @@ import { usePreferredThreadAgent } from "@/composables/usePreferredThreadAgent";
 import { useTerminalSoundSettings } from "@/composables/useTerminalSoundSettings";
 import type { TerminalActivitySensitivity } from "@/terminal/activitySensitivity";
 import { useColorScheme, type ColorSchemePreference } from "@/composables/useColorScheme";
-import { uiThemePresetLabel, useUiThemePreset } from "@/composables/useUiThemePreset";
 import {
+  conflictingBindingId,
+  findDefinitionIn,
   formatBindingDisplay,
   KEYBINDING_DEFINITIONS,
-  type KeybindingCategory
+  mergeKeybindingOverrides,
+  physicalShortcutFromKeyboardEvent,
+  type KeybindingCategory,
+  type KeybindingDefinition,
+  type KeybindingId
 } from "@/keybindings/registry";
+import { useKeybindingsStore } from "@/stores/keybindingsStore";
 
 /** `v-model` visibility; avoid prop name `open` (Vue 3.5 boolean-attribute merge quirks). */
 const modelValue = defineModel<boolean>({ default: false });
@@ -68,8 +74,7 @@ const settingsPanelTerminalId = "workspace-settings-panel-terminal";
 const settingsPanelAppearanceId = "workspace-settings-panel-appearance";
 const settingsPanelKeyboardId = "workspace-settings-panel-keyboard";
 
-const { preference: colorSchemePreference, resolvedIsDark: appearancePreviewIsDark } = useColorScheme();
-const { preset: uiThemePreset, presets: uiThemePresetIds } = useUiThemePreset();
+const { preference: colorSchemePreference } = useColorScheme();
 
 const COLOR_SCHEME_OPTIONS: { value: ColorSchemePreference; label: string; hint: string }[] = [
   { value: "light", label: "Light", hint: "Always use light chrome" },
@@ -85,9 +90,11 @@ const KEYBIND_CATEGORY_ORDER: KeybindingCategory[] = [
   "General"
 ];
 
+const keybindings = useKeybindingsStore();
+
 const keyboardBindingsGrouped = computed(() => {
-  const map = new Map<KeybindingCategory, typeof KEYBINDING_DEFINITIONS>();
-  for (const def of KEYBINDING_DEFINITIONS) {
+  const map = new Map<KeybindingCategory, KeybindingDefinition[]>();
+  for (const def of keybindings.effectiveDefinitions) {
     const list = map.get(def.category) ?? [];
     list.push(def);
     map.set(def.category, list);
@@ -97,6 +104,52 @@ const keyboardBindingsGrouped = computed(() => {
     rows: map.get(category)!
   }));
 });
+
+const recordingKeybindingId = ref<KeybindingId | null>(null);
+const recordError = ref<string | null>(null);
+let removeRecordListener: (() => void) | null = null;
+
+function stopRecording(): void {
+  removeRecordListener?.();
+  removeRecordListener = null;
+  recordingKeybindingId.value = null;
+  recordError.value = null;
+}
+
+function startRecording(id: KeybindingId): void {
+  if (id === "switchProjectOrTerminalDigit") return;
+  stopRecording();
+  recordingKeybindingId.value = id;
+  recordError.value = null;
+
+  const handler = (e: KeyboardEvent): void => {
+    if (recordingKeybindingId.value !== id) return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.key === "Escape") {
+      stopRecording();
+      return;
+    }
+    const shortcut = physicalShortcutFromKeyboardEvent(e);
+    if (!shortcut) return;
+    const mergedOverrides = { ...keybindings.overrides, [id]: { shortcut } };
+    const tentative = mergeKeybindingOverrides(KEYBINDING_DEFINITIONS, mergedOverrides);
+    const conflict = conflictingBindingId(tentative, id, shortcut);
+    if (conflict) {
+      const label = findDefinitionIn(tentative, conflict)?.label ?? conflict;
+      recordError.value = `Already used by “${label}”.`;
+      return;
+    }
+    keybindings.setOverride(id, shortcut);
+    stopRecording();
+  };
+
+  window.addEventListener("keydown", handler, true);
+  removeRecordListener = () => {
+    window.removeEventListener("keydown", handler, true);
+    removeRecordListener = null;
+  };
+}
 
 const { terminalNotificationsEnabled, terminalActivitySensitivity } = useTerminalSoundSettings();
 const TERMINAL_ACTIVITY_SENSITIVITY_OPTIONS: {
@@ -115,6 +168,12 @@ function bindEscapeWhileOpen(): void {
   removeEscapeListener?.();
   const handler = (e: KeyboardEvent): void => {
     if (e.key === "Escape") {
+      if (recordingKeybindingId.value) {
+        e.preventDefault();
+        e.stopPropagation();
+        stopRecording();
+        return;
+      }
       e.preventDefault();
       close();
     }
@@ -126,6 +185,7 @@ function bindEscapeWhileOpen(): void {
 watch(modelValue, async (isOpen) => {
   removeEscapeListener?.();
   removeEscapeListener = null;
+  stopRecording();
   if (isOpen) {
     draft.value = { ...props.commands };
     syncFromStorage();
@@ -134,6 +194,10 @@ watch(modelValue, async (isOpen) => {
     await nextTick();
     panelRef.value?.focus();
   }
+});
+
+watch(activeSection, () => {
+  stopRecording();
 });
 
 watch(
@@ -147,6 +211,7 @@ watch(
 
 onBeforeUnmount(() => {
   removeEscapeListener?.();
+  stopRecording();
 });
 
 function close(): void {
@@ -308,8 +373,7 @@ function save(): void {
             aria-label="Appearance settings"
           >
             <p class="text-sm text-muted-foreground">
-              Color mode and accent presets use the same design tokens as the rest of the app. Changes apply
-              immediately.
+              Color mode uses the same design tokens as the rest of the app. Changes apply immediately.
             </p>
 
             <fieldset class="mt-4 space-y-2">
@@ -336,64 +400,6 @@ function save(): void {
                     <span class="text-sm font-medium text-foreground">{{ opt.label }}</span>
                   </div>
                   <p class="text-xs leading-snug text-muted-foreground">{{ opt.hint }}</p>
-                </label>
-              </div>
-            </fieldset>
-
-            <fieldset class="mt-5 space-y-2">
-              <legend class="text-sm font-medium text-foreground">Theme</legend>
-              <p class="text-xs text-muted-foreground">
-                Previews reflect the color mode chosen above. Accents apply to buttons, focus rings, and sidebar
-                highlights. You can still tune colors in
-                <a
-                  class="text-primary underline underline-offset-2 hover:opacity-90"
-                  href="https://tweakcn.com/editor/theme"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  >tweakcn</a
-                >
-                and merge variables into the app later.
-              </p>
-              <div class="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
-                <label
-                  v-for="id in uiThemePresetIds"
-                  :key="id"
-                  class="flex min-w-0 cursor-pointer flex-col gap-2 rounded-md border border-border p-2.5 transition-colors select-none hover:bg-muted/30"
-                  :class="
-                    uiThemePreset === id
-                      ? 'bg-muted/25 ring-2 ring-ring/60 ring-offset-2 ring-offset-card'
-                      : ''
-                  "
-                >
-                  <div class="flex items-center gap-2">
-                    <input
-                      v-model="uiThemePreset"
-                      type="radio"
-                      name="settings-ui-theme-preset"
-                      class="size-3.5 shrink-0 rounded-full border-border accent-primary"
-                      :value="id"
-                    />
-                    <span class="min-w-0 truncate text-sm font-medium text-foreground">{{
-                      uiThemePresetLabel(id)
-                    }}</span>
-                  </div>
-                  <div
-                    class="settings-theme-preview h-[3.25rem] w-full rounded-md"
-                    :class="{ 'settings-theme-preview--dark': appearancePreviewIsDark }"
-                    :data-settings-theme-preview-preset="id"
-                    aria-hidden="true"
-                  >
-                    <div class="settings-theme-preview__rail">
-                      <div class="settings-theme-preview__rail-mark" />
-                    </div>
-                    <div class="settings-theme-preview__main">
-                      <div class="settings-theme-preview__bar" />
-                      <div class="settings-theme-preview__row">
-                        <span class="settings-theme-preview__pill" />
-                        <span class="settings-theme-preview__danger" />
-                      </div>
-                    </div>
-                  </div>
                 </label>
               </div>
             </fieldset>
@@ -429,10 +435,47 @@ function save(): void {
                     >
                       <td class="py-2 pr-3 text-foreground">{{ row.label }}</td>
                       <td class="py-2">
+                        <div v-if="row.id !== 'switchProjectOrTerminalDigit'" class="flex flex-wrap items-center gap-2">
+                          <button
+                            type="button"
+                            class="max-w-full rounded border border-transparent bg-muted/50 px-1.5 py-0.5 text-left font-mono text-xs text-foreground transition-colors hover:bg-muted"
+                            :class="
+                              recordingKeybindingId === row.id
+                                ? 'ring-2 ring-ring ring-offset-2 ring-offset-card'
+                                : ''
+                            "
+                            @click="startRecording(row.id)"
+                          >
+                            {{ formatBindingDisplay(row) }}
+                            <span
+                              v-if="recordingKeybindingId === row.id"
+                              class="ml-2 inline-block font-sans text-[11px] font-normal text-muted-foreground"
+                            >
+                              Press new shortcut… Esc cancels
+                            </span>
+                          </button>
+                          <Button
+                            v-if="keybindings.overrides[row.id]"
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            class="h-7 px-2 text-xs"
+                            @click="keybindings.clearOverride(row.id)"
+                          >
+                            Reset row
+                          </Button>
+                        </div>
                         <kbd
+                          v-else
                           class="rounded border border-border bg-muted/50 px-1.5 py-0.5 font-mono text-xs text-foreground"
                           >{{ formatBindingDisplay(row) }}</kbd
                         >
+                        <p
+                          v-if="recordingKeybindingId === row.id && recordError"
+                          class="mt-1 max-w-sm text-xs text-destructive"
+                        >
+                          {{ recordError }}
+                        </p>
                         <p v-if="row.notes" class="mt-1 max-w-sm text-xs text-muted-foreground">
                           {{ row.notes }}
                         </p>
@@ -447,7 +490,9 @@ function save(): void {
 
         <div
           class="flex shrink-0 flex-wrap items-center gap-2 border-t border-border px-4 py-4"
-          :class="activeSection === 'agents' ? 'justify-between' : 'justify-end'"
+          :class="
+            activeSection === 'agents' || activeSection === 'keyboard' ? 'justify-between' : 'justify-end'
+          "
         >
           <Button
             v-if="activeSection === 'agents'"
@@ -457,6 +502,15 @@ function save(): void {
             @click="resetDraftToDefaults"
           >
             Reset to app defaults
+          </Button>
+          <Button
+            v-if="activeSection === 'keyboard'"
+            type="button"
+            variant="ghost"
+            size="sm"
+            @click="keybindings.resetAll()"
+          >
+            Reset keyboard to defaults
           </Button>
           <div class="flex gap-2">
             <Button type="button" variant="outline" size="sm" @click="close"> Cancel </Button>

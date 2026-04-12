@@ -1,6 +1,12 @@
 /// <reference types="vite/client" />
-import type { FileSummary } from "@shared/ipc";
-import type { FileDiffScope, RepoScmSnapshot, RepoStatusEntry } from "@shared/ipc";
+import type {
+  AppUpdateAvailability,
+  FileDiffScope,
+  FileMergeSidesResult,
+  FileSummary,
+  RepoScmSnapshot,
+  RepoStatusEntry
+} from "@shared/ipc";
 
 declare module "*.vue" {
   import type { DefineComponent } from "vue";
@@ -29,7 +35,12 @@ interface WorkspaceApi {
   gitFetch?: (cwd: string) => Promise<void>;
   gitPush?: (cwd: string) => Promise<void>;
   commitStaged?: (cwd: string, message: string) => Promise<void>;
+  /** Checkout a local branch in `cwd` (Electron); updates persisted worktree branch when path is known. */
+  gitCheckoutBranch?: (cwd: string, branch: string) => Promise<void>;
+  listBranches?: (projectId: string) => Promise<string[]>;
   fileDiff: (cwd: string, file: string, scope?: FileDiffScope) => Promise<string>;
+  /** Two full texts for Git merge diff (Electron); optional on older preload builds. */
+  fileMergeSides?: (cwd: string, file: string, scope: "staged" | "unstaged") => Promise<FileMergeSidesResult>;
   /** Full unstaged unified diff; omit on older preload builds (layout falls back per-file). */
   workingTreeDiff?: (cwd: string) => Promise<string>;
   stageAll: (cwd: string) => Promise<void>;
@@ -45,6 +56,8 @@ interface WorkspaceApi {
   readFile: (cwd: string, relativePath: string) => Promise<string>;
   /** Resolve `![](href)` for Markdown previews; optional on older preload builds. */
   resolveMarkdownImageUrl?: (cwd: string, markdownRelativePath: string, href: string) => Promise<string | null>;
+  /** Read an image from an allowed absolute path (temp, Desktop, …) as `data:`; optional on older preload builds. */
+  readImageDataUrlFromAbsolutePath?: (absolutePath: string) => Promise<string | null>;
   writeFile: (cwd: string, relativePath: string, content: string) => Promise<void>;
   createFile: (cwd: string, relativePath: string) => Promise<void>;
   deleteFile: (cwd: string, relativePath: string) => Promise<void>;
@@ -72,6 +85,14 @@ interface WorkspaceApi {
   resolveRepoRootFromWebkitFile?: (file: File) => string;
   /** Present when running under Electron preload; absolute path for a dropped `File`. */
   getPathForFile?: (file: File) => string;
+  /** Electron: `app.getVersion()` (semver string). */
+  getAppVersion?: () => Promise<string>;
+  /** Electron: GitHub-style release tag for this build (from bundled app semver). */
+  getAppReleaseTag?: () => Promise<string>;
+  /** Packaged Electron: latest GitHub release vs running version, or null. */
+  getAppUpdateAvailability?: () => Promise<AppUpdateAvailability | null>;
+  /** Open a validated https `github.com` URL in the default browser. */
+  openAppExternalUrl?: (url: string) => Promise<void>;
 }
 
 declare global {
