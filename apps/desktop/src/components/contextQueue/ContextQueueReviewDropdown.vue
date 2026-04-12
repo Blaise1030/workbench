@@ -36,6 +36,27 @@ function cloneItems(items: QueueItem[]): QueueItem[] {
   }));
 }
 
+/** Keep review drafts when props refresh (e.g. new queue item); parent items omit in-progress review fields. */
+function mergeItemsFromProps(prev: QueueItem[], incoming: QueueItem[]): QueueItem[] {
+  const prevById = new Map(prev.map((r) => [r.id, r]));
+  return cloneItems(incoming).map((row) => {
+    const old = prevById.get(row.id);
+    if (!old) return row;
+    const incomingNote = row.reviewComment ?? "";
+    const oldNote = old.reviewComment ?? "";
+    const keepComment = incomingNote.trim().length > 0 ? incomingNote : oldNote;
+    const incomingAtt = row.reviewAttachments ?? [];
+    const oldAtt = old.reviewAttachments ?? [];
+    const keepAtt =
+      incomingAtt.length > 0 ? incomingAtt.map((a) => ({ ...a })) : oldAtt.map((a) => ({ ...a }));
+    return {
+      ...row,
+      reviewComment: keepComment,
+      reviewAttachments: keepAtt
+    };
+  });
+}
+
 const internalItems = ref<QueueItem[]>([]);
 const tiptapResetKey = ref(0);
 const dragFromIndex = ref<number | null>(null);
@@ -58,7 +79,7 @@ watch(
   () => props.items,
   () => {
     if (open.value) {
-      internalItems.value = cloneItems(props.items);
+      internalItems.value = mergeItemsFromProps(internalItems.value, props.items);
       pruneExpandedEditors();
     }
   },
