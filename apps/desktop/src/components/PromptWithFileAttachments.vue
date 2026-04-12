@@ -12,7 +12,8 @@ import { badgeVariants } from "@/components/ui/badge";
 import {
   createThreadCreatePromptExtensions,
   isThreadCreateSuggestionActive,
-  ThreadImageBadge
+  ThreadImageBadge,
+  ThreadQueueContextTag
 } from "@/lib/threadCreateEditorExtensions";
 import { collectDocAttachmentPaths } from "@/lib/threadCreatePromptSerialize";
 import { isImageFile, pathFromFile, type LocalFileAttachment } from "@/lib/localFileAttachment";
@@ -30,6 +31,8 @@ const props = withDefaults(
     tiptap?: boolean;
     /** Worktree absolute path — required for @ file mention resolution in tiptap mode */
     worktreePath?: string | null;
+    /** When set (queue review), shown as a read-only inline pill at the start of the first line */
+    contextTagLabel?: string | null;
   }>(),
   {
     placeholder: "",
@@ -37,7 +40,8 @@ const props = withDefaults(
     textareaClass: "min-h-[4.5rem]",
     testIdPrefix: "prompt-attachments",
     tiptap: false,
-    worktreePath: null
+    worktreePath: null,
+    contextTagLabel: null
   }
 );
 
@@ -55,6 +59,7 @@ const tiptapEditor: Ref<Editor | null | undefined> = props.tiptap
           placeholder:
             props.placeholder || "Comment for the agent (optional) — use @ for files"
         }),
+        ThreadQueueContextTag,
         ThreadImageBadge,
         createThreadCreatePromptExtensions({ getWorktreePath: () => props.worktreePath })
       ],
@@ -117,28 +122,48 @@ watch(isEditing, (v) => {
   tiptapEditor.value?.setEditable(v);
 });
 
-function flatTextToDocJson(text: string) {
+function flatTextToDocJson(text: string, contextTag: string | null) {
+  const tag = contextTag?.trim() || null;
   const lines = text.split(THREAD_PROMPT_BLOCK_SEP);
   return {
     type: "doc",
-    content: lines.map((line) => ({
-      type: "paragraph",
-      content: line.length ? [{ type: "text", text: line }] : []
-    }))
+    content: lines.map((line, i) => {
+      const parts: { type: string; text?: string; attrs?: { label: string } }[] = [];
+      if (i === 0 && tag) {
+        parts.push({ type: "threadQueueContextTag", attrs: { label: tag } });
+      }
+      if (line.length > 0) {
+        parts.push({ type: "text", text: line });
+      }
+      return { type: "paragraph", content: parts };
+    })
   };
 }
 
-/** Hydrate TipTap from v-model when the editor mounts or the prompt is updated externally. */
+function firstContextTagLabelInDoc(doc: Parameters<typeof promptDocFlatText>[0]): string | null {
+  let found: string | null = null;
+  doc.descendants((node) => {
+    if (node.type.name === "threadQueueContextTag") {
+      found = String(node.attrs.label ?? "");
+      return false;
+    }
+  });
+  return found;
+}
+
+/** Hydrate TipTap from v-model when the editor mounts or the prompt / context label is updated externally. */
 watch(
-  () => [props.tiptap, prompt.value, tiptapEditor.value] as const,
+  () => [props.tiptap, prompt.value, tiptapEditor.value, props.contextTagLabel] as const,
   () => {
     if (!props.tiptap) return;
     const editor = tiptapEditor.value;
     if (!editor) return;
     const desired = prompt.value ?? "";
+    const desiredTag = props.contextTagLabel?.trim() ?? "";
     const current = promptDocFlatText(editor.state.doc);
-    if (current === desired) return;
-    editor.commands.setContent(flatTextToDocJson(desired), false);
+    const currentTag = firstContextTagLabelInDoc(editor.state.doc) ?? "";
+    if (current === desired && currentTag === desiredTag) return;
+    editor.commands.setContent(flatTextToDocJson(desired, desiredTag || null), false);
   },
   { flush: "post", immediate: true }
 );

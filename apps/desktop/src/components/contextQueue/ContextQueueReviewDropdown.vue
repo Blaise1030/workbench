@@ -401,6 +401,7 @@ defineExpose({ openReview });
                   v-model:attachments="row.reviewAttachments"
                   :tiptap="true"
                   :worktree-path="worktreePath"
+                  :context-tag-label="queueContextBadgeLabel(row)"
                   placeholder="Comment for the agent (optional) — use @ for files"
                   test-id-prefix="context-queue-review-note"
                 />

@@ -216,6 +216,46 @@ export const ThreadImageBadge = Node.create({
   }
 });
 
+/** Inline pill for queued context (file / agent / terminal line span), e.g. `[Agent 1:3]`. Excluded from flat-text prompt serialization. */
+export const ThreadQueueContextTag = Node.create({
+  name: "threadQueueContextTag",
+  group: "inline",
+  inline: true,
+  atom: true,
+  draggable: false,
+  selectable: true,
+  addAttributes() {
+    return {
+      label: {
+        default: "",
+        parseHTML: (el) => el.getAttribute("data-label") ?? "",
+        renderHTML: (attrs) => (attrs.label ? { "data-label": attrs.label } : {})
+      }
+    };
+  },
+  parseHTML() {
+    return [{ tag: "span[data-thread-queue-context-tag]" }];
+  },
+  renderHTML({ HTMLAttributes, node }) {
+    const label = String(node.attrs.label ?? "");
+    return [
+      "span",
+      mergeAttributes(
+        {
+          "data-thread-queue-context-tag": "1",
+          class:
+            "thread-queue-context-tag inline-flex max-w-[20rem] shrink-0 items-center rounded-md border border-border/50 bg-muted/45 px-1.5 py-px align-middle font-mono text-[11px] font-medium tabular-nums text-foreground/90"
+        },
+        HTMLAttributes
+      ),
+      label
+    ];
+  },
+  renderText() {
+    return "";
+  }
+});
+
 export const ThreadMention = Mention.extend({
   name: "threadMention",
   addAttributes() {

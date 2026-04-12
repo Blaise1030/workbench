@@ -1,7 +1,7 @@
 import { Editor } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { ThreadImageBadge } from "@/lib/threadCreateEditorExtensions";
+import { ThreadImageBadge, ThreadQueueContextTag } from "@/lib/threadCreateEditorExtensions";
 import { docPosAtFlatOffset, promptDocFlatText, promptFlatOffsetAtDocPos, replaceFlatRange } from "@/lib/threadCreateTipTap";
 
 describe("threadCreateTipTap", () => {
@@ -62,6 +62,27 @@ describe("threadCreateTipTap", () => {
       }
     });
     expect(ed.getHTML()).toContain("Screenshot 2026-04-12 at 1.15.55 AM.png");
+    ed.destroy();
+  });
+
+  it("ThreadQueueContextTag renders label in HTML but omits it from promptDocFlatText", () => {
+    const ed = new Editor({
+      extensions: [StarterKit, ThreadQueueContextTag],
+      content: {
+        type: "doc",
+        content: [
+          {
+            type: "paragraph",
+            content: [
+              { type: "threadQueueContextTag", attrs: { label: "[Agent 1:3]" } },
+              { type: "text", text: " see this" }
+            ]
+          }
+        ]
+      }
+    });
+    expect(ed.getHTML()).toContain("[Agent 1:3]");
+    expect(promptDocFlatText(ed.state.doc)).toBe(" see this");
     ed.destroy();
   });
 });
