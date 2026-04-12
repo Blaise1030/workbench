@@ -222,6 +222,19 @@ function onBlobClick(): void {
   void nextTick(() => tiptapEditor.value?.commands.focus("end"));
 }
 
+/** Only intercept Space/Enter on the blob wrapper; `.prevent` on the template would block TipTap while editing. */
+function onBlobWrapperKeydownSpace(e: KeyboardEvent): void {
+  if (isEditing.value || isDocEmpty.value) return;
+  e.preventDefault();
+  onBlobClick();
+}
+
+function onBlobWrapperKeydownEnter(e: KeyboardEvent): void {
+  if (isEditing.value || isDocEmpty.value) return;
+  e.preventDefault();
+  onBlobClick();
+}
+
 function addFilesFromListTipTap(files: FileList | File[]): void {
   const editor = tiptapEditor.value;
   for (const file of Array.from(files)) {
@@ -420,8 +433,8 @@ defineExpose({
       :data-testid="!isEditing && !isDocEmpty ? `${testIdPrefix}-tiptap-blob` : undefined"
       :aria-label="!isEditing && !isDocEmpty ? 'Click to edit comment' : undefined"
       @click="!isEditing && !isDocEmpty ? onBlobClick() : undefined"
-      @keydown.enter="!isEditing && !isDocEmpty ? onBlobClick() : undefined"
-      @keydown.space.prevent="!isEditing && !isDocEmpty ? onBlobClick() : undefined"
+      @keydown.enter="onBlobWrapperKeydownEnter"
+      @keydown.space="onBlobWrapperKeydownSpace"
     >
       <EditorContent :editor="tiptapEditor" />
       <p
