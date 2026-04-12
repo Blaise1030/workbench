@@ -83,7 +83,7 @@ function placeSuggestionMenu(el: HTMLElement, clientRect: (() => DOMRect | null)
   el.style.minWidth = `${Math.max(200, rect.width)}px`;
 }
 
-function createSuggestionRender(variant: "slash" | "at") {
+function createSuggestionRender(variant: "slash" | "at", getLoading?: () => boolean) {
   let component: VueRenderer | null = null;
   let selectedIndex = 0;
   let lastItems: unknown[] = [];
@@ -107,7 +107,7 @@ function createSuggestionRender(variant: "slash" | "at") {
           variant,
           items: props.items,
           selectedIndex: 0,
-          loading: variant === "at" && props.items.length === 0,
+          loading: getLoading?.() ?? false,
           onPick: (idx: number) => {
             const item = lastItems[idx];
             if (item) pickItem?.(item);
@@ -132,7 +132,7 @@ function createSuggestionRender(variant: "slash" | "at") {
         variant,
         items: props.items,
         selectedIndex,
-        loading: variant === "at" && props.items.length === 0,
+        loading: getLoading?.() ?? false,
         onPick: (idx: number) => {
           const item = lastItems[idx];
           if (item) pickItem?.(item);
@@ -235,6 +235,10 @@ export type ThreadCreateExtensionOptions = {
 };
 
 export function createThreadCreatePromptExtensions(options: ThreadCreateExtensionOptions) {
+  // Shared loading flag: set synchronously at the start of each fetch, cleared in finally.
+  // The renderer reads it when TipTap calls onStart/onUpdate (after the await resolves or if cwd is missing).
+  let atMentionLoading = false;
+
   return ThreadMention.configure({
     HTMLAttributes: {
       class:
@@ -275,14 +279,21 @@ export function createThreadCreatePromptExtensions(options: ThreadCreateExtensio
           const cwd = options.getWorktreePath();
           const api = getWorkspaceApi();
           if (!api || !cwd) return [];
-          const paths = await api.searchFiles(cwd, query);
-          return paths.slice(0, 80).map((relativePath) => {
-            const abs = absolutePathInWorktree(cwd, relativePath);
-            const kind = isSkillLikePath(relativePath) ? ("skill" as const) : ("file" as const);
-            return { id: abs, label: relativePath, itemKind: kind };
-          });
+          atMentionLoading = true;
+          try {
+            const paths = await api.searchFiles(cwd, query);
+            return paths.slice(0, 80).map((relativePath) => {
+              const abs = absolutePathInWorktree(cwd, relativePath);
+              const kind = isSkillLikePath(relativePath) ? ("skill" as const) : ("file" as const);
+              return { id: abs, label: relativePath, itemKind: kind };
+            });
+          } catch {
+            return [];
+          } finally {
+            atMentionLoading = false;
+          }
         },
-        render: () => createSuggestionRender("at")
+        render: () => createSuggestionRender("at", () => atMentionLoading)
       }
     ]
   });
