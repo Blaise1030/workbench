@@ -48,6 +48,7 @@ import {
   registerThreadCreateDialogOpener,
   type ThreadCreateDialogOpenOptions
 } from "@/composables/threadCreateDialog";
+import { useCommandCenter } from "@/composables/useCommandCenter";
 import { useWorkspaceKeybindings } from "@/composables/useWorkspaceKeybindings";
 import { formatShortcut, MOD_DIGIT_SLOT_CODES } from "@/keybindings/registry";
 import { useKeybindingsStore } from "@/stores/keybindingsStore";
@@ -141,11 +142,11 @@ watch(
   }
 );
 
-/** Top pills: Agent / Git Diff / Files (never `shell:*`). */
+/** Top pills: Agent / Git / Files (never `shell:*`). */
 const mainCenterTab = ref<"agent" | "diff" | "files">("agent");
 /** Lower overlay: thread agent vs extra shell tab. */
 const shellOverlayTab = ref<"agent" | `shell:${string}`>("agent");
-/** One UUID per integrated terminal tab (after Agent + Git Diff). */
+/** One UUID per integrated terminal tab (after Agent + Git). */
 const shellSlotIds = ref<string[]>([]);
 /** Bottom terminal bar (tab strip for shells); toggled with ⌘J / Ctrl+J. */
 const terminalPanelOpen = ref(false);
@@ -290,13 +291,19 @@ const threadCreateWorktreePath = computed(() => {
   return workspace.defaultWorktree?.path ?? workspace.activeWorktree?.path ?? null;
 });
 const fileSearchRef = ref<InstanceType<typeof FileSearchEditor> | null>(null);
-const workspaceLauncherOpen = ref(false);
 const keybindings = useKeybindingsStore();
 const keybindingsEnabled = ref(true);
 const showBranchPicker = ref(false);
 const staleWorktreeIds = ref<Set<string>>(new Set());
 const activeContextBadge = computed(() => workspace.activeContextBadge);
 const activeContextLabel = computed(() => activeContextBadge.value?.displayLabel ?? null);
+
+/** Thread name in the center toolbar between the branch control and view tabs. */
+const toolbarActiveThread = computed(() => {
+  const id = workspace.activeThreadId;
+  if (!id) return null;
+  return workspace.threads.find((t) => t.id === id) ?? null;
+});
 
 /** Center bar: branch combobox shows for Git repos unless the active worktree is a non-default worktree. */
 const isInNonDefaultWorktree = computed(
@@ -310,8 +317,6 @@ const showTopBarBranchSwitcher = computed(
     !isInNonDefaultWorktree.value &&
     Boolean(workspace.activeProjectId && workspace.activeWorktree?.path)
 );
-const projectDigitSlotCount = computed(() => Math.min(MOD_DIGIT_SLOT_CODES.length, workspace.projects.length));
-
 /** Top row: workspace views only (terminal sessions switch from the bottom terminal bar). */
 const topCenterPanelTabs = computed<PillTabItem[]>(() => {
   const tabs: PillTabItem[] = [
@@ -321,7 +326,7 @@ const topCenterPanelTabs = computed<PillTabItem[]>(() => {
     }
   ];
   if (hasGitRepository.value === true) {
-    tabs.push({ value: "diff", label: "🌿 Git Diff" });
+    tabs.push({ value: "diff", label: "🌿 Git" });
   }
   tabs.push({
     value: "files",
@@ -333,11 +338,8 @@ const topCenterPanelTabs = computed<PillTabItem[]>(() => {
 /** Bottom bar: extra shell tabs only (thread agent has no pill — it is the default session). */
 const bottomTerminalBarTabs = computed<PillTabItem[]>(() => {
   const slots = shellSlotIds.value;
-  const projectSlots = projectDigitSlotCount.value;
   return slots.map((id, i) => {
-    // With the panel open, ⌘1…⌘n map to Terminal 1…n while focus is in a terminal; tooltips match.
-    // Otherwise digits follow projects first (⌘1… = projects, then shells).
-    const slotIndex = terminalPanelOpen.value ? i : projectSlots + i;
+    const slotIndex = i;
     return {
       value: `shell:${id}`,
       label: `💻 Terminal ${i + 1}`,
@@ -1300,6 +1302,14 @@ function toggleThreadsSidebar(): void {
   threadsSidebarCollapsed.value = !threadsSidebarCollapsed.value;
 }
 
+const commandCenter = useCommandCenter({
+  onSelectCenterTab: (tab) => {
+    mainCenterTab.value = tab;
+  },
+  onToggleSidebar: toggleThreadsSidebar,
+  onOpenSettings: handleConfigureCommands
+});
+
 function openNewThreadMenuFromShortcut(): void {
   openThreadCreateDialog({
     target: "activeWorktree",
@@ -1315,16 +1325,16 @@ function focusFileSearchShortcut(): void {
 }
 
 function toggleWorkspaceLauncher(): void {
-  workspaceLauncherOpen.value = !workspaceLauncherOpen.value;
+  commandCenter.toggle();
 }
 
 async function onLauncherPickThread(threadId: string): Promise<void> {
-  workspaceLauncherOpen.value = false;
+  commandCenter.close();
   await handleSelectThread(threadId);
 }
 
 function onLauncherPickCommand(id: string): void {
-  workspaceLauncherOpen.value = false;
+  commandCenter.close();
   if (id === "toggle-thread-sidebar") {
     toggleThreadsSidebar();
   }
@@ -1334,7 +1344,7 @@ async function onLauncherPickFile(payload: {
   relativePath: string;
   worktreeId: string | null;
 }): Promise<void> {
-  workspaceLauncherOpen.value = false;
+  commandCenter.close();
   const api = getApi();
   if (!api) return;
   const targetWt =
@@ -1354,12 +1364,12 @@ async function onLauncherPickFile(payload: {
 }
 
 async function onLauncherPickProject(projectId: string): Promise<void> {
-  workspaceLauncherOpen.value = false;
+  commandCenter.close();
   await handleSelectProject(projectId);
 }
 
 async function onLauncherPickWorktree(worktreeId: string): Promise<void> {
-  workspaceLauncherOpen.value = false;
+  commandCenter.close();
   await handleSelectWorktree(worktreeId);
 }
 
@@ -1368,14 +1378,10 @@ useWorkspaceKeybindings(
     workspaceUiActive: () => hasActiveWorkspace.value,
     settingsOpen: () => agentCommandsSettingsOpen.value,
     centerTab: () => mainCenterTab.value,
-    projectIds: () => workspace.projects.map((p) => p.id),
     shellSlotIds: () => shellSlotIds.value,
     terminalPanelOpen: () => terminalPanelOpen.value,
     scmActionsAvailable: () => hasGitRepository.value === true,
-    launcherConsumesNavShortcuts: () => workspaceLauncherOpen.value,
-    onSelectProject: (projectId) => {
-      void handleSelectProject(projectId);
-    },
+    launcherConsumesNavShortcuts: () => commandCenter.isOpen.value,
     onSelectCenterTab: (tab) => {
       if (tab.startsWith("shell:")) {
         shellOverlayTab.value = tab as `shell:${string}`;
@@ -1568,7 +1574,7 @@ watch(
 watch(
   () => [mainCenterTab.value, hasGitRepository.value] as const,
   ([tab, git]) => {
-    // Only leave Git Diff when we know there is no repo. While `null` (loading), switching away
+    // Only leave Git tab when we know there is no repo. While `null` (loading), switching away
     // fights async refresh and can contribute to recursive update / focus churn.
     if (tab === "diff" && git === false) {
       mainCenterTab.value = "agent";
@@ -1707,22 +1713,35 @@ watch(
           <Badge v-else variant="outline" class="ms-2 shrink-0 text-[10px] text-muted-foreground">
             {{ activeContextLabel }}
           </Badge>
-          <div class="h-5 shrink-0 border-s ms-2" aria-hidden="true" />
-          <PillTabs
-            v-model="topCenterTabModel"
-            class="min-w-0 flex-[1_1_0%] basis-0"
-            :tabs="topCenterPanelTabs"
-            aria-label="Center panel"
-          />
-          <ContextQueueReviewDropdown
-            v-if="workspace.activeThreadId && contextQueueItems.length > 0"
-            ref="contextQueueReviewRef"
-            :thread-id="workspace.activeThreadId"
-            :items="contextQueueItems"
-            :worktree-path="activeWorktreePath"
-            @confirm="onContextQueueConfirmed"
-            @persist-draft="onContextQueuePersistDraft"
-          />
+          <div
+            class="ms-1 flex min-h-7 min-w-0 flex-1 items-center border-s border-border ps-2"
+            data-testid="workspace-toolbar-thread-title"
+          >
+            <span
+              v-if="toolbarActiveThread"
+              class="min-w-0 truncate text-xs font-medium text-foreground"
+              :title="toolbarActiveThread.title"
+            >
+              {{ toolbarActiveThread.title }}
+            </span>
+          </div>
+          <div class="flex shrink-0 items-center gap-1 border-s border-border ps-1">
+            <PillTabs
+              v-model="topCenterTabModel"
+              class="min-w-0 shrink"
+              :tabs="topCenterPanelTabs"
+              aria-label="Center panel"
+            />
+            <ContextQueueReviewDropdown
+              v-if="workspace.activeThreadId && contextQueueItems.length > 0"
+              ref="contextQueueReviewRef"
+              :thread-id="workspace.activeThreadId"
+              :items="contextQueueItems"
+              :worktree-path="activeWorktreePath"
+              @confirm="onContextQueueConfirmed"
+              @persist-draft="onContextQueuePersistDraft"
+            />
+          </div>
         </div>
         <div
           v-if="activeWorktreeHasThreads && hasGitRepository === false"
@@ -1734,7 +1753,7 @@ watch(
             <div class="min-w-0 flex-1 space-y-1">
               <p class="text-sm font-medium text-foreground">No Git repository</p>
               <p class="text-sm text-muted-foreground">
-                Initialize Git in this folder to use source control and the Git Diff tab.
+                Initialize Git in this folder to use source control and the Git tab.
               </p>
             </div>
           </div>
@@ -1978,7 +1997,9 @@ watch(
     />
 
     <WorkspaceLauncherModal
-      v-model="workspaceLauncherOpen"
+      v-model="commandCenter.isOpen"
+      :quick-actions="commandCenter.quickActions"
+      :active-filter="commandCenter.activeFilter"
       @pick-thread="onLauncherPickThread"
       @pick-file="onLauncherPickFile"
       @pick-command="onLauncherPickCommand"

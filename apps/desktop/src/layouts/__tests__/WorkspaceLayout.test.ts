@@ -493,7 +493,10 @@ describe("WorkspaceLayout", () => {
     });
 
     await flushPromises();
-    const diffButton = wrapper.findAll("button").find((button) => button.text().includes("Git Diff"));
+    const diffButton = wrapper
+      .find('[aria-label="Center panel"]')
+      .findAll("button")
+      .find((button) => button.text().replace(/\s+/g, " ").trim() === "🌿 Git");
     expect(diffButton).toBeTruthy();
 
     await diffButton!.trigger("click");
@@ -1290,7 +1293,10 @@ describe("WorkspaceLayout", () => {
 
     expect(isGitRepository).toHaveBeenCalledWith("/tmp/instrument");
     expect(wrapper.find('[data-testid="workspace-no-git-empty-state"]').exists()).toBe(true);
-    const gitDiffTab = wrapper.findAll("button").find((b) => b.text().includes("Git Diff"));
+    const gitDiffTab = wrapper
+      .find('[aria-label="Center panel"]')
+      .findAll("button")
+      .find((b) => b.text().replace(/\s+/g, " ").trim() === "🌿 Git");
     expect(gitDiffTab).toBeUndefined();
   });
 
