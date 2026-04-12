@@ -216,6 +216,52 @@ export const ThreadImageBadge = Node.create({
   }
 });
 
+/** Non-image file attached via paperclip / drag — inline path chip (same attachment pipeline as image badges). */
+export const ThreadFileBadge = Node.create({
+  name: "threadFileBadge",
+  group: "inline",
+  inline: true,
+  atom: true,
+  draggable: false,
+  addAttributes() {
+    return {
+      path: {
+        default: "",
+        parseHTML: (el) => el.getAttribute("data-path") ?? "",
+        renderHTML: (attrs) => (attrs.path ? { "data-path": attrs.path } : {})
+      },
+      name: {
+        default: "",
+        parseHTML: (el) => el.getAttribute("data-name") ?? "",
+        renderHTML: (attrs) => (attrs.name ? { "data-name": attrs.name } : {})
+      }
+    };
+  },
+  parseHTML() {
+    return [{ tag: "span[data-thread-file-badge]" }];
+  },
+  renderHTML({ HTMLAttributes, node }) {
+    const path = String(node.attrs.path ?? "");
+    const display = path.length > 56 ? `${path.slice(0, 28)}…${path.slice(-24)}` : path;
+    return [
+      "span",
+      mergeAttributes(
+        {
+          "data-thread-file-badge": "1",
+          class:
+            "thread-file-badge inline-flex max-w-[min(20rem,92vw)] items-center gap-1 rounded-full border border-border/60 bg-muted/75 px-2 py-0.5 align-middle text-[11px] text-foreground"
+        },
+        HTMLAttributes
+      ),
+      ["span", { "aria-hidden": "true", class: "text-[13px] leading-none" }, "📎"],
+      ["span", { class: "min-w-0 truncate font-mono font-medium", title: path }, display]
+    ];
+  },
+  renderText() {
+    return "";
+  }
+});
+
 /** Queue review: inline context span (e.g. `[Agent 1:7]`). Omitted from flat-text note serialization. */
 export const ThreadQueueContextTag = Node.create({
   name: "threadQueueContextTag",
@@ -267,6 +313,36 @@ export const ThreadMention = Mention.extend({
         renderHTML: (attrs) => (attrs.itemKind ? { "data-item-kind": attrs.itemKind } : {})
       }
     };
+  },
+  renderHTML({ node, HTMLAttributes }) {
+    const kind = String(node.attrs.itemKind ?? "");
+    const label = String(node.attrs.label ?? "");
+    if (kind === "slash") {
+      return [
+        "span",
+        mergeAttributes(
+          {
+            class:
+              "thread-mention-slash inline-flex max-w-[18rem] items-center gap-0.5 rounded-md border border-primary/35 bg-primary/10 px-1.5 py-0.5 align-middle font-mono text-[11px] font-medium text-foreground",
+            "data-item-kind": "slash"
+          },
+          HTMLAttributes
+        ),
+        ["span", { "aria-hidden": "true", class: "text-muted-foreground" }, "/"],
+        ["span", { class: "min-w-0 truncate" }, label]
+      ];
+    }
+    return [
+      "span",
+      mergeAttributes(
+        {
+          class:
+            "thread-mention inline-flex max-w-[18rem] items-center gap-0.5 rounded-md border border-border/60 bg-muted/60 px-1.5 py-0.5 align-middle font-mono text-[11px] text-foreground"
+        },
+        HTMLAttributes
+      ),
+      label
+    ];
   }
 });
 

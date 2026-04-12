@@ -1,7 +1,8 @@
 import { Editor } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { ThreadImageBadge, ThreadQueueContextTag } from "@/lib/threadCreateEditorExtensions";
+import { ThreadFileBadge, ThreadImageBadge, ThreadQueueContextTag } from "@/lib/threadCreateEditorExtensions";
+import { collectDocAttachmentPaths } from "@/lib/threadCreatePromptSerialize";
 import { docPosAtFlatOffset, promptDocFlatText, promptFlatOffsetAtDocPos, replaceFlatRange } from "@/lib/threadCreateTipTap";
 
 describe("threadCreateTipTap", () => {
@@ -83,6 +84,25 @@ describe("threadCreateTipTap", () => {
     });
     expect(ed.getHTML()).toContain("[Agent 1:3]");
     expect(promptDocFlatText(ed.state.doc)).toBe(" see this");
+    ed.destroy();
+  });
+
+  it("ThreadFileBadge is collected for attachments and omitted from promptDocFlatText", () => {
+    const path = "/tmp/project/README.md";
+    const ed = new Editor({
+      extensions: [StarterKit, ThreadFileBadge],
+      content: {
+        type: "doc",
+        content: [
+          {
+            type: "paragraph",
+            content: [{ type: "threadFileBadge", attrs: { path, name: "README.md" } }]
+          }
+        ]
+      }
+    });
+    expect(collectDocAttachmentPaths(ed.state.doc).filePaths).toContain(path);
+    expect(promptDocFlatText(ed.state.doc)).toBe("");
     ed.destroy();
   });
 });

@@ -10,7 +10,7 @@ function pushUnique(list: string[], p: string): void {
   list.push(p);
 }
 
-/** Collect absolute paths from @ mentions, image badges, and inline file mentions for agent attachment blocks. */
+/** Collect absolute paths from @ mentions, image/file paperclip badges, and inline file mentions for agent attachment blocks. */
 export function collectDocAttachmentPaths(doc: PMNode): DocAttachmentBuckets {
   const skillPaths: string[] = [];
   const filePaths: string[] = [];
@@ -23,6 +23,10 @@ export function collectDocAttachmentPaths(doc: PMNode): DocAttachmentBuckets {
       else if (kind === "file") pushUnique(filePaths, id);
     }
     if (node.type.name === "threadImageBadge") {
+      const path = String(node.attrs.path ?? "");
+      if (path) pushUnique(filePaths, path);
+    }
+    if (node.type.name === "threadFileBadge") {
       const path = String(node.attrs.path ?? "");
       if (path) pushUnique(filePaths, path);
     }

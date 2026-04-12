@@ -3,7 +3,7 @@ import type { Editor } from "@tiptap/core";
 import Placeholder from "@tiptap/extension-placeholder";
 import StarterKit from "@tiptap/starter-kit";
 import { EditorContent, useEditor } from "@tiptap/vue-3";
-import { Paperclip, Send, X } from "lucide-vue-next";
+import { Check, Paperclip, X } from "lucide-vue-next";
 import type { Ref } from "vue";
 import { computed, nextTick, ref, watch } from "vue";
 import Button from "@/components/ui/Button.vue";
@@ -12,6 +12,7 @@ import { badgeVariants } from "@/components/ui/badge";
 import {
   createThreadCreatePromptExtensions,
   isThreadCreateSuggestionActive,
+  ThreadFileBadge,
   ThreadImageBadge,
   ThreadQueueContextTag
 } from "@/lib/threadCreateEditorExtensions";
@@ -72,6 +73,7 @@ const tiptapEditor: Ref<Editor | null | undefined> = props.tiptap
         }),
         ThreadQueueContextTag,
         ThreadImageBadge,
+        ThreadFileBadge,
         createThreadCreatePromptExtensions({ getWorktreePath: () => props.worktreePath })
       ],
       content: "<p></p>",
@@ -106,19 +108,21 @@ const tiptapEditor: Ref<Editor | null | undefined> = props.tiptap
             const coords = view.posAtCoords({ left: event.clientX, top: event.clientY });
             if (coords == null) return true;
             const pos = coords.pos;
-            const imageNodes: { type: string; attrs: { path: string; name: string } }[] = [];
+            const doc = editor.state.doc;
+            const seen = new Set<string>();
+            const inserts: { type: string; attrs: { path: string; name: string } }[] = [];
             for (const file of Array.from(dt.files)) {
+              const path = pathFromFile(file);
+              if (seen.has(path) || docHasAttachmentPath(doc, path)) continue;
+              seen.add(path);
               if (isImageFile(file)) {
-                imageNodes.push({
-                  type: "threadImageBadge",
-                  attrs: { path: pathFromFile(file), name: file.name }
-                });
+                inserts.push({ type: "threadImageBadge", attrs: { path, name: file.name } });
               } else {
-                addFilesFromList([file]);
+                inserts.push({ type: "threadFileBadge", attrs: { path, name: file.name } });
               }
             }
-            if (imageNodes.length > 0) {
-              editor.chain().focus().insertContentAt(pos, imageNodes).run();
+            if (inserts.length > 0) {
+              editor.chain().focus().insertContentAt(pos, inserts).run();
             }
             return true;
           }
@@ -193,6 +197,16 @@ function onQueueRemoveClick(): void {
   emit("queueRemove");
 }
 
+function docHasAttachmentPath(doc: Parameters<typeof promptDocFlatText>[0], path: string): boolean {
+  let found = false;
+  doc.descendants((node) => {
+    if (node.type.name === "threadFileBadge" || node.type.name === "threadImageBadge") {
+      if (String(node.attrs.path ?? "") === path) found = true;
+    }
+  });
+  return found;
+}
+
 function onDone(): void {
   const editor = tiptapEditor.value;
   if (!editor) return;
@@ -240,18 +254,13 @@ function addFilesFromListTipTap(files: FileList | File[]): void {
   for (const file of Array.from(files)) {
     const path = pathFromFile(file);
     const name = file.name;
-    if (isImageFile(file) && editor) {
-      editor
-        .chain()
-        .focus("end")
-        .insertContent([{ type: "threadImageBadge", attrs: { path, name } }])
-        .run();
-    } else {
-      const next = [...attachments.value];
-      if (!next.find((a) => a.path === path)) {
-        next.push({ id: crypto.randomUUID(), path, name, isImage: false });
+    if (!editor) continue;
+    if (isImageFile(file)) {
+      if (!docHasAttachmentPath(editor.state.doc, path)) {
+        editor.chain().focus("end").insertContent([{ type: "threadImageBadge", attrs: { path, name } }]).run();
       }
-      attachments.value = next;
+    } else if (!docHasAttachmentPath(editor.state.doc, path)) {
+      editor.chain().focus("end").insertContent([{ type: "threadFileBadge", attrs: { path, name } }]).run();
     }
   }
 }
@@ -447,7 +456,7 @@ defineExpose({
     </div>
 
     <div
-      v-if="isEditing && attachments.length"
+      v-if="isEditing && attachments.length && !tiptap"
       class="mt-1.5 flex flex-nowrap gap-1 overflow-x-auto overflow-y-hidden [scrollbar-width:thin]"
       :data-testid="`${testIdPrefix}-files-strip`"
     >
@@ -515,7 +524,7 @@ defineExpose({
           :data-testid="`${testIdPrefix}-tiptap-done`"
           @click="onDone"
         >
-          <Send class="size-3.5 shrink-0" stroke-width="2" aria-hidden="true" />
+          <Check class="size-3.5 shrink-0" stroke-width="2" aria-hidden="true" />
           <span>Done</span>
         </Button>
       </div>
