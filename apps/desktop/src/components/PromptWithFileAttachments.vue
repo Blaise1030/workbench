@@ -31,8 +31,12 @@ const props = withDefaults(
     tiptap?: boolean;
     /** Worktree absolute path — required for @ file mention resolution in tiptap mode */
     worktreePath?: string | null;
-    /** When set (queue review), shown as a read-only inline pill at the start of the first line */
+    /** Queue review: inline badge label (e.g. `[Agent 1:7]`) at start of editor */
     contextTagLabel?: string | null;
+    /** Queue review: show Remove row in footer beside Done */
+    showQueueRemove?: boolean;
+    /** Accessible label for the queue Remove control */
+    queueRemoveAriaLabel?: string;
   }>(),
   {
     placeholder: "",
@@ -41,9 +45,15 @@ const props = withDefaults(
     testIdPrefix: "prompt-attachments",
     tiptap: false,
     worktreePath: null,
-    contextTagLabel: null
+    contextTagLabel: null,
+    showQueueRemove: false,
+    queueRemoveAriaLabel: "Remove this queue entry"
   }
 );
+
+const emit = defineEmits<{
+  queueRemove: [];
+}>();
 
 const prompt = defineModel<string>("prompt", { default: "" });
 const attachments = defineModel<LocalFileAttachment[]>("attachments", { default: () => [] });
@@ -57,7 +67,8 @@ const tiptapEditor: Ref<Editor | null | undefined> = props.tiptap
         StarterKit.configure({ heading: false, codeBlock: false }),
         Placeholder.configure({
           placeholder:
-            props.placeholder || "Comment for the agent (optional) — use @ for files"
+            props.placeholder ||
+            "Optional note for the agent — use @ for files, / for commands, paperclip for attachments"
         }),
         ThreadQueueContextTag,
         ThreadImageBadge,
@@ -68,9 +79,12 @@ const tiptapEditor: Ref<Editor | null | undefined> = props.tiptap
       editorProps: {
         attributes: {
           class:
-            "tiptap min-h-[3.25rem] max-h-[10rem] overflow-y-auto px-2.5 py-1.5 text-[13px] leading-snug text-foreground outline-none focus:outline-none [&_p]:my-0.5",
+            "tiptap min-h-[3.25rem] max-h-[10rem] overflow-y-auto px-2.5 py-1.5 text-[13px] leading-snug text-foreground outline-none focus:outline-none [&_p]:my-0.5 [&_p:first-child]:mb-0",
           role: "textbox",
-          "aria-multiline": "true"
+          "aria-multiline": "true",
+          "aria-placeholder":
+            props.placeholder ||
+            "Optional note for the agent — use @ for files, / for commands, paperclip for attachments"
         },
         handleKeyDown(view, event) {
           if (isThreadCreateSuggestionActive(view)) {
@@ -118,6 +132,12 @@ const isEditing = ref(true);
 
 const isDocEmpty = computed(() => tiptapEditor.value?.isEmpty ?? true);
 
+const tiptapHintText = computed(
+  () =>
+    props.placeholder?.trim() ||
+    "Optional note for the agent — use @ for files, / for commands, paperclip for attachments"
+);
+
 watch(isEditing, (v) => {
   tiptapEditor.value?.setEditable(v);
 });
@@ -125,19 +145,20 @@ watch(isEditing, (v) => {
 function flatTextToDocJson(text: string, contextTag: string | null) {
   const tag = contextTag?.trim() || null;
   const lines = text.split(THREAD_PROMPT_BLOCK_SEP);
-  return {
-    type: "doc",
-    content: lines.map((line, i) => {
-      const parts: { type: string; text?: string; attrs?: { label: string } }[] = [];
-      if (i === 0 && tag) {
-        parts.push({ type: "threadQueueContextTag", attrs: { label: tag } });
-      }
-      if (line.length > 0) {
-        parts.push({ type: "text", text: line });
-      }
-      return { type: "paragraph", content: parts };
-    })
-  };
+  const content: Record<string, unknown>[] = [];
+  if (tag) {
+    content.push({
+      type: "paragraph",
+      content: [{ type: "threadQueueContextTag", attrs: { label: tag } }]
+    });
+  }
+  for (const line of lines) {
+    content.push({
+      type: "paragraph",
+      content: line.length > 0 ? [{ type: "text", text: line }] : []
+    });
+  }
+  return { type: "doc", content };
 }
 
 function firstContextTagLabelInDoc(doc: Parameters<typeof promptDocFlatText>[0]): string | null {
@@ -151,7 +172,7 @@ function firstContextTagLabelInDoc(doc: Parameters<typeof promptDocFlatText>[0])
   return found;
 }
 
-/** Hydrate TipTap from v-model when the editor mounts or the prompt / context label is updated externally. */
+/** Hydrate TipTap from v-model when the prompt or context tag changes externally. */
 watch(
   () => [props.tiptap, prompt.value, tiptapEditor.value, props.contextTagLabel] as const,
   () => {
@@ -167,6 +188,10 @@ watch(
   },
   { flush: "post", immediate: true }
 );
+
+function onQueueRemoveClick(): void {
+  emit("queueRemove");
+}
 
 function onDone(): void {
   const editor = tiptapEditor.value;
@@ -385,7 +410,7 @@ defineExpose({
     <div
       :class="
         isEditing
-          ? 'rounded-md border border-input bg-background focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2'
+          ? 'flex flex-col overflow-hidden rounded-md border border-input bg-background focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2'
           : isDocEmpty
             ? 'hidden'
             : 'w-full cursor-text rounded-md bg-muted/30 px-2 py-1 text-[13px] text-foreground hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1'
@@ -399,6 +424,13 @@ defineExpose({
       @keydown.space.prevent="!isEditing && !isDocEmpty ? onBlobClick() : undefined"
     >
       <EditorContent :editor="tiptapEditor" />
+      <p
+        v-if="isEditing"
+        class="pointer-events-none border-t border-border/50 px-2.5 py-1.5 text-[11px] leading-snug text-muted-foreground select-none"
+        :data-testid="`${testIdPrefix}-tiptap-placeholder-hint`"
+      >
+        {{ tiptapHintText }}
+      </p>
     </div>
 
     <div
@@ -436,7 +468,7 @@ defineExpose({
       </div>
     </div>
 
-    <div v-if="isEditing" class="mt-1 flex items-center justify-between gap-1">
+    <div v-if="isEditing" class="mt-1 flex items-center gap-2">
       <Button
         type="button"
         variant="outline"
@@ -449,16 +481,30 @@ defineExpose({
       >
         <Paperclip class="size-3.5" stroke-width="2" />
       </Button>
-      <Button
-        type="button"
-        variant="secondary"
-        size="sm"
-        class="h-7 px-2.5 text-[11px]"
-        :data-testid="`${testIdPrefix}-tiptap-done`"
-        @click="onDone"
-      >
-        Done
-      </Button>
+      <div class="ms-auto flex items-center gap-1.5">
+        <Button
+          v-if="showQueueRemove"
+          type="button"
+          variant="ghost"
+          size="sm"
+          class="h-7 px-2.5 text-[11px] text-muted-foreground hover:text-destructive"
+          :data-testid="`${testIdPrefix}-queue-remove`"
+          :aria-label="queueRemoveAriaLabel"
+          @click="onQueueRemoveClick"
+        >
+          Remove
+        </Button>
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          class="h-7 px-2.5 text-[11px]"
+          :data-testid="`${testIdPrefix}-tiptap-done`"
+          @click="onDone"
+        >
+          Done
+        </Button>
+      </div>
     </div>
   </div>
 </template>

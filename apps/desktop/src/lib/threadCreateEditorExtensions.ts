@@ -216,7 +216,7 @@ export const ThreadImageBadge = Node.create({
   }
 });
 
-/** Inline pill for queued context (file / agent / terminal line span), e.g. `[Agent 1:3]`. Excluded from flat-text prompt serialization. */
+/** Queue review: inline context span (e.g. `[Agent 1:7]`). Omitted from flat-text note serialization. */
 export const ThreadQueueContextTag = Node.create({
   name: "threadQueueContextTag",
   group: "inline",
@@ -244,7 +244,7 @@ export const ThreadQueueContextTag = Node.create({
         {
           "data-thread-queue-context-tag": "1",
           class:
-            "thread-queue-context-tag inline-flex max-w-[20rem] shrink-0 items-center rounded-md border border-border/50 bg-muted/45 px-1.5 py-px align-middle font-mono text-[11px] font-medium tabular-nums text-foreground/90"
+            "thread-queue-context-tag inline-flex max-w-[20rem] shrink-0 items-center rounded-md border border-border/50 bg-muted/50 px-1.5 py-px align-middle font-mono text-[11px] font-medium tabular-nums text-foreground/90"
         },
         HTMLAttributes
       ),

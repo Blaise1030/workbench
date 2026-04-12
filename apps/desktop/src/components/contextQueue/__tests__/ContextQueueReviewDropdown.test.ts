@@ -41,10 +41,10 @@ describe("ContextQueueReviewDropdown", () => {
     await wrapper.get('[data-testid="workspace-context-queue-button"]').trigger("click");
     await flushPromises();
 
-    const chips = document.body.querySelectorAll('[data-testid="context-queue-review-chip"]');
-    expect(chips.length).toBe(2);
-    for (const chip of chips) {
-      await (chip as HTMLElement).click();
+    const rows = document.body.querySelectorAll('[data-testid="context-queue-review-row"]');
+    expect(rows.length).toBe(2);
+    for (const row of rows) {
+      (row as HTMLElement).dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
     }
     await flushPromises();
 
@@ -131,9 +131,9 @@ describe("ContextQueueReviewDropdown", () => {
     await wrapper.get('[data-testid="workspace-context-queue-button"]').trigger("click");
     await flushPromises();
 
-    const chip = document.body.querySelector('[data-testid="context-queue-review-chip"]');
-    expect(chip).toBeTruthy();
-    await (chip as HTMLElement).click();
+    const row = document.body.querySelector('[data-testid="context-queue-review-row"]');
+    expect(row).toBeTruthy();
+    (row as HTMLElement).dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
     await flushPromises();
 
     const after = document.body.querySelector('[data-testid="context-queue-diff-paste-after"]');
@@ -167,10 +167,10 @@ describe("ContextQueueReviewDropdown", () => {
     await wrapper.get('[data-testid="workspace-context-queue-button"]').trigger("click");
     await flushPromises();
 
-    const chips = document.body.querySelectorAll('[data-testid="context-queue-review-chip"]');
-    expect(chips.length).toBe(2);
-    for (const chip of chips) {
-      await (chip as HTMLElement).click();
+    const rows = document.body.querySelectorAll('[data-testid="context-queue-review-row"]');
+    expect(rows.length).toBe(2);
+    for (const row of rows) {
+      (row as HTMLElement).dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
     }
     await flushPromises();
 

@@ -3,13 +3,12 @@ import { GripVertical, ListOrdered } from "lucide-vue-next";
 import { computed, ref, watch } from "vue";
 import type { QueueItem } from "@/contextQueue/types";
 import { parseDiffQueuePaste } from "@/contextQueue/diffPasteParse";
-import { queueContextBadgeLabel, queueSnippetPreview } from "@/contextQueue/reviewPasteLabels";
+import { queueContextBadgeLabel } from "@/contextQueue/reviewPasteLabels";
 import Badge from "@/components/ui/Badge.vue";
 import Button from "@/components/ui/Button.vue";
 import ContextQueueDiffPasteComposer from "@/components/contextQueue/ContextQueueDiffPasteComposer.vue";
 import PromptWithFileAttachments from "@/components/PromptWithFileAttachments.vue";
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 const props = defineProps<{
   threadId: string | null;
@@ -77,19 +76,6 @@ function pruneExpandedEditors(): void {
 
 function isRowEditorExpanded(id: string): boolean {
   return editorExpandedIds.value.has(id);
-}
-
-function sourceEmoji(row: QueueItem): string {
-  switch (row.source) {
-    case "diff":
-      return "❗";
-    case "file":
-      return "📄";
-    case "folder":
-      return "📁";
-    case "terminal":
-      return row.pasteText.includes("[Agent Tab]") ? "🤖" : "🖥️";
-  }
 }
 
 function useDiffPasteComposer(row: QueueItem): boolean {
@@ -338,26 +324,6 @@ defineExpose({ openReview });
                 >
                   <GripVertical class="size-3.5 shrink-0" aria-hidden="true" />
                 </button>
-                <Badge
-                  variant="secondary"
-                  class="max-w-[min(10rem,42%)] shrink-0 gap-0.5 truncate px-1.5 py-0 text-[10px] font-medium"
-                >
-                  <span aria-hidden="true">{{ sourceEmoji(row) }}</span>
-                  <span class="truncate">{{ row.source }}</span>
-                </Badge>
-                <div class="ms-auto flex shrink-0">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    class="h-7 px-2 text-[11px] text-muted-foreground hover:text-destructive"
-                    data-testid="context-queue-review-delete"
-                    :aria-label="`Remove ${row.source} entry`"
-                    @click.stop="removeAt(index)"
-                  >
-                    Remove
-                  </Button>
-                </div>
               </div>
 
               <button
@@ -370,30 +336,6 @@ defineExpose({ openReview });
               >
                 <span class="truncate text-muted-foreground">Empty context</span>
               </button>
-              <Tooltip v-else-if="!isRowEditorExpanded(row.id)" :delay-duration="220">
-                <TooltipTrigger as-child>
-                  <button
-                    type="button"
-                    data-testid="context-queue-review-chip"
-                    class="flex w-full min-w-0 max-w-full items-center justify-center rounded-md bg-muted/50 px-2 py-1 text-center text-xs text-foreground transition-colors hover:bg-muted/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background"
-                    aria-label="Hover for snippet preview; click to edit context"
-                    @click="expandRowEditor(row.id)"
-                  >
-                    <span class="truncate font-mono text-[11px] tracking-tight">{{ queueContextBadgeLabel(row) }}</span>
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent
-                  side="right"
-                  align="start"
-                  class="max-h-52 max-w-[min(22rem,calc(100vw-2rem))] overflow-auto border border-border/80 p-2 text-xs shadow-md"
-                >
-                  <pre
-                    class="whitespace-pre-wrap break-words font-mono text-[11px] leading-snug text-popover-foreground"
-                    >{{ queueSnippetPreview(row) }}</pre
-                  >
-                </TooltipContent>
-              </Tooltip>
-
               <div data-context-queue-review-note>
                 <PromptWithFileAttachments
                   :key="`${tiptapResetKey}-${row.id}`"
@@ -402,8 +344,11 @@ defineExpose({ openReview });
                   :tiptap="true"
                   :worktree-path="worktreePath"
                   :context-tag-label="queueContextBadgeLabel(row)"
-                  placeholder="Comment for the agent (optional) — use @ for files"
+                  show-queue-remove
+                  :queue-remove-aria-label="`Remove ${row.source} entry`"
+                  placeholder="Optional note — @ files, / commands, paperclip for attachments"
                   test-id-prefix="context-queue-review-note"
+                  @queue-remove="removeAt(index)"
                 />
               </div>
 
@@ -415,7 +360,7 @@ defineExpose({ openReview });
                 v-else-if="isRowEditorExpanded(row.id)"
                 v-model="row.pasteText"
                 draggable="false"
-                class="min-h-[5rem] w-full resize-y rounded-md border border-input bg-background px-2.5 py-1.5 text-sm text-foreground ring-offset-background placeholder:text-muted-foreground focus-visible:border-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(212,92%,45%)] focus-visible:ring-offset-0 dark:focus-visible:ring-[hsl(212,92%,58%)]"
+                class="min-h-[5rem] w-full resize-none rounded-md border border-input bg-background px-2.5 py-1.5 text-sm text-foreground ring-offset-background placeholder:text-muted-foreground focus-visible:border-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(212,92%,45%)] focus-visible:ring-offset-0 dark:focus-visible:ring-[hsl(212,92%,58%)]"
                 data-testid="context-queue-review-paste"
                 :aria-label="`Paste text from ${row.source}`"
                 @dblclick.stop
