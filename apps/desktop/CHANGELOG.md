@@ -1,5 +1,62 @@
 # Changelog
 
+## [0.7.0](https://github.com/Blaise1030/workbench/compare/v0.6.0...v0.7.0) (2026-04-12)
+
+
+### Features
+
+* added unified git diff ([f62f53d](https://github.com/Blaise1030/workbench/commit/f62f53d7656b439be373f4d155659457f6e79320))
+* bundle metrics helper for main Vite chunk ([bb56d07](https://github.com/Blaise1030/workbench/commit/bb56d074af6ebe11c4c3352084aa6fb6b94d6ef4))
+* **context-queue:** [Agent Tab] paste header for thread agent terminal ([34d6f16](https://github.com/Blaise1030/workbench/commit/34d6f1656b209609fd95c0c2ae02beb3342cbef8))
+* **context-queue:** add paste text formatters ([93a1c91](https://github.com/Blaise1030/workbench/commit/93a1c91a2f9cccd5804ffbecaf477a405937cd5b))
+* **context-queue:** add PTY inject loop ([76065a7](https://github.com/Blaise1030/workbench/commit/76065a7135bc5d8c42c3452724889504bc664c4b))
+* **context-queue:** add queue types ([d11e7c4](https://github.com/Blaise1030/workbench/commit/d11e7c428a524fe563fa4e9099bbea373b7a76c4))
+* **context-queue:** add review dialog ([8f9a2a1](https://github.com/Blaise1030/workbench/commit/8f9a2a178a6fbbdffcadc815e80474bf6b4a7994))
+* **context-queue:** add selection popup and anchor helpers ([50a04e0](https://github.com/Blaise1030/workbench/commit/50a04e0a85242d8037a81f0921748918974f1c27))
+* **context-queue:** add thread context queue composable ([7178507](https://github.com/Blaise1030/workbench/commit/7178507397be3de0b5ed522f5e5c8ab2047f339e))
+* **desktop:** Agent button on selection popup sends context to PTY ([0f06d22](https://github.com/Blaise1030/workbench/commit/0f06d2203965dd3681716fc88a9e7894930c9fba))
+* **desktop:** context queue bar on overlay shell terminals too ([9ad7fe7](https://github.com/Blaise1030/workbench/commit/9ad7fe714f1fbc017b5f9d7326f432e862ba8b8c))
+* **desktop:** drag-and-drop reorder in context queue review ([a635dd6](https://github.com/Blaise1030/workbench/commit/a635dd64879fba4cf02fb6d6c0c6bd6d27520eed))
+* **desktop:** emit user-typed from TerminalPane for PTY echo suppression ([6a8dc93](https://github.com/Blaise1030/workbench/commit/6a8dc935ec7300d1a5034620fa0da2c664e409c1))
+* **desktop:** GitHub-style composer for context queue review ([ab08980](https://github.com/Blaise1030/workbench/commit/ab089808acc5351a424f84aa084149ce9a0f57c7))
+* **desktop:** keybindings for Queue/Agent selection bar ([ca832d1](https://github.com/Blaise1030/workbench/commit/ca832d187d34fff8f67e2f60c74984398778761d))
+* **desktop:** open queue review when context is enqueued ([c7d6fd1](https://github.com/Blaise1030/workbench/commit/c7d6fd1a892a149aee0d60c7a0e16d55d131638c))
+* **desktop:** thread context queue with review and PTY inject ([60147d3](https://github.com/Blaise1030/workbench/commit/60147d3c78cb6def2c3d5206b67086b013f0bd2b))
+* **desktop:** TipTap thread create, attachments, IPC channel map ([7c2392d](https://github.com/Blaise1030/workbench/commit/7c2392d3391bc5d0c8d0ab6f49334e45eab97079))
+* **editor:** inline file badges, slash chip styling, Done with check icon ([326fdd3](https://github.com/Blaise1030/workbench/commit/326fdd3f7b29068061baebde077238aba10f8b3d))
+* improve tooltip provider rendering ([54ee9a1](https://github.com/Blaise1030/workbench/commit/54ee9a1ae0cda102ab9aa95276bacf0fc8220998))
+* moved terminal to the bottom bar ([64c2811](https://github.com/Blaise1030/workbench/commit/64c2811a55627f76d07052c64a436c31ef630137))
+* **queue:** context badge in TipTap, footer Remove+Done, drop preview chip ([51b205a](https://github.com/Blaise1030/workbench/commit/51b205a55d7c3687482416ea44c950f3e4cdd005))
+* **queue:** show queue context badge as inline TipTap tag in review note ([3f3639a](https://github.com/Blaise1030/workbench/commit/3f3639a62c233df60a615df18b220487c97300d8))
+* **queue:** TipTap comment editor with blob preview in context queue review ([dc6b19d](https://github.com/Blaise1030/workbench/commit/dc6b19d7278f4ee1c22b61570e3a6c45bdbce301))
+* updated git diff ([f19b47c](https://github.com/Blaise1030/workbench/commit/f19b47ce1b3f7a67299b18ad7e0a19ab374e2dcb))
+
+
+### Bug Fixes
+
+* **desktop:** anchor context-queue bar to selection and visual viewport ([ec7c143](https://github.com/Blaise1030/workbench/commit/ec7c14370d37b82a07a740d48ccc75de4ac2448d))
+* **desktop:** dismiss context queue popups on scroll ([c9f40ce](https://github.com/Blaise1030/workbench/commit/c9f40ce94592d73b954c937c18345834dc78f0af))
+* **desktop:** label queued shell output as Terminal N, not generic Terminal ([affc760](https://github.com/Blaise1030/workbench/commit/affc7600769fa44cc1f209a0e704c56fa9a1b9fc))
+* **desktop:** thread PTY idle attention uses activeThreadId and input suppression ([b1c2522](https://github.com/Blaise1030/workbench/commit/b1c252274279c1742f4c256b07ded96e5808aa38))
+* **desktop:** wire activeThreadId and user-typed into PTY run status ([3e5d313](https://github.com/Blaise1030/workbench/commit/3e5d313ac6964014a308e7e0bcca63d3fe1cb81f))
+* queue input ([f068384](https://github.com/Blaise1030/workbench/commit/f068384525f235f5d6e0dd5d0bf06f58d58353dc))
+* **queue:** align drag handle to the left of the review editor column ([f36f08c](https://github.com/Blaise1030/workbench/commit/f36f08cf9fa3cb94931c50aa0c79359db4115ac9))
+* **queue:** do not preventDefault Space in TipTap edit mode (blob wrapper) ([6ad6fe4](https://github.com/Blaise1030/workbench/commit/6ad6fe42afca55725951880e982c1203056f0f9a))
+* **queue:** preserve review drafts when queue props update while panel open ([c083304](https://github.com/Blaise1030/workbench/commit/c0833049c83cc520c3fa9e7ca3e4e82328ebd08a))
+* **security:** add -- end-of-options separator before prompt in agent adapters (HIGH-3) ([7a69ed1](https://github.com/Blaise1030/workbench/commit/7a69ed19898489599e40ff7fdc807072ceb8ae06))
+* **security:** enable sandbox:true — rewrite preload without Node.js path import (HIGH-1) ([5b32d64](https://github.com/Blaise1030/workbench/commit/5b32d64957e782271afedc4d6d85f4d8c75f2c1d))
+* **security:** extract path guard utility and fix EditService path traversal (CRITICAL-1) ([20de633](https://github.com/Blaise1030/workbench/commit/20de633d382d52e95ac50b7717ee457b6fa6535c))
+* **security:** fix git flag injection and worktreeRemove path derivation (MEDIUM-2, MEDIUM-3) ([699fe22](https://github.com/Blaise1030/workbench/commit/699fe2278b5a53bc3a4da19d28ab545b4f2eb898))
+* **security:** reject file paths containing colon before git revspec interpolation (LOW-2) ([5d5688b](https://github.com/Blaise1030/workbench/commit/5d5688bdb36f3512538b0033874b5a9932d7c686))
+* **security:** upgrade Electron to patch commandLineSwitches renderer injection CVE (HIGH-2) ([49b5da9](https://github.com/Blaise1030/workbench/commit/49b5da98b8f90bebfedf89134cf155aa0dd2cdb4))
+* **security:** validate cwd against registered worktrees in IPC handlers (MEDIUM-1) ([dcbf1ee](https://github.com/Blaise1030/workbench/commit/dcbf1eef541e200504a3ee931d82d6f009e54e29))
+* vulnerability from claude code review ([933f5e1](https://github.com/Blaise1030/workbench/commit/933f5e146fcbb1f408433b856959dfae00eae1d7))
+
+
+### Performance Improvements
+
+* **scm:** LRU diff text cache with worktree-qualified keys ([eaf8180](https://github.com/Blaise1030/workbench/commit/eaf81807da2dc509d2249cac81ec4ee214a909f4))
+
 ## [0.6.0](https://github.com/Blaise1030/workbench/compare/v0.5.3...v0.6.0) (2026-04-10)
 
 
