@@ -1,4 +1,3 @@
-import path from "node:path";
 import { ref, watch, type Ref } from "vue";
 
 function getApi() {
@@ -22,8 +21,11 @@ export type ThreadMentionItem = {
   kind: "skill" | "file";
 };
 
+/** Join a worktree root and a relative path into an absolute path (browser-safe, no node:path). */
 export function absolutePathInWorktree(cwd: string, relativePath: string): string {
-  return path.join(cwd, relativePath);
+  const base = cwd.replace(/[/\\]+$/, "");
+  const rel = relativePath.replace(/^[/\\]+/, "");
+  return `${base}/${rel}`;
 }
 
 /**

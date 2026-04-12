@@ -1,17 +1,89 @@
 import { mount } from "@vue/test-utils";
+import type { ComponentMountingOptions } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
-import { nextTick } from "vue";
+import { defineComponent, h, nextTick, type PropType } from "vue";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import ThreadSidebar from "@/components/ThreadSidebar.vue";
-import type { Thread, Worktree } from "@shared/domain";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import type { RunStatus, Thread, Worktree } from "@shared/domain";
 import type { WorkspaceThreadContext } from "@/stores/workspaceStore";
 
-async function hoverFirstThreadRow(wrapper: ReturnType<typeof mount>): Promise<void> {
+async function hoverFirstThreadRow(wrapper: ReturnType<typeof mountThreadSidebar>): Promise<void> {
   await wrapper.get('[data-testid="thread-row"]').trigger("mouseenter");
 }
 
+/**
+ * Wraps `ThreadSidebar` with `TooltipProvider` (same as production `App.vue`) and forwards props + emits
+ * so `mount(...).setProps` / `wrapper.emitted()` target the test host root.
+ */
+const ThreadSidebarTestHost = defineComponent({
+  name: "ThreadSidebarTestHost",
+  props: {
+    threads: { type: Array as PropType<Thread[]>, required: true },
+    activeThreadId: { type: String as PropType<string | null>, default: null },
+    collapsed: { type: Boolean, default: false },
+    runStatusByThreadId: { type: Object as PropType<Record<string, RunStatus>>, default: undefined },
+    idleAttentionByThreadId: { type: Object as PropType<Record<string, boolean>>, default: undefined },
+    threadGroups: { type: Array as PropType<Worktree[]>, default: () => [] },
+    threadContexts: { type: Array as PropType<WorkspaceThreadContext[]>, default: undefined },
+    contextLabel: { type: String as PropType<string | null | undefined>, default: undefined },
+    defaultWorktreeId: { type: String as PropType<string | null | undefined>, default: undefined },
+    staleWorktreeIds: {
+      type: Object as PropType<ReadonlySet<string>>,
+      default: () => new Set<string>()
+    },
+    showBranchPicker: { type: Boolean, default: false },
+    projectId: { type: String as PropType<string | null>, default: null }
+  },
+  emits: [
+    "select",
+    "remove",
+    "rename",
+    "createWorktreeGroup",
+    "cancelBranchPicker",
+    "showBranchPicker",
+    "deleteWorktreeGroup",
+    "collapse",
+    "expand"
+  ],
+  setup(props, { emit }) {
+    return () =>
+      h(TooltipProvider, null, {
+        default: () =>
+          h(ThreadSidebar, {
+            threads: props.threads,
+            activeThreadId: props.activeThreadId,
+            collapsed: props.collapsed,
+            runStatusByThreadId: props.runStatusByThreadId,
+            idleAttentionByThreadId: props.idleAttentionByThreadId,
+            threadGroups: props.threadGroups,
+            threadContexts: props.threadContexts,
+            contextLabel: props.contextLabel,
+            defaultWorktreeId: props.defaultWorktreeId,
+            staleWorktreeIds: props.staleWorktreeIds,
+            showBranchPicker: props.showBranchPicker,
+            projectId: props.projectId,
+            onSelect: (threadId: string) => emit("select", threadId),
+            onRemove: (threadId: string) => emit("remove", threadId),
+            onRename: (threadId: string, newTitle: string) => emit("rename", threadId, newTitle),
+            onCreateWorktreeGroup: (branch: string, baseBranch: string | null) =>
+              emit("createWorktreeGroup", branch, baseBranch),
+            onCancelBranchPicker: () => emit("cancelBranchPicker"),
+            onShowBranchPicker: () => emit("showBranchPicker"),
+            onDeleteWorktreeGroup: (worktreeId: string) => emit("deleteWorktreeGroup", worktreeId),
+            onCollapse: () => emit("collapse"),
+            onExpand: () => emit("expand")
+          })
+      });
+  }
+});
+
+function mountThreadSidebar(options?: ComponentMountingOptions<typeof ThreadSidebar>) {
+  return mount(ThreadSidebarTestHost, options as ComponentMountingOptions<typeof ThreadSidebarTestHost>);
+}
+
 describe("ThreadSidebar", () => {
-  let wrapper: ReturnType<typeof mount<typeof ThreadSidebar>>;
+  let wrapper: ReturnType<typeof mountThreadSidebar>;
 
   beforeEach(() => {
     setActivePinia(createPinia());
@@ -67,7 +139,7 @@ describe("ThreadSidebar", () => {
   }
 
   it("shows icon-only thread rows when collapsed", () => {
-    wrapper = mount(ThreadSidebar, {
+    wrapper = mountThreadSidebar( {
       props: {
         threads: threeThreadsNewestFirst,
         activeThreadId: "t1",
@@ -75,13 +147,13 @@ describe("ThreadSidebar", () => {
       }
     });
 
-    expect(wrapper.attributes("data-thread-sidebar-collapsed")).toBe("true");
+    expect(wrapper.get("aside").attributes("data-thread-sidebar-collapsed")).toBe("true");
     expect(wrapper.findAll('[data-testid="thread-select"]')).toHaveLength(0);
     expect(wrapper.findAll('[data-testid="thread-group-collapsed-trigger"]')).toHaveLength(1);
   });
 
   it("supports collapsed primary fallback popover without a default worktree id", async () => {
-    wrapper = mount(ThreadSidebar, {
+    wrapper = mountThreadSidebar( {
       props: {
         threads: threeThreadsNewestFirst,
         activeThreadId: "t1",
@@ -101,7 +173,7 @@ describe("ThreadSidebar", () => {
   });
 
   it("renders the expand toggle in the top bar when collapsed", async () => {
-    wrapper = mount(ThreadSidebar, {
+    wrapper = mountThreadSidebar( {
       props: {
         threads: threeThreadsNewestFirst,
         activeThreadId: "t1",
@@ -115,7 +187,7 @@ describe("ThreadSidebar", () => {
   });
 
   it("renders the collapse toggle in the top bar when expanded", async () => {
-    wrapper = mount(ThreadSidebar, {
+    wrapper = mountThreadSidebar( {
       props: {
         threads: threeThreadsNewestFirst,
         activeThreadId: "t1"
@@ -128,7 +200,7 @@ describe("ThreadSidebar", () => {
   });
 
   it("shows a simple top-aligned no-threads label when empty", () => {
-    wrapper = mount(ThreadSidebar, {
+    wrapper = mountThreadSidebar( {
       props: {
         threads: [],
         activeThreadId: null,
@@ -142,7 +214,7 @@ describe("ThreadSidebar", () => {
   });
 
   it("renders a labeled add-worktree button in the footer when expanded", () => {
-    wrapper = mount(ThreadSidebar, {
+    wrapper = mountThreadSidebar( {
       props: {
         threads,
         activeThreadId: "t1",
@@ -154,7 +226,7 @@ describe("ThreadSidebar", () => {
   });
 
   it("renders a larger add-worktree button in the footer when expanded", () => {
-    wrapper = mount(ThreadSidebar, {
+    wrapper = mountThreadSidebar( {
       props: {
         threads,
         activeThreadId: "t1",
@@ -170,7 +242,7 @@ describe("ThreadSidebar", () => {
   });
 
   it("renders an icon-only add-worktree button in the footer when collapsed", () => {
-    wrapper = mount(ThreadSidebar, {
+    wrapper = mountThreadSidebar( {
       props: {
         threads,
         activeThreadId: "t1",
@@ -183,7 +255,7 @@ describe("ThreadSidebar", () => {
   });
 
   it("emits showBranchPicker when add worktree is clicked and cancelBranchPicker when cancel", async () => {
-    wrapper = mount(ThreadSidebar, {
+    wrapper = mountThreadSidebar( {
       props: {
         threads,
         activeThreadId: "t1",
@@ -204,7 +276,7 @@ describe("ThreadSidebar", () => {
   });
 
   it("expands the sidebar before showing worktree form when collapsed footer button is clicked", async () => {
-    wrapper = mount(ThreadSidebar, {
+    wrapper = mountThreadSidebar( {
       props: {
         threads,
         activeThreadId: "t1",
@@ -220,7 +292,7 @@ describe("ThreadSidebar", () => {
   });
 
   it("shows only one cancel control when the footer branch picker is open", () => {
-    wrapper = mount(ThreadSidebar, {
+    wrapper = mountThreadSidebar( {
       props: {
         threads,
         activeThreadId: "t1",
@@ -234,7 +306,7 @@ describe("ThreadSidebar", () => {
 
   it("emits remove with threadId when a ThreadRow archive is confirmed in the window", async () => {
     const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
-    wrapper = mount(ThreadSidebar, { attachTo: document.body, props: { threads, activeThreadId: "t1" } });
+    wrapper = mountThreadSidebar( { attachTo: document.body, props: { threads, activeThreadId: "t1" } });
     await hoverFirstThreadRow(wrapper);
     await wrapper.get('[data-testid="thread-archive"]').trigger("click");
     expect(confirmSpy).toHaveBeenCalled();
@@ -243,7 +315,7 @@ describe("ThreadSidebar", () => {
   });
 
   it("emits rename with threadId and new title when a ThreadRow emits rename", async () => {
-    wrapper = mount(ThreadSidebar, { props: { threads, activeThreadId: "t1" } });
+    wrapper = mountThreadSidebar( { props: { threads, activeThreadId: "t1" } });
     await wrapper.get('[data-testid="thread-select"]').trigger("dblclick");
     const input = wrapper.get('[data-testid="thread-rename-input"]');
     await input.setValue("Renamed");
@@ -252,7 +324,7 @@ describe("ThreadSidebar", () => {
   });
 
   it("lists threads newest-first (matches workspace store ordering)", () => {
-    wrapper = mount(ThreadSidebar, {
+    wrapper = mountThreadSidebar( {
       props: {
         threads: threeThreadsNewestFirst,
         activeThreadId: "t1"
@@ -314,7 +386,7 @@ describe("ThreadSidebar", () => {
       updatedAt: "2026-04-07T00:01:00Z"
     };
 
-    wrapper = mount(ThreadSidebar, {
+    wrapper = mountThreadSidebar( {
       props: {
         threads: [onBranch, offBranch],
         activeThreadId: "t-match",
@@ -390,7 +462,7 @@ describe("ThreadSidebar", () => {
       updatedAt: "2026-04-07T00:00:00Z"
     };
 
-    wrapper = mount(ThreadSidebar, {
+    wrapper = mountThreadSidebar( {
       props: {
         threads: [...ungroupedThreads, ...groupedThreads],
         activeThreadId: "t1",
@@ -463,7 +535,7 @@ describe("ThreadSidebar", () => {
       updatedAt: "2026-04-07T00:00:00Z"
     };
 
-    wrapper = mount(ThreadSidebar, {
+    wrapper = mountThreadSidebar( {
       props: {
         threads: [primaryThread, groupedThread],
         activeThreadId: "t2",
@@ -528,7 +600,7 @@ describe("ThreadSidebar", () => {
       updatedAt: "2026-04-07T00:01:00Z"
     } satisfies Thread;
 
-    wrapper = mount(ThreadSidebar, {
+    wrapper = mountThreadSidebar( {
       props: {
         threads: [primaryThread, groupedThread],
         activeThreadId: "t1",
@@ -595,7 +667,7 @@ describe("ThreadSidebar", () => {
       updatedAt: "2026-04-07T00:01:00Z"
     };
 
-    wrapper = mount(ThreadSidebar, {
+    wrapper = mountThreadSidebar( {
       props: {
         threads: [primaryThread, groupedThread],
         activeThreadId: "t1",
@@ -679,7 +751,7 @@ describe("ThreadSidebar", () => {
       }
     ];
 
-    wrapper = mount(ThreadSidebar, {
+    wrapper = mountThreadSidebar( {
       props: {
         threads: [primaryThread, ...groupedThreadsNewestFirst],
         activeThreadId: "t2",
@@ -764,7 +836,7 @@ describe("ThreadSidebar", () => {
       updatedAt: "2026-04-07T00:03:00Z"
     };
 
-    wrapper = mount(ThreadSidebar, {
+    wrapper = mountThreadSidebar( {
       props: {
         threads: [primaryThread, groupedThreadOutsideContext, groupedThreadB, groupedThreadA],
         activeThreadId: "t2",
@@ -840,7 +912,7 @@ describe("ThreadSidebar", () => {
       updatedAt: "2026-04-07T00:02:00Z"
     };
 
-    wrapper = mount(ThreadSidebar, {
+    wrapper = mountThreadSidebar( {
       props: {
         threads: [primaryThread, groupedThread, uncoveredThread],
         activeThreadId: "t1",
@@ -895,7 +967,7 @@ describe("ThreadSidebar", () => {
       updatedAt: "2026-04-07T00:01:00Z"
     };
 
-    wrapper = mount(ThreadSidebar, {
+    wrapper = mountThreadSidebar( {
       props: {
         threads: [primaryThread, groupedThread],
         activeThreadId: "t1",
@@ -958,7 +1030,7 @@ describe("ThreadSidebar", () => {
       updatedAt: "2026-04-07T00:01:00Z"
     };
 
-    wrapper = mount(ThreadSidebar, {
+    wrapper = mountThreadSidebar( {
       props: {
         threads: [primaryThread, groupedThread],
         activeThreadId: "t1",
@@ -1041,7 +1113,7 @@ describe("ThreadSidebar", () => {
       updatedAt: "2026-04-07T00:01:00Z"
     };
 
-    wrapper = mount(ThreadSidebar, {
+    wrapper = mountThreadSidebar( {
       props: {
         threads: [primaryThread, groupedThread],
         activeThreadId: null,
@@ -1131,7 +1203,7 @@ describe("ThreadSidebar", () => {
       }
     ];
 
-    wrapper = mount(ThreadSidebar, {
+    wrapper = mountThreadSidebar( {
       props: {
         threads: groupThreads,
         activeThreadId: "t2",
@@ -1167,7 +1239,7 @@ describe("ThreadSidebar", () => {
       updatedAt: "2026-04-07T00:00:00Z"
     };
 
-    wrapper = mount(ThreadSidebar, {
+    wrapper = mountThreadSidebar( {
       props: {
         threads: [
           {
@@ -1207,7 +1279,7 @@ describe("ThreadSidebar", () => {
       updatedAt: "2026-04-07T00:00:00Z"
     };
 
-    wrapper = mount(ThreadSidebar, {
+    wrapper = mountThreadSidebar( {
       props: {
         threads: [
           {
@@ -1252,7 +1324,7 @@ describe("ThreadSidebar", () => {
       updatedAt: "2026-04-07T00:00:00Z"
     };
 
-    wrapper = mount(ThreadSidebar, {
+    wrapper = mountThreadSidebar( {
       props: {
         threads: [
           {
@@ -1295,7 +1367,7 @@ describe("ThreadSidebar", () => {
       updatedAt: "2026-04-07T00:00:00Z"
     };
 
-    wrapper = mount(ThreadSidebar, {
+    wrapper = mountThreadSidebar( {
       props: {
         threads: [
           {
@@ -1339,7 +1411,7 @@ describe("ThreadSidebar", () => {
       updatedAt: `2026-04-05T00:${String(i).padStart(2, "0")}:00.000Z`
     }));
 
-    wrapper = mount(ThreadSidebar, {
+    wrapper = mountThreadSidebar( {
       props: {
         threads: manyThreads,
         activeThreadId: "t1",
@@ -1377,7 +1449,7 @@ describe("ThreadSidebar", () => {
       updatedAt: `2026-04-05T00:${String(i).padStart(2, "0")}:00.000Z`
     }));
 
-    wrapper = mount(ThreadSidebar, {
+    wrapper = mountThreadSidebar( {
       props: {
         threads: manyThreads,
         activeThreadId: "t13",

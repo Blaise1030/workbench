@@ -20,7 +20,7 @@ import { injectContextToAgentKey, threadContextQueueKey } from "@/contextQueue/i
 import type { QueueItem } from "@/contextQueue/types";
 import { useThreadContextQueue } from "@/composables/useThreadContextQueue";
 import ThreadSidebar from "@/components/ThreadSidebar.vue";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -276,7 +276,7 @@ const threadCreateWorktreePath = computed(() => {
   if (t.kind === "group") {
     return workspace.threadGroups.find((w) => w.id === t.worktreeId)?.path ?? null;
   }
-  return workspace.defaultWorktree?.path ?? null;
+  return workspace.defaultWorktree?.path ?? workspace.activeWorktree?.path ?? null;
 });
 const fileSearchRef = ref<InstanceType<typeof FileSearchEditor> | null>(null);
 const workspaceLauncherOpen = ref(false);
@@ -1852,47 +1852,43 @@ watch(
                           aria-label="Terminal sessions"
                           @tab-close="onCenterTabClose"
                         />
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger as-child>
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                class="shrink-0 border-border bg-transparent shadow-none hover:bg-muted/50 dark:border-input dark:bg-transparent dark:hover:bg-input/40"
-                                aria-label="Add terminal"
-                                @click="addShellTerminal"
-                              >
-                                <span class="inline-flex items-center gap-1.5">
-                                  <span class="text-sm leading-none shrink-0" aria-hidden="true">💻</span>
-                                  <span>Add terminal</span>
-                                </span>
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent side="top" data-testid="add-terminal-tooltip">
-                              {{ addTerminalTooltipText }}
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger as-child>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon-sm"
-                                class="shrink-0 text-muted-foreground"
-                                :aria-label="keybindings.titleWithShortcut('Hide overlay terminals', 'toggleTerminalPanel')"
-                                @click="terminalPanelOpen = false"
-                              >
-                                <ChevronDown class="h-4 w-4" aria-hidden="true" />
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent side="top">
-                              {{ keybindings.titleWithShortcut("Hide overlay terminals", "toggleTerminalPanel") }}
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger as-child>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              class="shrink-0 border-border bg-transparent shadow-none hover:bg-muted/50 dark:border-input dark:bg-transparent dark:hover:bg-input/40"
+                              aria-label="Add terminal"
+                              @click="addShellTerminal"
+                            >
+                              <span class="inline-flex items-center gap-1.5">
+                                <span class="text-sm leading-none shrink-0" aria-hidden="true">💻</span>
+                                <span>Add terminal</span>
+                              </span>
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent side="top" data-testid="add-terminal-tooltip">
+                            {{ addTerminalTooltipText }}
+                          </TooltipContent>
+                        </Tooltip>
+                        <Tooltip>
+                          <TooltipTrigger as-child>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon-sm"
+                              class="shrink-0 text-muted-foreground"
+                              :aria-label="keybindings.titleWithShortcut('Hide overlay terminals', 'toggleTerminalPanel')"
+                              @click="terminalPanelOpen = false"
+                            >
+                              <ChevronDown class="h-4 w-4" aria-hidden="true" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent side="top">
+                            {{ keybindings.titleWithShortcut("Hide overlay terminals", "toggleTerminalPanel") }}
+                          </TooltipContent>
+                        </Tooltip>
                       </div>
                     </div>
                     <div class="flex min-h-0 flex-1 flex-col overflow-hidden bg-muted/15">

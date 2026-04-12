@@ -1,77 +1,9 @@
 import { mount } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
-import { defineComponent, h, nextTick, provide, inject, ref } from "vue";
+import { nextTick } from "vue";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import ProjectTabs from "@/components/ProjectTabs.vue";
 import type { Project, Thread } from "@shared/domain";
-
-const hoverCardOpenKey = Symbol("hover-card-open");
-
-vi.mock("@/components/ui/hover-card", () => {
-  const HoverCard = defineComponent({
-    name: "HoverCardMock",
-    props: {
-      openDelay: { type: Number, default: 0 },
-      closeDelay: { type: Number, default: 0 }
-    },
-    emits: ["update:open"],
-    setup(_props, { slots, emit }) {
-      const open = ref(false);
-      const setOpen = (value: boolean) => {
-        open.value = value;
-        emit("update:open", value);
-      };
-      provide(hoverCardOpenKey, { open, setOpen });
-      return () => slots.default?.();
-    }
-  });
-
-  const HoverCardTrigger = defineComponent({
-    name: "HoverCardTriggerMock",
-    props: {
-      asChild: { type: Boolean, default: false }
-    },
-    setup(props, { slots, attrs }) {
-      const api = inject<{ open: { value: boolean }; setOpen: (value: boolean) => void }>(hoverCardOpenKey)!;
-      return () => {
-        const child = slots.default?.()[0];
-        if (!child) return null;
-        const mergedProps = {
-          ...attrs,
-          ...(child.props ?? {}),
-          onMouseenter: (event: MouseEvent) => {
-            api.setOpen(true);
-            const existing = child.props?.onMouseenter;
-            if (typeof existing === "function") existing(event);
-          },
-          onMouseleave: (event: MouseEvent) => {
-            api.setOpen(false);
-            const existing = child.props?.onMouseleave;
-            if (typeof existing === "function") existing(event);
-          }
-        };
-        return props.asChild ? h(child.type as never, mergedProps, child.children) : h("div", mergedProps, slots.default?.());
-      };
-    }
-  });
-
-  const HoverCardContent = defineComponent({
-    name: "HoverCardContentMock",
-    setup(_props, { slots, attrs }) {
-      const api = inject<{ open: { value: boolean } }>(hoverCardOpenKey)!;
-      return () => (api.open.value ? h("div", attrs, slots.default?.()) : null);
-    }
-  });
-
-  return { HoverCard, HoverCardTrigger, HoverCardContent };
-});
-
-async function openProjectHoverCard(
-  wrapper: ReturnType<typeof mount<typeof ProjectTabs>>,
-  projectId: string
-): Promise<void> {
-  await wrapper.get(`[data-project-id="${projectId}"]`).trigger("mouseenter");
-}
 
 describe("ProjectTabs", () => {
   beforeEach(() => {
@@ -232,56 +164,69 @@ describe("ProjectTabs", () => {
     expect(actionCluster?.className).toContain("self-center");
   });
 
-  it("anchors the hover card to the hovered project tab", async () => {
+  it("teleports workspace details under the body when hovering a tab row", async () => {
+    const worktrees = [
+      {
+        id: "w1",
+        projectId: "proj-1",
+        branch: "main",
+        path: "/tmp/project-one",
+        name: "project-one",
+        isMain: true
+      },
+      {
+        id: "w2",
+        projectId: "proj-2",
+        branch: "main",
+        path: "/tmp/project-two",
+        name: "project-two",
+        isMain: true
+      }
+    ];
     const wrapper = mount(ProjectTabs, {
       attachTo: document.body,
       props: {
         projects,
-        worktrees: [
-          {
-            id: "w1",
-            projectId: "proj-1",
-            branch: "main",
-            path: "/tmp/project-one",
-            name: "project-one",
-            isMain: true
-          },
-          {
-            id: "w2",
-            projectId: "proj-2",
-            branch: "main",
-            path: "/tmp/project-two",
-            name: "project-two",
-            isMain: true
-          }
-        ],
+        worktrees,
+        activeProjectId: null
+      }
+    });
+
+    await wrapper.get('[data-testid="project-tab-row-proj-1"]').trigger("mouseenter");
+    await nextTick();
+
+    const panel1 = document.querySelector('[data-testid="project-hover-details-proj-1"]');
+    expect(panel1?.textContent).toContain("/tmp/project-one");
+    expect(panel1?.textContent).not.toContain("/tmp/project-two");
+
+    await wrapper.get('[data-testid="project-tab-row-proj-2"]').trigger("mouseenter");
+    await nextTick();
+
+    const panel2 = document.querySelector('[data-testid="project-hover-details-proj-2"]');
+    expect(panel2?.textContent).toContain("/tmp/project-two");
+    expect(panel2?.textContent).not.toContain("/tmp/project-one");
+
+    wrapper.unmount();
+  });
+
+  it("dismisses the hover details panel when a project tab is clicked", async () => {
+    const wrapper = mount(ProjectTabs, {
+      attachTo: document.body,
+      props: {
+        projects,
+        worktrees: [],
         activeProjectId: "proj-1"
       }
     });
 
-    await openProjectHoverCard(wrapper, "proj-1");
+    await wrapper.get('[data-testid="project-tab-row-proj-1"]').trigger("mouseenter");
     await nextTick();
+    expect(document.querySelector('[data-testid="project-hover-details-proj-1"]')).toBeTruthy();
 
-    const firstTip = document.querySelector('[role="tooltip"]');
-    expect(firstTip?.textContent).toContain("/tmp/project-one");
-    const firstTabItem = wrapper.get('[data-project-id="proj-1"]').element.parentElement;
-    expect(firstTabItem?.textContent).toContain("/tmp/project-one");
-
-    await wrapper.get('[data-project-id="proj-1"]').trigger("mouseleave");
-    await wrapper.get('[data-project-id="proj-2"]').trigger("mouseenter");
+    await wrapper.get('[data-project-id="proj-1"]').trigger("click");
     await nextTick();
+    expect(document.querySelector('[data-testid="project-hover-details-proj-1"]')).toBeNull();
 
-    const secondTip = document.querySelectorAll('[role="tooltip"]')[0];
-    expect(secondTip?.textContent).toContain("/tmp/project-two");
-    expect(secondTip?.textContent).not.toContain("/tmp/project-one");
-    const secondTabItem = wrapper.get('[data-project-id="proj-2"]').element.parentElement;
-    expect(secondTabItem?.textContent).toContain("/tmp/project-two");
-    expect(firstTabItem?.textContent).not.toContain("/tmp/project-two");
-
-    await wrapper.get('[data-project-id="proj-2"]').trigger("mouseleave");
-    await nextTick();
-
-    expect(document.querySelector('[role="tooltip"]')).toBeNull();
     wrapper.unmount();
   });
 

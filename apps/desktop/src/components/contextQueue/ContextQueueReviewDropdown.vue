@@ -9,7 +9,7 @@ import Button from "@/components/ui/Button.vue";
 import ContextQueueDiffPasteComposer from "@/components/contextQueue/ContextQueueDiffPasteComposer.vue";
 import PromptWithFileAttachments from "@/components/PromptWithFileAttachments.vue";
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 const props = defineProps<{
   threadId: string | null;
@@ -301,8 +301,7 @@ defineExpose({ openReview });
         </div>
 
         <!-- Body -->
-        <TooltipProvider :delay-duration="220">
-          <div class="min-h-0 flex-1 overflow-y-auto px-2.5 py-2">
+        <div class="min-h-0 flex-1 overflow-y-auto px-2.5 py-2">
             <p v-if="internalItems.length === 0" class="text-xs text-muted-foreground">No items in queue.</p>
 
             <div
@@ -368,7 +367,7 @@ defineExpose({ openReview });
               >
                 <span class="truncate text-muted-foreground">Empty context</span>
               </button>
-              <Tooltip v-else-if="!isRowEditorExpanded(row.id)">
+              <Tooltip v-else-if="!isRowEditorExpanded(row.id)" :delay-duration="220">
                 <TooltipTrigger as-child>
                   <button
                     type="button"
@@ -418,7 +417,6 @@ defineExpose({ openReview });
               />
             </div>
           </div>
-        </TooltipProvider>
       </div>
     </PopoverContent>
   </Popover>

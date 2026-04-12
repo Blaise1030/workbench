@@ -1,14 +1,10 @@
 <script setup lang="ts">
 import type { Project, RunStatus, Thread, Worktree } from "@shared/domain";
 import { Plus, Settings, X } from "lucide-vue-next";
-import { ref } from "vue";
+import type { CSSProperties } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue";
 import ThemeToggle from "@/components/ThemeToggle.vue";
 import Button from "@/components/ui/Button.vue";
-import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger
-} from "@/components/ui/hover-card";
 import type { KeybindingId } from "@/keybindings/registry";
 import { shortcutForModDigitSlot } from "@/keybindings/registry";
 import { useKeybindingsStore } from "@/stores/keybindingsStore";
@@ -23,7 +19,7 @@ const props = withDefaults(
     projects: Project[];
     worktrees: Worktree[];
     activeProjectId: string | null;
-    /** All threads (across projects) for hover summary counts. */
+    /** All threads (across projects) for attention chrome on tabs. */
     threads?: readonly Thread[];
     /** Matches ThreadSidebar: background idle completion on a non-visible PTY. */
     idleAttentionByThreadId?: Readonly<Record<string, boolean>>;
@@ -48,10 +44,10 @@ const emit = defineEmits<{
 
 /** Browser-style tab strip: inactive = text on chrome; active = muted surface. */
 const tabChrome =
-  "flex w-full py-1 max-w-full select-none items-center gap-px border-b border-zinc-300/80 bg-zinc-200/95 px-1 dark:border-zinc-800 dark:bg-zinc-950";
+  "relative z-0 flex w-full overflow-visible py-1 max-w-full select-none items-center gap-px border-b border-zinc-300/80 bg-zinc-200/95 px-1 dark:border-zinc-800 dark:bg-zinc-950";
 
 const tabListClass =
-  "inline-flex h-full min-w-0 max-w-full flex-1 items-center gap-0.5 overflow-x-auto pr-0.5 [scrollbar-width:thin]";
+  "inline-flex h-full min-w-0 max-w-full flex-1 items-center gap-0.5 overflow-x-auto overflow-y-visible pr-0.5 [scrollbar-width:thin]";
 
 const tabInactive =
   "inline-flex max-w-[14rem] shrink-0 items-center gap-1.5 rounded-lg border border-transparent px-2.5 py-0.5 text-left text-xs font-medium whitespace-nowrap text-zinc-600 transition-[color,background-color] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-200 dark:text-zinc-400 dark:focus-visible:ring-offset-zinc-950";
@@ -187,10 +183,6 @@ function hasPtySessionApi(): boolean {
   return typeof window !== "undefined" && Boolean(window.workspaceApi?.ptyListSessions);
 }
 
-function onProjectHoverOpenChange(open: boolean): void {
-  if (open) void refreshPtySessions();
-}
-
 function projectTabTitle(projectName: string, index: number): string {
   const hint = shortcutForModDigitSlot(index);
   return hint ? `${projectName} (${hint})` : projectName;
@@ -200,6 +192,117 @@ function onRemoveClick(projectId: string, event: MouseEvent): void {
   event.stopPropagation();
   emit("remove", projectId);
 }
+
+/** Tab strip uses horizontal scroll; abs children are clipped — float panel on `body` instead. */
+const hoveredDetailsProjectId = ref<string | null>(null);
+const detailsAnchorEl = ref<HTMLElement | null>(null);
+const detailsPanelStyle = ref<CSSProperties>({});
+const detailsPanelRef = ref<HTMLElement | null>(null);
+
+let detailsHideTimer: ReturnType<typeof setTimeout> | null = null;
+
+function cancelDetailsHideTimer(): void {
+  if (detailsHideTimer !== null) {
+    clearTimeout(detailsHideTimer);
+    detailsHideTimer = null;
+  }
+}
+
+function syncDetailsPanelPosition(): void {
+  const el = detailsAnchorEl.value;
+  if (!el) return;
+  const r = el.getBoundingClientRect();
+  const margin = 12;
+  const maxW = Math.min(22 * 16, window.innerWidth - 2 * margin);
+  let left = r.left;
+  if (left + maxW > window.innerWidth - margin) {
+    left = Math.max(margin, window.innerWidth - margin - maxW);
+  }
+  detailsPanelStyle.value = {
+    position: "fixed",
+    top: `${Math.round(r.bottom - 2)}px`,
+    left: `${Math.round(left)}px`,
+    width: `min(22rem, calc(100vw - ${2 * margin}px))`,
+    zIndex: 200
+  };
+}
+
+function hideProjectDetailsLater(): void {
+  cancelDetailsHideTimer();
+  detailsHideTimer = setTimeout(() => {
+    hoveredDetailsProjectId.value = null;
+    detailsAnchorEl.value = null;
+    detailsHideTimer = null;
+  }, 140);
+}
+
+function onDetailsPanelEnter(): void {
+  cancelDetailsHideTimer();
+}
+
+function onDetailsPanelLeave(): void {
+  hideProjectDetailsLater();
+}
+
+function onTabRowEnter(project: Project, event: MouseEvent): void {
+  cancelDetailsHideTimer();
+  void refreshPtySessions();
+  hoveredDetailsProjectId.value = project.id;
+  detailsAnchorEl.value = event.currentTarget as HTMLElement;
+  void nextTick(() => syncDetailsPanelPosition());
+}
+
+function onTabRowLeave(): void {
+  hideProjectDetailsLater();
+}
+
+function dismissProjectDetailsNow(): void {
+  cancelDetailsHideTimer();
+  hoveredDetailsProjectId.value = null;
+  detailsAnchorEl.value = null;
+}
+
+function onTabListScroll(): void {
+  dismissProjectDetailsNow();
+}
+
+function onTabSelect(projectId: string): void {
+  dismissProjectDetailsNow();
+  emit("select", projectId);
+}
+
+function onTabRowFocusIn(project: Project, event: FocusEvent): void {
+  cancelDetailsHideTimer();
+  void refreshPtySessions();
+  hoveredDetailsProjectId.value = project.id;
+  detailsAnchorEl.value = event.currentTarget as HTMLElement;
+  void nextTick(() => syncDetailsPanelPosition());
+}
+
+function onTabRowFocusOut(event: FocusEvent): void {
+  const row = event.currentTarget as HTMLElement;
+  const next = event.relatedTarget as Node | null;
+  if (next && row.contains(next)) return;
+  if (next && detailsPanelRef.value?.contains(next)) return;
+  hideProjectDetailsLater();
+}
+
+const hoveredDetailsProject = computed(() =>
+  props.projects.find((p) => p.id === hoveredDetailsProjectId.value) ?? null
+);
+
+function onWindowResize(): void {
+  if (hoveredDetailsProjectId.value) syncDetailsPanelPosition();
+}
+
+onMounted(() => {
+  window.addEventListener("resize", onWindowResize, { passive: true });
+});
+
+onBeforeUnmount(() => {
+  cancelDetailsHideTimer();
+  window.removeEventListener("resize", onWindowResize);
+});
 </script>
 
 <template>
@@ -207,105 +310,70 @@ function onRemoveClick(projectId: string, event: MouseEvent): void {
     <div
       role="tablist"
       :class="tabListClass"
+      @scroll.passive="onTabListScroll"
     >
-      <HoverCard
+      <div
         v-for="(project, projectIndex) in projects"
         :key="project.id"
-        :open-delay="120"
-        :close-delay="0"
-        @update:open="(open) => onProjectHoverOpenChange(open)"
+        :class="[
+          tabItemClass,
+          draggingProjectId === project.id ? 'opacity-60' : ''
+        ]"
+        draggable="true"
+        title="Drag to reorder tabs"
+        :data-testid="`project-tab-row-${project.id}`"
+        @dragstart="onTabDragStart(project.id, $event)"
+        @dragover="onTabDragOver"
+        @drop="onTabDrop(projectIndex, $event)"
+        @dragend="onTabDragEnd"
+        @mouseenter="onTabRowEnter(project, $event)"
+        @mouseleave="onTabRowLeave"
+        @focusin="onTabRowFocusIn(project, $event)"
+        @focusout="onTabRowFocusOut"
       >
-        <div
-          :class="[
-            tabItemClass,
-            draggingProjectId === project.id ? 'opacity-60' : ''
-          ]"
-          draggable="true"
-          title="Drag to reorder tabs"
-          :data-testid="`project-tab-row-${project.id}`"
-          @dragstart="onTabDragStart(project.id, $event)"
-          @dragover="onTabDragOver"
-          @drop="onTabDrop(projectIndex, $event)"
-          @dragend="onTabDragEnd"
-        >
-          <HoverCardTrigger as-child>
-            <Button
-              type="button"
-              variant="ghost"
-              role="tab"
-              :data-project-id="project.id"
-              :data-needs-attention="projectAttentionLevel(project.id) ?? undefined"
-              :aria-selected="project.id === activeProjectId"
-              :title="tabButtonTitle(project.name, project.id, projectIndex)"
-              :aria-label="
-                projectIndex < 9 ? `${project.name}, ${shortcutForModDigitSlot(projectIndex)}` : undefined
-              "
-              :class="[
-                tabInactive,
-                tabButtonClass,
-                'pr-8',
-                projectAttentionTabClass(project.id),
-                project.id === activeProjectId ? tabActive : tabInactiveInteractive
-              ]"
-              @click="emit('select', project.id)"
-            >
-              <span class="shrink-0 text-sm leading-none" aria-hidden="true">📁</span>
-              <span class="min-w-0 truncate">{{ project.name }}</span>
-            </Button>
-          </HoverCardTrigger>
-          <Button
+        <Button
             type="button"
             variant="ghost"
-            size="icon-xs"
-            draggable="false"
-            :data-testid="`remove-project-tab-${project.id}`"
+            role="tab"
+            :data-project-id="project.id"
+            :data-needs-attention="projectAttentionLevel(project.id) ?? undefined"
+            :aria-selected="project.id === activeProjectId"
+            :title="tabButtonTitle(project.name, project.id, projectIndex)"
+            :aria-label="
+              projectIndex < 9 ? `${project.name}, ${shortcutForModDigitSlot(projectIndex)}` : undefined
+            "
             :class="[
-              tabCloseButtonClass,
-              'p-0',
-              project.id === activeProjectId
-                ? 'opacity-100'
-                : 'opacity-0 group-hover:opacity-100 focus-visible:opacity-100'
+              tabInactive,
+              tabButtonClass,
+              'pr-8',
+              projectAttentionTabClass(project.id),
+              project.id === activeProjectId ? tabActive : tabInactiveInteractive
             ]"
-            :aria-label="`Remove ${project.name} from workspace tabs`"
-            :title="`Remove ${project.name}`"
-            @click="onRemoveClick(project.id, $event)"
+            @click="onTabSelect(project.id)"
           >
-            <X class="h-3.5 w-3.5" :stroke-width="1.75" />
+            <span class="shrink-0 text-sm leading-none" aria-hidden="true">📁</span>
+            <span class="min-w-0 truncate">{{ project.name }}</span>
           </Button>
-          <HoverCardContent
-            role="tooltip"
-            class="pointer-events-none w-[min(22rem,calc(100vw-1.5rem))] rounded-lg p-3 text-popover-foreground shadow-lg"
-          >
-            <p class="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Workspace</p>
-            <p class="mt-1 break-all font-mono text-xs text-foreground">
-              {{ project.repoPath }}
-            </p>
-            <template v-if="projectWorktrees(project.id).length > 1">
-              <p class="mt-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Worktrees</p>
-              <ul class="mt-1 max-h-24 space-y-0.5 overflow-y-auto font-mono text-[11px] text-muted-foreground">
-                <li
-                  v-for="worktree in projectWorktrees(project.id)"
-                  :key="worktree.id"
-                  class="break-all"
-                >
-                  {{ worktree.path }}
-                </li>
-              </ul>
-            </template>
-            <p class="mt-2 border-t border-border pt-2 text-xs text-foreground">
-              {{
-                !hasPtySessionApi()
-                  ? "Terminal: status available in the desktop app"
-                  : terminalStatusLoading
-                    ? "Terminal: …"
-                    : projectWorktrees(project.id).some((worktree) => ptyWorktreeIds.has(worktree.id))
-                      ? "Terminal: session open (integrated shell running)"
-                      : "Terminal: no session yet"
-              }}
-            </p>
-          </HoverCardContent>
-        </div>
-      </HoverCard>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-xs"
+          draggable="false"
+          :data-testid="`remove-project-tab-${project.id}`"
+          :class="[
+            tabCloseButtonClass,
+            'p-0',
+            project.id === activeProjectId
+              ? 'opacity-100'
+              : 'opacity-0 group-hover:opacity-100 focus-visible:opacity-100'
+          ]"
+          :aria-label="`Remove ${project.name} from workspace tabs`"
+          :title="`Remove ${project.name}`"
+          @click="onRemoveClick(project.id, $event)"
+        >
+          <X class="h-3.5 w-3.5" :stroke-width="1.75" />
+        </Button>
+      </div>
       <Button
         type="button"
         variant="ghost"
@@ -337,4 +405,53 @@ function onRemoveClick(projectId: string, event: MouseEvent): void {
       />
     </div>
   </nav>
+  <Teleport to="body">
+    <div
+      v-if="hoveredDetailsProject"
+      ref="detailsPanelRef"
+      :data-testid="`project-hover-details-${hoveredDetailsProject.id}`"
+      :style="detailsPanelStyle"
+      class="pt-0.5"
+      @mouseenter="onDetailsPanelEnter"
+      @mouseleave="onDetailsPanelLeave"
+    >
+      <div
+        class="rounded-lg border border-border bg-popover px-2 py-1.5 text-popover-foreground shadow-sm"
+      >
+        <div>
+          <p class="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Workspace</p>
+          <p class="mt-0.5 break-all font-mono text-[11px] leading-snug text-foreground">
+            {{ hoveredDetailsProject.repoPath }}
+          </p>
+        </div>
+        <template v-if="projectWorktrees(hoveredDetailsProject.id).length > 1">
+          <div>
+            <p class="mt-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Worktrees</p>
+            <ul class="mt-0.5 max-h-36 space-y-0.5 overflow-y-auto [scrollbar-width:thin]">
+              <li
+                v-for="worktree in projectWorktrees(hoveredDetailsProject.id)"
+                :key="worktree.id"
+                class="break-all rounded-sm py-0.5 font-mono text-[11px] leading-snug text-muted-foreground transition-colors duration-150 hover:bg-muted/30 hover:text-foreground"
+              >
+                {{ worktree.path }}
+              </li>
+            </ul>
+          </div>
+        </template>
+        <div class="mt-1.5 border-t border-border pt-1.5">
+          <p class="text-[11px] leading-snug text-foreground">
+            {{
+              !hasPtySessionApi()
+                ? "Terminal: status available in the desktop app"
+                : terminalStatusLoading
+                  ? "Terminal: …"
+                  : projectWorktrees(hoveredDetailsProject.id).some((worktree) => ptyWorktreeIds.has(worktree.id))
+                    ? "Terminal: session open (integrated shell running)"
+                    : "Terminal: no session yet"
+            }}
+          </p>
+        </div>
+      </div>
+    </div>
+  </Teleport>
 </template>
