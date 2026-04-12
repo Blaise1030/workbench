@@ -559,7 +559,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <section class="flex h-full min-h-0 border-t border-border bg-background text-[11px] text-foreground">
+  <section class="flex h-full min-h-0 bg-background text-[11px] text-foreground">
     <aside class="flex min-h-0 w-[272px] shrink-0 flex-col border-r border-border bg-muted/20">
       <header
         class="flex h-9 items-center border-b border-border px-2"

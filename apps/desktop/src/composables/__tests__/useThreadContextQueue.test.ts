@@ -59,6 +59,20 @@ describe("useThreadContextQueue", () => {
     expect(q.itemsFor("t1")[0]?.pasteText).toBe("new");
   });
 
+  it("replaceItems overwrites order and fields", () => {
+    q.addItem("t1", item("a", "one"));
+    q.addItem("t1", item("b", "two"));
+    q.replaceItems("t1", [
+      { id: "b", source: "file", pasteText: "edited", meta: {}, reviewComment: "note" },
+      { id: "a", source: "file", pasteText: "x", meta: {} }
+    ]);
+
+    const list = q.itemsFor("t1");
+    expect(list.map((i) => i.id)).toEqual(["b", "a"]);
+    expect(list[0]?.pasteText).toBe("edited");
+    expect(list[0]?.reviewComment).toBe("note");
+  });
+
   it("bumps lastEnqueueEvent on each addItem", () => {
     q.addItem("t1", item("a"));
     expect(q.lastEnqueueEvent.value).toEqual({ threadId: "t1", seq: expect.any(Number) });

@@ -3,6 +3,7 @@ import { MergeView, unifiedMergeView } from "@codemirror/merge";
 import { EditorSelection, EditorState, type Extension } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { minimalSetup } from "codemirror";
+import { yonce, yeti } from "@/lib/codemirrorThemes";
 import { inject, onBeforeUnmount, onMounted, ref, shallowRef, watch } from "vue";
 import { codemirrorLanguageIdFromPath, languageExtensionsFor } from "@/lib/codemirrorLanguageExtensions";
 import { buildPasteText } from "@/contextQueue/formatters";
@@ -92,14 +93,14 @@ function queueSelectionExtension(): Extension {
 function baseExtensions(): Extension[] {
   const ext: Extension[] = [
     minimalSetup,
+    colorSchemeDark.value ? yonce : yeti,
     EditorView.editable.of(false),
     EditorView.darkTheme.of(colorSchemeDark.value),
     EditorView.lineWrapping,
     ...languageExtensionsFor(codemirrorLanguageIdFromPath(props.filePath)),
     EditorView.theme({
       "&.cm-editor": {
-        fontSize: "12px",
-        backgroundColor: "transparent"
+        fontSize: "12px"
       },
       "&.cm-editor.cm-focused": {
         outline: "none"
@@ -111,12 +112,10 @@ function baseExtensions(): Extension[] {
         minHeight: "80px"
       },
       ".cm-content": {
-        caretColor: "var(--foreground)",
         padding: "8px 10px"
       },
       ".cm-gutters": {
         backgroundColor: "transparent",
-        color: "var(--muted-foreground)",
         borderRight: "1px solid color-mix(in oklab, var(--border) 75%, transparent)"
       },
       "&.cm-merge-a .cm-changedText, &.cm-merge-b .cm-changedText, & .cm-deletedChunk .cm-deletedText": {

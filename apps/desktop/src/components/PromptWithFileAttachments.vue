@@ -5,7 +5,7 @@ import StarterKit from "@tiptap/starter-kit";
 import { EditorContent, useEditor } from "@tiptap/vue-3";
 import { Check, Paperclip, X } from "lucide-vue-next";
 import type { Ref } from "vue";
-import { computed, nextTick, ref, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, ref, watch } from "vue";
 import Button from "@/components/ui/Button.vue";
 import Textarea from "@/components/ui/Textarea.vue";
 import { badgeVariants } from "@/components/ui/badge";
@@ -60,6 +60,28 @@ const prompt = defineModel<string>("prompt", { default: "" });
 const attachments = defineModel<LocalFileAttachment[]>("attachments", { default: () => [] });
 
 const fileInputRef = ref<HTMLInputElement | null>(null);
+
+/** Push TipTap doc → v-models (flat note + inline file paths). Call on Done and unmount. */
+function applyEditorToModels(editor: Editor): void {
+  prompt.value = promptDocFlatText(editor.state.doc);
+  const { filePaths } = collectDocAttachmentPaths(editor.state.doc);
+  const baseName = (p: string) => p.split("/").pop() ?? p;
+  const isImagePath = (p: string) =>
+    /\.(png|jpg|jpeg|gif|webp|svg|bmp|tiff|ico)$/i.test(baseName(p));
+  const inlineAttachments: LocalFileAttachment[] = filePaths.map((p) => ({
+    id: p,
+    path: p,
+    name: baseName(p),
+    isImage: isImagePath(p)
+  }));
+  const stripNonImages = attachments.value.filter((a) => !a.isImage);
+  const seen = new Set<string>();
+  attachments.value = [...inlineAttachments, ...stripNonImages].filter((a) => {
+    if (seen.has(a.path)) return false;
+    seen.add(a.path);
+    return true;
+  });
+}
 
 // TipTap editor — only instantiated when tiptap=true (prop is static after mount)
 const tiptapEditor: Ref<Editor | null | undefined> = props.tiptap
@@ -131,6 +153,13 @@ const tiptapEditor: Ref<Editor | null | undefined> = props.tiptap
     })
   : ref(null);
 
+onBeforeUnmount(() => {
+  const ed = tiptapEditor.value;
+  if (props.tiptap && ed && !ed.isDestroyed) {
+    applyEditorToModels(ed);
+  }
+});
+
 /** Whether the TipTap editor is in edit mode (vs read-only blob). Starts true. */
 const isEditing = ref(true);
 
@@ -176,6 +205,17 @@ function firstContextTagLabelInDoc(doc: Parameters<typeof promptDocFlatText>[0])
   return found;
 }
 
+function findFirstQueueContextTagDocPos(doc: Parameters<typeof promptDocFlatText>[0]): number | null {
+  let found: number | null = null;
+  doc.descendants((node, pos) => {
+    if (node.type.name === "threadQueueContextTag") {
+      found = pos;
+      return false;
+    }
+  });
+  return found;
+}
+
 /** Hydrate TipTap from v-model when the prompt or context tag changes externally. */
 watch(
   () => [props.tiptap, prompt.value, tiptapEditor.value, props.contextTagLabel] as const,
@@ -188,6 +228,18 @@ watch(
     const current = promptDocFlatText(editor.state.doc);
     const currentTag = firstContextTagLabelInDoc(editor.state.doc) ?? "";
     if (current === desired && currentTag === desiredTag) return;
+
+    // When only the queue badge label changes (e.g. paste line span updated), patch the tag
+    // in-place so @ file badges and other atoms are not wiped by setContent.
+    if (current === desired && currentTag !== desiredTag) {
+      const tagPos = findFirstQueueContextTagDocPos(editor.state.doc);
+      if (tagPos !== null) {
+        const tr = editor.state.tr.setNodeMarkup(tagPos, undefined, { label: desiredTag });
+        editor.view.dispatch(tr);
+        return;
+      }
+    }
+
     editor.commands.setContent(flatTextToDocJson(desired, desiredTag || null), false);
   },
   { flush: "post", immediate: true }
@@ -209,25 +261,7 @@ function docHasAttachmentPath(doc: Parameters<typeof promptDocFlatText>[0], path
 
 function onDone(): void {
   const editor = tiptapEditor.value;
-  if (!editor) return;
-  prompt.value = promptDocFlatText(editor.state.doc);
-  const { filePaths } = collectDocAttachmentPaths(editor.state.doc);
-  const baseName = (p: string) => p.split("/").pop() ?? p;
-  const isImagePath = (p: string) =>
-    /\.(png|jpg|jpeg|gif|webp|svg|bmp|tiff|ico)$/i.test(baseName(p));
-  const inlineAttachments: LocalFileAttachment[] = filePaths.map((p) => ({
-    id: p,
-    path: p,
-    name: baseName(p),
-    isImage: isImagePath(p)
-  }));
-  const stripNonImages = attachments.value.filter((a) => !a.isImage);
-  const seen = new Set<string>();
-  attachments.value = [...inlineAttachments, ...stripNonImages].filter((a) => {
-    if (seen.has(a.path)) return false;
-    seen.add(a.path);
-    return true;
-  });
+  if (editor) applyEditorToModels(editor);
   isEditing.value = false;
 }
 

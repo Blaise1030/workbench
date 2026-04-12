@@ -70,6 +70,9 @@ importers:
       '@codemirror/view':
         specifier: ^6.41.0
         version: 6.41.0
+      '@lezer/highlight':
+        specifier: ^1.2.3
+        version: 1.2.3
       '@tiptap/core':
         specifier: ^3.22.3
         version: 3.22.3(@tiptap/pm@3.22.3)

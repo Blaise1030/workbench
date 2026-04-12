@@ -50,6 +50,7 @@
     "@codemirror/search": "^6.6.0",
     "@codemirror/state": "^6.6.0",
     "@codemirror/view": "^6.41.0",
+    "@lezer/highlight": "^1.2.3",
     "@tiptap/core": "^3.22.3",
     "@tiptap/extension-mention": "^3.22.3",
     "@tiptap/extension-placeholder": "^3.22.3",

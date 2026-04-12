@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { GripVertical, ListOrdered } from "lucide-vue-next";
+import { GripVertical, ListOrdered, X } from "lucide-vue-next";
 import { computed, ref, watch } from "vue";
 import type { QueueItem } from "@/contextQueue/types";
 import { parseDiffQueuePaste } from "@/contextQueue/diffPasteParse";
-import { queueContextBadgeLabel } from "@/contextQueue/reviewPasteLabels";
+import { queueContextBadgeLabel, queueSnippetPreview } from "@/contextQueue/reviewPasteLabels";
 import Badge from "@/components/ui/Badge.vue";
 import Button from "@/components/ui/Button.vue";
 import ContextQueueDiffPasteComposer from "@/components/contextQueue/ContextQueueDiffPasteComposer.vue";
@@ -18,9 +18,13 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   confirm: [items: QueueItem[]];
+  /** Sync in-progress edits back to the thread queue when the panel closes without confirm. */
+  persistDraft: [items: QueueItem[]];
 }>();
 
 const open = ref(false);
+/** When true, the next `open` → false transition is from Confirm (do not re-persist draft to the queue). */
+const closingAfterConfirm = ref(false);
 
 /** Opens the review panel; while open, the toolbar button does not toggle closed (use Cancel). */
 function onQueueToolbarClick(): void {
@@ -61,42 +65,60 @@ const internalItems = ref<QueueItem[]>([]);
 const tiptapResetKey = ref(0);
 const dragFromIndex = ref<number | null>(null);
 const dragOverIndex = ref<number | null>(null);
-/** Row ids whose paste editor is visible (shown after double-click on the row). */
-const editorExpandedIds = ref<Set<string>>(new Set());
+/** At most one row shows the paste editor; newest items take focus when added. */
+const editingRowId = ref<string | null>(null);
 
 watch(
   () => open.value,
   (isOpen) => {
     if (isOpen) {
       internalItems.value = cloneItems(props.items);
-      editorExpandedIds.value = new Set();
+      const rows = internalItems.value;
+      editingRowId.value = rows.length > 0 ? rows[rows.length - 1]!.id : null;
       tiptapResetKey.value++;
+      return;
     }
+    if (!closingAfterConfirm.value) {
+      emit("persistDraft", cloneItems(internalItems.value));
+    }
+    closingAfterConfirm.value = false;
   }
 );
 
 watch(
   () => props.items,
   () => {
-    if (open.value) {
-      internalItems.value = mergeItemsFromProps(internalItems.value, props.items);
-      pruneExpandedEditors();
+    if (!open.value) return;
+    const prevIds = new Set(internalItems.value.map((r) => r.id));
+    internalItems.value = mergeItemsFromProps(internalItems.value, props.items);
+    const newlyAdded = internalItems.value.filter((r) => !prevIds.has(r.id));
+    if (newlyAdded.length > 0) {
+      editingRowId.value = newlyAdded[newlyAdded.length - 1]!.id;
+    } else {
+      ensureEditingRowValid();
     }
   },
   { deep: true }
 );
 
-function pruneExpandedEditors(): void {
-  const allowed = new Set(internalItems.value.map((r) => r.id));
-  const next = new Set<string>();
-  for (const id of editorExpandedIds.value) {
-    if (allowed.has(id)) next.add(id);
+function ensureEditingRowValid(): void {
+  const ids = new Set(internalItems.value.map((r) => r.id));
+  if (editingRowId.value != null && !ids.has(editingRowId.value)) {
+    editingRowId.value =
+      internalItems.value.length > 0 ? internalItems.value[internalItems.value.length - 1]!.id : null;
   }
-  editorExpandedIds.value = next;
 }
 
-function isRowEditorExpanded(id: string): boolean {
-  return editorExpandedIds.value.has(id);
+function isRowEditing(id: string): boolean {
+  return editingRowId.value === id;
+}
+
+function pasteBlobPreview(row: QueueItem): string {
+  return queueSnippetPreview(row, 480);
+}
+
+function setEditingRow(rowId: string): void {
+  editingRowId.value = rowId;
 }
 
 function useDiffPasteComposer(row: QueueItem): boolean {
@@ -119,24 +141,17 @@ function buildItemForSend(row: QueueItem): QueueItem {
   };
 }
 
-function expandRowEditor(rowId: string): void {
-  const next = new Set(editorExpandedIds.value);
-  next.add(rowId);
-  editorExpandedIds.value = next;
-}
-
 function onQueueRowDoubleClick(rowId: string, e: MouseEvent): void {
   const t = e.target as HTMLElement | null;
   if (!t) return;
   if (t.closest("button")) return;
   if (t.closest('[data-testid="context-queue-review-drag-handle"]')) return;
+  if (t.closest('[data-testid="context-queue-review-paste-blob"]')) return;
+  if (t.closest('[data-testid="context-queue-review-chip"]')) return;
   if (t.closest("textarea")) return;
   if (t.closest("[data-context-queue-review-note]")) return;
   if (t.closest("[data-diff-composer]")) return;
-  const next = new Set(editorExpandedIds.value);
-  if (next.has(rowId)) next.delete(rowId);
-  else next.add(rowId);
-  editorExpandedIds.value = next;
+  setEditingRow(rowId);
 }
 
 const confirmDisabled = computed(
@@ -159,6 +174,7 @@ function close(): void {
 
 function confirm(): void {
   if (confirmDisabled.value) return;
+  closingAfterConfirm.value = true;
   emit("confirm", internalItems.value.map((row) => buildItemForSend(row)));
   open.value = false;
 }
@@ -166,10 +182,11 @@ function confirm(): void {
 function removeAt(index: number): void {
   const id = internalItems.value[index]?.id;
   internalItems.value = internalItems.value.filter((_, i) => i !== index);
-  if (id) {
-    const next = new Set(editorExpandedIds.value);
-    next.delete(id);
-    editorExpandedIds.value = next;
+  if (editingRowId.value === id) {
+    editingRowId.value =
+      internalItems.value.length > 0 ? internalItems.value[internalItems.value.length - 1]!.id : null;
+  } else {
+    ensureEditingRowValid();
   }
 }
 
@@ -324,7 +341,7 @@ defineExpose({ openReview });
                   dragOverIndex === index && dragFromIndex !== index
               }"
               data-testid="context-queue-review-row"
-              title="Double-click row to show or hide context editor"
+              title="Click the preview to edit that item, or double-click empty space on the row"
               @dragenter.prevent="onDragOverRow(index, $event)"
               @dragover="onDragOverRow(index, $event)"
               @dragleave="onDragLeaveRow(index, $event)"
@@ -346,45 +363,70 @@ defineExpose({ openReview });
                   <GripVertical class="size-3.5 shrink-0" aria-hidden="true" />
                 </button>
                 <div class="flex min-w-0 flex-1 flex-col gap-1.5">
-                  <button
-                    v-if="!isRowEditorExpanded(row.id) && !row.pasteText.trim()"
-                    type="button"
-                    data-testid="context-queue-review-chip"
-                    class="flex w-full min-w-0 max-w-full items-center justify-center rounded-md bg-muted/50 px-2 py-1 text-center text-xs text-foreground transition-colors hover:bg-muted/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background"
-                    aria-label="Empty context; click to edit"
-                    @click="expandRowEditor(row.id)"
-                  >
-                    <span class="truncate text-muted-foreground">Empty context</span>
-                  </button>
-                  <div data-context-queue-review-note>
-                    <PromptWithFileAttachments
-                      :key="`${tiptapResetKey}-${row.id}`"
-                      v-model:prompt="row.reviewComment"
-                      v-model:attachments="row.reviewAttachments"
-                      :tiptap="true"
-                      :worktree-path="worktreePath"
-                      :context-tag-label="queueContextBadgeLabel(row)"
-                      show-queue-remove
-                      :queue-remove-aria-label="`Remove ${row.source} entry`"
-                      placeholder="Optional note — @ files, / commands, paperclip for attachments"
-                      test-id-prefix="context-queue-review-note"
-                      @queue-remove="removeAt(index)"
-                    />
-                  </div>
+                  <template v-if="!isRowEditing(row.id)">
+                    <div class="flex min-w-0 items-start gap-1">
+                      <button
+                        v-if="!row.pasteText.trim()"
+                        type="button"
+                        data-testid="context-queue-review-chip"
+                        class="min-h-[2.5rem] flex-1 rounded-md bg-muted/50 px-2 py-1.5 text-center text-xs text-foreground transition-colors hover:bg-muted/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background"
+                        aria-label="Empty context; click to edit"
+                        @click="setEditingRow(row.id)"
+                      >
+                        <span class="truncate text-muted-foreground">Empty context</span>
+                      </button>
+                      <button
+                        v-else
+                        type="button"
+                        data-testid="context-queue-review-paste-blob"
+                        class="max-h-32 min-h-[2.5rem] flex-1 overflow-y-auto rounded-md border border-border/60 bg-muted/25 px-2 py-1.5 text-left text-[11px] leading-snug text-muted-foreground transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background"
+                        :aria-label="`Preview queued ${row.source} context; click to edit`"
+                        @click="setEditingRow(row.id)"
+                      >
+                        <span class="whitespace-pre-wrap break-words font-mono">{{ pasteBlobPreview(row) }}</span>
+                      </button>
+                      <button
+                        type="button"
+                        class="mt-0.5 shrink-0 rounded p-1 text-muted-foreground hover:bg-muted/80 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background"
+                        data-testid="context-queue-review-remove-row"
+                        :aria-label="`Remove ${row.source} entry`"
+                        @click.stop="removeAt(index)"
+                      >
+                        <X class="size-3.5 shrink-0" aria-hidden="true" />
+                      </button>
+                    </div>
+                  </template>
+                  <template v-else>
+                    <div data-context-queue-review-note>
+                      <PromptWithFileAttachments
+                        :key="`${tiptapResetKey}-${row.id}`"
+                        v-model:prompt="row.reviewComment"
+                        v-model:attachments="row.reviewAttachments"
+                        :tiptap="true"
+                        :worktree-path="worktreePath"
+                        :context-tag-label="queueContextBadgeLabel(row)"
+                        show-queue-remove
+                        :queue-remove-aria-label="`Remove ${row.source} entry`"
+                        placeholder="Optional note — @ files, / commands, paperclip for attachments"
+                        test-id-prefix="context-queue-review-note"
+                        @queue-remove="removeAt(index)"
+                      />
+                    </div>
 
-                  <ContextQueueDiffPasteComposer
-                    v-if="isRowEditorExpanded(row.id) && useDiffPasteComposer(row)"
-                    v-model="row.pasteText"
-                  />
-                  <textarea
-                    v-else-if="isRowEditorExpanded(row.id)"
-                    v-model="row.pasteText"
-                    draggable="false"
-                    class="min-h-[5rem] w-full resize-none rounded-md border border-input bg-background px-2.5 py-1.5 text-sm text-foreground ring-offset-background placeholder:text-muted-foreground focus-visible:border-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(212,92%,45%)] focus-visible:ring-offset-0 dark:focus-visible:ring-[hsl(212,92%,58%)]"
-                    data-testid="context-queue-review-paste"
-                    :aria-label="`Paste text from ${row.source}`"
-                    @dblclick.stop
-                  />
+                    <ContextQueueDiffPasteComposer
+                      v-if="useDiffPasteComposer(row)"
+                      v-model="row.pasteText"
+                    />
+                    <textarea
+                      v-else
+                      v-model="row.pasteText"
+                      draggable="false"
+                      class="min-h-[5rem] w-full resize-none rounded-md border border-input bg-background px-2.5 py-1.5 text-sm text-foreground ring-offset-background placeholder:text-muted-foreground focus-visible:border-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(212,92%,45%)] focus-visible:ring-offset-0 dark:focus-visible:ring-[hsl(212,92%,58%)]"
+                      data-testid="context-queue-review-paste"
+                      :aria-label="`Paste text from ${row.source}`"
+                      @dblclick.stop
+                    />
+                  </template>
                 </div>
               </div>
             </div>

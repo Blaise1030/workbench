@@ -6,6 +6,7 @@ import { Compartment, EditorState, type Extension } from "@codemirror/state";
 import type { EditorView, Panel, ViewUpdate } from "@codemirror/view";
 import { EditorView as CMEditorView, keymap, lineNumbers } from "@codemirror/view";
 import { minimalSetup } from "codemirror";
+import { yonce, yeti } from "@/lib/codemirrorThemes";
 import { languageExtensionsFor } from "@/lib/codemirrorLanguageExtensions";
 import { markdownImagePreviewExtension } from "@/lib/codemirrorMarkdownImagePreview";
 import CodeMirrorFindReplaceBar from "@/components/CodeMirrorFindReplaceBar.vue";
@@ -136,6 +137,7 @@ const extensions = computed((): Extension[] => {
   }
   return [
     minimalSetup,
+    colorSchemeDark.value ? yonce : yeti,
     CMEditorView.darkTheme.of(colorSchemeDark.value),
     search({ top: true, createPanel: createCustomSearchPanel }),
     indentUnit.of("  "),
@@ -150,8 +152,7 @@ const extensions = computed((): Extension[] => {
       "&": {
         flex: "1 1 0%",
         minHeight: 0,
-        fontSize: "12px",
-        backgroundColor: "transparent"
+        fontSize: "12px"
       },
       "&.cm-focused": {
         outline: "none"
@@ -164,12 +165,10 @@ const extensions = computed((): Extension[] => {
         flex: "1 1 0%"
       },
       ".cm-content": {
-        caretColor: "var(--foreground)",
         padding: "12px"
       },
       ".cm-gutters": {
         backgroundColor: "transparent",
-        color: "var(--muted-foreground)",
         borderRight: "1px solid color-mix(in oklab, var(--border) 75%, transparent)"
       },
       ".cm-foldGutter .cm-gutterElement": {

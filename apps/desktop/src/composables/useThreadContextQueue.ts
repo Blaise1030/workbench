@@ -69,6 +69,18 @@ export function useThreadContextQueue() {
     if (row) row.pasteText = pasteText;
   }
 
+  /** Replace the thread queue (order + paste + review fields), e.g. after closing the review panel. */
+  function replaceItems(threadId: string, items: QueueItem[]): void {
+    const list = ensureQueue(threadId);
+    const next = items.map((row) => ({
+      ...row,
+      meta: { ...row.meta },
+      reviewComment: row.reviewComment ?? "",
+      reviewAttachments: row.reviewAttachments?.map((a) => ({ ...a })) ?? []
+    }));
+    list.splice(0, list.length, ...next);
+  }
+
   function clearThread(threadId: string): void {
     delete state.byThreadId[threadId];
   }
@@ -79,6 +91,7 @@ export function useThreadContextQueue() {
     removeItem,
     reorder,
     updatePasteText,
+    replaceItems,
     clearThread,
     lastEnqueueEvent
   };

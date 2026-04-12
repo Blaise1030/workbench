@@ -249,6 +249,12 @@ async function onContextQueueConfirmed(items: QueueItem[]): Promise<void> {
   }
 }
 
+function onContextQueuePersistDraft(items: QueueItem[]): void {
+  const tid = workspace.activeThreadId;
+  if (!tid) return;
+  threadContextQueue.replaceItems(tid, items);
+}
+
 /**
  * Function refs fire during render/mount; keep this registry non-reactive so storing pane
  * instances does not feed back into WorkspaceLayout updates.
@@ -1704,6 +1710,7 @@ watch(
             :items="contextQueueItems"
             :worktree-path="activeWorktreePath"
             @confirm="onContextQueueConfirmed"
+            @persist-draft="onContextQueuePersistDraft"
           />
         </div>
         <div

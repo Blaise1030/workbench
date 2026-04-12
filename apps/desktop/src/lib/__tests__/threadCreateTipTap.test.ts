@@ -105,4 +105,39 @@ describe("threadCreateTipTap", () => {
     expect(promptDocFlatText(ed.state.doc)).toBe("");
     ed.destroy();
   });
+
+  it("setNodeMarkup updates queue context tag without removing an adjacent file badge", () => {
+    const path = "/tmp/wt/apps/desktop/src/components/FileSearchEditor.vue";
+    const ed = new Editor({
+      extensions: [StarterKit, ThreadQueueContextTag, ThreadFileBadge],
+      content: {
+        type: "doc",
+        content: [
+          {
+            type: "paragraph",
+            content: [
+              { type: "threadQueueContextTag", attrs: { label: "[File, 1:1]" } },
+              { type: "text", text: " note " },
+              { type: "threadFileBadge", attrs: { path, name: "FileSearchEditor.vue" } }
+            ]
+          }
+        ]
+      }
+    });
+    let tagPos: number | null = null;
+    ed.state.doc.descendants((node, pos) => {
+      if (node.type.name === "threadQueueContextTag") {
+        tagPos = pos;
+        return false;
+      }
+    });
+    expect(tagPos).not.toBeNull();
+    ed.view.dispatch(ed.state.tr.setNodeMarkup(tagPos!, undefined, { label: "[File, 2:10]" }));
+    const html = ed.getHTML();
+    expect(html).toContain("thread-file-badge");
+    expect(html).toContain("[File, 2:10]");
+    expect(html).toContain("FileSearchEditor.vue");
+    expect(collectDocAttachmentPaths(ed.state.doc).filePaths).toContain(path);
+    ed.destroy();
+  });
 });

@@ -1,4 +1,5 @@
 import { mount, flushPromises } from "@vue/test-utils";
+import { createPinia, setActivePinia } from "pinia";
 import { defineComponent, h, nextTick } from "vue";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import FileSearchEditor from "../FileSearchEditor.vue";
@@ -47,6 +48,7 @@ describe("FileSearchEditor", () => {
   let onWorkingTreeFilesChangedCb: (() => void) | null = null;
 
   beforeEach(() => {
+    setActivePinia(createPinia());
     vi.useFakeTimers();
     localStorage.removeItem("instrument.fileSearchSidebarCollapsed");
     localStorage.removeItem("instrument.fileSearchEditorCollapsed");
