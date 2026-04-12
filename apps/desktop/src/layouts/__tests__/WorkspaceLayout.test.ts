@@ -63,6 +63,12 @@ vi.mock("@/components/ui/PillTabs.vue", () => ({
 vi.mock("@/components/ui/Button.vue", () => ({
   default: { template: "<button><slot /></button>" }
 }));
+vi.mock("@/components/ui/tooltip", () => ({
+  Tooltip: { name: "Tooltip", template: "<div><slot /></div>" },
+  TooltipContent: { name: "TooltipContent", template: "<div><slot /></div>" },
+  TooltipTrigger: { name: "TooltipTrigger", template: "<div><slot /></div>" },
+  TooltipProvider: { name: "TooltipProvider", template: "<div><slot /></div>" }
+}));
 vi.mock("@/components/TerminalPane.vue", () => ({
   default: { template: '<div data-testid="terminal-pane" />' }
 }));
@@ -176,6 +182,7 @@ function makeSnapshot(threadTitles: string | string[]): WorkspaceSnapshot {
         path: "/tmp/instrument",
         isActive: true,
         isDefault: true,
+        baseBranch: null,
         createdAt: "2026-04-06T00:00:00.000Z",
         updatedAt: "2026-04-06T00:00:00.000Z"
       }
@@ -186,9 +193,11 @@ function makeSnapshot(threadTitles: string | string[]): WorkspaceSnapshot {
       worktreeId: "worktree-1",
       title,
       agent: "codex",
+      createdBranch: null,
       createdAt: "2026-04-06T00:00:00.000Z",
       updatedAt: "2026-04-06T00:00:00.000Z"
     })),
+    threadSessions: [],
     activeProjectId: "project-1",
     activeWorktreeId: "worktree-1",
     activeThreadId: titles.length > 0 ? "thread-1" : null
@@ -218,6 +227,7 @@ function makeMultiWorktreeSnapshot(): WorkspaceSnapshot {
         path: "/tmp/instrument",
         isActive: true,
         isDefault: true,
+        baseBranch: null,
         lastActiveThreadId: "thread-1",
         createdAt: "2026-04-06T00:00:00.000Z",
         updatedAt: "2026-04-06T00:00:00.000Z"
@@ -230,6 +240,7 @@ function makeMultiWorktreeSnapshot(): WorkspaceSnapshot {
         path: "/tmp/instrument-feature-a",
         isActive: false,
         isDefault: false,
+        baseBranch: null,
         lastActiveThreadId: "thread-2",
         createdAt: "2026-04-06T00:00:00.000Z",
         updatedAt: "2026-04-06T00:00:00.000Z"
@@ -242,6 +253,7 @@ function makeMultiWorktreeSnapshot(): WorkspaceSnapshot {
         worktreeId: "worktree-1",
         title: "Primary thread",
         agent: "codex",
+        createdBranch: null,
         createdAt: "2026-04-06T00:00:00.000Z",
         updatedAt: "2026-04-06T00:00:00.000Z"
       },
@@ -251,6 +263,7 @@ function makeMultiWorktreeSnapshot(): WorkspaceSnapshot {
         worktreeId: "worktree-2",
         title: "Feature thread",
         agent: "codex",
+        createdBranch: null,
         createdAt: "2026-04-06T00:00:01.000Z",
         updatedAt: "2026-04-06T00:00:01.000Z"
       },
@@ -260,10 +273,12 @@ function makeMultiWorktreeSnapshot(): WorkspaceSnapshot {
         worktreeId: "worktree-2",
         title: "Second feature thread",
         agent: "codex",
+        createdBranch: null,
         createdAt: "2026-04-06T00:00:02.000Z",
         updatedAt: "2026-04-06T00:00:02.000Z"
       }
     ],
+    threadSessions: [],
     activeProjectId: "project-1",
     activeWorktreeId: "worktree-2",
     activeThreadId: "thread-2"
@@ -1338,6 +1353,7 @@ describe("WorkspaceLayout", () => {
           worktreeId: "worktree-1",
           title: "Codex CLI",
           agent: "codex",
+          createdBranch: null,
           createdAt: "2026-04-06T00:00:00.000Z",
           updatedAt: "2026-04-06T00:00:00.000Z"
         },
@@ -1347,6 +1363,7 @@ describe("WorkspaceLayout", () => {
           worktreeId: "worktree-2",
           title: "Other workspace",
           agent: "codex",
+          createdBranch: null,
           createdAt: "2026-04-06T00:00:00.000Z",
           updatedAt: "2026-04-06T00:00:00.000Z"
         }
