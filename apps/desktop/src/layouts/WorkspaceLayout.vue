@@ -298,11 +298,16 @@ const staleWorktreeIds = ref<Set<string>>(new Set());
 const activeContextBadge = computed(() => workspace.activeContextBadge);
 const activeContextLabel = computed(() => activeContextBadge.value?.displayLabel ?? null);
 
-/** Center bar: branch combobox replaces the "Primary" badge only for single-worktree + Git repos. */
+/** Center bar: branch combobox shows for Git repos unless the active worktree is a non-default worktree. */
+const isInNonDefaultWorktree = computed(
+  () =>
+    workspace.threadGroups.length > 0 &&
+    workspace.activeWorktreeId !== workspace.defaultWorktree?.id
+);
 const showTopBarBranchSwitcher = computed(
   () =>
     hasGitRepository.value === true &&
-    workspace.threadGroups.length === 0 &&
+    !isInNonDefaultWorktree.value &&
     Boolean(workspace.activeProjectId && workspace.activeWorktree?.path)
 );
 const projectDigitSlotCount = computed(() => Math.min(MOD_DIGIT_SLOT_CODES.length, workspace.projects.length));
@@ -1680,7 +1685,6 @@ watch(
           @configure-commands="handleConfigureCommands"
         />
         <div
-          v-if="activeWorktreeHasThreads"
           class="flex min-h-0 min-w-0 shrink-0 items-center gap-1 overflow-hidden border-b border-border bg-muted/25 py-px pr-1 pl-0.5"
         >
           <ScmBranchCombobox
@@ -1737,40 +1741,8 @@ watch(
             </p>
           </div>
         </div>
-        <div
-          class="flex min-h-0 flex-1 flex-col overflow-hidden"
-          :class="activeWorktreeHasThreads ? '' : 'pt-2'"
-        >
-          <section
-            v-if="!activeWorktreeHasThreads"
-            class="flex min-h-0 flex-1 flex-col items-center justify-center gap-4 px-6 py-12 text-center"
-          >
-            <span class="text-5xl leading-none" aria-hidden="true">🧵</span>
-            <div class="max-w-md space-y-2">
-              <h1 class="text-lg font-semibold text-foreground">Create your first thread</h1>
-              <p class="text-sm text-muted-foreground">
-                Start a thread to launch an agent session for this workspace. The terminal will appear after you
-                create one.
-              </p>
-            </div>
-            <Button
-              type="button"
-              data-testid="workspace-create-thread-empty-state"
-              aria-label="Add thread"
-              :title="keybindings.titleWithShortcut('Add thread', 'newThreadMenu')"
-              variant="outline"
-              size="sm"
-              @click="openAddThreadFromToolbarOrEmpty"
-            >
-              <span class="inline-flex items-center gap-2">
-                <Plus class="h-4 w-4" />
-                <span>Add thread</span>
-              </span>
-            </Button>
-          </section>
-          <template v-else>
-            <div class="flex min-h-0 flex-1 flex-col overflow-hidden">
-              <div ref="splitContainerRef" class="relative flex min-h-0 flex-1 flex-col overflow-hidden">
+        <div class="flex min-h-0 flex-1 flex-col overflow-hidden">
+            <div ref="splitContainerRef" class="relative flex min-h-0 flex-1 flex-col overflow-hidden">
                 <div
                   class="flex min-h-0 flex-col overflow-hidden border-b border-border bg-card"
                   :style="mainCenterSplitFlexStyle"
@@ -1785,7 +1757,7 @@ watch(
                       :scm-branch="scmMeta.branch"
                       :project-id="workspace.activeProjectId"
                       :scm-cwd="workspace.activeWorktree?.path ?? null"
-                      :allow-scm-branch-switcher="workspace.threadGroups.length === 0"
+                      :allow-scm-branch-switcher="!isInNonDefaultWorktree"
                       :last-commit-subject="scmMeta.lastCommitSubject"
                       :scm-fetch-available="scmFetchAvailable"
                       :scm-push-available="scmPushAvailable"
@@ -1824,7 +1796,35 @@ watch(
                     />
                   </div>
                   <div v-show="mainCenterTab === 'agent'" class="flex min-h-0 flex-1 flex-col overflow-hidden">
+                    <section
+                      v-if="!activeWorktreeHasThreads"
+                      class="flex min-h-0 flex-1 flex-col items-center justify-center gap-4 px-6 py-12 text-center"
+                    >
+                      <span class="text-5xl leading-none" aria-hidden="true">🧵</span>
+                      <div class="max-w-md space-y-2">
+                        <h1 class="text-lg font-semibold text-foreground">Create your first thread</h1>
+                        <p class="text-sm text-muted-foreground">
+                          Start a thread to launch an agent session for this workspace. The terminal will appear after you
+                          create one.
+                        </p>
+                      </div>
+                      <Button
+                        type="button"
+                        data-testid="workspace-create-thread-empty-state"
+                        aria-label="Add thread"
+                        :title="keybindings.titleWithShortcut('Add thread', 'newThreadMenu')"
+                        variant="outline"
+                        size="sm"
+                        @click="openAddThreadFromToolbarOrEmpty"
+                      >
+                        <span class="inline-flex items-center gap-2">
+                          <Plus class="h-4 w-4" />
+                          <span>Add thread</span>
+                        </span>
+                      </Button>
+                    </section>
                     <TerminalPane
+                      v-else
                       ref="agentTerminalPaneRef"
                       pty-kind="agent"
                       :worktree-id="workspace.activeWorktreeId ?? ''"
@@ -1956,8 +1956,6 @@ watch(
                   >
                 </button>
               </div>
-              </div>
-          </template>
         </div>
       </section>
     </section>
