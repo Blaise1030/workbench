@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.8.0](https://github.com/Blaise1030/workbench/compare/v0.7.0...v0.8.0) (2026-04-12)
+
+
+### Features
+
+* add command center icon bar and activeFilter to WorkspaceLauncherModal ([92178ca](https://github.com/Blaise1030/workbench/commit/92178ca3f53dd727a0686fced4b4e4a54a3d0cd5))
+* add useCommandCenter composable with scoped keybindings ([d88afa2](https://github.com/Blaise1030/workbench/commit/d88afa2b3d5d540a67b2442e2ad46a52550d5cbb))
+* remove project digit-slot switching from workspace keybindings ([cb2b50a](https://github.com/Blaise1030/workbench/commit/cb2b50a5f9f9978403a1e831ebee75f08fff49e4))
+* remove switchProjectOrTerminalDigit keybinding ([cf4914c](https://github.com/Blaise1030/workbench/commit/cf4914c42098c25ae29726181e1fa2dca3b18bfb))
+* wire Command Center into WorkspaceLayout, remove project digit-slot switching ([f7a5c01](https://github.com/Blaise1030/workbench/commit/f7a5c01ee03d030f9d6ddc4abf3705db8ab7460c))
+
 ## [0.7.0](https://github.com/Blaise1030/workbench/compare/v0.6.0...v0.7.0) (2026-04-12)
 
 
