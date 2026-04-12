@@ -395,7 +395,7 @@ onBeforeUnmount(() => {
     <div class="ml-1 flex shrink-0 self-center items-center gap-0.5 border-l border-zinc-300/80 pl-1.5 dark:border-zinc-800">
       <Button
         type="button"
-        variant="secondary"
+        variant="outline"
         size="sm"
         class="shrink-0"
         aria-label="Raise feedback"
