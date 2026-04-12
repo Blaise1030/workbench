@@ -274,7 +274,12 @@ const threadCreateDestinationLabel = ref<string | null>(null);
 const threadCreateWorktreePath = computed(() => {
   const t = threadCreateSubmitTarget.value;
   if (t.kind === "group") {
-    return workspace.threadGroups.find((w) => w.id === t.worktreeId)?.path ?? null;
+    const projectId = workspace.activeProjectId;
+    if (!projectId) return null;
+    // `threadGroups` omits the primary checkout; "new thread on main" still uses worktreeGroup + default id.
+    return (
+      workspace.worktrees.find((w) => w.id === t.worktreeId && w.projectId === projectId)?.path ?? null
+    );
   }
   return workspace.defaultWorktree?.path ?? workspace.activeWorktree?.path ?? null;
 });
@@ -513,6 +518,10 @@ const activeWorktreeHasThreads = computed(() => workspace.activeThreads.length >
 
 /** Files is always rooted at the accepted active worktree context. */
 const fileExplorerWorktree = computed(() => workspace.activeWorktree);
+
+const activeWorktreePath = computed(
+  () => workspace.worktrees.find((w) => w.id === workspace.activeWorktreeId)?.path ?? null
+);
 
 function getApi(): WorkspaceApi | null {
   return window.workspaceApi ?? null;
@@ -1693,6 +1702,7 @@ watch(
             ref="contextQueueReviewRef"
             :thread-id="workspace.activeThreadId"
             :items="contextQueueItems"
+            :worktree-path="activeWorktreePath"
             @confirm="onContextQueueConfirmed"
           />
         </div>

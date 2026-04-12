@@ -14,6 +14,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 const props = defineProps<{
   threadId: string | null;
   items: QueueItem[];
+  worktreePath?: string | null;
 }>();
 
 const emit = defineEmits<{
@@ -37,6 +38,7 @@ function cloneItems(items: QueueItem[]): QueueItem[] {
 }
 
 const internalItems = ref<QueueItem[]>([]);
+const tiptapResetKey = ref(0);
 const dragFromIndex = ref<number | null>(null);
 const dragOverIndex = ref<number | null>(null);
 /** Row ids whose paste editor is visible (shown after double-click on the row). */
@@ -48,6 +50,7 @@ watch(
     if (isOpen) {
       internalItems.value = cloneItems(props.items);
       editorExpandedIds.value = new Set();
+      tiptapResetKey.value++;
     }
   }
 );
@@ -393,11 +396,12 @@ defineExpose({ openReview });
 
               <div data-context-queue-review-note>
                 <PromptWithFileAttachments
+                  :key="`${tiptapResetKey}-${row.id}`"
                   v-model:prompt="row.reviewComment"
                   v-model:attachments="row.reviewAttachments"
-                  :rows="2"
-                  textarea-class="min-h-[3.25rem] resize-y text-[13px] leading-snug"
-                  placeholder="Comment for the agent (optional) — images via paperclip"
+                  :tiptap="true"
+                  :worktree-path="worktreePath"
+                  placeholder="Comment for the agent (optional) — use @ for files"
                   test-id-prefix="context-queue-review-note"
                 />
               </div>
