@@ -10,7 +10,16 @@
   </Teleport>
   <div ref="panelRootRef" class="flex min-h-0 flex-1 flex-col overflow-hidden">
     <!-- URL bar -->
-    <div class="flex shrink-0 items-center gap-1 border-b border-border bg-background px-2 py-1">
+    <div class="flex shrink-0 items-center gap-1.5 border-b border-border bg-background px-2 py-1">
+      <Badge
+        v-if="loadBadge"
+        data-testid="preview-load-badge"
+        :variant="loadBadge.variant"
+        class="max-w-[min(11rem,42%)] shrink-0 truncate border-border px-1.5 py-0 font-mono text-[10px] tabular-nums leading-none"
+        :title="loadBadge.title"
+      >
+        {{ loadBadge.label }}
+      </Badge>
       <input
         v-model="urlInput"
         data-testid="preview-url-input"
@@ -37,15 +46,6 @@
         <Bug class="h-3.5 w-3.5" />
       </button>
     </div>
-    <!-- Load / HTTP / network outcome (stays above native WebContentsView) -->
-    <div
-      v-if="loadBanner"
-      data-testid="preview-load-banner"
-      class="shrink-0 border-b border-border px-2 py-1.5 text-xs leading-snug"
-      :class="loadBanner.toneClass"
-    >
-      {{ loadBanner.text }}
-    </div>
     <!-- Placeholder div — native WebContentsView is positioned over this by the main process -->
     <div ref="viewportRef" data-testid="preview-viewport" class="min-h-0 flex-1" />
   </div>
@@ -54,6 +54,8 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import { setPreviewNativeCollisionEl, setPreviewNativeViewportTopPx } from "@/composables/previewNativeViewportTop";
+import Badge from "@/components/ui/Badge.vue";
+import type { BadgeVariant } from "@/components/ui/badge";
 import { Bug, RotateCw } from "lucide-vue-next";
 import type { PreviewLoadStatePayload } from "@shared/ipc";
 import { loadPreviewPanelUrl, savePreviewPanelUrl } from "@/composables/usePreviewPanelUrlPersistence";
@@ -94,31 +96,39 @@ watch(
   { immediate: true }
 );
 
-const loadBanner = computed(() => {
+const loadBadge = computed((): null | { label: string; title: string; variant: BadgeVariant } => {
   const s = loadState.value;
   if (!s) return null;
   if (s.kind === "loading") {
     return {
-      toneClass: "bg-muted/40 text-muted-foreground",
-      text: "Loading…"
+      label: "…",
+      title: "Loading…",
+      variant: "secondary"
     };
   }
   if (s.kind === "loaded") {
     return {
-      toneClass: "bg-muted/30 text-muted-foreground",
-      text: `Ready · HTTP ${s.statusCode}`
+      label: `HTTP ${s.statusCode}`,
+      title: `Ready · HTTP ${s.statusCode}`,
+      variant: "outline"
     };
   }
   if (s.kind === "httpError") {
-    const line = s.statusLine?.trim() ? ` ${s.statusLine.trim()}` : "";
+    const line = s.statusLine?.trim() ?? "";
+    const title = line ? `HTTP ${s.statusCode} ${line}` : `HTTP ${s.statusCode}`;
     return {
-      toneClass: "bg-destructive/15 text-destructive",
-      text: `HTTP ${s.statusCode}${line}`.trim()
+      label: `HTTP ${s.statusCode}`,
+      title,
+      variant: "destructive"
     };
   }
+  const title = `${s.errorDescription} (${s.errorCode})`;
+  const short =
+    s.errorDescription.length > 18 ? `${s.errorDescription.slice(0, 16)}…` : s.errorDescription;
   return {
-    toneClass: "bg-destructive/15 text-destructive",
-    text: `${s.errorDescription} (${s.errorCode})`
+    label: short,
+    title,
+    variant: "destructive"
   };
 });
 

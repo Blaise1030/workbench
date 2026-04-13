@@ -95,17 +95,18 @@ describe("PreviewPanel", () => {
     window.ResizeObserver = originalResizeObserver;
   });
 
-  it("shows a loading banner after Enter navigation without exposing the URL", async () => {
+  it("shows a loading badge after Enter navigation without exposing the URL", async () => {
     const wrapper = mount(PreviewPanel, { attachTo: document.body });
     await flushPromises();
     const input = wrapper.find('[data-testid="preview-url-input"]');
     await input.setValue("8080");
     await input.trigger("keydown.enter");
     await wrapper.vm.$nextTick();
-    const banner = wrapper.find('[data-testid="preview-load-banner"]');
-    expect(banner.exists()).toBe(true);
-    expect(banner.text()).toBe("Loading…");
-    expect(banner.text()).not.toMatch(/localhost|8080/);
+    const badge = wrapper.find('[data-testid="preview-load-badge"]');
+    expect(badge.exists()).toBe(true);
+    expect(badge.text()).toBe("…");
+    expect((badge.element as HTMLElement).getAttribute("title")).toBe("Loading…");
+    expect(badge.text()).not.toMatch(/localhost|8080/);
     expect(previewApi.setUrl).toHaveBeenCalledWith("http://localhost:8080");
     wrapper.unmount();
   });
@@ -207,7 +208,7 @@ describe("PreviewPanel", () => {
     wrapper.unmount();
   });
 
-  it("shows HTTP error line when main reports httpError without URL text", async () => {
+  it("shows HTTP error badge when main reports httpError without URL in label", async () => {
     const wrapper = mount(PreviewPanel, { attachTo: document.body });
     await flushPromises();
     previewApi.emitLoadState({
@@ -217,14 +218,14 @@ describe("PreviewPanel", () => {
       statusLine: "500 Internal Server Error"
     });
     await wrapper.vm.$nextTick();
-    const banner = wrapper.find('[data-testid="preview-load-banner"]');
-    expect(banner.text()).toContain("HTTP 500");
-    expect(banner.text()).toContain("Internal Server Error");
-    expect(banner.text()).not.toContain("localhost");
+    const badge = wrapper.find('[data-testid="preview-load-badge"]');
+    expect(badge.text()).toContain("HTTP 500");
+    expect((badge.element as HTMLElement).getAttribute("title")).toMatch(/500 Internal Server Error/);
+    expect(badge.text()).not.toContain("localhost");
     wrapper.unmount();
   });
 
-  it("shows network failure when main reports failed without URL text", async () => {
+  it("shows network failure badge with full detail in title", async () => {
     const wrapper = mount(PreviewPanel, { attachTo: document.body });
     await flushPromises();
     previewApi.emitLoadState({
@@ -234,10 +235,10 @@ describe("PreviewPanel", () => {
       errorDescription: "ERR_CONNECTION_REFUSED"
     });
     await wrapper.vm.$nextTick();
-    const banner = wrapper.find('[data-testid="preview-load-banner"]');
-    expect(banner.text()).toContain("ERR_CONNECTION_REFUSED");
-    expect(banner.text()).toContain("-102");
-    expect(banner.text()).not.toContain("localhost");
+    const badge = wrapper.find('[data-testid="preview-load-badge"]');
+    expect((badge.element as HTMLElement).getAttribute("title")).toContain("ERR_CONNECTION_REFUSED");
+    expect((badge.element as HTMLElement).getAttribute("title")).toContain("-102");
+    expect(badge.text()).not.toContain("localhost");
     wrapper.unmount();
   });
 });
