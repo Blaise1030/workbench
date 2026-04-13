@@ -31,6 +31,10 @@ describe("useTerminalLayoutPersistence", () => {
     expect(resolveCenterTab("shell:a", ["a"])).toBe("shell:a");
   });
 
+  it("resolveCenterTab preserves preview tab", () => {
+    expect(resolveCenterTab("preview", [])).toBe("preview");
+  });
+
   it("resolveShellOverlayTab falls back when shell slot missing", () => {
     expect(resolveShellOverlayTab("shell:gone", ["a"])).toBe("agent");
     expect(resolveShellOverlayTab("shell:a", ["a"])).toBe("shell:a");

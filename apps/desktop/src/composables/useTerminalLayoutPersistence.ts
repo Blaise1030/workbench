@@ -5,7 +5,7 @@ function storageKey(worktreeId: string): string {
 }
 
 export type TerminalLayoutState = {
-  /** Main center column: `agent` | `diff` | `files`. Legacy saves may store `shell:uuid` here — migrate on load. */
+  /** Main center column: `agent` | `diff` | `files` | `preview`. Legacy saves may store `shell:uuid` here — migrate on load. */
   centerTab: string;
   /** Which session is selected in the lower terminal overlay: `agent` or `shell:uuid`. Optional for backward compatibility. */
   shellOverlayTab?: string;
@@ -64,7 +64,7 @@ export function saveTerminalLayout(worktreeId: string, state: TerminalLayoutStat
 
 /** Normalize a saved center tab against the current slot list. */
 export function resolveCenterTab(centerTab: string, shellSlotIds: string[]): string {
-  if (centerTab === "agent" || centerTab === "diff" || centerTab === "files") {
+  if (centerTab === "agent" || centerTab === "diff" || centerTab === "files" || centerTab === "preview") {
     return centerTab;
   }
   if (centerTab.startsWith("shell:")) {

@@ -4,6 +4,7 @@ import { ChevronDown, ChevronUp, Plus, Settings } from "lucide-vue-next";
 import Button from "@/components/ui/Button.vue";
 import Badge from "@/components/ui/Badge.vue";
 import SourceControlPanel from "@/components/SourceControlPanel.vue";
+import PreviewPanel from "@/components/PreviewPanel.vue";
 import ScmBranchCombobox from "@/components/ScmBranchCombobox.vue";
 import PillTabs, { type PillTabItem } from "@/components/ui/PillTabs.vue";
 import ProjectTabs from "@/components/ProjectTabs.vue";
@@ -132,7 +133,7 @@ watch(
 );
 
 /** Top pills: Agent / Git / Files (never `shell:*`). */
-const mainCenterTab = ref<"agent" | "diff" | "files">("agent");
+const mainCenterTab = ref<"agent" | "diff" | "files" | "preview">("agent");
 /** Lower overlay: thread agent vs extra shell tab. */
 const shellOverlayTab = ref<"agent" | `shell:${string}`>("agent");
 /** One UUID per integrated terminal tab (after Agent + Git). */
@@ -317,6 +318,7 @@ const topCenterPanelTabs = computed<PillTabItem[]>(() => {
     label: "📄 Files",
     shortcutHint: keybindings.shortcutLabelForId("focusFilesPanel")
   });
+  tabs.push({ value: "preview", label: "🌐 Preview" });
   return tabs;
 });
 
@@ -342,6 +344,7 @@ const topCenterTabModel = computed({
   set: (v: string) => {
     if (v === "diff") mainCenterTab.value = "diff";
     else if (v === "files") mainCenterTab.value = "files";
+    else if (v === "preview") mainCenterTab.value = "preview";
     else mainCenterTab.value = "agent";
   }
 });
@@ -1364,7 +1367,7 @@ useWorkspaceKeybindings(
     scmActionsAvailable: () => hasGitRepository.value === true,
     launcherConsumesNavShortcuts: () => workspaceLauncherOpen.value,
     onSelectCenterTab: (tab) => {
-      if (tab === "agent" || tab === "diff" || tab === "files") {
+      if (tab === "agent" || tab === "diff" || tab === "files" || tab === "preview") {
         mainCenterTab.value = tab;
         return;
       }
@@ -1456,7 +1459,7 @@ watch(
           mainCenterTab.value = "agent";
           shellOverlayTab.value = resolveShellOverlayTab(resolvedMain, saved.shellSlotIds);
         } else {
-          mainCenterTab.value = resolvedMain as "agent" | "diff" | "files";
+          mainCenterTab.value = resolvedMain as "agent" | "diff" | "files" | "preview";
           shellOverlayTab.value = saved.shellOverlayTab
             ? resolveShellOverlayTab(saved.shellOverlayTab, saved.shellSlotIds)
             : "agent";
@@ -1805,6 +1808,9 @@ watch(
                       :worktree-path="fileExplorerWorktree?.path ?? null"
                       :active-thread-id="workspace.activeThreadId"
                     />
+                  </div>
+                  <div v-show="mainCenterTab === 'preview'" class="flex min-h-0 flex-1 flex-col overflow-hidden">
+                    <PreviewPanel v-if="mainCenterTab === 'preview'" />
                   </div>
                   <div v-show="mainCenterTab === 'agent'" class="flex min-h-0 flex-1 flex-col overflow-hidden">
                     <section
