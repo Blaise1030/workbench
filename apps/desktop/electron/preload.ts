@@ -52,6 +52,10 @@ const IPC_CHANNELS = {
   editApplyPatch: "edit:applyPatch",
   previewSetUrl: "preview:setUrl",
   previewProbeUrl: "preview:probeUrl",
+  previewReload: "preview:reload",
+  previewSetBounds: "preview:setBounds",
+  previewShow: "preview:show",
+  previewHide: "preview:hide",
   terminalPtyCreate: "terminal:ptyCreate",
   terminalPtyWrite: "terminal:ptyWrite",
   terminalPtyResize: "terminal:ptyResize",
@@ -211,4 +215,14 @@ contextBridge.exposeInMainWorld("workspaceApi", {
   getAppUpdateAvailability: () =>
     ipcRenderer.invoke(IPC_CHANNELS.appGetUpdateAvailability) as Promise<AppUpdateAvailability | null>,
   openAppExternalUrl: (url: string) => ipcRenderer.invoke(IPC_CHANNELS.appOpenExternalUrl, url)
+});
+
+contextBridge.exposeInMainWorld("previewApi", {
+  show: () => ipcRenderer.invoke("preview:show"),
+  hide: () => ipcRenderer.invoke("preview:hide"),
+  setUrl: (url: string) => ipcRenderer.invoke("preview:setUrl", url),
+  probeUrl: (url: string) => ipcRenderer.invoke("preview:probeUrl", url),
+  setBounds: (bounds: { x: number; y: number; width: number; height: number }) =>
+    ipcRenderer.invoke("preview:setBounds", bounds),
+  reload: () => ipcRenderer.invoke("preview:reload"),
 });
