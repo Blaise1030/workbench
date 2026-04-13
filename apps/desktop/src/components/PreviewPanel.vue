@@ -1,5 +1,5 @@
 <template>
-  <div class="flex min-h-0 flex-1 flex-col overflow-hidden">
+  <div ref="panelRootRef" class="flex min-h-0 flex-1 flex-col overflow-hidden">
     <!-- URL bar -->
     <div class="flex shrink-0 items-center gap-1 border-b border-border bg-background px-2 py-1">
       <input
@@ -44,6 +44,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
+import { setPreviewNativeViewportTopPx } from "@/composables/previewNativeViewportTop";
 import { Bug, RotateCw } from "lucide-vue-next";
 import type { PreviewLoadStatePayload } from "@shared/ipc";
 import { loadPreviewPanelUrl, savePreviewPanelUrl } from "@/composables/usePreviewPanelUrlPersistence";
@@ -51,6 +52,7 @@ import { useWorkspaceStore } from "@/stores/workspaceStore";
 
 const workspace = useWorkspaceStore();
 const urlInput = ref("");
+const panelRootRef = ref<HTMLDivElement | null>(null);
 const viewportRef = ref<HTMLDivElement | null>(null);
 const loadState = ref<PreviewLoadStatePayload | null>(null);
 
@@ -103,10 +105,14 @@ function normalizeUrl(raw: string): string {
   return t;
 }
 
-function sendBounds(): void {
+function syncPreviewViewportMetrics(): void {
   const el = viewportRef.value;
-  if (!el) return;
+  if (!el) {
+    setPreviewNativeViewportTopPx(null);
+    return;
+  }
   const r = el.getBoundingClientRect();
+  setPreviewNativeViewportTopPx(Math.round(r.top));
   void getApi()?.setBounds({
     x: Math.round(r.left),
     y: Math.round(r.top),
@@ -139,9 +145,9 @@ let unsubscribeLoadState: (() => void) | null = null;
 
 onMounted(async () => {
   await getApi()?.show().catch(console.error);
-  sendBounds();
-  resizeObserver = new ResizeObserver(sendBounds);
-  if (viewportRef.value) resizeObserver.observe(viewportRef.value);
+  syncPreviewViewportMetrics();
+  resizeObserver = new ResizeObserver(() => syncPreviewViewportMetrics());
+  if (panelRootRef.value) resizeObserver.observe(panelRootRef.value);
 
   const api = getApi();
   if (api?.onLoadState) {
@@ -153,13 +159,14 @@ onMounted(async () => {
 });
 
 function nextTickBounds(): void {
-  requestAnimationFrame(() => sendBounds());
+  requestAnimationFrame(() => syncPreviewViewportMetrics());
 }
 
 onUnmounted(() => {
   resizeObserver?.disconnect();
   unsubscribeLoadState?.();
   unsubscribeLoadState = null;
+  setPreviewNativeViewportTopPx(null);
   void getApi()?.hide();
 });
 </script>

@@ -2,7 +2,8 @@
 import type { Project, RunStatus, Thread, Worktree } from "@shared/domain";
 import { Plus, Settings, X } from "lucide-vue-next";
 import type { CSSProperties } from "vue";
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { previewNativeViewportTopPx } from "@/composables/previewNativeViewportTop";
 import ThemeToggle from "@/components/ThemeToggle.vue";
 import Button from "@/components/ui/Button.vue";
 import type { KeybindingId } from "@/keybindings/registry";
@@ -204,6 +205,9 @@ const hoveredDetailsProjectId = ref<string | null>(null);
 const detailsAnchorEl = ref<HTMLElement | null>(null);
 const detailsPanelStyle = ref<CSSProperties>({});
 const detailsPanelRef = ref<HTMLElement | null>(null);
+/** Last anchor rect used to re-apply occlusion after layout / preview metrics change. */
+const lastDetailsAnchorRect = ref<DOMRect | null>(null);
+let detailsPanelResizeObserver: ResizeObserver | null = null;
 
 let detailsHideTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -218,18 +222,70 @@ function syncDetailsPanelPosition(): void {
   const el = detailsAnchorEl.value;
   if (!el) return;
   const r = el.getBoundingClientRect();
+  lastDetailsAnchorRect.value = r;
   const margin = 12;
   const maxW = Math.min(22 * 16, window.innerWidth - 2 * margin);
   let left = r.left;
   if (left + maxW > window.innerWidth - margin) {
     left = Math.max(margin, window.innerWidth - margin - maxW);
   }
+  const preferredTop = Math.round(r.bottom - 2);
   detailsPanelStyle.value = {
     position: "fixed",
-    top: `${Math.round(r.bottom - 2)}px`,
+    top: `${preferredTop}px`,
     left: `${Math.round(left)}px`,
     width: `min(22rem, calc(100vw - ${2 * margin}px))`,
     zIndex: 200
+  };
+  void nextTick(() => {
+    requestAnimationFrame(() => applyDetailsPanelOcclusion());
+  });
+}
+
+/**
+ * Keep the teleported hover card above the native preview `WebContentsView`, which
+ * composites on top of HTML wherever it overlaps the page.
+ */
+function applyDetailsPanelOcclusion(): void {
+  const panel = detailsPanelRef.value;
+  const ar = lastDetailsAnchorRect.value;
+  const margin = 12;
+  const gap = 8;
+  const occludeTop = previewNativeViewportTopPx.value;
+  if (!panel || !ar) return;
+
+  const preferredTop = Math.round(ar.bottom - 2);
+
+  if (occludeTop == null) {
+    detailsPanelStyle.value = {
+      ...detailsPanelStyle.value,
+      top: `${preferredTop}px`,
+      maxHeight: undefined,
+      overflowY: undefined
+    };
+    return;
+  }
+
+  const pr = panel.getBoundingClientRect();
+  if (pr.height < 8) return;
+  if (pr.bottom <= occludeTop - gap) {
+    detailsPanelStyle.value = {
+      ...detailsPanelStyle.value,
+      maxHeight: undefined,
+      overflowY: undefined
+    };
+    return;
+  }
+
+  const h = pr.height;
+  const maxTop = occludeTop - gap - h;
+  const newTop = Math.max(margin, Math.min(preferredTop, maxTop));
+  const maxH = Math.max(160, occludeTop - newTop - gap);
+  detailsPanelStyle.value = {
+    ...detailsPanelStyle.value,
+    top: `${newTop}px`,
+    maxHeight: `${maxH}px`,
+    overflowY: "auto"
   };
 }
 
@@ -238,6 +294,7 @@ function hideProjectDetailsLater(): void {
   detailsHideTimer = setTimeout(() => {
     hoveredDetailsProjectId.value = null;
     detailsAnchorEl.value = null;
+    lastDetailsAnchorRect.value = null;
     detailsHideTimer = null;
   }, 140);
 }
@@ -266,6 +323,7 @@ function dismissProjectDetailsNow(): void {
   cancelDetailsHideTimer();
   hoveredDetailsProjectId.value = null;
   detailsAnchorEl.value = null;
+  lastDetailsAnchorRect.value = null;
 }
 
 function onTabListScroll(): void {
@@ -301,12 +359,34 @@ function onWindowResize(): void {
   if (hoveredDetailsProjectId.value) syncDetailsPanelPosition();
 }
 
+watch(previewNativeViewportTopPx, () => {
+  if (hoveredDetailsProjectId.value) {
+    requestAnimationFrame(() => applyDetailsPanelOcclusion());
+  }
+});
+
+watch(hoveredDetailsProjectId, (id) => {
+  detailsPanelResizeObserver?.disconnect();
+  detailsPanelResizeObserver = null;
+  if (!id) return;
+  void nextTick(() => {
+    const panel = detailsPanelRef.value;
+    if (!panel) return;
+    detailsPanelResizeObserver = new ResizeObserver(() => {
+      requestAnimationFrame(() => applyDetailsPanelOcclusion());
+    });
+    detailsPanelResizeObserver.observe(panel);
+  });
+});
+
 onMounted(() => {
   window.addEventListener("resize", onWindowResize, { passive: true });
 });
 
 onBeforeUnmount(() => {
   cancelDetailsHideTimer();
+  detailsPanelResizeObserver?.disconnect();
+  detailsPanelResizeObserver = null;
   window.removeEventListener("resize", onWindowResize);
 });
 </script>
