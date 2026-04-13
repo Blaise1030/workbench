@@ -68,7 +68,7 @@ function reload(): void {
 let resizeObserver: ResizeObserver | null = null;
 
 onMounted(async () => {
-  await getApi()?.show();
+  await getApi()?.show().catch(console.error);
   sendBounds();
   resizeObserver = new ResizeObserver(sendBounds);
   if (viewportRef.value) resizeObserver.observe(viewportRef.value);

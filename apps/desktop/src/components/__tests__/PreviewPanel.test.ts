@@ -1,4 +1,4 @@
-import { mount } from "@vue/test-utils";
+import { flushPromises, mount } from "@vue/test-utils";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import PreviewPanel from "../PreviewPanel.vue";
 
@@ -36,11 +36,24 @@ describe("PreviewPanel", () => {
     wrapper.unmount();
   });
 
-  it("calls previewApi.hide on unmount", async () => {
+  it("calls previewApi.hide and disconnects ResizeObserver on unmount", async () => {
+    const disconnectSpy = vi.fn();
+    const observeSpy = vi.fn();
+    const originalResizeObserver = window.ResizeObserver;
+    window.ResizeObserver = vi.fn().mockImplementation(() => ({
+      observe: observeSpy,
+      disconnect: disconnectSpy,
+      unobserve: vi.fn()
+    })) as unknown as typeof ResizeObserver;
+
     const wrapper = mount(PreviewPanel, { attachTo: document.body });
-    await wrapper.vm.$nextTick();
+    await flushPromises();
     wrapper.unmount();
+
     expect(previewApi.hide).toHaveBeenCalledOnce();
+    expect(disconnectSpy).toHaveBeenCalledOnce();
+
+    window.ResizeObserver = originalResizeObserver;
   });
 
   it("normalizes bare port to full URL and calls setUrl on Enter", async () => {
