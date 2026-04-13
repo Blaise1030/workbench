@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, shell, WebContentsView } from "electron";
 import {
   IPC_CHANNELS,
   type AddProjectInput,
@@ -32,6 +32,8 @@ import { extractResumeIdFromStdout, RESUME_CAPTURE_TAIL_CHARS } from "./adapters
 import { GitHeadWatcher } from "./services/gitHeadWatcher.js";
 import { WorkspaceService } from "./services/workspaceService.js";
 import { WorkspaceStore } from "./storage/store.js";
+
+let previewView: WebContentsView | null = null;
 
 /** Threads whose PTY we scan for resume IDs (stdout + submitted command lines). */
 const AGENTS_WITH_RESUME_CAPTURE: ThreadAgent[] = ["cursor", "claude", "codex", "gemini"];
@@ -482,6 +484,62 @@ function registerIpc(workspaceService: WorkspaceService): void {
   ipcMain.handle(IPC_CHANNELS.appOpenExternalUrl, async (_, url: unknown) => {
     if (typeof url !== "string" || !isAllowedAppOpenExternalUrl(url)) return;
     await shell.openExternal(url);
+  });
+
+  ipcMain.handle(IPC_CHANNELS.previewShow, (event) => {
+    if (previewView) return;
+    const win =
+      BrowserWindow.fromWebContents(event.sender) ??
+      BrowserWindow.getFocusedWindow() ??
+      BrowserWindow.getAllWindows()[0];
+    if (!win) return;
+    previewView = new WebContentsView({
+      webPreferences: { nodeIntegration: false, contextIsolation: true, sandbox: true }
+    });
+    win.contentView.addChildView(previewView);
+  });
+
+  ipcMain.handle(IPC_CHANNELS.previewHide, () => {
+    if (!previewView) return;
+    for (const win of BrowserWindow.getAllWindows()) {
+      try { win.contentView.removeChildView(previewView!); } catch { /* already removed */ }
+    }
+    previewView.webContents.close();
+    previewView = null;
+  });
+
+  ipcMain.handle(IPC_CHANNELS.previewSetBounds, (_, bounds: { x: number; y: number; width: number; height: number }) => {
+    if (!previewView) return;
+    previewView.setBounds({
+      x: Math.round(bounds.x),
+      y: Math.round(bounds.y),
+      width: Math.round(bounds.width),
+      height: Math.round(bounds.height)
+    });
+  });
+
+  ipcMain.handle(IPC_CHANNELS.previewSetUrl, (_, url: string) => {
+    if (!previewView) return;
+    void previewView.webContents.loadURL(url);
+  });
+
+  ipcMain.handle(IPC_CHANNELS.previewProbeUrl, async (_, url: string) => {
+    let parsed: URL;
+    try {
+      parsed = new URL(url);
+    } catch {
+      return { ok: false, code: "invalid", message: "Not a valid URL" } as const;
+    }
+    try {
+      const res = await fetch(parsed.href);
+      return { ok: true, status: res.status } as const;
+    } catch (e) {
+      return { ok: false, code: "network", message: String(e) } as const;
+    }
+  });
+
+  ipcMain.handle(IPC_CHANNELS.previewReload, () => {
+    previewView?.webContents.reload();
   });
 }
 
