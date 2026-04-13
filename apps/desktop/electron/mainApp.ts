@@ -33,6 +33,7 @@ import { GitHeadWatcher } from "./services/gitHeadWatcher.js";
 import { WorkspaceService } from "./services/workspaceService.js";
 import { WorkspaceStore } from "./storage/store.js";
 
+// Single-window assumption: one preview view per app instance.
 let previewView: WebContentsView | null = null;
 
 /** Threads whose PTY we scan for resume IDs (stdout + submitted command lines). */
@@ -496,7 +497,13 @@ function registerIpc(workspaceService: WorkspaceService): void {
     previewView = new WebContentsView({
       webPreferences: { nodeIntegration: false, contextIsolation: true, sandbox: true }
     });
-    win.contentView.addChildView(previewView);
+    try {
+      win.contentView.addChildView(previewView);
+    } catch (err) {
+      previewView.webContents.close();
+      previewView = null;
+      throw err;
+    }
   });
 
   ipcMain.handle(IPC_CHANNELS.previewHide, () => {
@@ -531,6 +538,8 @@ function registerIpc(workspaceService: WorkspaceService): void {
       return { ok: false, code: "invalid", message: "Not a valid URL" } as const;
     }
     try {
+      // Uses global fetch (undici) which is sufficient for localhost probing.
+      // For proxy-aware or session-aware probing, replace with Electron's net.fetch.
       const res = await fetch(parsed.href);
       return { ok: true, status: res.status } as const;
     } catch (e) {
