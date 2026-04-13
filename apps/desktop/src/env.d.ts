@@ -105,6 +105,8 @@ interface PreviewApi {
   probeUrl: (url: string) => Promise<PreviewProbeResult>;
   setBounds: (bounds: PreviewBounds) => Promise<void>;
   reload: () => Promise<void>;
+  /** Open Chromium DevTools for the preview `WebContentsView` (detached window). */
+  openDevTools: () => Promise<void>;
   /** Subscribe to main-process preview navigation state; returns unsubscribe. */
   onLoadState: (callback: (payload: PreviewLoadStatePayload) => void) => () => void;
 }

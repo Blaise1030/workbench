@@ -27,6 +27,7 @@ function makePreviewApi() {
     probeUrl: vi.fn().mockResolvedValue({ ok: true, status: 200 }),
     setBounds: vi.fn().mockResolvedValue(undefined),
     reload: vi.fn().mockResolvedValue(undefined),
+    openDevTools: vi.fn().mockResolvedValue(undefined),
     onLoadState: vi.fn((cb: (payload: PreviewLoadStatePayload) => void) => {
       loadStateListener = cb;
       return unsubscribe;
@@ -186,6 +187,14 @@ describe("PreviewPanel", () => {
     await flushPromises();
     await wrapper.find('[data-testid="preview-reload-btn"]').trigger("click");
     expect(previewApi.reload).toHaveBeenCalledOnce();
+    wrapper.unmount();
+  });
+
+  it("calls previewApi.openDevTools when devtools button is clicked", async () => {
+    const wrapper = mount(PreviewPanel, { attachTo: document.body });
+    await flushPromises();
+    await wrapper.find('[data-testid="preview-devtools-btn"]').trigger("click");
+    expect(previewApi.openDevTools).toHaveBeenCalledOnce();
     wrapper.unmount();
   });
 

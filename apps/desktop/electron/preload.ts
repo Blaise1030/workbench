@@ -57,6 +57,7 @@ const IPC_CHANNELS = {
   previewShow: "preview:show",
   previewHide: "preview:hide",
   previewLoadState: "preview:loadState",
+  previewOpenDevTools: "preview:openDevTools",
   terminalPtyCreate: "terminal:ptyCreate",
   terminalPtyWrite: "terminal:ptyWrite",
   terminalPtyResize: "terminal:ptyResize",
@@ -226,6 +227,7 @@ contextBridge.exposeInMainWorld("previewApi", {
   setBounds: (bounds: { x: number; y: number; width: number; height: number }) =>
     ipcRenderer.invoke("preview:setBounds", bounds),
   reload: () => ipcRenderer.invoke("preview:reload"),
+  openDevTools: () => ipcRenderer.invoke(IPC_CHANNELS.previewOpenDevTools),
   onLoadState: (callback: (payload: PreviewLoadStatePayload) => void) => {
     const channel = IPC_CHANNELS.previewLoadState;
     const listener = (_event: unknown, payload: PreviewLoadStatePayload) => callback(payload);

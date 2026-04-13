@@ -18,6 +18,15 @@
       >
         <RotateCw class="h-3.5 w-3.5" />
       </button>
+      <button
+        data-testid="preview-devtools-btn"
+        type="button"
+        class="shrink-0 rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+        title="Open preview DevTools (detached)"
+        @click="openPreviewDevTools"
+      >
+        <Bug class="h-3.5 w-3.5" />
+      </button>
     </div>
     <!-- Load / HTTP / network outcome (stays above native WebContentsView) -->
     <div
@@ -35,7 +44,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
-import { RotateCw } from "lucide-vue-next";
+import { Bug, RotateCw } from "lucide-vue-next";
 import type { PreviewLoadStatePayload } from "@shared/ipc";
 import { loadPreviewPanelUrl, savePreviewPanelUrl } from "@/composables/usePreviewPanelUrlPersistence";
 import { useWorkspaceStore } from "@/stores/workspaceStore";
@@ -119,6 +128,10 @@ function navigate(): void {
 function reload(): void {
   loadState.value = { kind: "loading", url: "" };
   void getApi()?.reload();
+}
+
+function openPreviewDevTools(): void {
+  void getApi()?.openDevTools();
 }
 
 let resizeObserver: ResizeObserver | null = null;

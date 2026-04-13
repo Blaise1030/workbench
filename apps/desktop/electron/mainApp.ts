@@ -663,6 +663,11 @@ function registerIpc(workspaceService: WorkspaceService): void {
     });
     previewView.webContents.reload();
   });
+
+  ipcMain.handle(IPC_CHANNELS.previewOpenDevTools, () => {
+    if (!previewView) return;
+    previewView.webContents.openDevTools({ mode: "detach" });
+  });
 }
 
 const dataDir = app.getPath("userData");
