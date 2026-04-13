@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, webUtils } from "electron";
-import type { AppUpdateAvailability } from "../src/shared/ipc.js";
+import type { AppUpdateAvailability, PreviewLoadStatePayload } from "../src/shared/ipc.js";
 
 /**
  * Sandboxed preload may only `require("electron")`, not sibling modules — keep these strings in sync
@@ -56,6 +56,7 @@ const IPC_CHANNELS = {
   previewSetBounds: "preview:setBounds",
   previewShow: "preview:show",
   previewHide: "preview:hide",
+  previewLoadState: "preview:loadState",
   terminalPtyCreate: "terminal:ptyCreate",
   terminalPtyWrite: "terminal:ptyWrite",
   terminalPtyResize: "terminal:ptyResize",
@@ -225,4 +226,10 @@ contextBridge.exposeInMainWorld("previewApi", {
   setBounds: (bounds: { x: number; y: number; width: number; height: number }) =>
     ipcRenderer.invoke("preview:setBounds", bounds),
   reload: () => ipcRenderer.invoke("preview:reload"),
+  onLoadState: (callback: (payload: PreviewLoadStatePayload) => void) => {
+    const channel = IPC_CHANNELS.previewLoadState;
+    const listener = (_event: unknown, payload: PreviewLoadStatePayload) => callback(payload);
+    ipcRenderer.on(channel, listener);
+    return () => ipcRenderer.removeListener(channel, listener);
+  }
 });

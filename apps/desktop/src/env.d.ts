@@ -5,6 +5,7 @@ import type {
   FileMergeSidesResult,
   FileSummary,
   PreviewBounds,
+  PreviewLoadStatePayload,
   PreviewProbeResult,
   RepoScmSnapshot,
   RepoStatusEntry
@@ -104,6 +105,8 @@ interface PreviewApi {
   probeUrl: (url: string) => Promise<PreviewProbeResult>;
   setBounds: (bounds: PreviewBounds) => Promise<void>;
   reload: () => Promise<void>;
+  /** Subscribe to main-process preview navigation state; returns unsubscribe. */
+  onLoadState: (callback: (payload: PreviewLoadStatePayload) => void) => () => void;
 }
 
 declare global {

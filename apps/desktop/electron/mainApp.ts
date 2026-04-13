@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { app, BrowserWindow, dialog, ipcMain, shell, WebContentsView } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, shell, WebContentsView, type WebContents } from "electron";
 import {
   IPC_CHANNELS,
   type AddProjectInput,
@@ -15,7 +15,8 @@ import {
   type FileWriteInput,
   type RemoveProjectInput,
   type RenameThreadInput,
-  type ReorderProjectsInput
+  type ReorderProjectsInput,
+  type PreviewLoadStatePayload
 } from "../src/shared/ipc.js";
 import type { ThreadAgent } from "../src/shared/domain.js";
 import { DiffService } from "./services/diffService.js";
@@ -35,6 +36,100 @@ import { WorkspaceStore } from "./storage/store.js";
 
 // Single-window assumption: one preview view per app instance.
 let previewView: WebContentsView | null = null;
+/** BrowserWindow that opened the preview (for main → renderer IPC). */
+let previewHostWindow: BrowserWindow | null = null;
+let disposePreviewLoadBroadcast: (() => void) | null = null;
+
+function sendPreviewLoadState(win: BrowserWindow | null | undefined, payload: PreviewLoadStatePayload): void {
+  if (!win?.webContents || win.isDestroyed()) return;
+  try {
+    win.webContents.send(IPC_CHANNELS.previewLoadState, payload);
+  } catch {
+    /* window may be closing */
+  }
+}
+
+function previewSenderHostWindow(event: { sender: WebContents }): BrowserWindow | null {
+  return BrowserWindow.fromWebContents(event.sender) ?? previewHostWindow;
+}
+
+function disposePreviewLoadHooks(): void {
+  disposePreviewLoadBroadcast?.();
+  disposePreviewLoadBroadcast = null;
+}
+
+/** Subscribe to preview `WebContents` navigation and push state to the workbench window. */
+function attachPreviewLoadBroadcast(wc: WebContents, hostWin: BrowserWindow): () => void {
+  disposePreviewLoadHooks();
+
+  const filter = { urls: ["<all_urls>"] as const };
+  let lastMainFrame: { statusCode: number; statusLine: string; url: string } | null = null;
+  let mainFrameFailed = false;
+
+  const onCompleted = (details: Electron.OnCompletedListenerDetails): void => {
+    if (details.resourceType !== "mainFrame") return;
+    if (details.webContentsId !== wc.id) return;
+    lastMainFrame = {
+      statusCode: details.statusCode,
+      statusLine: details.statusLine,
+      url: details.url
+    };
+  };
+  wc.session.webRequest.onCompleted(filter, onCompleted);
+
+  const onStart = (): void => {
+    lastMainFrame = null;
+    mainFrameFailed = false;
+    sendPreviewLoadState(hostWin, { kind: "loading", url: wc.getURL() || "" });
+  };
+
+  const onFinish = (): void => {
+    if (mainFrameFailed) return;
+    const url = wc.getURL() || "";
+    if (lastMainFrame && lastMainFrame.statusCode >= 400) {
+      sendPreviewLoadState(hostWin, {
+        kind: "httpError",
+        url: lastMainFrame.url || url,
+        statusCode: lastMainFrame.statusCode,
+        statusLine: lastMainFrame.statusLine
+      });
+      return;
+    }
+    const statusCode = lastMainFrame?.statusCode ?? 200;
+    sendPreviewLoadState(hostWin, { kind: "loaded", url, statusCode });
+  };
+
+  const onFail = (
+    _event: unknown,
+    errorCode: number,
+    errorDescription: string,
+    validatedURL: string,
+    isMainFrame: boolean
+  ): void => {
+    if (!isMainFrame) return;
+    if (errorCode === -3) return; // ERR_ABORTED — superseded navigation
+    mainFrameFailed = true;
+    sendPreviewLoadState(hostWin, {
+      kind: "failed",
+      url: validatedURL,
+      errorCode,
+      errorDescription: errorDescription || `net error ${errorCode}`
+    });
+  };
+
+  wc.on("did-start-loading", onStart);
+  wc.on("did-finish-load", onFinish);
+  wc.on("did-fail-load", onFail);
+  wc.on("did-fail-provisional-load", onFail);
+
+  return (): void => {
+    wc.removeListener("did-start-loading", onStart);
+    wc.removeListener("did-finish-load", onFinish);
+    wc.removeListener("did-fail-load", onFail);
+    wc.removeListener("did-fail-provisional-load", onFail);
+    wc.session.webRequest.onCompleted(filter, null);
+  };
+}
 
 /** Threads whose PTY we scan for resume IDs (stdout + submitted command lines). */
 const AGENTS_WITH_RESUME_CAPTURE: ThreadAgent[] = ["cursor", "claude", "codex", "gemini"];
@@ -495,7 +590,13 @@ function registerIpc(workspaceService: WorkspaceService): void {
       BrowserWindow.getAllWindows()[0];
     if (!win) return;
     previewView = new WebContentsView({
-      webPreferences: { nodeIntegration: false, contextIsolation: true, sandbox: true }
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true,
+        sandbox: true,
+        /** Own session so `webRequest` main-frame events map to this `webContents` (HTTP status / errors). */
+        partition: "persist:instrument.preview"
+      }
     });
     try {
       win.contentView.addChildView(previewView);
@@ -504,10 +605,14 @@ function registerIpc(workspaceService: WorkspaceService): void {
       previewView = null;
       throw err;
     }
+    previewHostWindow = win;
+    disposePreviewLoadBroadcast = attachPreviewLoadBroadcast(previewView.webContents, win);
   });
 
   ipcMain.handle(IPC_CHANNELS.previewHide, () => {
     if (!previewView) return;
+    disposePreviewLoadHooks();
+    previewHostWindow = null;
     for (const win of BrowserWindow.getAllWindows()) {
       try { win.contentView.removeChildView(previewView!); } catch { /* already removed */ }
     }
@@ -525,8 +630,10 @@ function registerIpc(workspaceService: WorkspaceService): void {
     });
   });
 
-  ipcMain.handle(IPC_CHANNELS.previewSetUrl, (_, url: string) => {
+  ipcMain.handle(IPC_CHANNELS.previewSetUrl, (event, url: string) => {
     if (!previewView) return;
+    const win = previewSenderHostWindow(event);
+    sendPreviewLoadState(win, { kind: "loading", url });
     void previewView.webContents.loadURL(url);
   });
 
@@ -547,8 +654,14 @@ function registerIpc(workspaceService: WorkspaceService): void {
     }
   });
 
-  ipcMain.handle(IPC_CHANNELS.previewReload, () => {
-    previewView?.webContents.reload();
+  ipcMain.handle(IPC_CHANNELS.previewReload, (event) => {
+    if (!previewView) return;
+    const win = previewSenderHostWindow(event);
+    sendPreviewLoadState(win, {
+      kind: "loading",
+      url: previewView.webContents.getURL() || ""
+    });
+    previewView.webContents.reload();
   });
 }
 

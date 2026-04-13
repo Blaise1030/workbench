@@ -152,3 +152,16 @@ export type PreviewProbeResult =
 
 /** Pixel bounds for positioning the native preview WebContentsView. */
 export type PreviewBounds = { x: number; y: number; width: number; height: number };
+
+/** Main process → renderer: preview WebContentsView load lifecycle. */
+export type PreviewLoadStatePayload =
+  | { kind: "loading"; url: string }
+  | { kind: "loaded"; url: string; statusCode: number }
+  | { kind: "httpError"; url: string; statusCode: number; statusLine?: string }
+  | {
+      kind: "failed";
+      url: string;
+      /** Chromium net error code (e.g. connection refused). */
+      errorCode: number;
+      errorDescription: string;
+    };

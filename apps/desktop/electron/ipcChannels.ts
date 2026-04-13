@@ -55,6 +55,8 @@ export const IPC_CHANNELS = {
   previewSetBounds: "preview:setBounds",
   previewShow: "preview:show",
   previewHide: "preview:hide",
+  /** Main → renderer: WebContentsView navigation / HTTP outcome. */
+  previewLoadState: "preview:loadState",
   terminalPtyCreate: "terminal:ptyCreate",
   terminalPtyWrite: "terminal:ptyWrite",
   terminalPtyResize: "terminal:ptyResize",
