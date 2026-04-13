@@ -6,7 +6,7 @@
         v-model="urlInput"
         data-testid="preview-url-input"
         class="min-w-0 flex-1 rounded bg-transparent px-2 py-0.5 font-mono text-sm outline-none placeholder:text-muted-foreground focus:ring-1 focus:ring-border"
-        placeholder="http://localhost:3000"
+        placeholder="Port or URL — Enter to load"
         spellcheck="false"
         @keydown.enter="navigate"
       />
@@ -34,13 +34,25 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from "vue";
+import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { RotateCw } from "lucide-vue-next";
 import type { PreviewLoadStatePayload } from "@shared/ipc";
+import { loadPreviewPanelUrl, savePreviewPanelUrl } from "@/composables/usePreviewPanelUrlPersistence";
+import { useWorkspaceStore } from "@/stores/workspaceStore";
 
-const urlInput = ref("http://localhost:3000");
+const workspace = useWorkspaceStore();
+const urlInput = ref("");
 const viewportRef = ref<HTMLDivElement | null>(null);
 const loadState = ref<PreviewLoadStatePayload | null>(null);
+
+watch(
+  () => workspace.activeWorktreeId,
+  (worktreeId) => {
+    loadState.value = null;
+    urlInput.value = loadPreviewPanelUrl(worktreeId);
+  },
+  { immediate: true }
+);
 
 const loadBanner = computed(() => {
   const s = loadState.value;
@@ -48,7 +60,7 @@ const loadBanner = computed(() => {
   if (s.kind === "loading") {
     return {
       toneClass: "bg-muted/40 text-muted-foreground",
-      text: s.url ? `Loading ${s.url}…` : "Loading…"
+      text: "Loading…"
     };
   }
   if (s.kind === "loaded") {
@@ -61,12 +73,12 @@ const loadBanner = computed(() => {
     const line = s.statusLine?.trim() ? ` ${s.statusLine.trim()}` : "";
     return {
       toneClass: "bg-destructive/15 text-destructive",
-      text: `HTTP ${s.statusCode}${line} — ${s.url}`
+      text: `HTTP ${s.statusCode}${line}`.trim()
     };
   }
   return {
     toneClass: "bg-destructive/15 text-destructive",
-    text: `${s.errorDescription} (${s.errorCode}) — ${s.url || "request"}`
+    text: `${s.errorDescription} (${s.errorCode})`
   };
 });
 
@@ -95,17 +107,17 @@ function sendBounds(): void {
 }
 
 function navigate(): void {
-  const url = normalizeUrl(urlInput.value);
+  const raw = urlInput.value.trim();
+  if (!raw) return;
+  const url = normalizeUrl(raw);
   urlInput.value = url;
-  loadState.value = { kind: "loading", url };
+  savePreviewPanelUrl(workspace.activeWorktreeId, url);
+  loadState.value = { kind: "loading", url: "" };
   void getApi()?.setUrl(url);
 }
 
 function reload(): void {
-  loadState.value = {
-    kind: "loading",
-    url: urlInput.value.trim() || ""
-  };
+  loadState.value = { kind: "loading", url: "" };
   void getApi()?.reload();
 }
 
