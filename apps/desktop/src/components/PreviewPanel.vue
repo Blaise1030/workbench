@@ -1,4 +1,13 @@
 <template>
+  <!-- Mirror rect for Floating UI: native WebContentsView stacks above HTML in this region. -->
+  <Teleport to="body">
+    <div
+      ref="collisionMirrorRef"
+      data-testid="preview-native-collision-mirror"
+      aria-hidden="true"
+      :style="collisionMirrorStyle"
+    />
+  </Teleport>
   <div ref="panelRootRef" class="flex min-h-0 flex-1 flex-col overflow-hidden">
     <!-- URL bar -->
     <div class="flex shrink-0 items-center gap-1 border-b border-border bg-background px-2 py-1">
@@ -43,8 +52,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from "vue";
-import { setPreviewNativeViewportTopPx } from "@/composables/previewNativeViewportTop";
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
+import { setPreviewNativeCollisionEl, setPreviewNativeViewportTopPx } from "@/composables/previewNativeViewportTop";
 import { Bug, RotateCw } from "lucide-vue-next";
 import type { PreviewLoadStatePayload } from "@shared/ipc";
 import { loadPreviewPanelUrl, savePreviewPanelUrl } from "@/composables/usePreviewPanelUrlPersistence";
@@ -52,8 +61,28 @@ import { useWorkspaceStore } from "@/stores/workspaceStore";
 
 const workspace = useWorkspaceStore();
 const urlInput = ref("");
+const collisionMirrorRef = ref<HTMLDivElement | null>(null);
 const panelRootRef = ref<HTMLDivElement | null>(null);
 const viewportRef = ref<HTMLDivElement | null>(null);
+/** Screen-space rect of the preview placeholder (native view is stacked here). */
+const viewportScreenRect = ref<{ top: number; left: number; width: number; height: number } | null>(null);
+
+const collisionMirrorStyle = computed(() => {
+  const r = viewportScreenRect.value;
+  if (!r || r.width < 2 || r.height < 2) {
+    return { display: "none" } as Record<string, string>;
+  }
+  return {
+    position: "fixed",
+    top: `${r.top}px`,
+    left: `${r.left}px`,
+    width: `${r.width}px`,
+    height: `${r.height}px`,
+    opacity: "0",
+    pointerEvents: "none",
+    zIndex: "35"
+  } as Record<string, string>;
+});
 const loadState = ref<PreviewLoadStatePayload | null>(null);
 
 watch(
@@ -108,16 +137,29 @@ function normalizeUrl(raw: string): string {
 function syncPreviewViewportMetrics(): void {
   const el = viewportRef.value;
   if (!el) {
+    viewportScreenRect.value = null;
     setPreviewNativeViewportTopPx(null);
+    setPreviewNativeCollisionEl(null);
     return;
   }
   const r = el.getBoundingClientRect();
+  viewportScreenRect.value = {
+    top: r.top,
+    left: r.left,
+    width: r.width,
+    height: r.height
+  };
   setPreviewNativeViewportTopPx(Math.round(r.top));
   void getApi()?.setBounds({
     x: Math.round(r.left),
     y: Math.round(r.top),
     width: Math.round(r.width),
     height: Math.round(r.height)
+  });
+  void nextTick(() => {
+    const mirror = collisionMirrorRef.value;
+    const vr = viewportScreenRect.value;
+    setPreviewNativeCollisionEl(mirror && vr && vr.width >= 2 && vr.height >= 2 ? mirror : null);
   });
 }
 
@@ -166,7 +208,9 @@ onUnmounted(() => {
   resizeObserver?.disconnect();
   unsubscribeLoadState?.();
   unsubscribeLoadState = null;
+  viewportScreenRect.value = null;
   setPreviewNativeViewportTopPx(null);
+  setPreviewNativeCollisionEl(null);
   void getApi()?.hide();
 });
 </script>

@@ -10,3 +10,14 @@ export const previewNativeViewportTopPx = shallowRef<number | null>(null);
 export function setPreviewNativeViewportTopPx(y: number | null): void {
   previewNativeViewportTopPx.value = y;
 }
+
+/**
+ * Invisible `fixed` mirror of the preview viewport (teleported to `body`). Passed as an
+ * extra Floating UI `collisionBoundary` so popovers shift/flip away from the native layer
+ * even though that layer paints above HTML.
+ */
+export const previewNativeCollisionEl = shallowRef<HTMLElement | null>(null);
+
+export function setPreviewNativeCollisionEl(el: HTMLElement | null): void {
+  previewNativeCollisionEl.value = el;
+}

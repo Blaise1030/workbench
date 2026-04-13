@@ -1,7 +1,7 @@
 import { flushPromises, mount } from "@vue/test-utils";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { PreviewLoadStatePayload } from "@shared/ipc";
-import { setPreviewNativeViewportTopPx } from "@/composables/previewNativeViewportTop";
+import { setPreviewNativeCollisionEl, setPreviewNativeViewportTopPx } from "@/composables/previewNativeViewportTop";
 import PreviewPanel from "../PreviewPanel.vue";
 
 const { previewPanelWorkspaceStub } = vi.hoisted(() => {
@@ -46,6 +46,7 @@ describe("PreviewPanel", () => {
   beforeEach(() => {
     localStorage.clear();
     setPreviewNativeViewportTopPx(null);
+    setPreviewNativeCollisionEl(null);
     previewPanelWorkspaceStub.activeWorktreeId = "wt-test-1";
     previewApi = makePreviewApi();
     Object.defineProperty(window, "previewApi", { value: previewApi, writable: true, configurable: true });
