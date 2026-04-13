@@ -4,6 +4,8 @@ import type {
   FileDiffScope,
   FileMergeSidesResult,
   FileSummary,
+  PreviewBounds,
+  PreviewProbeResult,
   RepoScmSnapshot,
   RepoStatusEntry
 } from "@shared/ipc";
@@ -95,8 +97,18 @@ interface WorkspaceApi {
   openAppExternalUrl?: (url: string) => Promise<void>;
 }
 
+interface PreviewApi {
+  show: () => Promise<void>;
+  hide: () => Promise<void>;
+  setUrl: (url: string) => Promise<void>;
+  probeUrl: (url: string) => Promise<PreviewProbeResult>;
+  setBounds: (bounds: PreviewBounds) => Promise<void>;
+  reload: () => Promise<void>;
+}
+
 declare global {
   interface Window {
     workspaceApi?: WorkspaceApi;
+    previewApi?: PreviewApi;
   }
 }

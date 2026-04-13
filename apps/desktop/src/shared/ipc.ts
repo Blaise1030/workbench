@@ -149,3 +149,6 @@ export interface AppUpdateAvailability {
 export type PreviewProbeResult =
   | { ok: true; status: number }
   | { ok: false; code: "invalid" | "network"; message: string };
+
+/** Pixel bounds for positioning the native preview WebContentsView. */
+export type PreviewBounds = { x: number; y: number; width: number; height: number };
