@@ -41,6 +41,8 @@ import { useTerminalAttentionSounds } from "@/composables/useTerminalAttentionSo
 import { useTerminalSoundSettings } from "@/composables/useTerminalSoundSettings";
 import { useToast } from "@/composables/useToast";
 import { useLocalLlm } from "@/composables/useLocalLlm";
+import { isWebGpuUsable } from "@/features/localLlm/webgpuSupport";
+import { generateThreadTitle } from "@/features/localLlm/engine";
 import { usePreviewModalOcclusion } from "@/composables/usePreviewModalOcclusion";
 import { useWorkspaceKeybindings } from "@/composables/useWorkspaceKeybindings";
 import { readPreferredThreadAgent } from "@/composables/usePreferredThreadAgent";
@@ -257,6 +259,13 @@ function setShellTerminalPaneRef(slotId: string, el: unknown): void {
 }
 
 const threadSidebarRef = ref<InstanceType<typeof ThreadSidebar> | null>(null);
+/** Per-thread generation counter: user renames bump this so in-flight WebLLM title refinements abort. */
+const threadTitleEpoch = new Map<string, number>();
+
+function bumpThreadTitleEpoch(threadId: string): void {
+  threadTitleEpoch.set(threadId, (threadTitleEpoch.get(threadId) ?? 0) + 1);
+}
+
 /** Thread currently in "compose prompt" mode — shows inline editor instead of xterm. */
 const inlinePromptThreadId = ref<string | null>(null);
 const inlinePromptEditorRef = ref<{ submit: () => void } | null>(null);
@@ -982,6 +991,27 @@ async function onInlinePromptSubmit(payload: ThreadCreateWithAgentPayload): Prom
   };
   inlinePromptThreadId.value = null;
   await refreshSnapshot();
+  void (async () => {
+    const epoch = threadTitleEpoch.get(threadId) ?? 0;
+    const heuristicTitle = title;
+    try {
+      try {
+        if (!(await isWebGpuUsable())) return;
+      } catch {
+        return;
+      }
+      const modelTitle = await generateThreadTitle(prompt, THREAD_AGENT_LABELS[agent]);
+      if ((threadTitleEpoch.get(threadId) ?? 0) !== epoch) return;
+      const t = workspace.threads.find((th) => th.id === threadId);
+      if (!t || t.title.trim() !== heuristicTitle.trim()) return;
+      const apiForTitle = getApi();
+      if (!apiForTitle) return;
+      await apiForTitle.renameThread({ threadId, title: modelTitle });
+      await refreshSnapshot();
+    } catch {
+      /* keep heuristic title */
+    }
+  })();
 }
 
 async function onInlinePromptCancel(): Promise<void> {
@@ -1028,6 +1058,7 @@ async function handleRemoveThread(threadId: string): Promise<void> {
 }
 
 async function handleRenameThread(threadId: string, newTitle: string): Promise<void> {
+  bumpThreadTitleEpoch(threadId);
   const api = getApi();
   if (!api) return;
   const payload: RenameThreadInput = { threadId, title: newTitle };
