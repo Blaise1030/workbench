@@ -12,6 +12,7 @@ const mockEditor = {
   getValue: vi.fn(() => "initial"),
   setValue: vi.fn(),
   dispose: vi.fn(),
+  addCommand: vi.fn(() => null),
   onDidChangeModelContent: vi.fn((cb) => {
     mockEditor._contentListener = cb;
     return { dispose: vi.fn() };
@@ -29,6 +30,8 @@ const mockEditor = {
 
 vi.mock("@/lib/monacoApi", () => ({
   monaco: {
+    KeyMod: { CtrlCmd: 2048 },
+    KeyCode: { KeyS: 49 },
     editor: {
       create: vi.fn(() => mockEditor),
       setTheme: vi.fn(),
@@ -95,6 +98,17 @@ describe("MonacoEditor", () => {
     });
     (wrapper.vm as { openFind: () => void }).openFind();
     expect(mockEditor.trigger).toHaveBeenCalledWith("keyboard", "actions.find", null);
+  });
+
+  it("registers Cmd/Ctrl+S and emits save when the handler runs", () => {
+    const wrapper = mount(MonacoEditor, {
+      props: { modelValue: "x" },
+    });
+    expect(mockEditor.addCommand).toHaveBeenCalled();
+    const handler = mockEditor.addCommand.mock.calls[0]?.[1] as () => void;
+    expect(handler).toBeTypeOf("function");
+    handler();
+    expect(wrapper.emitted("save")).toEqual([[]]);
   });
 
   it("calls editor.dispose on unmount", () => {

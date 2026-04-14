@@ -27,6 +27,8 @@ const showLineNumbers = toRef(props, "showLineNumbers");
 const emit = defineEmits<{
   "update:modelValue": [value: string];
   "queueable-text-selection": [selection: QueueableEditorSelection | null];
+  /** Cmd+S / Ctrl+S while the editor is focused (handled by Monaco, not the browser). */
+  save: [];
 }>();
 
 const hostRef = ref<HTMLDivElement | null>(null);
@@ -51,11 +53,17 @@ function emitQueueableTextSelection(sel: monaco.Selection | null): void {
     return;
   }
   const domNode = editor.getDomNode();
-  /** Caret / active end of the highlight (not the normalized Range end). */
-  const coords = editor.getScrolledVisiblePosition({
-    lineNumber: sel.positionLineNumber,
-    column: sel.positionColumn
-  });
+  /** Prefer active caret; fall back to range ends when that point is scrolled off-screen. */
+  const anchorPositions = [
+    { lineNumber: sel.positionLineNumber, column: sel.positionColumn },
+    { lineNumber: sel.endLineNumber, column: sel.endColumn },
+    { lineNumber: sel.startLineNumber, column: sel.startColumn }
+  ];
+  let coords: ReturnType<monaco.editor.IStandaloneCodeEditor["getScrolledVisiblePosition"]> = null;
+  for (const pos of anchorPositions) {
+    coords = editor.getScrolledVisiblePosition(pos);
+    if (coords) break;
+  }
   if (!coords || !domNode) {
     emit("queueable-text-selection", null);
     return;
@@ -101,6 +109,10 @@ onMounted(() => {
       horizontalScrollbarSize: 12,
       horizontalSliderSize: 9
     }
+  });
+
+  editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
+    emit("save");
   });
 
   editor.onDidChangeModelContent(() => {

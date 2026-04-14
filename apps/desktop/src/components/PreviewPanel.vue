@@ -1,5 +1,5 @@
 <template>
-  <!-- Mirror rect for Floating UI: native WebContentsView stacks above HTML in this region. -->
+  <!-- Floating UI collision boundary aligned to the preview content area (in-DOM iframe). -->
   <Teleport to="body">
     <div
       ref="collisionMirrorRef"
@@ -42,14 +42,27 @@
         data-testid="preview-devtools-btn"
         type="button"
         class="shrink-0 rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
-        title="Open preview DevTools (docked below the page)"
-        @click="openPreviewDevTools"
+        title="Open in system browser (full DevTools, separate window)"
+        @click="openPreviewInSystemBrowser"
       >
         <Bug class="h-3.5 w-3.5" />
       </button>
     </div>
-    <!-- Placeholder div — native WebContentsView is positioned over this by the main process -->
-    <div ref="viewportRef" data-testid="preview-viewport" class="min-h-0 flex-1" />
+    <div ref="viewportRef" data-testid="preview-viewport" class="relative min-h-0 flex-1 overflow-hidden">
+      <iframe
+        v-if="iframeSrc"
+        :key="iframeReloadKey"
+        ref="iframeRef"
+        data-testid="preview-iframe"
+        class="absolute inset-0 h-full w-full border-0 bg-background"
+        sandbox="allow-scripts allow-forms allow-popups allow-modals allow-downloads allow-same-origin"
+        referrerpolicy="no-referrer-when-downgrade"
+        :src="iframeSrc"
+        @load="onIframeLoad"
+        @error="onIframeError"
+      />
+      <div v-else class="absolute inset-0 bg-muted/30" aria-hidden="true" />
+    </div>
   </div>
 </template>
 
@@ -68,7 +81,15 @@ const urlInput = ref("");
 const collisionMirrorRef = ref<HTMLDivElement | null>(null);
 const panelRootRef = ref<HTMLDivElement | null>(null);
 const viewportRef = ref<HTMLDivElement | null>(null);
-/** Screen-space rect of the preview placeholder (native view is stacked here). */
+const iframeRef = ref<HTMLIFrameElement | null>(null);
+/** Current navigation target for the preview iframe. */
+const iframeSrc = ref("");
+/** Bump to force iframe remount (reload). */
+const iframeReloadKey = ref(0);
+/** Monotonic counter so late `load` / `probeUrl` from a superseded navigation are ignored. */
+let loadSeq = 0;
+
+/** Screen-space rect of the preview viewport (for Floating UI + tab chrome offset). */
 const viewportScreenRect = ref<{ top: number; left: number; width: number; height: number } | null>(null);
 
 const collisionMirrorStyle = computed(() => {
@@ -92,7 +113,6 @@ const collisionMirrorStyle = computed(() => {
     height: `${r.height}px`,
     opacity: "0",
     pointerEvents: "none",
-    /** Browser viewport mirror: lowest fixed z-index so toasts/popovers/modals stack above it (native WebContentsView still paints above all HTML). */
     zIndex: "1"
   } as Record<string, string>;
 });
@@ -102,8 +122,10 @@ watch(
   () => workspace.activeWorktreeId,
   (worktreeId, prevWorktreeId) => {
     loadState.value = null;
+    if (prevWorktreeId != null && prevWorktreeId !== worktreeId) {
+      iframeSrc.value = "";
+    }
     urlInput.value = loadPreviewPanelUrl(worktreeId);
-    /** After initial `immediate` run, switching worktrees should load that worktree's saved URL. */
     if (prevWorktreeId != null && prevWorktreeId !== worktreeId) {
       void nextTick(() => navigate());
     }
@@ -156,7 +178,6 @@ function getApi(): Window["previewApi"] {
   return window.previewApi;
 }
 
-/** Accept bare port ("3000") or host-only ("localhost:3000") and make it a full URL. */
 function normalizeUrl(raw: string): string {
   const t = raw.trim();
   if (/^\d+$/.test(t)) return `http://localhost:${t}`;
@@ -184,23 +205,9 @@ function syncPreviewViewportMetrics(): void {
     Number.isFinite(height) &&
     width >= 2 &&
     height >= 2;
-  viewportScreenRect.value = {
-    top,
-    left,
-    width,
-    height
-  };
-  /** Flex layout often reports 0×0 on first paint; invalid bounds have crashed native `WebContentsView.setBounds`. */
+  viewportScreenRect.value = { top, left, width, height };
   if (dimsOk) {
     setPreviewNativeViewportTopPx(Math.round(top));
-    void getApi()
-      ?.setBounds({
-        x: Math.round(left),
-        y: Math.round(top),
-        width: Math.round(width),
-        height: Math.round(height)
-      })
-      .catch(() => {});
   } else {
     setPreviewNativeViewportTopPx(null);
   }
@@ -211,43 +218,111 @@ function syncPreviewViewportMetrics(): void {
   });
 }
 
+async function applyProbeAfterLoad(url: string, seq: number): Promise<void> {
+  const api = getApi();
+  if (!api?.probeUrl) {
+    if (seq !== loadSeq) return;
+    loadState.value = { kind: "loaded", url, statusCode: 200 };
+    return;
+  }
+  try {
+    const probe = await api.probeUrl(url);
+    if (seq !== loadSeq) return;
+    if (!probe.ok) {
+      loadState.value = {
+        kind: "failed",
+        url,
+        errorCode: 0,
+        errorDescription: probe.message
+      };
+      return;
+    }
+    if (probe.status >= 400) {
+      loadState.value = {
+        kind: "httpError",
+        url,
+        statusCode: probe.status,
+        statusLine: `HTTP ${probe.status}`
+      };
+      return;
+    }
+    loadState.value = { kind: "loaded", url, statusCode: probe.status };
+  } catch (e) {
+    if (seq !== loadSeq) return;
+    loadState.value = {
+      kind: "failed",
+      url,
+      errorCode: 0,
+      errorDescription: String(e)
+    };
+  }
+}
+
+function onIframeLoad(): void {
+  const url = iframeSrc.value;
+  if (!url) return;
+  const seq = loadSeq;
+  void applyProbeAfterLoad(url, seq);
+}
+
+function onIframeError(): void {
+  const url = iframeSrc.value;
+  if (!url) return;
+  loadState.value = {
+    kind: "failed",
+    url,
+    errorCode: 0,
+    errorDescription: "Iframe load error"
+  };
+}
+
 function navigate(): void {
   const raw = urlInput.value.trim();
   if (!raw) return;
   const url = normalizeUrl(raw);
   urlInput.value = url;
   savePreviewPanelUrl(workspace.activeWorktreeId, url);
+  loadSeq += 1;
   loadState.value = { kind: "loading", url: "" };
-  void getApi()?.setUrl(url).catch(() => {});
+  if (url === iframeSrc.value) {
+    iframeReloadKey.value += 1;
+    return;
+  }
+  iframeSrc.value = url;
 }
 
 function reload(): void {
+  const u = iframeSrc.value;
+  if (!u) return;
+  loadSeq += 1;
   loadState.value = { kind: "loading", url: "" };
-  void getApi()?.reload().catch(() => {});
+  iframeReloadKey.value += 1;
 }
 
-function openPreviewDevTools(): void {
-  void getApi()?.openDevTools().catch(() => {});
+function openPreviewInSystemBrowser(): void {
+  const u = iframeSrc.value.trim();
+  if (!u) return;
+  void getApi()?.openUrlExternally(u).catch(() => {});
 }
 
 let resizeObserver: ResizeObserver | null = null;
-let unsubscribeLoadState: (() => void) | null = null;
+let viewportMetricsRafId = 0;
 
-onMounted(async () => {
-  await getApi()?.show().catch(console.error);
-  void getApi()?.setDeviceEmulation("desktop").catch(() => {});
+function schedulePreviewViewportMetrics(): void {
+  if (viewportMetricsRafId !== 0) {
+    cancelAnimationFrame(viewportMetricsRafId);
+  }
+  viewportMetricsRafId = requestAnimationFrame(() => {
+    viewportMetricsRafId = 0;
+    syncPreviewViewportMetrics();
+  });
+}
+
+onMounted(() => {
   syncPreviewViewportMetrics();
-  resizeObserver = new ResizeObserver(() => syncPreviewViewportMetrics());
+  resizeObserver = new ResizeObserver(() => schedulePreviewViewportMetrics());
   if (panelRootRef.value) resizeObserver.observe(panelRootRef.value);
   if (viewportRef.value) resizeObserver.observe(viewportRef.value);
-
-  const api = getApi();
-  if (api?.onLoadState) {
-    unsubscribeLoadState = api.onLoadState((payload) => {
-      loadState.value = payload;
-      void nextTickBounds();
-    });
-  }
 
   void nextTick(() => {
     syncPreviewViewportMetrics();
@@ -255,18 +330,15 @@ onMounted(async () => {
   });
 });
 
-function nextTickBounds(): void {
-  requestAnimationFrame(() => syncPreviewViewportMetrics());
-}
-
 onUnmounted(() => {
+  if (viewportMetricsRafId !== 0) {
+    cancelAnimationFrame(viewportMetricsRafId);
+    viewportMetricsRafId = 0;
+  }
   resizeObserver?.disconnect();
-  unsubscribeLoadState?.();
-  unsubscribeLoadState = null;
   viewportScreenRect.value = null;
   setPreviewNativeViewportTopPx(null);
   setPreviewNativeCollisionEl(null);
-  void getApi()?.setDeviceEmulation("desktop").catch(() => {});
-  void getApi()?.hide().catch(() => {});
+  iframeSrc.value = "";
 });
 </script>

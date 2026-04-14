@@ -49,18 +49,10 @@ export const IPC_CHANNELS = {
   filesCreateFolder: "files:createFolder",
   filesDeleteFolder: "files:deleteFolder",
   editApplyPatch: "edit:applyPatch",
-  previewSetUrl: "preview:setUrl",
+  /** Main process: probe a URL (no CORS) for HTTP status after iframe navigation. */
   previewProbeUrl: "preview:probeUrl",
-  previewReload: "preview:reload",
-  previewSetBounds: "preview:setBounds",
-  previewShow: "preview:show",
-  previewHide: "preview:hide",
-  /** Main → renderer: WebContentsView navigation / HTTP outcome. */
-  previewLoadState: "preview:loadState",
-  previewOpenDevTools: "preview:openDevTools",
-  previewSetDeviceEmulation: "preview:setDeviceEmulation",
-  /** Renderer → Main: hide native preview while a modal is open so HTML overlays are not covered. */
-  previewSetOccludedByModal: "preview:setOccludedByModal",
+  /** Open http(s) preview URL in the system browser (e.g. full DevTools). */
+  previewOpenUrlExternally: "preview:openUrlExternally",
   terminalPtyCreate: "terminal:ptyCreate",
   terminalPtyWrite: "terminal:ptyWrite",
   terminalPtyResize: "terminal:ptyResize",
@@ -83,7 +75,5 @@ export const IPC_CHANNELS = {
   /** Packaged app only: GitHub latest release vs bundled app semver (same source as release tag). */
   appGetUpdateAvailability: "app:getUpdateAvailability",
   /** Open a validated https URL in the system browser (GitHub only). */
-  appOpenExternalUrl: "app:openExternalUrl",
-  /** Main → renderer: a workspace shortcut key fired while the preview WebContentsView had focus. */
-  previewShortcutFired: "preview:shortcutFired"
+  appOpenExternalUrl: "app:openExternalUrl"
 } as const;

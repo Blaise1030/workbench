@@ -173,6 +173,7 @@ const error = ref<string | null>(null);
 const SIDEBAR_COLLAPSED_KEY = "instrument.fileSearchSidebarCollapsed";
 const EDITOR_COLLAPSED_KEY = "instrument.fileSearchEditorCollapsed";
 const LINE_NUMBERS_VISIBLE_KEY = "instrument.fileSearchLineNumbersVisible";
+const SEARCH_MODE_KEY = "instrument.fileSearchSearchMode";
 
 function readLocalStorageFlag(key: string, fallback = false): boolean {
   try {
@@ -184,9 +185,21 @@ function readLocalStorageFlag(key: string, fallback = false): boolean {
   }
 }
 
+/** `path` = match relative paths only (fast). `contents` = also run full-text search over files. */
+function readSearchMode(): "path" | "contents" {
+  try {
+    if (typeof localStorage === "undefined") return "path";
+    const v = localStorage.getItem(SEARCH_MODE_KEY);
+    return v === "contents" ? "contents" : "path";
+  } catch {
+    return "path";
+  }
+}
+
 const sidebarCollapsed = ref(readLocalStorageFlag(SIDEBAR_COLLAPSED_KEY));
 const editorCollapsed = ref(readLocalStorageFlag(EDITOR_COLLAPSED_KEY));
 const showLineNumbers = ref(readLocalStorageFlag(LINE_NUMBERS_VISIBLE_KEY, true));
+const searchMode = ref<"path" | "contents">(readSearchMode());
 
 watch(sidebarCollapsed, (collapsed) => {
   try {
@@ -209,6 +222,20 @@ watch(showLineNumbers, (visible) => {
     localStorage.setItem(LINE_NUMBERS_VISIBLE_KEY, visible ? "1" : "0");
   } catch {
     /* ignore quota / private mode */
+  }
+});
+
+watch(searchMode, (mode) => {
+  try {
+    localStorage.setItem(SEARCH_MODE_KEY, mode);
+  } catch {
+    /* ignore quota / private mode */
+  }
+  if (mode === "path") {
+    contentSearchSeq += 1;
+    contentMatchPaths.value = [];
+    contentSearchError.value = null;
+    isContentSearching.value = false;
   }
 });
 
@@ -281,10 +308,6 @@ function dismissFileEditorQueuePopup(): void {
 }
 
 function onEditorQueueableSelection(payload: QueueableEditorSelection | null): void {
-  if (!threadQueue || !props.activeThreadId) {
-    dismissFileEditorQueuePopup();
-    return;
-  }
   const path = selectedPath.value;
   if (!payload || !path) {
     dismissFileEditorQueuePopup();
@@ -371,8 +394,13 @@ const canFindInFile = computed(
     !(isImagePreviewFile.value && imageFileViewMode.value === "preview")
 );
 
+/** Show "Add to Chat" on text selection whenever the source editor is open (thread optional until send). */
 const queueSelectionHintsEnabled = computed(
-  () => Boolean(threadQueue && props.activeThreadId && selectedPath.value)
+  () =>
+    Boolean(selectedPath.value) &&
+    !editorCollapsed.value &&
+    !isLoadingFile.value &&
+    !(isImagePreviewFile.value && imageFileViewMode.value === "preview")
 );
 
 function openFindInFile(): void {
@@ -488,12 +516,6 @@ function ancestorFoldersForAllVisibleFiles(nodes: FileTreeNodeData[]): string[] 
   return [...folders];
 }
 
-function relativePathMatchesQuery(relativePath: string, queryText: string): boolean {
-  const q = queryText.trim().toLowerCase();
-  if (!q) return false;
-  return relativePath.toLowerCase().includes(q);
-}
-
 function defaultExpandedFolders(files: FileSummary[]): Set<string> {
   const next = new Set<string>();
   for (const file of files) {
@@ -503,32 +525,49 @@ function defaultExpandedFolders(files: FileSummary[]): Set<string> {
   return next;
 }
 
+const contentPathsForFilter = computed(() =>
+  searchMode.value === "contents" ? contentMatchPaths.value : []
+);
+
+/**
+ * Filter `allFiles` to rows visible for the current query — O(n) in the number of summaries.
+ * (Previous implementation scanned all files again for every directory row, which was O(n²).)
+ */
 const summariesForTree = computed(() => {
   const files = allFiles.value;
   const q = debouncedQuery.value.trim();
   if (!q) return files;
 
-  const contentPaths = new Set(contentMatchPaths.value);
+  const qLower = q.toLowerCase();
+  const contentSet = new Set(contentPathsForFilter.value);
+
+  const matchingFilePaths: string[] = [];
+  for (const f of files) {
+    if (f.kind !== "file") continue;
+    const rp = f.relativePath;
+    if (rp.toLowerCase().includes(qLower) || contentSet.has(rp)) {
+      matchingFilePaths.push(rp);
+    }
+  }
+
+  const folderWithMatchingDescendant = new Set<string>();
+  for (const filePath of matchingFilePaths) {
+    const segments = filePath.split("/").filter(Boolean);
+    let acc = "";
+    for (let i = 0; i < segments.length - 1; i++) {
+      acc = acc ? `${acc}/${segments[i]!}` : segments[i]!;
+      folderWithMatchingDescendant.add(acc);
+    }
+  }
 
   return files.filter((f) => {
-    if (relativePathMatchesQuery(f.relativePath, q)) return true;
-
+    const rp = f.relativePath;
+    if (rp.toLowerCase().includes(qLower)) return true;
     if (f.kind === "file") {
-      return contentPaths.has(f.relativePath);
+      return contentSet.has(rp);
     }
-
-    const p = f.relativePath;
-    const prefix = `${p}/`;
-    for (const m of contentPaths) {
-      if (m === p || m.startsWith(prefix)) return true;
-    }
-    for (const o of files) {
-      if (o.kind !== "file") continue;
-      if (!o.relativePath.startsWith(prefix)) continue;
-      if (relativePathMatchesQuery(o.relativePath, q)) return true;
-      if (contentPaths.has(o.relativePath)) return true;
-    }
-    return false;
+    if (contentSet.has(rp)) return true;
+    return folderWithMatchingDescendant.has(rp);
   });
 });
 
@@ -536,7 +575,22 @@ const fileTree = computed(() => buildFileTree(summariesForTree.value));
 
 const visibleTree = computed(() => fileTree.value);
 
-const searchPlaceholder = "Search files by name or contents…";
+const searchPlaceholder = computed(() =>
+  searchMode.value === "contents"
+    ? "Search files by name or contents…"
+    : "Search files by name…"
+);
+
+const searchModeTabs = computed<PillTabItem[]>(() => [
+  { value: "path", label: "Files" },
+  { value: "contents", label: "Contents" }
+]);
+
+function onSearchModeRequest(next: string): void {
+  if (next !== "path" && next !== "contents") return;
+  if (searchMode.value === next) return;
+  searchMode.value = next;
+}
 
 watchDebounced(
   () => query.value,
@@ -580,6 +634,7 @@ watch(debouncedQuery, (next, prev) => {
 watch(
   contentMatchPaths,
   () => {
+    if (searchMode.value !== "contents") return;
     if (!debouncedQuery.value.trim()) return;
     expandFoldersForVisibleMatches();
   },
@@ -587,7 +642,7 @@ watch(
 );
 
 watch(
-  [() => debouncedQuery.value, () => props.worktreePath],
+  [() => debouncedQuery.value, () => props.worktreePath, () => searchMode.value],
   async () => {
     if (!props.worktreePath) {
       contentMatchPaths.value = [];
@@ -603,6 +658,13 @@ watch(
       contentSearchError.value = null;
       isContentSearching.value = false;
       contentSearchSeq += 1;
+      return;
+    }
+
+    if (searchMode.value !== "contents") {
+      contentMatchPaths.value = [];
+      contentSearchError.value = null;
+      isContentSearching.value = false;
       return;
     }
 
@@ -1335,9 +1397,25 @@ defineExpose({
               :disabled="!hasWorkspace"
             />
           </div>
-          <div class="flex min-h-[1.75rem] flex-wrap items-center justify-end gap-x-2 gap-y-2">
+          <div
+            class="flex flex-nowrap items-center gap-0.5 overflow-x-auto rounded-md border border-border/70 bg-background [scrollbar-width:thin]"
+            role="group"
+            aria-label="Search scope and file explorer actions"
+          >
+            <PillTabs
+              data-testid="file-search-scope"
+              :model-value="searchMode"
+              size="xs"
+              aria-label="Search scope"
+              :tabs="searchModeTabs"
+              @update:model-value="onSearchModeRequest"
+            />
+            <span
+              class="mx-0.5 h-4 w-px shrink-0 self-center bg-border/70"
+              aria-hidden="true"
+            />
             <div
-              class="flex shrink-0 items-center gap-0.5 rounded-md border border-border/70 bg-background p-0.5"
+              class="ml-auto flex shrink-0 items-center gap-0.5 pl-0.5"
               role="toolbar"
               aria-label="File explorer actions"
             >
@@ -1674,6 +1752,7 @@ defineExpose({
                 : undefined
             "
             @queueable-text-selection="onEditorQueueableSelection"
+            @save="handleSave"
           />
         </template>
       </div>

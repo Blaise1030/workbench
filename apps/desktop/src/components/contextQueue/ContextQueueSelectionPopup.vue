@@ -25,7 +25,7 @@ const queueButtonTitle = computed(() =>
   keybindings.titleWithShortcut("Queue", "contextQueueSelectionQueue")
 );
 const agentButtonTitle = computed(() =>
-  keybindings.titleWithShortcut("Agent", "contextQueueSelectionSendToAgent")
+  keybindings.titleWithShortcut("Add to Chat", "contextQueueSelectionSendToAgent")
 );
 
 /** Primary chord only (before " · ") for compact inline hints. */
@@ -122,8 +122,15 @@ function onPopupKeydown(e: KeyboardEvent): void {
   }
 }
 
-function onGlobalScroll(): void {
-  if (showPopup.value) emit("dismiss");
+/**
+ * `scroll` does not bubble, but capture listeners on `document` still see scrolls from
+ * descendants. Monaco (and similar) scrolls inner viewports — that must not dismiss the bar.
+ */
+function onGlobalScroll(e: Event): void {
+  if (!showPopup.value) return;
+  const t = e.target;
+  if (t instanceof Element && t.closest(".monaco-editor")) return;
+  emit("dismiss");
 }
 
 watch(
@@ -178,7 +185,7 @@ onUnmounted(() => {
         :title="agentButtonTitle"
         @click="emit('sendToAgent')"
       >
-        <span>Agent</span>
+        <span>Add to Chat</span>
         <span
           v-if="agentShortcutInline"
           class="font-medium text-[10px] leading-none text-muted-foreground/90 tabular-nums"

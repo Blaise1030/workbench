@@ -285,14 +285,15 @@ export const KEYBINDING_DEFINITIONS: KeybindingDefinition[] = [
     label: "Queue selection for agent context (when the bar is visible)",
     category: "General",
     shortcut: mod("Enter", { shift: true }),
-    notes: "Runs when the Queue / Agent bar appears after you highlight text."
+    notes: "Runs when the Add to Chat bar appears after you highlight text."
   },
   {
     id: "contextQueueSelectionSendToAgent",
-    label: "Send selection to agent now (when the bar is visible)",
+    label: "Add selection to chat (when the bar is visible)",
     category: "General",
-    shortcut: mod("Enter"),
-    notes: "Runs when the Queue / Agent bar is visible; sends straight to the agent terminal."
+    shortcut: mod("KeyL"),
+    aliases: [mod("Enter")],
+    notes: "Runs when the Add to Chat bar is visible after you highlight text; sends to the agent."
   }
 ];
 

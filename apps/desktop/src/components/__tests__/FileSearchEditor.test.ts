@@ -58,6 +58,7 @@ describe("FileSearchEditor", () => {
     localStorage.removeItem("instrument.fileSearchSidebarCollapsed");
     localStorage.removeItem("instrument.fileSearchEditorCollapsed");
     localStorage.removeItem("instrument.fileSearchLineNumbersVisible");
+    localStorage.removeItem("instrument.fileSearchSearchMode");
     listFiles.mockReset();
     searchFileContents.mockReset();
     readFile.mockReset();
@@ -360,7 +361,7 @@ describe("FileSearchEditor", () => {
     );
   });
 
-  it("calls searchFileContents after debounce", async () => {
+  it("calls searchFileContents after debounce when Contents scope is selected", async () => {
     listFiles.mockResolvedValue([
       { relativePath: "src/App.vue", size: 11, modifiedAt: 1 },
       { relativePath: "src/features/FileSearchEditor.vue", size: 11, modifiedAt: 2 }
@@ -373,11 +374,36 @@ describe("FileSearchEditor", () => {
 
     await flushPromises();
 
+    const scope = wrapper.get('[data-testid="file-search-scope"]');
+    const contentsTab = scope.findAll('[role="tab"]').find((t) => t.text().includes("Contents"));
+    expect(contentsTab).toBeDefined();
+    await contentsTab!.trigger("click");
+    await flushPromises();
+
     await wrapper.get('[data-testid="file-search-input"]').setValue("hello");
     await vi.advanceTimersByTimeAsync(400);
     await flushPromises();
 
     expect(searchFileContents).toHaveBeenCalledWith("/tmp/project", "hello");
+  });
+
+  it("does not call searchFileContents when the Files (path-only) scope is active", async () => {
+    listFiles.mockResolvedValue([
+      { relativePath: "src/App.vue", size: 11, modifiedAt: 1 },
+      { relativePath: "src/features/FileSearchEditor.vue", size: 11, modifiedAt: 2 }
+    ]);
+
+    const wrapper = mount(FileSearchEditor, {
+      props: { worktreePath: "/tmp/project" }
+    });
+
+    await flushPromises();
+
+    await wrapper.get('[data-testid="file-search-input"]').setValue("hello");
+    await vi.advanceTimersByTimeAsync(400);
+    await flushPromises();
+
+    expect(searchFileContents).not.toHaveBeenCalled();
   });
 
   it("filters the preloaded summaries client-side while preserving ancestor folders", async () => {

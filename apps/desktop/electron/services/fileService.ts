@@ -6,6 +6,50 @@ import { assertPathWithinRoot } from "../utils/pathGuard.js";
 
 const IGNORED_DIRECTORY_NAMES = new Set(["node_modules", ".git", "dist", "dist-electron"]);
 
+/** Extensions we do not scan for substring matches (binary or non-text assets). */
+const CONTENT_SEARCH_SKIP_EXTENSIONS = new Set([
+  "png",
+  "jpg",
+  "jpeg",
+  "gif",
+  "webp",
+  "bmp",
+  "ico",
+  "svg",
+  "avif",
+  "woff",
+  "woff2",
+  "ttf",
+  "otf",
+  "eot",
+  "zip",
+  "gz",
+  "tgz",
+  "rar",
+  "7z",
+  "bz2",
+  "xz",
+  "br",
+  "pdf",
+  "mp3",
+  "mp4",
+  "m4a",
+  "webm",
+  "ogg",
+  "mov",
+  "mkv",
+  "wav",
+  "sqlite",
+  "db",
+  "wasm",
+  "so",
+  "dylib",
+  "dll",
+  "exe",
+  "jar",
+  "class"
+]);
+
 /** Workspace-relative images resolved to `data:` URLs (works when the renderer is `http://`, unlike `file://`). */
 const IMAGE_FILE_EXTENSIONS = new Set([
   "png",
@@ -122,6 +166,50 @@ function isPlausibleDecodedImage(buf: Buffer, ext: string): boolean {
   }
 }
 
+
+const CONTENT_SEARCH_CONCURRENCY = 16;
+
+async function searchFileContentsBatch(
+  resolvedRoot: string,
+  relativePaths: readonly string[],
+  trimmedQueryLower: string,
+  maxBytes: number
+): Promise<string[]> {
+  const matches: string[] = [];
+
+  const scanOne = async (relativePath: string): Promise<string | undefined> => {
+    const ext = path.extname(relativePath).slice(1).toLowerCase();
+    if (ext && CONTENT_SEARCH_SKIP_EXTENSIONS.has(ext)) return undefined;
+
+    const absolutePath = assertPathWithinRoot(resolvedRoot, relativePath);
+    try {
+      const stat = await fs.stat(absolutePath);
+      if (stat.size > maxBytes) return undefined;
+
+      const buf = await fs.readFile(absolutePath);
+      if (buf.includes(0)) return undefined;
+      const text = buf.toString("utf8");
+      if (text.toLowerCase().includes(trimmedQueryLower)) {
+        return relativePath;
+      }
+    } catch {
+      /* unreadable or race — skip */
+    }
+    return undefined;
+  };
+
+  for (let i = 0; i < relativePaths.length; i += CONTENT_SEARCH_CONCURRENCY) {
+    const chunk = relativePaths.slice(i, i + CONTENT_SEARCH_CONCURRENCY);
+    const hits = await Promise.all(chunk.map((rp) => scanOne(rp)));
+    for (const h of hits) {
+      if (h) matches.push(h);
+    }
+    await new Promise<void>((resolve) => setImmediate(resolve));
+  }
+
+  matches.sort((a, b) => a.localeCompare(b));
+  return matches;
+}
 
 async function collectFiles(root: string, currentDir: string, output: string[]): Promise<void> {
   const entries = await fs.readdir(currentDir, { withFileTypes: true });
@@ -283,33 +371,12 @@ export class FileService {
     /** File paths only — avoids stat+summary work for every directory like `listFileSummaries`. */
     const relativePaths: string[] = [];
     await collectFiles(resolvedRoot, resolvedRoot, relativePaths);
-    const matches: string[] = [];
-
-    let scanned = 0;
-    for (const relativePath of relativePaths) {
-      scanned += 1;
-      if (scanned % 48 === 0) {
-        await new Promise<void>((resolve) => setImmediate(resolve));
-      }
-
-      const absolutePath = assertPathWithinRoot(resolvedRoot, relativePath);
-      try {
-        const stat = await fs.stat(absolutePath);
-        if (stat.size > FileService.MAX_CONTENT_SEARCH_BYTES) continue;
-
-        const buf = await fs.readFile(absolutePath);
-        if (buf.includes(0)) continue;
-        const text = buf.toString("utf8");
-        if (text.toLowerCase().includes(trimmedQuery)) {
-          matches.push(relativePath);
-        }
-      } catch {
-        /* unreadable or race — skip */
-      }
-    }
-
-    matches.sort((a, b) => a.localeCompare(b));
-    return matches;
+    return searchFileContentsBatch(
+      resolvedRoot,
+      relativePaths,
+      trimmedQuery,
+      FileService.MAX_CONTENT_SEARCH_BYTES
+    );
   }
 
   async readFile(root: string, relativePath: string): Promise<string> {

@@ -528,7 +528,7 @@ onBeforeUnmount(() => {
         <Plus class="h-4 w-4" :stroke-width="1.75" />
       </Button>
     </div>
-    <div class="ml-1 flex shrink-0 self-center items-center gap-0.5 border-l border-zinc-300/80 pl-1.5 dark:border-zinc-800">
+    <div class="ml-1 flex shrink-0 gap-1 self-center items-center gap-0.5 border-l border-zinc-300/80 pl-1.5 dark:border-zinc-800">
       <Button
         v-if="appUpdate && !updatePopupOpen"
         type="button"
@@ -552,7 +552,7 @@ onBeforeUnmount(() => {
         @click="openFeedbackIssue"
       >
         <span aria-hidden="true" class="shrink-0 text-sm leading-none">💬</span>
-        <span class="whitespace-nowrap">Raise feedback</span>
+        <span class="whitespace-nowrap">Feedback</span>
       </Button>
       <div ref="settingsBtnRef">
         <Button
