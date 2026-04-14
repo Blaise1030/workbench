@@ -2,17 +2,10 @@ import { BrowserView, BrowserWindow, type Event, type IpcMainInvokeEvent } from 
 import { IPC_CHANNELS } from "./ipcChannels.js";
 import type { PreviewBounds, PreviewDevToolsToggleResult } from "../src/shared/ipc.js";
 
-/** Fraction of preview viewport height for the page when embedded DevTools is open. */
-const PREVIEW_PAGE_HEIGHT_FRACTION = 0.52;
-const MIN_PAGE_HEIGHT_PX = 80;
-/** Leave enough room for Chrome DevTools’ own toolbar (device toggle, ⋮, dock controls). */
-const MIN_DEVTOOLS_HEIGHT_PX = 200;
-
 let previewPageView: BrowserView | null = null;
-/** Hosts Chrome DevTools UI for the preview page (`setDevToolsWebContents`). */
-let previewDevToolsHostView: BrowserView | null = null;
 let lastBounds: PreviewBounds | null = null;
 let lastWin: BrowserWindow | null = null;
+/** Tracks whether we toggled DevTools on (also cleared when DevTools closes). */
 let embeddedDevToolsOpen = false;
 
 function notifyEmbeddedDevtoolsState(win: BrowserWindow | null, open: boolean): void {
@@ -29,24 +22,10 @@ function getOrCreatePreviewPageView(): BrowserView {
       }
     });
     previewPageView.webContents.on("devtools-closed", () => {
-      removeEmbeddedDevToolsChrome();
+      syncEmbeddedDevtoolsClosedFromChrome();
     });
   }
   return previewPageView;
-}
-
-function getOrCreateDevToolsHostView(): BrowserView {
-  if (!previewDevToolsHostView) {
-    previewDevToolsHostView = new BrowserView({
-      webPreferences: {
-        sandbox: false,
-        contextIsolation: true,
-        nodeIntegration: false,
-        devTools: true
-      }
-    });
-  }
-  return previewDevToolsHostView;
 }
 
 function isSafePreviewUrl(url: string): boolean {
@@ -62,55 +41,29 @@ function windowFromEvent(event: IpcMainInvokeEvent): BrowserWindow | null {
   return BrowserWindow.fromWebContents(event.sender);
 }
 
-function removeEmbeddedDevToolsChrome(): void {
-  if (!embeddedDevToolsOpen) return;
+/** DevTools UI closed (Chrome X, menu, or our toggle). Keep renderer toggle state in sync. */
+function syncEmbeddedDevtoolsClosedFromChrome(): void {
   embeddedDevToolsOpen = false;
-  const win = lastWin;
-  const dt = previewDevToolsHostView;
-  if (dt && win?.getBrowserViews().includes(dt)) {
-    win.removeBrowserView(dt);
-  }
-  const page = previewPageView;
-  if (page && lastBounds && lastBounds.width >= 2 && lastBounds.height >= 2) {
-    page.setBounds(lastBounds);
-  }
-  notifyEmbeddedDevtoolsState(win, false);
+  notifyEmbeddedDevtoolsState(lastWin, false);
 }
 
-/** Re-stack: DevTools host below, page on top (last added), for correct hit-testing in non-overlapping rects. */
-function restackPreviewBrowserViews(win: BrowserWindow): void {
-  const page = previewPageView;
-  const dt = previewDevToolsHostView;
-  if (!page) return;
-  if (dt && win.getBrowserViews().includes(dt)) win.removeBrowserView(dt);
-  if (win.getBrowserViews().includes(page)) win.removeBrowserView(page);
-  if (dt && embeddedDevToolsOpen) win.addBrowserView(dt);
-  win.addBrowserView(page);
-}
-
+/**
+ * One preview `BrowserView` fills the preview rect. DevTools dock **inside** that view
+ * (`openDevTools({ mode: 'bottom' })`) so Chromium does not also reserve a bottom strip
+ * in the page *and* show a second DevTools surface (duplicate device toolbar / “2 webviews”).
+ */
 function applyPreviewLayout(): void {
   const win = lastWin;
   const page = previewPageView;
   if (!win || !page || !lastBounds) return;
   const b = lastBounds;
   if (b.width < 2 || b.height < 2) return;
-
-  if (embeddedDevToolsOpen && previewDevToolsHostView) {
-    restackPreviewBrowserViews(win);
-    const dt = previewDevToolsHostView;
-    let pageH = Math.floor(b.height * PREVIEW_PAGE_HEIGHT_FRACTION);
-    pageH = Math.max(MIN_PAGE_HEIGHT_PX, Math.min(pageH, b.height - MIN_DEVTOOLS_HEIGHT_PX));
-    const dtH = b.height - pageH;
-    page.setBounds({ x: b.x, y: b.y, width: b.width, height: pageH });
-    dt.setBounds({ x: b.x, y: b.y + pageH, width: b.width, height: dtH });
-  } else {
-    if (!win.getBrowserViews().includes(page)) win.addBrowserView(page);
-    page.setBounds(b);
-  }
+  if (!win.getBrowserViews().includes(page)) win.addBrowserView(page);
+  page.setBounds(b);
 }
 
 function detachAllPreviewViewsFromWindow(win: BrowserWindow | null): void {
-  const hadEmbedded = embeddedDevToolsOpen;
+  const hadDevtoolsUi = embeddedDevToolsOpen || !!previewPageView?.webContents.isDevToolsOpened();
   embeddedDevToolsOpen = false;
   if (previewPageView?.webContents.isDevToolsOpened()) {
     try {
@@ -120,13 +73,10 @@ function detachAllPreviewViewsFromWindow(win: BrowserWindow | null): void {
     }
   }
   if (!win) return;
-  if (previewDevToolsHostView && win.getBrowserViews().includes(previewDevToolsHostView)) {
-    win.removeBrowserView(previewDevToolsHostView);
-  }
   if (previewPageView && win.getBrowserViews().includes(previewPageView)) {
     win.removeBrowserView(previewPageView);
   }
-  if (hadEmbedded) notifyEmbeddedDevtoolsState(win, false);
+  if (hadDevtoolsUi) notifyEmbeddedDevtoolsState(win, false);
 }
 
 function attachPageViewToWindow(win: BrowserWindow): BrowserView {
@@ -255,20 +205,17 @@ export function previewNativeToggleEmbeddedDevTools(event: IpcMainInvokeEvent): 
   }
   lastWin = win;
 
-  if (embeddedDevToolsOpen) {
+  if (embeddedDevToolsOpen || page.webContents.isDevToolsOpened()) {
     page.webContents.closeDevTools();
-    removeEmbeddedDevToolsChrome();
+    syncEmbeddedDevtoolsClosedFromChrome();
     applyPreviewLayout();
     return { ok: true, open: false };
   }
 
   embeddedDevToolsOpen = true;
-  const dt = getOrCreateDevToolsHostView();
-  page.webContents.setDevToolsWebContents(dt.webContents);
-  restackPreviewBrowserViews(win);
   applyPreviewLayout();
-  // `detach` / undocked DevTools break the device toolbar in Electron (see electron#28463).
-  // `bottom` is treated as docked so Chrome's device toggle and ⋮ → Dock side work reliably.
+  // Dock DevTools *inside* this BrowserView only (no second BrowserView + setDevToolsWebContents),
+  // otherwise Chromium can show device mode / dock UI twice (looked like “2 webviews”).
   page.webContents.openDevTools({ mode: "bottom", activate: true });
   return { ok: true, open: true };
 }
