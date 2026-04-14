@@ -2,21 +2,91 @@ import type * as MonacoApi from "monaco-editor/esm/vs/editor/editor.api";
 
 export const MONACO_INSTRUMENT_THEME = "instrument-shadcn";
 
+function clampByte(n: number): number {
+  if (!Number.isFinite(n)) return 0;
+  return Math.max(0, Math.min(255, n));
+}
+
+/** jsdom has no Canvas 2D; `getContext("2d")` only logs noise and returns null. */
+function colorProbeCanvasUnsupported(): boolean {
+  return typeof navigator !== "undefined" && /\bjsdom\b/i.test(navigator.userAgent);
+}
+
+/** Fast path for strings `getComputedStyle` often returns; avoids canvas (missing in jsdom without `canvas`). */
+function tryParseSimpleCssColorToHex(cssColor: string): string | null {
+  const s = cssColor.trim();
+  const hex3 = /^#([0-9a-fA-F]{3})$/;
+  const m3 = s.match(hex3);
+  if (m3) {
+    const x = m3[1]!;
+    return `#${x[0]}${x[0]}${x[1]}${x[1]}${x[2]}${x[2]}`.toLowerCase();
+  }
+  if (/^#[0-9a-fA-F]{6}$/i.test(s)) return s.toLowerCase();
+  if (/^#[0-9a-fA-F]{8}$/i.test(s)) return s.toLowerCase();
+  const rgbaComma =
+    /^rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)(?:\s*,\s*([\d.]+%?))?\s*\)$/i.exec(s);
+  if (rgbaComma) {
+    return rgbComponentsToHex(rgbaComma[1]!, rgbaComma[2]!, rgbaComma[3]!, rgbaComma[4]);
+  }
+  // CSS Color 4: `rgb(255 255 255)` / `rgb(255 255 255 / 0.5)` (common from `getComputedStyle` + jsdom)
+  const rgbaSpace =
+    /^rgba?\(\s*([\d.]+)\s+([\d.]+)\s+([\d.]+)(?:\s*\/\s*([\d.]+%?))?\s*\)$/i.exec(s);
+  if (rgbaSpace) {
+    return rgbComponentsToHex(rgbaSpace[1]!, rgbaSpace[2]!, rgbaSpace[3]!, rgbaSpace[4]);
+  }
+  return null;
+}
+
+function rgbComponentsToHex(
+  rStr: string,
+  gStr: string,
+  bStr: string,
+  aStr: string | undefined
+): string {
+  const r = clampByte(Math.round(Number(rStr)));
+  const g = clampByte(Math.round(Number(gStr)));
+  const b = clampByte(Math.round(Number(bStr)));
+  let aByte = 255;
+  if (aStr !== undefined) {
+    const rawA = aStr;
+    const numPart = rawA.replace("%", "");
+    const aNum = Number(numPart);
+    if (rawA.includes("%")) {
+      aByte = clampByte(Math.round((aNum / 100) * 255));
+    } else if (aNum >= 0 && aNum <= 1) {
+      aByte = clampByte(Math.round(aNum * 255));
+    } else {
+      aByte = clampByte(Math.round(aNum));
+    }
+  }
+  const hex = (n: number) => n.toString(16).padStart(2, "0");
+  return aByte === 255 ? `#${hex(r)}${hex(g)}${hex(b)}` : `#${hex(r)}${hex(g)}${hex(b)}${hex(aByte)}`;
+}
+
 /**
  * Convert any CSS color string to #rrggbb or #rrggbbaa hex.
  * Monaco `defineTheme` uses `Color.fromHex` on every entry — `rgba(...)` fails and becomes red.
  */
 function toHex(cssColor: string): string {
-  const canvas = document.createElement("canvas");
-  canvas.width = canvas.height = 1;
-  const ctx = canvas.getContext("2d");
-  if (!ctx) return "#000000";
-  ctx.clearRect(0, 0, 1, 1);
-  ctx.fillStyle = cssColor;
-  ctx.fillRect(0, 0, 1, 1);
-  const [r, g, b, a] = ctx.getImageData(0, 0, 1, 1).data;
-  const hex = (n: number) => n.toString(16).padStart(2, "0");
-  return a === 255 ? `#${hex(r)}${hex(g)}${hex(b)}` : `#${hex(r)}${hex(g)}${hex(b)}${hex(a)}`;
+  const simple = tryParseSimpleCssColorToHex(cssColor);
+  if (simple) return simple;
+  if (colorProbeCanvasUnsupported()) {
+    return "#000000";
+  }
+  try {
+    const canvas = document.createElement("canvas");
+    canvas.width = canvas.height = 1;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return "#000000";
+    ctx.clearRect(0, 0, 1, 1);
+    ctx.fillStyle = cssColor;
+    ctx.fillRect(0, 0, 1, 1);
+    const [r, g, b, a] = ctx.getImageData(0, 0, 1, 1).data;
+    const hex = (n: number) => n.toString(16).padStart(2, "0");
+    return a === 255 ? `#${hex(r)}${hex(g)}${hex(b)}` : `#${hex(r)}${hex(g)}${hex(b)}${hex(a)}`;
+  } catch {
+    return "#000000";
+  }
 }
 
 function readVarAsColor(
