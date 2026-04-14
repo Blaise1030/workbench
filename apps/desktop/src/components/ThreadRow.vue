@@ -15,8 +15,10 @@ const props = withDefaults(
     runStatus?: RunStatus | null;
     /** PTY went idle in the background — row highlights until the user opens this thread. */
     needsIdleAttention?: boolean;
+    /** Inline compose flow: agent is not chosen until the user submits the prompt. */
+    hideAgentIcon?: boolean;
   }>(),
-  { collapsed: false, needsIdleAttention: false }
+  { collapsed: false, needsIdleAttention: false, hideAgentIcon: false }
 );
 
 const emit = defineEmits<{
@@ -155,7 +157,19 @@ function handleArchiveClick(): void {
             :aria-label="rowAriaLabel"
             @click="emit('select')"
           >
-            <AgentIcon :agent="thread.agent" :size="12" class="shrink-0" :class="iconClass" />
+            <span
+              v-if="hideAgentIcon"
+              data-testid="thread-agent-icon-pending"
+              class="inline-block size-3 shrink-0 rounded-sm border border-dashed border-muted-foreground/35"
+              aria-hidden="true"
+            />
+            <AgentIcon
+              v-else
+              :agent="thread.agent"
+              :size="12"
+              class="shrink-0"
+              :class="iconClass"
+            />
           </Button>
         </TooltipTrigger>
         <TooltipContent
@@ -190,7 +204,19 @@ function handleArchiveClick(): void {
                 @keydown.enter.prevent="emit('select')"
                 @keydown.space.prevent="emit('select')"
               >
-                <AgentIcon :agent="thread.agent" :size="12" class="shrink-0" :class="iconClass" />
+                <span
+                  v-if="hideAgentIcon"
+                  data-testid="thread-agent-icon-pending"
+                  class="inline-block size-3 shrink-0 rounded-sm border border-dashed border-muted-foreground/35"
+                  aria-hidden="true"
+                />
+                <AgentIcon
+                  v-else
+                  :agent="thread.agent"
+                  :size="12"
+                  class="shrink-0"
+                  :class="iconClass"
+                />
                 <span class="min-w-0 flex-1 basis-0 overflow-hidden">
                   <span
                     data-testid="thread-title-truncated"
@@ -209,7 +235,19 @@ function handleArchiveClick(): void {
         </div>
       </template>
       <template v-else>
-        <AgentIcon :agent="thread.agent" :size="12" class="shrink-0" :class="iconClass" />
+        <span
+          v-if="hideAgentIcon"
+          data-testid="thread-agent-icon-pending"
+          class="inline-block size-3 shrink-0 rounded-sm border border-dashed border-muted-foreground/35"
+          aria-hidden="true"
+        />
+        <AgentIcon
+          v-else
+          :agent="thread.agent"
+          :size="12"
+          class="shrink-0"
+          :class="iconClass"
+        />
         <Input
           ref="editInputRef"
           v-model="editValue"

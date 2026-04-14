@@ -25,6 +25,7 @@ type ThreadRowMountProps = {
   collapsed?: boolean;
   runStatus?: RunStatus | null;
   needsIdleAttention?: boolean;
+  hideAgentIcon?: boolean;
 };
 
 /** Production mounts one `TooltipProvider` in `App.vue`; isolated tests mirror that here. */
@@ -81,7 +82,18 @@ describe("ThreadRow", () => {
 
     const button = wrapper.get('[data-testid="thread-select"]');
     expect(button.attributes("aria-label")).toContain(thread.title);
-    expect(button.find("svg").exists()).toBe(true);
+    expect(wrapper.findComponent({ name: "AgentIcon" }).exists()).toBe(true);
+  });
+
+  it("omits AgentIcon while hideAgentIcon is true (expanded and collapsed)", () => {
+    wrapper = mountThreadRow({ thread, isActive: true, hideAgentIcon: true });
+    expect(wrapper.findComponent({ name: "AgentIcon" }).exists()).toBe(false);
+    expect(wrapper.findAll('[data-testid="thread-agent-icon-pending"]')).toHaveLength(1);
+
+    wrapper.unmount();
+    wrapper = mountThreadRow({ thread, isActive: false, collapsed: true, hideAgentIcon: true });
+    expect(wrapper.findComponent({ name: "AgentIcon" }).exists()).toBe(false);
+    expect(wrapper.get('[data-testid="thread-agent-icon-pending"]').exists()).toBe(true);
   });
 
   it("applies active styling when isActive is true", () => {

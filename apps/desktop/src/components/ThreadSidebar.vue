@@ -63,6 +63,8 @@ const props = withDefaults(
     showBranchPicker?: boolean;
     /** Active project ID for the branch picker. */
     projectId?: string | null;
+    /** Thread id while the inline new-thread prompt is open (agent not finalized in UI). */
+    inlinePromptThreadId?: string | null;
   }>(),
   {
     collapsed: false,
@@ -74,7 +76,8 @@ const props = withDefaults(
     defaultWorktreeId: null,
     staleWorktreeIds: () => new Set(),
     showBranchPicker: false,
-    projectId: null
+    projectId: null,
+    inlinePromptThreadId: null
   }
 );
 
@@ -616,6 +619,7 @@ async function openAppUpdateUrl(url: string): Promise<void> {
                           data-testid="thread-row"
                           :thread="thread"
                           :is-active="thread.id === activeThreadId"
+                          :hide-agent-icon="thread.id === inlinePromptThreadId"
                           :needs-idle-attention="Boolean(idleAttentionByThreadId?.[thread.id])"
                           :run-status="runStatusByThreadId?.[thread.id] ?? null"
                           @select="handleCollapsedGroupSelect(thread.id)"
@@ -760,6 +764,7 @@ async function openAppUpdateUrl(url: string): Promise<void> {
                   :thread="thread"
                   :collapsed="collapsed"
                   :is-active="thread.id === activeThreadId"
+                  :hide-agent-icon="thread.id === inlinePromptThreadId"
                   :needs-idle-attention="Boolean(idleAttentionByThreadId?.[thread.id])"
                   :run-status="runStatusByThreadId?.[thread.id] ?? null"
                   @select="emit('select', thread.id)"

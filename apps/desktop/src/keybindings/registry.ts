@@ -209,11 +209,11 @@ export const KEYBINDING_DEFINITIONS: KeybindingDefinition[] = [
   },
   {
     id: "newThreadMenu",
-    label: "New thread (open agent menu)",
+    label: "New thread (inline composer)",
     category: "Threads",
     shortcut: mod("KeyT", { shift: true }),
     aliases: [mod("KeyN")],
-    notes: "⌘⇧T / Ctrl+Shift+T or ⌘N / Ctrl+N."
+    notes: "Opens the inline thread prompt for the default checkout. ⌘⇧T / Ctrl+Shift+T or ⌘N / Ctrl+N."
   },
   {
     id: "addTerminal",

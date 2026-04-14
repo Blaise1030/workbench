@@ -92,20 +92,6 @@ vi.mock("@/components/FileSearchEditor.vue", () => ({
     template: '<div data-testid="file-search-editor">{{ worktreePath }}</div>'
   }
 }));
-vi.mock("@/components/ThreadCreateButton.vue", () => ({
-  default: {
-    emits: ["createWithAgent"],
-    template: `
-      <button
-        type="button"
-        data-testid="thread-create-button"
-        @click="$emit('createWithAgent', { agent: 'codex', prompt: '' })"
-      >
-        <slot />
-      </button>
-    `
-  }
-}));
 vi.mock("@/components/ThreadInlinePromptEditor.vue", () => ({
   default: { template: '<section data-testid="inline-prompt-editor" />' }
 }));
