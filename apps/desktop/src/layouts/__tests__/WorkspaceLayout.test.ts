@@ -106,6 +106,9 @@ vi.mock("@/components/ThreadCreateButton.vue", () => ({
     `
   }
 }));
+vi.mock("@/components/ThreadInlinePromptEditor.vue", () => ({
+  default: { template: '<section data-testid="inline-prompt-editor" />' }
+}));
 vi.mock("@/components/ThreadSidebar.vue", () => ({
   default: {
     props: ["threads"],
@@ -700,6 +703,106 @@ describe("WorkspaceLayout", () => {
     expect(wrapper.get('[data-testid="workspace-create-thread-empty-state"]').text()).toContain("Add thread");
     expect(wrapper.find('[data-testid="terminal-pane"]').exists()).toBe(false);
     expect(wrapper.text()).toContain("Create your first thread");
+  });
+
+  it("creates a thread immediately and shows the inline prompt editor when openInlineThreadPrompt is called", async () => {
+    const { default: WorkspaceLayout } = await import("../WorkspaceLayout.vue");
+    const empty = makeSnapshot([]);
+    const snapshotWithNewThread: WorkspaceSnapshot = {
+      ...empty,
+      threads: [
+        {
+          id: "thread-new",
+          projectId: "project-1",
+          worktreeId: "worktree-1",
+          title: "New thread",
+          agent: "claude",
+          createdBranch: null,
+          createdAt: "2026-04-14T00:00:00.000Z",
+          updatedAt: "2026-04-14T00:00:00.000Z"
+        }
+      ],
+      activeThreadId: "thread-new",
+      threadSessions: []
+    };
+    const getSnapshot = vi
+      .fn<WorkspaceApi["getSnapshot"]>()
+      .mockResolvedValueOnce(empty)
+      .mockResolvedValueOnce(snapshotWithNewThread);
+    const changedFiles = vi.fn<WorkspaceApi["changedFiles"]>().mockResolvedValue([]);
+    const createThread = vi.fn<WorkspaceApi["createThread"]>().mockResolvedValue({
+      id: "thread-new",
+      projectId: "project-1",
+      worktreeId: "worktree-1",
+      title: "New thread",
+      agent: "claude",
+      createdBranch: null,
+      createdAt: "2026-04-14T00:00:00.000Z",
+      updatedAt: "2026-04-14T00:00:00.000Z"
+    });
+
+    window.workspaceApi = {
+      getSnapshot,
+      changedFiles,
+      isGitRepository: vi.fn().mockResolvedValue(true),
+      addProject: vi.fn(),
+      addWorktree: vi.fn(),
+      setActive: vi.fn(),
+      createThread,
+      setActiveThread: vi.fn(),
+      deleteThread: vi.fn(),
+      renameThread: vi.fn(),
+      startRun: vi.fn(),
+      sendRunInput: vi.fn(),
+      interruptRun: vi.fn(),
+      fileDiff: vi.fn(),
+      fileMergeSides: vi.fn().mockResolvedValue({
+        kind: "ok" as const,
+        original: "",
+        modified: "",
+        originalLabel: "HEAD",
+        modifiedLabel: "Staged"
+      }),
+      stageAll: vi.fn(),
+      discardAll: vi.fn(),
+      listFiles: vi.fn(),
+      searchFiles: vi.fn(),
+      readFile: vi.fn(),
+      writeFile: vi.fn(),
+      createFile: vi.fn(),
+      deleteFile: vi.fn(),
+      createFolder: vi.fn(),
+      deleteFolder: vi.fn(),
+      applyPatch: vi.fn(),
+      ptyCreate: vi.fn().mockResolvedValue({ buffer: "" }),
+      ptyWrite: vi.fn(),
+      ptyResize: vi.fn(),
+      ptyKill: vi.fn(),
+      onPtyData: vi.fn(() => () => {}),
+      pickRepoDirectory: vi.fn(),
+      onWorkspaceChanged: vi.fn(() => () => {}),
+      onWorkingTreeFilesChanged: vi.fn(() => () => {})
+    };
+
+    const wrapper = mount(WorkspaceLayout, {
+      global: {
+        plugins: [createPinia()]
+      }
+    });
+
+    await flushPromises();
+    await wrapper.get('[data-testid="workspace-create-thread-empty-state"]').trigger("click");
+    await flushPromises();
+
+    expect(createThread).toHaveBeenCalledWith({
+      projectId: "project-1",
+      worktreeId: "worktree-1",
+      title: "New thread",
+      agent: "claude"
+    });
+    expect(getSnapshot).toHaveBeenCalledTimes(2);
+    expect(wrapper.find('[data-testid="inline-prompt-editor"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="terminal-pane"]').exists()).toBe(false);
   });
 
   it("switches projects by asking the backend to restore the remembered worktree and thread", async () => {

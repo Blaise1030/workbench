@@ -14,6 +14,7 @@ import AgentCommandsSettingsDialog from "@/components/AgentCommandsSettingsDialo
 import FileSearchEditor from "@/components/FileSearchEditor.vue";
 import WorkspaceLauncherModal from "@/components/WorkspaceLauncherModal.vue";
 import ThreadCreateButton from "@/components/ThreadCreateButton.vue";
+import ThreadInlinePromptEditor from "@/components/ThreadInlinePromptEditor.vue";
 import BranchPicker from "@/components/BranchPicker.vue";
 import ContextQueueReviewDropdown from "@/components/contextQueue/ContextQueueReviewDropdown.vue";
 import { injectContextQueue } from "@/contextQueue/injectContextQueue";
@@ -41,6 +42,7 @@ import {
 } from "@/composables/threadCreateDialog";
 import { usePreviewModalOcclusion } from "@/composables/usePreviewModalOcclusion";
 import { useWorkspaceKeybindings } from "@/composables/useWorkspaceKeybindings";
+import { readPreferredThreadAgent } from "@/composables/usePreferredThreadAgent";
 import { formatShortcut, MOD_DIGIT_SLOT_CODES } from "@/keybindings/registry";
 import { useKeybindingsStore } from "@/stores/keybindingsStore";
 import { LruMap } from "@/lib/lruMap";
@@ -255,6 +257,9 @@ function setShellTerminalPaneRef(slotId: string, el: unknown): void {
 
 const threadSidebarRef = ref<InstanceType<typeof ThreadSidebar> | null>(null);
 const threadCreateHostRef = ref<InstanceType<typeof ThreadCreateButton> | null>(null);
+/** Thread currently in "compose prompt" mode — shows inline editor instead of xterm. */
+const inlinePromptThreadId = ref<string | null>(null);
+const inlinePromptEditorRef = ref<{ submit: () => void } | null>(null);
 /** Destination hint + submit routing for the shared new-thread dialog */
 const threadCreateSubmitTarget = ref<
   { kind: "default" } | { kind: "group"; worktreeId: string }
@@ -963,6 +968,35 @@ function onTerminalBootstrapConsumed(): void {
   pendingAgentBootstrap.value = null;
 }
 
+async function onInlinePromptSubmit(payload: ThreadCreateWithAgentPayload): Promise<void> {
+  const threadId = inlinePromptThreadId.value;
+  if (!threadId) return;
+  const { agent, prompt } = payload;
+  const api = getApi();
+  // Rename the thread from placeholder to the derived title.
+  const title = resolveNewThreadTitle(payload, agent);
+  if (api && title !== "New thread") {
+    try {
+      await api.renameThread({ threadId, title });
+    } catch {
+      // Non-fatal — thread still runs even if rename fails.
+    }
+  }
+  pendingAgentBootstrap.value = {
+    threadId,
+    command: bootstrapCommandLineWithPrompt(agent, prompt)
+  };
+  inlinePromptThreadId.value = null;
+  await refreshSnapshot();
+}
+
+async function onInlinePromptCancel(): Promise<void> {
+  const threadId = inlinePromptThreadId.value;
+  if (!threadId) return;
+  inlinePromptThreadId.value = null;
+  await handleRemoveThread(threadId);
+}
+
 function onSaveAgentSettings(payload: { commands: Record<ThreadAgent, string> }): void {
   applySaved(payload.commands);
 }
@@ -1048,11 +1082,25 @@ function applyThreadCreateOpen(opts: ThreadCreateDialogOpenOptions): void {
 /** Register early so `openThreadCreateDialog` works before the rest of setup finishes (and after HMR of this module). */
 const disposeThreadCreateDialog = registerThreadCreateDialogOpener(applyThreadCreateOpen);
 
-function openAddThreadFromToolbarOrEmpty(): void {
-  openThreadCreateDialog({
-    target: "activeWorktree",
-    destinationContextLabel: activeContextLabel.value
+async function openInlineThreadPrompt(worktreeId: string): Promise<void> {
+  const api = getApi();
+  if (!api || !workspace.activeProjectId) return;
+  const created = await api.createThread({
+    projectId: workspace.activeProjectId,
+    worktreeId,
+    title: "New thread",
+    agent: readPreferredThreadAgent()
   });
+  if (!created?.id) return;
+  await refreshSnapshot();
+  inlinePromptThreadId.value = created.id;
+  mainCenterTab.value = "agent";
+}
+
+function openAddThreadFromToolbarOrEmpty(): void {
+  const worktreeId = workspace.defaultWorktree?.id;
+  if (!worktreeId) return;
+  void openInlineThreadPrompt(worktreeId);
 }
 
 async function onThreadCreateFromSharedDialog(payload: ThreadCreateWithAgentPayload): Promise<void> {
@@ -1401,7 +1449,17 @@ useWorkspaceKeybindings(
   keybindingsEnabled
 );
 
+function onInlinePromptCmdEnter(ev: KeyboardEvent): void {
+  if (!inlinePromptThreadId.value) return;
+  const isMac = navigator.platform.toLowerCase().includes("mac");
+  if (ev.key === "Enter" && (isMac ? ev.metaKey : ev.ctrlKey)) {
+    ev.preventDefault();
+    inlinePromptEditorRef.value?.submit();
+  }
+}
+
 onMounted(async () => {
+  window.addEventListener("keydown", onInlinePromptCmdEnter, { capture: true });
   await refreshSnapshot();
   maybeSetResumeBootstrap(workspace.activeThreadId);
   if (workspace.activeProjectId) {
@@ -1431,6 +1489,7 @@ onMounted(async () => {
 let worktreeHealthInterval: ReturnType<typeof setInterval> | null = null;
 
 onBeforeUnmount(() => {
+  window.removeEventListener("keydown", onInlinePromptCmdEnter, { capture: true });
   disposeThreadCreateDialog();
   if (worktreeHealthInterval) clearInterval(worktreeHealthInterval);
   disposeOpenWorkspaceSettings?.();
@@ -1823,7 +1882,7 @@ watch(
                   </div>
                   <div v-show="mainCenterTab === 'agent'" class="flex min-h-0 flex-1 flex-col overflow-hidden">
                     <section
-                      v-if="!activeWorktreeHasThreads"
+                      v-if="!activeWorktreeHasThreads && !inlinePromptThreadId"
                       class="flex min-h-0 flex-1 flex-col items-center justify-center gap-4 px-6 py-12 text-center"
                     >
                       <span class="text-5xl leading-none" aria-hidden="true">🧵</span>
@@ -1849,6 +1908,14 @@ watch(
                         </span>
                       </Button>
                     </section>
+                    <ThreadInlinePromptEditor
+                      v-else-if="inlinePromptThreadId && workspace.activeThreadId === inlinePromptThreadId"
+                      ref="inlinePromptEditorRef"
+                      :worktree-id="workspace.activeWorktreeId ?? ''"
+                      :worktree-path="workspace.activeWorktree?.path ?? null"
+                      @submit="onInlinePromptSubmit"
+                      @cancel="onInlinePromptCancel"
+                    />
                     <TerminalPane
                       v-else
                       ref="agentTerminalPaneRef"
