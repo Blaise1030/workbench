@@ -26,11 +26,13 @@ const mockDiffEditor = {
   dispose: vi.fn(),
 };
 
-vi.mock("monaco-editor", () => ({
-  editor: {
-    createDiffEditor: vi.fn(() => mockDiffEditor),
-    createModel: vi.fn((value: string) => ({ value, dispose: vi.fn() })),
-    setTheme: vi.fn(),
+vi.mock("@/lib/monacoApi", () => ({
+  monaco: {
+    editor: {
+      createDiffEditor: vi.fn(() => mockDiffEditor),
+      createModel: vi.fn((value: string) => ({ value, dispose: vi.fn() })),
+      setTheme: vi.fn(),
+    },
   },
 }));
 
@@ -57,7 +59,8 @@ describe("MonacoDiffEditor", () => {
   });
 
   it("calls createDiffEditor on mount", async () => {
-    const { editor } = await import("monaco-editor");
+    const { monaco } = await import("@/lib/monacoApi");
+    const { editor } = monaco;
     mount(MonacoDiffEditor, {
       props: { original: "a", modified: "b", filePath: "src/foo.ts" },
     });
@@ -65,7 +68,8 @@ describe("MonacoDiffEditor", () => {
   });
 
   it("calls setModel with original and modified content", async () => {
-    const { editor } = await import("monaco-editor");
+    const { monaco } = await import("@/lib/monacoApi");
+    const { editor } = monaco;
     mount(MonacoDiffEditor, {
       props: { original: "original content", modified: "modified content", filePath: "src/foo.ts" },
     });
@@ -75,7 +79,8 @@ describe("MonacoDiffEditor", () => {
   });
 
   it("sets renderSideBySide:true for split layout", async () => {
-    const { editor } = await import("monaco-editor");
+    const { monaco } = await import("@/lib/monacoApi");
+    const { editor } = monaco;
     mount(MonacoDiffEditor, {
       props: { original: "a", modified: "b", filePath: "src/foo.ts", layout: "split" },
     });
@@ -86,7 +91,8 @@ describe("MonacoDiffEditor", () => {
   });
 
   it("sets renderSideBySide:false for unified layout", async () => {
-    const { editor } = await import("monaco-editor");
+    const { monaco } = await import("@/lib/monacoApi");
+    const { editor } = monaco;
     mount(MonacoDiffEditor, {
       props: { original: "a", modified: "b", filePath: "src/foo.ts", layout: "unified" },
     });

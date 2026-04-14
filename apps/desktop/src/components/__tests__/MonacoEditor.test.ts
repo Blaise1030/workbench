@@ -25,11 +25,13 @@ const mockEditor = {
   _contentListener: null as ((e: unknown) => void) | null,
 };
 
-vi.mock("monaco-editor", () => ({
-  editor: {
-    create: vi.fn(() => mockEditor),
-    setTheme: vi.fn(),
-    setModelLanguage: vi.fn(),
+vi.mock("@/lib/monacoApi", () => ({
+  monaco: {
+    editor: {
+      create: vi.fn(() => mockEditor),
+      setTheme: vi.fn(),
+      setModelLanguage: vi.fn(),
+    },
   },
 }));
 // ─────────────────────────────────────────────────────────────────────────────
@@ -59,7 +61,8 @@ describe("MonacoEditor", () => {
   });
 
   it("emits update:modelValue when editor content changes", async () => {
-    const { editor } = await import("monaco-editor");
+    const { monaco } = await import("@/lib/monacoApi");
+    const { editor } = monaco;
     const wrapper = mount(MonacoEditor, {
       props: { modelValue: "hello" },
     });

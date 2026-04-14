@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { inject, onBeforeUnmount, onMounted, ref, watch } from "vue";
-import * as monaco from "monaco-editor";
+import { monaco } from "@/lib/monacoApi";
 import { monacoLanguageIdFromPath } from "@/lib/monacoLanguage";
 import ContextQueueSelectionPopup from "@/components/contextQueue/ContextQueueSelectionPopup.vue";
 import { buildPasteText } from "@/contextQueue/formatters";

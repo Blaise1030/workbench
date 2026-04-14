@@ -53,7 +53,16 @@ export default defineConfig(async () => {
   build: {
     // Must match `loadFile` in electron/mainApp.ts (../dist from dist-electron/electron).
     outDir: "dist-electron/dist",
-    emptyOutDir: true
+    emptyOutDir: true,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes("node_modules/monaco-editor")) {
+            return "monaco-editor";
+          }
+        }
+      }
+    }
   },
   resolve: {
     alias: {

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref, toRef, watch } from "vue";
-import * as monaco from "monaco-editor";
+import { monaco } from "@/lib/monacoApi";
 
 export type QueueableEditorSelection = {
   selectedText: string;
@@ -15,7 +15,7 @@ const props = withDefaults(
     language?: string;
     ariaLabel?: string;
     showLineNumbers?: boolean;
-    /** Unused in Monaco — kept for API compatibility with the previous CodeMirrorEditor interface. */
+    /** Unused in Monaco — kept for API compatibility with FileSearchEditor’s legacy props. */
     markdownWorkspaceRoot?: string | null;
     markdownFilePath?: string | null;
     markdownImagePreviewEnabled?: boolean;
