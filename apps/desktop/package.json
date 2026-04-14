@@ -30,6 +30,7 @@
     "rebuild:natives": "electron-builder install-app-deps"
   },
   "dependencies": {
+    "@mlc-ai/web-llm": "^0.2.82",
     "@tiptap/core": "^3.22.3",
     "@tiptap/extension-mention": "^3.22.3",
     "@tiptap/extension-placeholder": "^3.22.3",
