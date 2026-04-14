@@ -42,6 +42,10 @@ vi.mock("@/components/AgentCommandsSettingsDialog.vue", () => ({
 vi.mock("@/components/DiffReviewPanel.vue", () => ({
   default: { template: "<div />" }
 }));
+/** SourceControlPanel embeds MonacoDiffEditor; real `monaco-editor` needs DOM APIs missing in jsdom. */
+vi.mock("@/components/MonacoDiffEditor.vue", () => ({
+  default: { template: '<div data-testid="monaco-diff-editor-stub" />' }
+}));
 vi.mock("@/components/ui/PillTabs.vue", () => ({
   default: {
     props: ["modelValue", "tabs"],
