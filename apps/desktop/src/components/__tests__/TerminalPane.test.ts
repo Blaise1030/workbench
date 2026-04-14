@@ -2,6 +2,7 @@ import { mount, flushPromises } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import TerminalPane from "@/components/TerminalPane.vue";
+import type { PendingAgentBootstrap } from "@shared/pendingAgentBootstrap";
 
 const fitMock = vi.fn();
 const resetMock = vi.fn();
@@ -56,7 +57,7 @@ describe("TerminalPane", () => {
 
   function mountPaneWithPtyCreate(
     ptyCreate: WorkspaceApi["ptyCreate"],
-    pendingAgentBootstrap: { threadId: string; command: string } | null
+    pendingAgentBootstrap: PendingAgentBootstrap | null
   ) {
     const ptyWrite = vi.fn<WorkspaceApi["ptyWrite"]>().mockResolvedValue(undefined);
     window.workspaceApi = {
@@ -113,27 +114,82 @@ describe("TerminalPane", () => {
     return { wrapper, ptyWrite };
   }
 
-  it("does not inject bootstrap when attaching to an existing PTY", async () => {
+  it("does not inject resume bootstrap when reconnecting to an existing live PTY", async () => {
     const { wrapper, ptyWrite } = mountPaneWithPtyCreate(
       vi.fn<WorkspaceApi["ptyCreate"]>().mockResolvedValue({ buffer: "", created: false }),
-      { threadId: "thread-1", command: "cursor agent --resume=abc" }
+      { threadId: "thread-1", command: "cursor agent --resume=abc", mode: "resume" }
     );
 
     await flushPromises();
 
-    expect(ptyWrite).not.toHaveBeenCalledWith("thread-1", "cursor agent --resume=abc\r");
+    expect(ptyWrite).not.toHaveBeenCalled();
     expect(wrapper.emitted("bootstrapConsumed")).toBeUndefined();
   });
 
   it("injects bootstrap once when creating a new PTY", async () => {
     const { wrapper, ptyWrite } = mountPaneWithPtyCreate(
       vi.fn<WorkspaceApi["ptyCreate"]>().mockResolvedValue({ buffer: "", created: true }),
-      { threadId: "thread-1", command: "cursor agent --resume=abc" }
+      { threadId: "thread-1", command: "cursor agent --resume=abc", mode: "resume" }
     );
 
     await flushPromises();
 
     expect(ptyWrite).toHaveBeenCalledWith("thread-1", "cursor agent --resume=abc\r");
     expect(wrapper.emitted("bootstrapConsumed")).toEqual([[]]);
+  });
+
+  it("injects bootstrap when pending is set after the PTY already exists", async () => {
+    const ptyCreate = vi
+      .fn<WorkspaceApi["ptyCreate"]>()
+      .mockResolvedValue({ buffer: "", created: false });
+    const { wrapper, ptyWrite } = mountPaneWithPtyCreate(ptyCreate, null);
+
+    await flushPromises();
+    expect(ptyWrite).not.toHaveBeenCalled();
+
+    await wrapper.setProps({
+      pendingAgentBootstrap: { threadId: "thread-1", command: "codex exec hello" }
+    });
+    await flushPromises();
+
+    expect(ptyWrite).toHaveBeenCalledWith("thread-1", "codex exec hello\r");
+    expect(wrapper.emitted("bootstrapConsumed")).toEqual([[]]);
+  });
+
+  it("injects prompt bootstrap when reconnecting to an existing PTY (e.g. re-attach race after first create)", async () => {
+    const ptyCreate = vi
+      .fn<WorkspaceApi["ptyCreate"]>()
+      .mockResolvedValue({ buffer: "", created: false });
+    const { wrapper, ptyWrite } = mountPaneWithPtyCreate(ptyCreate, {
+      threadId: "thread-1",
+      command: "codex exec hello",
+      mode: "prompt"
+    });
+
+    await flushPromises();
+
+    expect(ptyWrite).toHaveBeenCalledWith("thread-1", "codex exec hello\r");
+    expect(wrapper.emitted("bootstrapConsumed")).toEqual([[]]);
+  });
+
+  it("does not inject resume bootstrap when pending arrives after reconnecting to an existing PTY", async () => {
+    const ptyCreate = vi
+      .fn<WorkspaceApi["ptyCreate"]>()
+      .mockResolvedValue({ buffer: "", created: false });
+    const { wrapper, ptyWrite } = mountPaneWithPtyCreate(ptyCreate, null);
+
+    await flushPromises();
+
+    await wrapper.setProps({
+      pendingAgentBootstrap: {
+        threadId: "thread-1",
+        command: "gemini --resume cb1438da-39bb-4f7f-8108-510fe91963e1",
+        mode: "resume"
+      }
+    });
+    await flushPromises();
+
+    expect(ptyWrite).not.toHaveBeenCalled();
+    expect(wrapper.emitted("bootstrapConsumed")).toBeUndefined();
   });
 });

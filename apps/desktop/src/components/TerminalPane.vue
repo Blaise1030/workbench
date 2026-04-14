@@ -10,6 +10,7 @@ import { injectContextToAgentKey, threadContextQueueKey } from "@/contextQueue/i
 import type { QueueCapture, QueueItem } from "@/contextQueue/types";
 import type { Rect } from "@/lib/contextQueueAnchor";
 import { useToast } from "@/composables/useToast";
+import type { PendingAgentBootstrap } from "@shared/pendingAgentBootstrap";
 
 /** Union `.xterm-selection` rects (viewport coords) when the DOM renderer exposes them. */
 function mergeXtermSelectionRects(wrap: HTMLElement): Rect | null {
@@ -43,7 +44,7 @@ const props = withDefaults(
     threadId: string;
     cwd: string;
     /** After `ptyCreate` for this thread, type `command` + Enter once. */
-    pendingAgentBootstrap?: { threadId: string; command: string } | null;
+    pendingAgentBootstrap?: PendingAgentBootstrap | null;
     /**
      * `agent` — one PTY per thread (or worktree fallback). `shell` — extra PTY per worktree slot
      * (see `shellSlotId`), independent of the active thread.
@@ -117,6 +118,8 @@ let resizeObserver: ResizeObserver | null = null;
 let themeObserver: MutationObserver | null = null;
 let ptyDataDisposer: (() => void) | null = null;
 let attachGeneration = 0;
+/** `ptyCreate` returned an existing session (`created: false`); skip `mode: "resume"` autostart. */
+let attachedWithLivePty = false;
 /** After first mount attach, focus terminal when session props change (e.g. thread switch). */
 let didCompleteInitialAttach = false;
 let dropHandlersCleanup: (() => void) | null = null;
@@ -201,6 +204,17 @@ async function restoreDisplayFromBuffer(): Promise<void> {
   }
 }
 
+/** Inject bootstrap CLI into the live PTY once per pending payload (parent clears after `bootstrapConsumed`). */
+async function tryInjectPendingBootstrap(sessionId: string, gen: number): Promise<void> {
+  const api = getApi();
+  if (!api || !terminal) return;
+  const boot = props.pendingAgentBootstrap;
+  if (!boot?.command.trim() || boot.threadId !== sessionId) return;
+  if (gen !== attachGeneration) return;
+  void api.ptyWrite(sessionId, `${boot.command}\r`);
+  emit("bootstrapConsumed");
+}
+
 async function attachPty(): Promise<void> {
   const gen = ++attachGeneration;
   const sessionId = ptySessionId();
@@ -214,10 +228,12 @@ async function attachPty(): Promise<void> {
 
     terminal.reset();
 
-    const { buffer, created } = await api.ptyCreate(sessionId, props.cwd, props.worktreeId);
+    attachedWithLivePty = false;
+    const { buffer, created = true } = await api.ptyCreate(sessionId, props.cwd, props.worktreeId);
     if (gen !== attachGeneration) return;
 
     activeSessionId.value = sessionId;
+    attachedWithLivePty = !created;
 
     if (buffer) {
       terminal.write(buffer);
@@ -228,16 +244,13 @@ async function attachPty(): Promise<void> {
       terminal?.write(data);
     });
 
-    const boot = props.pendingAgentBootstrap;
-    if (
-      created === true &&
-      boot &&
-      boot.command.trim() &&
-      sessionId === boot.threadId &&
-      gen === attachGeneration
-    ) {
-      void api.ptyWrite(sessionId, `${boot.command}\r`);
-      emit("bootstrapConsumed");
+    // Fresh PTY: always try inject. Reused PTY (`created: false`): only for prompt/bootstrap —
+    // avoids re-typing `* --resume` into an already-live agent, but still covers (a) prompt set
+    // after attach and (b) a superseding re-attach that races the first attach so the PTY exists
+    // while `created` is false yet pending was never consumed.
+    const bootMode = props.pendingAgentBootstrap?.mode ?? "prompt";
+    if (created || bootMode === "prompt") {
+      await tryInjectPendingBootstrap(sessionId, gen);
     }
   } finally {
     if (gen === attachGeneration) {
@@ -469,6 +482,20 @@ watch(
       terminal?.focus();
     }
   }
+);
+
+/** Bootstrap may be set after the PTY already exists (e.g. inline thread composer → terminal). */
+watch(
+  () => props.pendingAgentBootstrap,
+  () => {
+    const boot = props.pendingAgentBootstrap;
+    if (!boot?.command.trim()) return;
+    if (activeSessionId.value !== boot.threadId) return;
+    const mode = boot.mode ?? "prompt";
+    if (attachedWithLivePty && mode === "resume") return;
+    void tryInjectPendingBootstrap(boot.threadId, attachGeneration);
+  },
+  { deep: true, flush: "post" }
 );
 
 function focusTerminal(): void {

@@ -3,13 +3,14 @@ import { computed } from "vue";
 import Button from "@/components/ui/Button.vue";
 import Textarea from "@/components/ui/Textarea.vue";
 import TerminalPane from "@/components/TerminalPane.vue";
+import type { PendingAgentBootstrap } from "@shared/pendingAgentBootstrap";
 
 const props = defineProps<{
   threadId: string;
   worktreeId: string;
   cwd: string;
   draft: string;
-  pendingAgentBootstrap?: { threadId: string; command: string } | null;
+  pendingAgentBootstrap?: PendingAgentBootstrap | null;
 }>();
 
 const emit = defineEmits<{

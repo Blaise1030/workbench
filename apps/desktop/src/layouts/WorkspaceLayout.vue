@@ -13,7 +13,6 @@ import ThemeToggle from "@/components/ThemeToggle.vue";
 import AgentCommandsSettingsDialog from "@/components/AgentCommandsSettingsDialog.vue";
 import FileSearchEditor from "@/components/FileSearchEditor.vue";
 import WorkspaceLauncherModal from "@/components/WorkspaceLauncherModal.vue";
-import ThreadCreateButton from "@/components/ThreadCreateButton.vue";
 import ThreadInlinePromptEditor from "@/components/ThreadInlinePromptEditor.vue";
 import BranchPicker from "@/components/BranchPicker.vue";
 import ContextQueueReviewDropdown from "@/components/contextQueue/ContextQueueReviewDropdown.vue";
@@ -25,6 +24,7 @@ import ThreadSidebar from "@/components/ThreadSidebar.vue";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAgentBootstrapCommands } from "@/composables/useAgentBootstrapCommands";
 import { threadAgentResumeCommand } from "@shared/threadAgentBootstrap";
+import type { PendingAgentBootstrap } from "@shared/pendingAgentBootstrap";
 import { isValidResumeSessionId } from "@shared/resumeSessionId";
 import {
   clearInlineThreadDraft,
@@ -40,11 +40,6 @@ import {
 import { useTerminalAttentionSounds } from "@/composables/useTerminalAttentionSounds";
 import { useTerminalSoundSettings } from "@/composables/useTerminalSoundSettings";
 import { useToast } from "@/composables/useToast";
-import {
-  openThreadCreateDialog,
-  registerThreadCreateDialogOpener,
-  type ThreadCreateDialogOpenOptions
-} from "@/composables/threadCreateDialog";
 import { usePreviewModalOcclusion } from "@/composables/usePreviewModalOcclusion";
 import { useWorkspaceKeybindings } from "@/composables/useWorkspaceKeybindings";
 import { readPreferredThreadAgent } from "@/composables/usePreferredThreadAgent";
@@ -57,7 +52,6 @@ import { visibleTerminalSessionId } from "@/terminal/attentionRules";
 import type { Thread, ThreadAgent, ThreadCreateWithAgentPayload } from "@shared/domain";
 import type {
   AddProjectInput,
-  CreateThreadInput,
   DeleteThreadInput,
   FileDiffScope,
   FileMergeSidesResult,
@@ -261,7 +255,6 @@ function setShellTerminalPaneRef(slotId: string, el: unknown): void {
 }
 
 const threadSidebarRef = ref<InstanceType<typeof ThreadSidebar> | null>(null);
-const threadCreateHostRef = ref<InstanceType<typeof ThreadCreateButton> | null>(null);
 /** Thread currently in "compose prompt" mode — shows inline editor instead of xterm. */
 const inlinePromptThreadId = ref<string | null>(null);
 const inlinePromptEditorRef = ref<{ submit: () => void } | null>(null);
@@ -273,24 +266,6 @@ const inlinePromptThreadContextLabel = computed(() => {
   if (!thread) return null;
   const ctx = workspace.threadContexts.find((c) => c.worktreeId === thread.worktreeId);
   return ctx?.displayLabel ?? null;
-});
-/** Destination hint + submit routing for the shared new-thread dialog */
-const threadCreateSubmitTarget = ref<
-  { kind: "default" } | { kind: "group"; worktreeId: string }
->({ kind: "default" });
-const threadCreateDestinationLabel = ref<string | null>(null);
-/** Worktree root for @ mentions in the new-thread dialog (matches where the thread will be created). */
-const threadCreateWorktreePath = computed(() => {
-  const t = threadCreateSubmitTarget.value;
-  if (t.kind === "group") {
-    const projectId = workspace.activeProjectId;
-    if (!projectId) return null;
-    // `threadGroups` omits the primary checkout; "new thread on main" still uses worktreeGroup + default id.
-    return (
-      workspace.worktrees.find((w) => w.id === t.worktreeId && w.projectId === projectId)?.path ?? null
-    );
-  }
-  return workspace.defaultWorktree?.path ?? workspace.activeWorktree?.path ?? null;
 });
 const fileSearchRef = ref<InstanceType<typeof FileSearchEditor> | null>(null);
 const keybindings = useKeybindingsStore();
@@ -510,7 +485,7 @@ function toggleTerminalPanelFromShortcut(): void {
 }
 
 /** After creating a thread from the agent menu, run the agent’s bootstrap CLI once in that PTY. */
-const pendingAgentBootstrap = ref<{ threadId: string; command: string } | null>(null);
+const pendingAgentBootstrap = ref<PendingAgentBootstrap | null>(null);
 
 /** If a thread has a stored resumeId and is in "resumable" state, auto-set its bootstrap command. */
 function maybeSetResumeBootstrap(threadId: string | null): void {
@@ -526,7 +501,8 @@ function maybeSetResumeBootstrap(threadId: string | null): void {
   if (pendingAgentBootstrap.value?.threadId === threadId) return;
   pendingAgentBootstrap.value = {
     threadId,
-    command: threadAgentResumeCommand(thread.agent, session.resumeId)
+    command: threadAgentResumeCommand(thread.agent, session.resumeId),
+    mode: "resume"
   };
 }
 const repoDirectoryInput = ref<HTMLInputElement | null>(null);
@@ -955,29 +931,6 @@ function resolveNewThreadTitle(payload: ThreadCreateWithAgentPayload, agent: Thr
   return defaultTitleForAgent(agent);
 }
 
-async function handleCreateThreadWithAgent(payload: ThreadCreateWithAgentPayload): Promise<void> {
-  const { agent, prompt } = payload;
-  mainCenterTab.value = "agent";
-  const api = getApi();
-  const defaultWorktreeId = workspace.defaultWorktree?.id;
-  if (!api || !workspace.activeProjectId || !defaultWorktreeId) return;
-  const title = resolveNewThreadTitle(payload, agent);
-  const createPayload: CreateThreadInput = {
-    projectId: workspace.activeProjectId,
-    worktreeId: defaultWorktreeId,
-    title,
-    agent
-  };
-  const created = (await api.createThread(createPayload)) as Thread;
-  if (created.id) {
-    pendingAgentBootstrap.value = {
-      threadId: created.id,
-      command: bootstrapCommandLineWithPrompt(agent, prompt)
-    };
-  }
-  await refreshSnapshot();
-}
-
 function onTerminalBootstrapConsumed(): void {
   pendingAgentBootstrap.value = null;
 }
@@ -1000,7 +953,8 @@ async function onInlinePromptSubmit(payload: ThreadCreateWithAgentPayload): Prom
   }
   pendingAgentBootstrap.value = {
     threadId,
-    command: bootstrapCommandLineWithPrompt(agent, prompt)
+    command: bootstrapCommandLineWithPrompt(agent, prompt),
+    mode: "prompt"
   };
   inlinePromptThreadId.value = null;
   await refreshSnapshot();
@@ -1057,53 +1011,6 @@ async function handleRenameThread(threadId: string, newTitle: string): Promise<v
   await refreshSnapshot();
 }
 
-async function handleAddThreadToGroup(worktreeId: string, payload: ThreadCreateWithAgentPayload): Promise<void> {
-  const { agent, prompt } = payload;
-  mainCenterTab.value = "agent";
-  const api = getApi();
-  if (!api || !workspace.activeProjectId) return;
-  const title = resolveNewThreadTitle(payload, agent);
-  const createPayload: CreateThreadInput = {
-    projectId: workspace.activeProjectId,
-    worktreeId,
-    title,
-    agent
-  };
-  const created = (await api.createThread(createPayload)) as Thread;
-  if (created.id) {
-    pendingAgentBootstrap.value = {
-      threadId: created.id,
-      command: bootstrapCommandLineWithPrompt(agent, prompt)
-    };
-  }
-  await refreshSnapshot();
-}
-
-function applyThreadCreateOpen(opts: ThreadCreateDialogOpenOptions): void {
-  if (opts.target === "activeWorktree") {
-    threadCreateSubmitTarget.value = { kind: "default" };
-    threadCreateDestinationLabel.value =
-      opts.destinationContextLabel ?? activeContextLabel.value;
-  } else {
-    threadCreateSubmitTarget.value = { kind: "group", worktreeId: opts.worktreeId };
-    threadCreateDestinationLabel.value = opts.destinationContextLabel ?? null;
-  }
-  /** Host ref is set after child mount; retry so openMenu is not dropped on early ticks. */
-  const tryOpen = (attempt = 0): void => {
-    const host = threadCreateHostRef.value;
-    if (host) {
-      host.openMenu();
-      return;
-    }
-    if (attempt >= 10) return;
-    void nextTick(() => tryOpen(attempt + 1));
-  };
-  void nextTick(() => tryOpen(0));
-}
-
-/** Register early so `openThreadCreateDialog` works before the rest of setup finishes (and after HMR of this module). */
-const disposeThreadCreateDialog = registerThreadCreateDialogOpener(applyThreadCreateOpen);
-
 function tryRestoreInlineThreadDraft(): void {
   const wt = workspace.activeWorktreeId;
   if (!wt) return;
@@ -1137,14 +1044,6 @@ function openAddThreadFromToolbarOrEmpty(): void {
   const worktreeId = workspace.defaultWorktree?.id;
   if (!worktreeId) return;
   void openInlineThreadPrompt(worktreeId);
-}
-
-async function onThreadCreateFromSharedDialog(payload: ThreadCreateWithAgentPayload): Promise<void> {
-  if (threadCreateSubmitTarget.value.kind === "group") {
-    await handleAddThreadToGroup(threadCreateSubmitTarget.value.worktreeId, payload);
-  } else {
-    await handleCreateThreadWithAgent(payload);
-  }
 }
 
 async function handleCreateWorktreeGroup(branch: string, baseBranch: string | null): Promise<void> {
@@ -1386,10 +1285,9 @@ function toggleThreadsSidebar(): void {
 const workspaceLauncherOpen = ref(false);
 
 function openNewThreadMenuFromShortcut(): void {
-  openThreadCreateDialog({
-    target: "activeWorktree",
-    destinationContextLabel: activeContextLabel.value
-  });
+  const worktreeId = workspace.defaultWorktree?.id;
+  if (!worktreeId) return;
+  void openInlineThreadPrompt(worktreeId);
 }
 
 function focusFileSearchShortcut(): void {
@@ -1526,7 +1424,6 @@ let worktreeHealthInterval: ReturnType<typeof setInterval> | null = null;
 
 onBeforeUnmount(() => {
   window.removeEventListener("keydown", onInlinePromptCmdEnter, { capture: true });
-  disposeThreadCreateDialog();
   if (worktreeHealthInterval) clearInterval(worktreeHealthInterval);
   disposeOpenWorkspaceSettings?.();
   disposeOpenWorkspaceSettings = null;
@@ -1775,6 +1672,7 @@ watch(
           :stale-worktree-ids="staleWorktreeIds"
           :show-branch-picker="showBranchPicker"
           :project-id="workspace.activeProjectId"
+          :inline-prompt-thread-id="inlinePromptThreadId"
           @show-branch-picker="showBranchPicker = true"
           @cancel-branch-picker="showBranchPicker = false"
           @create-worktree-group="handleCreateWorktreeGroup"
@@ -2102,16 +2000,6 @@ watch(
         </div>
       </section>
     </section>
-
-    <ThreadCreateButton
-      v-if="hasActiveWorkspace"
-      ref="threadCreateHostRef"
-      triggerless
-      class="pointer-events-none fixed h-0 w-0 overflow-hidden p-0"
-      :destination-context-label="threadCreateDestinationLabel"
-      :worktree-path="threadCreateWorktreePath"
-      @create-with-agent="onThreadCreateFromSharedDialog"
-    />
 
     <WorkspaceLauncherModal
       v-model="workspaceLauncherOpen"
