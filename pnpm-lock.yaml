@@ -133,6 +133,9 @@ importers:
       marked:
         specifier: ^17.0.6
         version: 17.0.6
+      monaco-editor:
+        specifier: ^0.52.2
+        version: 0.52.2
       node-pty:
         specifier: ^1.0.0
         version: 1.1.0
@@ -215,6 +218,9 @@ importers:
       vite:
         specifier: ^6.2.1
         version: 6.4.2(@types/node@22.19.17)(tsx@4.21.0)
+      vite-plugin-monaco-editor:
+        specifier: ^1.1.0
+        version: 1.1.0(monaco-editor@0.52.2)
       vitest:
         specifier: ^3.0.9
         version: 3.2.4(@types/node@22.19.17)(jsdom@26.1.0)(tsx@4.21.0)
@@ -6370,6 +6376,9 @@ packages:
       minimist: 1.2.8
     dev: true
 
+  /monaco-editor@0.52.2:
+    resolution: {integrity: sha512-GEQWEZmfkOGLdd3XK8ryrfWz3AIP8YymVXiPHEdewrUq7mh0qrKrfHLNCXcbB6sTnMLnOZ3ztSiKcciFUkIJwQ==}
+
   /mrmime@2.0.1:
     resolution: {integrity: sha512-Y3wQdFg2Va6etvQ5I82yUhGdsKrcYox6p7FfL1LbK2J4V01F9TGlepTIhnK24t7koZibmg82KGglhA1XK5IsLQ==}
     engines: {node: '>=10'}
@@ -8258,6 +8267,14 @@ packages:
       - terser
       - tsx
       - yaml
+    dev: true
+
+  /vite-plugin-monaco-editor@1.1.0(monaco-editor@0.52.2):
+    resolution: {integrity: sha512-IvtUqZotrRoVqwT0PBBDIZPNraya3BxN/bfcNfnxZ5rkJiGcNtO5eAOWWSgT7zullIAEqQwxMU83yL9J5k7gww==}
+    peerDependencies:
+      monaco-editor: '>=0.33.0'
+    dependencies:
+      monaco-editor: 0.52.2
     dev: true
 
   /vite@6.4.2(@types/node@22.19.17)(tsx@4.21.0):

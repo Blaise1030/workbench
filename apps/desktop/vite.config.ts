@@ -15,6 +15,15 @@ export default defineConfig(async () => {
   plugins: [
     tailwindcss(),
     vue(),
+    await import("vite-plugin-monaco-editor").then((m) => {
+      const factory =
+        typeof m.default === "function"
+          ? m.default
+          : (m.default as { default: (opts: unknown) => PluginOption }).default;
+      return factory({
+        languageWorkers: ["editorWorkerService", "typescript", "json", "css", "html"]
+      }) as PluginOption;
+    }),
     ...(analyze
       ? [
           visualizer({
