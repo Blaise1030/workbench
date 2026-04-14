@@ -15,6 +15,7 @@ export type KeybindingId =
   | "focusAgentTab"
   | "focusGitPanel"
   | "focusFilesPanel"
+  | "focusPreviewPanel"
   | "workspaceLauncher"
   | "stageAllDiff"
   | "openSettings"
@@ -252,6 +253,13 @@ export const KEYBINDING_DEFINITIONS: KeybindingDefinition[] = [
     category: "Navigation",
     shortcut: mod("KeyE", { shift: true }),
     notes: "Center file explorer; works while the integrated terminal is focused."
+  },
+  {
+    id: "focusPreviewPanel",
+    label: "Switch to Preview tab",
+    category: "Navigation",
+    shortcut: mod("KeyB", { shift: true }),
+    notes: "In-app browser preview; works while the integrated terminal is focused."
   },
   {
     id: "workspaceLauncher",

@@ -13,3 +13,7 @@ export const LATEST_RELEASE_PAGE_URL = `${GITHUB_REPO_URL}/releases/latest` as c
 
 /** In-repo changelog for the desktop app (GitHub renders Markdown). */
 export const CHANGELOG_URL = `${GITHUB_REPO_URL}/blob/main/apps/desktop/CHANGELOG.md` as const;
+
+/** Raw Markdown for server-side fetch (same file as `CHANGELOG_URL`). */
+export const CHANGELOG_RAW_URL =
+	`https://raw.githubusercontent.com/${GITHUB_REPO}/main/apps/desktop/CHANGELOG.md` as const;

@@ -165,3 +165,6 @@ export type PreviewLoadStatePayload =
       errorCode: number;
       errorDescription: string;
     };
+
+/** Preview `WebContents.enableDeviceEmulation` preset (Chromium device mode). */
+export type PreviewDeviceEmulationPreset = "clear" | "mobile" | "tablet" | "desktop";

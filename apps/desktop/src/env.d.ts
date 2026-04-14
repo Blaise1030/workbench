@@ -5,6 +5,7 @@ import type {
   FileMergeSidesResult,
   FileSummary,
   PreviewBounds,
+  PreviewDeviceEmulationPreset,
   PreviewLoadStatePayload,
   PreviewProbeResult,
   RepoScmSnapshot,
@@ -105,10 +106,16 @@ interface PreviewApi {
   probeUrl: (url: string) => Promise<PreviewProbeResult>;
   setBounds: (bounds: PreviewBounds) => Promise<void>;
   reload: () => Promise<void>;
-  /** Open Chromium DevTools for the preview `WebContentsView` (detached window). */
+  /** Open Chromium DevTools for the preview `WebContentsView` (docked inside the preview area). */
   openDevTools: () => Promise<void>;
+  /** Chromium device emulation for the preview page (mobile / tablet / desktop). */
+  setDeviceEmulation: (preset: PreviewDeviceEmulationPreset) => Promise<void>;
+  /** While true, the preview `WebContentsView` is hidden so in-window modals paint above the preview region. */
+  setOccludedByModal?: (occluded: boolean) => Promise<void>;
   /** Subscribe to main-process preview navigation state; returns unsubscribe. */
   onLoadState: (callback: (payload: PreviewLoadStatePayload) => void) => () => void;
+  /** Workspace shortcut fired while preview WebContentsView had focus; returns unsubscribe. */
+  onShortcutFired?: (callback: (payload: { mod: boolean; shift: boolean; alt: boolean; code: string }) => void) => () => void;
 }
 
 declare global {

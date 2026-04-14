@@ -10,7 +10,9 @@
   </Teleport>
   <div ref="panelRootRef" class="flex min-h-0 flex-1 flex-col overflow-hidden">
     <!-- URL bar -->
-    <div class="flex shrink-0 items-center gap-1.5 border-b border-border bg-background px-2 py-1">
+    <div
+      class="flex shrink-0 flex-wrap items-center gap-x-1.5 gap-y-1 border-b border-border bg-background px-2 py-1"
+    >
       <Badge
         v-if="loadBadge"
         data-testid="preview-load-badge"
@@ -24,10 +26,72 @@
         v-model="urlInput"
         data-testid="preview-url-input"
         class="min-w-0 flex-1 rounded bg-transparent px-2 py-0.5 font-mono text-sm outline-none placeholder:text-muted-foreground focus:ring-1 focus:ring-border"
-        placeholder="Port or URL — Enter to load"
+        placeholder="Port or URL — auto-loads when this tab opens; Enter to go"
         spellcheck="false"
         @keydown.enter="navigate"
       />
+      <TooltipProvider :delay-duration="300">
+        <div
+          class="flex shrink-0 items-center gap-0.5 rounded-md border border-border bg-muted/30 p-0.5"
+          role="group"
+          aria-label="Preview viewport size"
+        >
+          <Tooltip>
+            <TooltipTrigger as-child>
+              <button
+                type="button"
+                data-testid="preview-emulation-mobile"
+                :class="emulationToggleClass('mobile')"
+                :aria-pressed="deviceEmulationPreset === 'mobile'"
+                aria-label="Mobile preview, 390 by 844. Press again to use full panel."
+                @click="setDeviceEmulationPreset('mobile')"
+              >
+                <Smartphone class="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                <span class="max-sm:sr-only">Mobile</span>
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" class="max-w-[16rem]">
+              Mobile viewport (390×844). Matches many phone layouts. Click again to fill the preview panel.
+            </TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger as-child>
+              <button
+                type="button"
+                data-testid="preview-emulation-tablet"
+                :class="emulationToggleClass('tablet')"
+                :aria-pressed="deviceEmulationPreset === 'tablet'"
+                aria-label="Tablet preview, 834 by 1194. Press again to use full panel."
+                @click="setDeviceEmulationPreset('tablet')"
+              >
+                <Tablet class="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                <span class="max-sm:sr-only">Tablet</span>
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" class="max-w-[16rem]">
+              Tablet viewport (834×1194). Click again to fill the preview panel.
+            </TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger as-child>
+              <button
+                type="button"
+                data-testid="preview-emulation-desktop"
+                :class="emulationToggleClass('desktop')"
+                :aria-pressed="deviceEmulationPreset === null"
+                aria-label="Desktop preview, full panel width"
+                @click="setDeviceEmulationPreset('desktop')"
+              >
+                <Monitor class="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                <span class="max-sm:sr-only">Desktop</span>
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" class="max-w-[16rem]">
+              Desktop — use the full preview area with no device frame.
+            </TooltipContent>
+          </Tooltip>
+        </div>
+      </TooltipProvider>
       <button
         data-testid="preview-reload-btn"
         class="shrink-0 rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
@@ -40,7 +104,7 @@
         data-testid="preview-devtools-btn"
         type="button"
         class="shrink-0 rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
-        title="Open preview DevTools (detached)"
+        title="Open preview DevTools (docked below the page). Mobile, Tablet, and Desktop set viewport emulation."
         @click="openPreviewDevTools"
       >
         <Bug class="h-3.5 w-3.5" />
@@ -56,7 +120,8 @@ import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import { setPreviewNativeCollisionEl, setPreviewNativeViewportTopPx } from "@/composables/previewNativeViewportTop";
 import Badge from "@/components/ui/Badge.vue";
 import type { BadgeVariant } from "@/components/ui/badge";
-import { Bug, RotateCw } from "lucide-vue-next";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Bug, Monitor, RotateCw, Smartphone, Tablet } from "lucide-vue-next";
 import type { PreviewLoadStatePayload } from "@shared/ipc";
 import { loadPreviewPanelUrl, savePreviewPanelUrl } from "@/composables/usePreviewPanelUrlPersistence";
 import { useWorkspaceStore } from "@/stores/workspaceStore";
@@ -82,16 +147,50 @@ const collisionMirrorStyle = computed(() => {
     height: `${r.height}px`,
     opacity: "0",
     pointerEvents: "none",
-    zIndex: "35"
+    /** Browser viewport mirror: lowest fixed z-index so toasts/popovers/modals stack above it (native WebContentsView still paints above all HTML). */
+    zIndex: "1"
   } as Record<string, string>;
 });
 const loadState = ref<PreviewLoadStatePayload | null>(null);
+/** `null` = desktop (no emulation); otherwise active preset sent to main. */
+const deviceEmulationPreset = ref<"mobile" | "tablet" | null>(null);
+
+function emulationToggleClass(p: "mobile" | "tablet" | "desktop"): string {
+  const active = p === "desktop" ? deviceEmulationPreset.value === null : deviceEmulationPreset.value === p;
+  return [
+    "inline-flex shrink-0 items-center gap-1 rounded px-1.5 py-1 text-[11px] font-medium outline-none transition-colors",
+    active
+      ? "bg-background text-foreground shadow-sm ring-1 ring-border"
+      : "text-muted-foreground hover:bg-muted hover:text-foreground"
+  ].join(" ");
+}
+
+async function setDeviceEmulationPreset(p: "mobile" | "tablet" | "desktop"): Promise<void> {
+  const api = getApi();
+  if (!api?.setDeviceEmulation) return;
+  if (p === "desktop") {
+    deviceEmulationPreset.value = null;
+    await api.setDeviceEmulation("desktop");
+    return;
+  }
+  if (deviceEmulationPreset.value === p) {
+    deviceEmulationPreset.value = null;
+    await api.setDeviceEmulation("desktop");
+    return;
+  }
+  deviceEmulationPreset.value = p;
+  await api.setDeviceEmulation(p);
+}
 
 watch(
   () => workspace.activeWorktreeId,
-  (worktreeId) => {
+  (worktreeId, prevWorktreeId) => {
     loadState.value = null;
     urlInput.value = loadPreviewPanelUrl(worktreeId);
+    /** After initial `immediate` run, switching worktrees should load that worktree's saved URL. */
+    if (prevWorktreeId != null && prevWorktreeId !== worktreeId) {
+      void nextTick(() => navigate());
+    }
   },
   { immediate: true }
 );
@@ -208,6 +307,11 @@ onMounted(async () => {
       void nextTickBounds();
     });
   }
+
+  void nextTick(() => {
+    syncPreviewViewportMetrics();
+    navigate();
+  });
 });
 
 function nextTickBounds(): void {
@@ -221,6 +325,8 @@ onUnmounted(() => {
   viewportScreenRect.value = null;
   setPreviewNativeViewportTopPx(null);
   setPreviewNativeCollisionEl(null);
+  deviceEmulationPreset.value = null;
+  void getApi()?.setDeviceEmulation("desktop");
   void getApi()?.hide();
 });
 </script>

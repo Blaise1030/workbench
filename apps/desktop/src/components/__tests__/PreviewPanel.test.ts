@@ -29,6 +29,7 @@ function makePreviewApi() {
     setBounds: vi.fn().mockResolvedValue(undefined),
     reload: vi.fn().mockResolvedValue(undefined),
     openDevTools: vi.fn().mockResolvedValue(undefined),
+    setDeviceEmulation: vi.fn().mockResolvedValue(undefined),
     onLoadState: vi.fn((cb: (payload: PreviewLoadStatePayload) => void) => {
       loadStateListener = cb;
       return unsubscribe;
@@ -125,9 +126,19 @@ describe("PreviewPanel", () => {
     localStorage.setItem("instrument.previewPanelUrl.wt-test-1", "http://localhost:1111");
     const wrapper = mount(PreviewPanel, { attachTo: document.body });
     await flushPromises();
+    await wrapper.vm.$nextTick();
     expect((wrapper.find('[data-testid="preview-url-input"]').element as HTMLInputElement).value).toBe(
       "http://localhost:1111"
     );
+    wrapper.unmount();
+  });
+
+  it("calls setUrl with restored URL when mounted if localStorage has a saved URL", async () => {
+    localStorage.setItem("instrument.previewPanelUrl.wt-test-1", "http://localhost:1111");
+    const wrapper = mount(PreviewPanel, { attachTo: document.body });
+    await flushPromises();
+    await wrapper.vm.$nextTick();
+    expect(previewApi.setUrl).toHaveBeenCalledWith("http://localhost:1111");
     wrapper.unmount();
   });
 
@@ -137,20 +148,24 @@ describe("PreviewPanel", () => {
     previewPanelWorkspaceStub.activeWorktreeId = "wt-test-1";
     const wrapper = mount(PreviewPanel, { attachTo: document.body });
     await flushPromises();
+    await wrapper.vm.$nextTick();
     expect((wrapper.find('[data-testid="preview-url-input"]').element as HTMLInputElement).value).toBe(
       "http://localhost:1"
     );
     previewPanelWorkspaceStub.activeWorktreeId = "wt-test-2";
     await wrapper.vm.$nextTick();
+    await wrapper.vm.$nextTick();
     expect((wrapper.find('[data-testid="preview-url-input"]').element as HTMLInputElement).value).toBe(
       "http://localhost:2"
     );
+    expect(previewApi.setUrl).toHaveBeenLastCalledWith("http://localhost:2");
     wrapper.unmount();
   });
 
   it("does not call setUrl when Enter on empty input", async () => {
     const wrapper = mount(PreviewPanel, { attachTo: document.body });
     await flushPromises();
+    await wrapper.vm.$nextTick();
     await wrapper.find('[data-testid="preview-url-input"]').trigger("keydown.enter");
     expect(previewApi.setUrl).not.toHaveBeenCalled();
     wrapper.unmount();
@@ -199,6 +214,22 @@ describe("PreviewPanel", () => {
     await flushPromises();
     await wrapper.find('[data-testid="preview-devtools-btn"]').trigger("click");
     expect(previewApi.openDevTools).toHaveBeenCalledOnce();
+    wrapper.unmount();
+  });
+
+  it("calls setDeviceEmulation when mobile preset is chosen", async () => {
+    const wrapper = mount(PreviewPanel, { attachTo: document.body });
+    await flushPromises();
+    await wrapper.find('[data-testid="preview-emulation-mobile"]').trigger("click");
+    expect(previewApi.setDeviceEmulation).toHaveBeenCalledWith("mobile");
+    wrapper.unmount();
+  });
+
+  it("calls setDeviceEmulation desktop when desktop preset is chosen", async () => {
+    const wrapper = mount(PreviewPanel, { attachTo: document.body });
+    await flushPromises();
+    await wrapper.find('[data-testid="preview-emulation-desktop"]').trigger("click");
+    expect(previewApi.setDeviceEmulation).toHaveBeenCalledWith("desktop");
     wrapper.unmount();
   });
 

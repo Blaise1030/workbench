@@ -1,5 +1,9 @@
 import { contextBridge, ipcRenderer, webUtils } from "electron";
-import type { AppUpdateAvailability, PreviewLoadStatePayload } from "../src/shared/ipc.js";
+import type {
+  AppUpdateAvailability,
+  PreviewDeviceEmulationPreset,
+  PreviewLoadStatePayload
+} from "../src/shared/ipc.js";
 
 /**
  * Sandboxed preload may only `require("electron")`, not sibling modules — keep these strings in sync
@@ -58,6 +62,8 @@ const IPC_CHANNELS = {
   previewHide: "preview:hide",
   previewLoadState: "preview:loadState",
   previewOpenDevTools: "preview:openDevTools",
+  previewSetDeviceEmulation: "preview:setDeviceEmulation",
+  previewSetOccludedByModal: "preview:setOccludedByModal",
   terminalPtyCreate: "terminal:ptyCreate",
   terminalPtyWrite: "terminal:ptyWrite",
   terminalPtyResize: "terminal:ptyResize",
@@ -72,6 +78,7 @@ const IPC_CHANNELS = {
   workspaceWorktreeHealth: "workspace:worktreeHealth",
   workspaceSyncWorktrees: "workspace:syncWorktrees",
   uiOpenWorkspaceSettings: "ui:openWorkspaceSettings",
+  previewShortcutFired: "preview:shortcutFired",
   appGetVersion: "app:getVersion",
   appGetReleaseTag: "app:getReleaseTag",
   appGetUpdateAvailability: "app:getUpdateAvailability",
@@ -228,9 +235,20 @@ contextBridge.exposeInMainWorld("previewApi", {
     ipcRenderer.invoke("preview:setBounds", bounds),
   reload: () => ipcRenderer.invoke("preview:reload"),
   openDevTools: () => ipcRenderer.invoke(IPC_CHANNELS.previewOpenDevTools),
+  setDeviceEmulation: (preset: PreviewDeviceEmulationPreset) =>
+    ipcRenderer.invoke(IPC_CHANNELS.previewSetDeviceEmulation, preset),
+  setOccludedByModal: (occluded: boolean) =>
+    ipcRenderer.invoke(IPC_CHANNELS.previewSetOccludedByModal, occluded),
   onLoadState: (callback: (payload: PreviewLoadStatePayload) => void) => {
     const channel = IPC_CHANNELS.previewLoadState;
     const listener = (_event: unknown, payload: PreviewLoadStatePayload) => callback(payload);
+    ipcRenderer.on(channel, listener);
+    return () => ipcRenderer.removeListener(channel, listener);
+  },
+  onShortcutFired: (callback: (payload: { mod: boolean; shift: boolean; alt: boolean; code: string }) => void) => {
+    const channel = IPC_CHANNELS.previewShortcutFired;
+    const listener = (_event: unknown, payload: { mod: boolean; shift: boolean; alt: boolean; code: string }) =>
+      callback(payload);
     ipcRenderer.on(channel, listener);
     return () => ipcRenderer.removeListener(channel, listener);
   }

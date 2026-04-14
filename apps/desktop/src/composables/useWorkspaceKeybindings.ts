@@ -3,6 +3,7 @@ import {
   eventMatchesBinding,
   eventMatchesShortcut,
   findDefinitionIn,
+  isMacPlatform,
   isFocusInsideInstrumentTerminal,
   isTypingSurface,
   MOD_DIGIT_SLOT_CODES,
@@ -167,10 +168,16 @@ export function useWorkspaceKeybindings(ctx: WorkspaceKeybindingContext, enabled
       }
       return;
     }
+    if (id === "focusPreviewPanel") {
+      const def = findDefinitionIn(definitions, "focusPreviewPanel");
+      if (def && eventMatchesBinding(ev, def)) {
+        ev.preventDefault();
+        ctx.onSelectCenterTab("preview");
+      }
+      return;
+    }
 
     const def = findDefinitionIn(definitions, id);
-
-    if (def && NAV_IDS.includes(def.id) && inTerminal) return;
 
     if (def && NAV_IDS.includes(def.id) && typing) return;
 
@@ -215,10 +222,33 @@ export function useWorkspaceKeybindings(ctx: WorkspaceKeybindingContext, enabled
     }
   }
 
+  let disposePreviewShortcut: (() => void) | null = null;
+
   onMounted(() => {
     window.addEventListener("keydown", onKeydown, { capture: true });
+    // When the preview WebContentsView has focus, keydown events never reach this window.
+    // The main process intercepts them via `before-input-event` and forwards them here so
+    // all workspace shortcuts work regardless of which view is focused.
+    disposePreviewShortcut = window.previewApi?.onShortcutFired?.((payload) => {
+      const mac = isMacPlatform();
+      // Synthesise a KeyboardEvent so the existing onKeydown logic handles it unchanged.
+      // target will be null → isTypingSurface / isFocusInsideInstrumentTerminal both return
+      // false, which is correct: focus is in the preview, not a terminal or text input.
+      const fakeEvent = new KeyboardEvent("keydown", {
+        code: payload.code,
+        metaKey: mac ? payload.mod : false,
+        ctrlKey: mac ? false : payload.mod,
+        shiftKey: payload.shift,
+        altKey: payload.alt,
+        bubbles: false,
+        cancelable: true
+      });
+      onKeydown(fakeEvent);
+    }) ?? null;
   });
   onBeforeUnmount(() => {
     window.removeEventListener("keydown", onKeydown, { capture: true });
+    disposePreviewShortcut?.();
+    disposePreviewShortcut = null;
   });
 }

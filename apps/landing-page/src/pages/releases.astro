@@ -1,0 +1,332 @@
+---
+import "../styles/global.css";
+import { Image } from "astro:assets";
+import SEO from "../components/SEO.astro";
+import ChangelogFromGitHub from "../components/ChangelogFromGitHub.astro";
+import imgLogo from "../assets/workbench-logo.png";
+import imgGatekeeperNotice from "../assets/mac-gatekeeper-notice.png";
+import {
+	CHANGELOG_URL,
+	GITHUB_REPO_URL,
+	LATEST_RELEASE_JSON_URL,
+	LATEST_RELEASE_PAGE_URL,
+} from "../constants/releases";
+
+const APP_DISPLAY_NAME = "workbench";
+
+interface ReleaseManifest {
+	version?: string;
+	downloads?: Record<string, { url: string; filename: string }>;
+}
+
+let releaseManifest: ReleaseManifest = {};
+try {
+	const res = await fetch(LATEST_RELEASE_JSON_URL);
+	if (res.ok) releaseManifest = (await res.json()) as ReleaseManifest;
+} catch {
+	/* use fallback */
+}
+
+const ssrDownloadUrl = releaseManifest.downloads?.mac?.url ?? LATEST_RELEASE_PAGE_URL;
+const ssrVersion = releaseManifest.version;
+---
+
+<html lang="en">
+	<head>
+		<SEO
+			title={`${APP_DISPLAY_NAME} — Releases`}
+			description="Download the latest workbench build for macOS. Live desktop changelog from GitHub plus release links."
+		/>
+		<link rel="preconnect" href="https://fonts.googleapis.com" />
+		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+		<link
+			href="https://fonts.googleapis.com/css2?family=Bungee+Shade&display=swap"
+			rel="stylesheet"
+		/>
+	</head>
+	<body class="relative overflow-x-hidden bg-[var(--color-canvas)]">
+		<header class="bg-transparent">
+			<div class="mx-auto flex max-w-7xl items-center px-6 py-2.5">
+				<a href="/" class="flex min-w-0 flex-1 items-center gap-1 overflow-hidden" aria-label={`${APP_DISPLAY_NAME} home`}>
+					<h2
+						class="relative m-0 flex min-w-0 flex-1 flex-nowrap items-center gap-1 overflow-hidden p-0 text-zinc-900"
+					>
+						<Image
+							src={imgLogo}
+							alt=""
+							width="32"
+							height="32"
+							loading="eager"
+							draggable="false"
+							class="pointer-events-none size-8 shrink-0 select-none rounded-lg object-cover"
+							aria-hidden="true"
+						/>
+						<span class="font-app-brand-title block min-w-0 truncate text-base uppercase leading-none text-zinc-900">
+							{APP_DISPLAY_NAME}
+						</span>
+						<span
+							class="shadow-xs ms-0.5 mt-0.5 inline-flex h-3.5 min-h-0 shrink-0 items-center justify-center rounded-sm border border-zinc-200 bg-transparent px-1 py-0 text-[8px] font-semibold uppercase leading-none tracking-wide text-zinc-900"
+						>
+							Alpha
+						</span>
+					</h2>
+				</a>
+				<a
+					href={GITHUB_REPO_URL}
+					target="_blank"
+					rel="noopener noreferrer"
+					aria-label="View on GitHub"
+					class="flex items-center gap-1.5 text-xs font-medium text-zinc-500 transition hover:text-zinc-900"
+				>
+					<svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+						<path
+							d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0 1 12 6.844a9.59 9.59 0 0 1 2.504.337c1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.02 10.02 0 0 0 22 12.017C22 6.484 17.522 2 12 2z"
+						></path>
+					</svg>
+					GitHub
+				</a>
+			</div>
+		</header>
+
+		<main class="px-2 pb-16">
+			<div class="mx-auto max-w-3xl px-6">
+			<section
+				class="scroll-scale-in pb-8 pt-10 md:pt-14"
+				aria-labelledby="releases-heading"
+			>
+				<h1
+					id="releases-heading"
+					class="text-balance text-3xl font-medium leading-tight tracking-tight text-zinc-900 md:text-4xl"
+				>
+					Releases
+				</h1>
+				<p class="mt-4 text-base leading-relaxed text-zinc-600">
+					Download the latest macOS build, or browse all versions and notes on GitHub. Windows and Linux builds are not
+					available yet.
+				</p>
+
+				<div id="download" class="mt-8 flex flex-col gap-2">
+					<a
+						id="download-btn"
+						href={ssrDownloadUrl}
+						class="inline-flex w-fit items-center gap-2 rounded-full bg-zinc-900 px-7 py-3.5 text-sm font-semibold text-white shadow-lg shadow-zinc-900/15 transition hover:bg-zinc-800"
+						rel="noopener noreferrer"
+					>
+						<svg class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+							<path
+								d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"
+							></path>
+						</svg>
+						<span id="download-btn-label">Download for macOS — it's free</span>
+					</a>
+					<p id="download-version" class={`text-xs text-zinc-500${ssrVersion ? "" : " hidden"}`} aria-live="polite">
+						{ssrVersion ? `Version ${ssrVersion}` : ""}
+					</p>
+				</div>
+
+				<ul class="mt-10 space-y-3 text-sm text-zinc-600">
+					<li>
+						<a
+							href={LATEST_RELEASE_PAGE_URL}
+							class="font-medium text-zinc-900 underline decoration-zinc-300 underline-offset-4 transition hover:decoration-zinc-900"
+							target="_blank"
+							rel="noopener noreferrer"
+						>
+							Latest release on GitHub
+						</a>
+						<span class="text-zinc-500"> — assets, checksums, and discussion.</span>
+					</li>
+					<li>
+						<a
+							href="/"
+							class="font-medium text-zinc-900 underline decoration-zinc-300 underline-offset-4 transition hover:decoration-zinc-900"
+						>
+							Back to home
+						</a>
+					</li>
+				</ul>
+			</section>
+			<ChangelogFromGitHub />
+			</div>
+		</main>
+
+		<footer class="border-t border-zinc-200/80 bg-white py-10">
+			<div
+				class="mx-auto flex max-w-7xl flex-col items-center gap-3 px-6 text-center text-sm text-zinc-500 md:flex-row md:items-center md:justify-between md:text-left"
+			>
+				<p class="m-0">© {new Date().getFullYear()} workbench</p>
+				<div class="flex flex-wrap items-center justify-center gap-6">
+					<a href="/" class="font-medium text-zinc-600 transition hover:text-zinc-900">Home</a>
+					<a
+						href={GITHUB_REPO_URL}
+						target="_blank"
+						rel="noopener noreferrer"
+						class="flex items-center gap-1.5 font-medium text-zinc-600 transition hover:text-zinc-900"
+					>
+						<svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+							<path
+								d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0 1 12 6.844a9.59 9.59 0 0 1 2.504.337c1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.02 10.02 0 0 0 22 12.017C22 6.484 17.522 2 12 2z"
+							></path>
+						</svg>
+						GitHub
+					</a>
+					<a
+						href={CHANGELOG_URL}
+						class="font-medium text-zinc-600 transition hover:text-zinc-900"
+						target="_blank"
+						rel="noopener noreferrer"
+					>
+						Changelog
+					</a>
+				</div>
+			</div>
+		</footer>
+
+		<dialog
+			id="mac-gatekeeper-notice"
+			class="z-[300] max-w-none bg-transparent shadow-none"
+			aria-labelledby="mac-gatekeeper-title"
+			aria-describedby="mac-gatekeeper-desc"
+		>
+			<div class="mac-gatekeeper-panel rounded-2xl border border-zinc-200 bg-white p-6 text-left shadow-2xl shadow-zinc-900/10">
+				<h2 id="mac-gatekeeper-title" class="text-base font-semibold text-zinc-900">workbench is downloading</h2>
+				<p id="mac-gatekeeper-desc" class="mt-3 text-sm leading-relaxed text-zinc-600">
+					The file should appear in your Downloads folder in a moment. We are not on the Apple Developer Program, so macOS
+					may show a security warning the first time you open workbench. If it does, use System Settings (below) or in
+					Finder right-click workbench and choose <span class="whitespace-nowrap">Open</span>.
+				</p>
+				<div class="mt-4 max-w-xl">
+					<figure class="m-0 min-w-0 overflow-hidden rounded-xl border border-zinc-200 bg-zinc-50">
+						<Image
+							src={imgGatekeeperNotice}
+							alt="Screenshot: macOS System Settings → Security, message that workbench was blocked, with Open Anyway indicated."
+							width="492"
+							height="198"
+							loading="lazy"
+							class="block h-auto w-full"
+						/>
+						<figcaption class="border-t border-zinc-200 bg-white px-3 py-2 text-center text-[11px] font-medium leading-snug text-zinc-700">
+							<span class="block">
+								If macOS blocked the app: System Settings → Privacy &amp; Security → click
+								<span class="whitespace-nowrap">Open Anyway</span>.
+							</span>
+							<span class="mt-1 block text-zinc-600">
+								Or in Finder: right-click workbench → <span class="whitespace-nowrap">Open</span>.
+							</span>
+						</figcaption>
+					</figure>
+				</div>
+				<form method="dialog" class="mt-6 flex justify-end">
+					<button
+						type="submit"
+						class="rounded-full bg-zinc-900 px-5 py-2 text-sm font-semibold text-white transition hover:bg-zinc-800"
+					>
+						Got it
+					</button>
+				</form>
+			</div>
+		</dialog>
+
+		<script>
+			const revealSections = Array.from(document.querySelectorAll(".scroll-scale-in"));
+			if (revealSections.length > 0) {
+				if ("IntersectionObserver" in window) {
+					const io = new IntersectionObserver(
+						(entries) => {
+							for (const entry of entries) {
+								if (entry.isIntersecting) {
+									entry.target.classList.add("scroll-scale-in--visible");
+									io.unobserve(entry.target);
+								}
+							}
+						},
+						{ root: null, rootMargin: "0px 0px -10% 0px", threshold: 0.12 }
+					);
+					for (const section of revealSections) {
+						io.observe(section);
+					}
+				} else {
+					for (const section of revealSections) {
+						section.classList.add("scroll-scale-in--visible");
+					}
+				}
+			}
+		</script>
+
+		<script
+			define:vars={{
+				SSR_MANIFEST: releaseManifest,
+				LATEST_RELEASE_PAGE_URL,
+			}}
+		>
+			function pickPlatform() {
+				const ua = navigator.userAgent.toLowerCase();
+				if (/\bwin\b/.test(ua) || /windows/.test(ua)) return "windows";
+				if (/macintosh|mac os x|mac os/.test(ua)) return "mac";
+				if (/linux/.test(ua)) return "linux";
+				return "mac";
+			}
+
+			function labelForPlatform(p) {
+				if (p === "windows") return "Coming soon for Windows";
+				if (p === "linux") return "Coming soon for Linux";
+				return "Download for macOS — it's free";
+			}
+
+			function triggerDownloadSameTab(url) {
+				const iframe = document.createElement("iframe");
+				iframe.setAttribute("aria-hidden", "true");
+				iframe.tabIndex = -1;
+				iframe.style.cssText =
+					"position:fixed;width:0;height:0;border:0;margin:0;padding:0;opacity:0;pointer-events:none;visibility:hidden";
+				iframe.src = url;
+				document.body.appendChild(iframe);
+				window.setTimeout(() => iframe.remove(), 180_000);
+			}
+
+			(() => {
+				const btn = document.getElementById("download-btn");
+				const labelEl = document.getElementById("download-btn-label");
+				const versionEl = document.getElementById("download-version");
+				const macNotice = document.getElementById("mac-gatekeeper-notice");
+				if (!btn || !labelEl) return;
+
+				const platform = pickPlatform();
+				labelEl.textContent = labelForPlatform(platform);
+
+				if (platform !== "mac") {
+					btn.setAttribute("href", "#");
+					btn.classList.add("pointer-events-none", "opacity-50");
+					return;
+				}
+
+				const entry = SSR_MANIFEST?.downloads?.[platform];
+				if (entry?.url) {
+					btn.setAttribute("href", entry.url);
+				} else {
+					btn.setAttribute("href", LATEST_RELEASE_PAGE_URL);
+				}
+
+				if (versionEl && SSR_MANIFEST?.version) {
+					versionEl.textContent = `Version ${SSR_MANIFEST.version}`;
+					versionEl.classList.remove("hidden");
+				}
+
+				const onDownloadClick = (e) => {
+					if (platform !== "mac") return;
+					if (!(macNotice instanceof HTMLDialogElement)) return;
+
+					const target = e.currentTarget;
+					if (!(target instanceof HTMLAnchorElement)) return;
+
+					e.preventDefault();
+					const href = target.getAttribute("href");
+					macNotice.showModal();
+					if (href && href !== "#") triggerDownloadSameTab(href);
+				};
+
+				btn.addEventListener("click", onDownloadClick);
+			})();
+		</script>
+	</body>
+</html>

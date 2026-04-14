@@ -18,6 +18,7 @@
     "@tailwindcss/vite": "^4.2.2",
     "astro": "^6.1.4",
     "geist": "^1.7.0",
+    "marked": "^17.0.6",
     "tailwindcss": "^4.2.2",
     "wrangler": "^4.80.0"
   },

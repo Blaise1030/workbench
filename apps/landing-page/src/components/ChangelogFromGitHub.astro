@@ -1,0 +1,137 @@
+---
+import { marked } from "marked";
+import { CHANGELOG_RAW_URL, CHANGELOG_URL } from "../constants/releases";
+
+let bodyHtml = "";
+let loadError: string | null = null;
+
+try {
+	const res = await fetch(CHANGELOG_RAW_URL, {
+		headers: { "User-Agent": "workbench-landing-page (releases)" },
+	});
+	if (!res.ok) {
+		loadError = `Could not load changelog (HTTP ${res.status}).`;
+	} else {
+		let md = await res.text();
+		md = md.replace(/^#\s+Changelog\s*\n+/i, "");
+		const html = marked.parse(md, { gfm: true }) as string;
+		bodyHtml = html.replace(
+			/<a href="(https?:\/\/[^"]+)"/g,
+			'<a href="$1" target="_blank" rel="noopener noreferrer"',
+		);
+	}
+} catch {
+	loadError = "Could not load changelog from GitHub.";
+}
+---
+
+<section class="scroll-scale-in mt-14 border-t border-zinc-200 pt-12" aria-labelledby="changelog-heading">
+	<div class="mb-6 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+		<h2 id="changelog-heading" class="m-0 text-xl font-semibold tracking-tight text-zinc-900">
+			Desktop changelog
+		</h2>
+		<a
+			href={CHANGELOG_URL}
+			class="shrink-0 text-sm font-medium text-zinc-600 underline decoration-zinc-300 underline-offset-4 transition hover:text-zinc-900 hover:decoration-zinc-900"
+			target="_blank"
+			rel="noopener noreferrer"
+		>
+			View source on GitHub
+		</a>
+	</div>
+
+	{
+		loadError ? (
+			<div class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+				<p class="m-0">{loadError}</p>
+				<p class="mb-0 mt-2">
+					<a
+						href={CHANGELOG_URL}
+						class="font-medium text-amber-950 underline decoration-amber-400 underline-offset-2"
+						target="_blank"
+						rel="noopener noreferrer"
+					>
+						Open the changelog in GitHub
+					</a>
+				</p>
+			</div>
+		) : (
+			<article class="changelog-md" set:html={bodyHtml} />
+		)
+	}
+</section>
+
+<style is:global>
+	.changelog-md {
+		font-size: 0.9375rem;
+		line-height: 1.65;
+		color: #52525b;
+	}
+
+	.changelog-md :where(h1, h2, h3, h4) {
+		color: #18181b;
+		font-weight: 600;
+		letter-spacing: -0.02em;
+	}
+
+	.changelog-md :where(h1) {
+		font-size: 1.25rem;
+		margin: 2rem 0 0.75rem;
+	}
+
+	.changelog-md :where(h2) {
+		font-size: 1.125rem;
+		margin: 2.25rem 0 0.5rem;
+		padding-bottom: 0.35rem;
+		border-bottom: 1px solid #e4e4e7;
+	}
+
+	.changelog-md :where(h2):first-child {
+		margin-top: 0;
+	}
+
+	.changelog-md :where(h3) {
+		font-size: 0.6875rem;
+		text-transform: uppercase;
+		letter-spacing: 0.08em;
+		color: #71717a;
+		margin: 1.5rem 0 0.5rem;
+	}
+
+	.changelog-md :where(p) {
+		margin: 0.5rem 0;
+	}
+
+	.changelog-md :where(ul) {
+		margin: 0.35rem 0 0.75rem;
+		padding-left: 1.25rem;
+		list-style-type: disc;
+	}
+
+	.changelog-md :where(li) {
+		margin: 0.2rem 0;
+	}
+
+	.changelog-md :where(strong) {
+		color: #3f3f46;
+		font-weight: 600;
+	}
+
+	.changelog-md :where(a) {
+		color: #6d28d9;
+		text-decoration: underline;
+		text-underline-offset: 3px;
+	}
+
+	.changelog-md :where(a):hover {
+		color: #5b21b6;
+	}
+
+	.changelog-md :where(code) {
+		font-family: var(--font-mono);
+		font-size: 0.8125em;
+		background: #f4f4f5;
+		padding: 0.1em 0.35em;
+		border-radius: 0.25rem;
+	}
+</style>

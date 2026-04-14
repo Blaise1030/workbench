@@ -39,6 +39,7 @@ import {
   registerThreadCreateDialogOpener,
   type ThreadCreateDialogOpenOptions
 } from "@/composables/threadCreateDialog";
+import { usePreviewModalOcclusion } from "@/composables/usePreviewModalOcclusion";
 import { useWorkspaceKeybindings } from "@/composables/useWorkspaceKeybindings";
 import { formatShortcut, MOD_DIGIT_SLOT_CODES } from "@/keybindings/registry";
 import { useKeybindingsStore } from "@/stores/keybindingsStore";
@@ -134,6 +135,8 @@ watch(
 
 /** Top pills: Agent / Git / Files (never `shell:*`). */
 const mainCenterTab = ref<"agent" | "diff" | "files" | "preview">("agent");
+/** Preview tab is browser-like; hide the stacked terminal strip so it is not confused with the webview. */
+const suppressStackedTerminalChrome = computed(() => mainCenterTab.value === "preview");
 /** Lower overlay: thread agent vs extra shell tab. */
 const shellOverlayTab = ref<"agent" | `shell:${string}`>("agent");
 /** One UUID per integrated terminal tab (after Agent + Git). */
@@ -318,7 +321,11 @@ const topCenterPanelTabs = computed<PillTabItem[]>(() => {
     label: "📄 Files",
     shortcutHint: keybindings.shortcutLabelForId("focusFilesPanel")
   });
-  tabs.push({ value: "preview", label: "🌐 Preview" });
+  tabs.push({
+    value: "preview",
+    label: "🌐 Preview",
+    shortcutHint: keybindings.shortcutLabelForId("focusPreviewPanel")
+  });
   return tabs;
 });
 
@@ -1357,6 +1364,8 @@ async function onLauncherPickWorktree(worktreeId: string): Promise<void> {
   await handleSelectWorktree(worktreeId);
 }
 
+usePreviewModalOcclusion();
+
 useWorkspaceKeybindings(
   {
     workspaceUiActive: () => hasActiveWorkspace.value,
@@ -1854,7 +1863,7 @@ watch(
                   </div>
                 </div>
                   <div
-                    v-show="terminalPanelOpen"
+                    v-show="terminalPanelOpen && !suppressStackedTerminalChrome"
                     class="pointer-events-auto absolute inset-x-0 bottom-0 z-10 flex flex-col overflow-hidden border-t border-border bg-card shadow-[0_-6px_24px_rgba(0,0,0,0.08)] ring-1 ring-border/60 dark:shadow-[0_-8px_32px_rgba(0,0,0,0.45)]"
                     :style="shellOverlaySplitFlexStyle"
                   >
@@ -1958,7 +1967,7 @@ watch(
                     </div>
                   </div>
                 <button
-                  v-if="!terminalPanelOpen"
+                  v-if="!terminalPanelOpen && !suppressStackedTerminalChrome"
                   type="button"
                   class="pointer-events-auto flex w-full shrink-0 items-center justify-center gap-2 border-t border-border bg-card py-1 text-xs font-medium text-muted-foreground hover:bg-muted/50"
 :title="keybindings.titleWithShortcut('Show lower terminals', 'toggleTerminalPanel')"

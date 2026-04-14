@@ -58,11 +58,50 @@ function disposePreviewLoadHooks(): void {
   disposePreviewLoadBroadcast = null;
 }
 
+const PREVIEW_DEVICE_EMULATION_PRESETS = new Set(["clear", "mobile", "tablet", "desktop"]);
+
+/** Chromium `enableDeviceEmulation` / `disableDeviceEmulation` for the embedded preview page. */
+function applyPreviewDeviceEmulation(wc: WebContents, preset: string): void {
+  if (preset === "clear" || preset === "desktop") {
+    try {
+      wc.disableDeviceEmulation();
+    } catch {
+      /* noop */
+    }
+    return;
+  }
+  try {
+    if (preset === "mobile") {
+      wc.enableDeviceEmulation({
+        screenPosition: "mobile",
+        screenSize: { width: 390, height: 844 },
+        viewSize: { width: 390, height: 844 },
+        deviceScaleFactor: 0,
+        scale: 1,
+        viewPosition: { x: 0, y: 0 }
+      });
+      return;
+    }
+    if (preset === "tablet") {
+      wc.enableDeviceEmulation({
+        screenPosition: "mobile",
+        screenSize: { width: 834, height: 1194 },
+        viewSize: { width: 834, height: 1194 },
+        deviceScaleFactor: 0,
+        scale: 1,
+        viewPosition: { x: 0, y: 0 }
+      });
+    }
+  } catch {
+    /* preview may be closing */
+  }
+}
+
 /** Subscribe to preview `WebContents` navigation and push state to the workbench window. */
 function attachPreviewLoadBroadcast(wc: WebContents, hostWin: BrowserWindow): () => void {
   disposePreviewLoadHooks();
 
-  const filter = { urls: ["<all_urls>"] as const };
+  const filter: Electron.WebRequestFilter = { urls: ["<all_urls>"] };
   let lastMainFrame: { statusCode: number; statusLine: string; url: string } | null = null;
   let mainFrameFailed = false;
 
@@ -607,12 +646,42 @@ function registerIpc(workspaceService: WorkspaceService): void {
     }
     previewHostWindow = win;
     disposePreviewLoadBroadcast = attachPreviewLoadBroadcast(previewView.webContents, win);
+
+    // Forward workspace-owned key combos to the renderer. When focus is inside the
+    // WebContentsView its keydown events never reach the BrowserWindow, so we intercept
+    // them here and re-emit via IPC so `useWorkspaceKeybindings` can handle them.
+    const PREVIEW_WORKSPACE_CODES = new Set([
+      "BracketLeft", "BracketRight",
+      "KeyB", "KeyT", "KeyN", "KeyJ", "KeyF", "KeyA", "KeyG", "KeyE", "KeyK", "KeyS",
+      "Digit1", "Digit2", "Digit3", "Digit4", "Digit5", "Digit6", "Digit7", "Digit8", "Digit9",
+      "Comma", "Backslash", "Enter"
+    ]);
+    previewView.webContents.on("before-input-event", (inputEvent, input) => {
+      if (input.type !== "keyDown") return;
+      if (!previewHostWindow || previewHostWindow.isDestroyed()) return;
+      const mac = process.platform === "darwin";
+      const mod = mac ? input.meta : input.control;
+      if (!mod) return;
+      if (!PREVIEW_WORKSPACE_CODES.has(input.code)) return;
+      inputEvent.preventDefault();
+      previewHostWindow.webContents.send(IPC_CHANNELS.previewShortcutFired, {
+        mod: true,
+        shift: Boolean(input.shift),
+        alt: Boolean(input.alt),
+        code: input.code
+      });
+    });
   });
 
   ipcMain.handle(IPC_CHANNELS.previewHide, () => {
     if (!previewView) return;
     disposePreviewLoadHooks();
     previewHostWindow = null;
+    try {
+      previewView.webContents.disableDeviceEmulation();
+    } catch {
+      /* noop */
+    }
     for (const win of BrowserWindow.getAllWindows()) {
       try { win.contentView.removeChildView(previewView!); } catch { /* already removed */ }
     }
@@ -666,7 +735,23 @@ function registerIpc(workspaceService: WorkspaceService): void {
 
   ipcMain.handle(IPC_CHANNELS.previewOpenDevTools, () => {
     if (!previewView) return;
-    previewView.webContents.openDevTools({ mode: "detach" });
+    /** Dock inside the preview `WebContentsView` (split below the page). */
+    previewView.webContents.openDevTools({ mode: "bottom" });
+  });
+
+  ipcMain.handle(IPC_CHANNELS.previewSetDeviceEmulation, (_, payload: unknown) => {
+    if (!previewView || typeof payload !== "string") return;
+    if (!PREVIEW_DEVICE_EMULATION_PRESETS.has(payload)) return;
+    applyPreviewDeviceEmulation(previewView.webContents, payload);
+  });
+
+  ipcMain.handle(IPC_CHANNELS.previewSetOccludedByModal, (_, occluded: unknown) => {
+    if (!previewView || typeof occluded !== "boolean") return;
+    try {
+      previewView.setVisible(!occluded);
+    } catch {
+      /* preview tearing down */
+    }
   });
 }
 
