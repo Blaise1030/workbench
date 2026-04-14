@@ -1626,7 +1626,22 @@ defineExpose({
             @click="openFindInFile"
           >
             Find
-          </Button>          
+          </Button>
+          <Button
+            data-testid="toggle-file-editor-body"
+            variant="outline"
+            size="icon-xs"
+            class="size-7 shrink-0"
+            :disabled="!selectedPath"
+            :aria-pressed="editorCollapsed"
+            :title="editorCollapsed ? 'Expand editor' : 'Collapse editor'"
+            :aria-label="editorCollapsed ? 'Expand editor body' : 'Collapse editor body'"
+            @click="toggleEditorCollapsed"
+          >
+            <Minimize2 v-if="!editorCollapsed" class="h-3.5 w-3.5" aria-hidden="true" />
+            <Maximize2 v-else class="h-3.5 w-3.5" aria-hidden="true" />
+            <span class="sr-only">{{ editorCollapsed ? "Expand editor" : "Collapse editor" }}</span>
+          </Button>
           <Button
             data-testid="revert-file"
             variant="outline"
