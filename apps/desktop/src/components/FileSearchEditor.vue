@@ -24,7 +24,7 @@ import {
   ContextMenuTrigger
 } from "@/components/ui/context-menu";
 import FileTreeNode, { type FileTreeNodeData } from "@/components/FileTreeNode.vue";
-import CodeMirrorEditor, { type QueueableEditorSelection } from "@/components/CodeMirrorEditor.vue";
+import MonacoEditor, { type QueueableEditorSelection } from "@/components/MonacoEditor.vue";
 import ContextQueueSelectionPopup from "@/components/contextQueue/ContextQueueSelectionPopup.vue";
 import { buildPasteText } from "@/contextQueue/formatters";
 import { formatFolderListingFromFiles } from "@/contextQueue/folderListing";
@@ -292,7 +292,7 @@ const imagePreviewSrc = ref<string | null>(null);
 /** Dropped OS file (e.g. screencapture in temp) — not a worktree-relative selection. */
 const externalDropPreview = ref<{ src: string; title: string } | null>(null);
 
-const codeMirrorRef = ref<InstanceType<typeof CodeMirrorEditor> | null>(null);
+const monacoEditorRef = ref<InstanceType<typeof MonacoEditor> | null>(null);
 
 const fileEditorQueueVisible = ref(false);
 const fileEditorQueueAnchor = ref<Rect | null>(null);
@@ -401,7 +401,7 @@ const queueSelectionHintsEnabled = computed(
 );
 
 function openFindInFile(): void {
-  codeMirrorRef.value?.openFind();
+  monacoEditorRef.value?.openFind();
 }
 
 const markdownHtml = computed(() => {
@@ -409,7 +409,7 @@ const markdownHtml = computed(() => {
   return renderMarkdownToHtml(draftContent.value);
 });
 
-/** Stable primitives for CodeMirror Markdown image previews (avoid resetting the editor each keystroke). */
+/** Stable primitives for Markdown image preview props (Monaco keeps these for API compatibility). */
 const markdownImageWorkspaceRoot = computed(() =>
   isMarkdownFile.value && props.worktreePath ? props.worktreePath : null
 );
@@ -417,7 +417,7 @@ const markdownImageFilePath = computed(() =>
   isMarkdownFile.value && selectedPath.value ? selectedPath.value : null
 );
 
-/** Extension → CodeMirror language id (see `codemirrorLanguageExtensions.ts`). */
+/** Extension → Monaco language id. */
 const editorLanguage = computed(() => {
   const path = selectedPath.value;
   if (!path) return undefined;
@@ -1868,9 +1868,9 @@ defineExpose({
             class="markdown-reader h-full min-h-[18rem] overflow-y-auto rounded-md bg-muted/10 px-3 py-3"
             v-html="markdownHtml"
           />
-          <CodeMirrorEditor
+          <MonacoEditor
             v-else
-            ref="codeMirrorRef"
+            ref="monacoEditorRef"
             v-model="draftContent"
             :language="editorLanguage"
             :show-line-numbers="showLineNumbers"

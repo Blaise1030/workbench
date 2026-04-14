@@ -8,9 +8,9 @@ vi.mock("@/components/ui/Button.vue", () => ({
   default: { template: "<button v-bind=\"$attrs\"><slot /></button>" }
 }));
 
-vi.mock("@/components/CodeMirrorEditor.vue", () => ({
+vi.mock("@/components/MonacoEditor.vue", () => ({
   default: defineComponent({
-    name: "CodeMirrorEditor",
+    name: "MonacoEditor",
     props: {
       modelValue: { type: String, default: "" },
       language: String,
@@ -18,7 +18,12 @@ vi.mock("@/components/CodeMirrorEditor.vue", () => ({
       showLineNumbers: { type: Boolean, default: true }
     },
     emits: ["update:modelValue"],
-    setup(props, { emit }) {
+    setup(props, { emit, expose }) {
+      expose({
+        openFind: (): void => {
+          /* stub for FileSearchEditor toolbar */
+        }
+      });
       return () =>
         h("textarea", {
           "data-testid": "file-editor",
@@ -290,7 +295,7 @@ describe("FileSearchEditor", () => {
     expect(wrapper.find('[data-testid="file-editor"]').exists()).toBe(true);
   });
 
-  it("toggles CodeMirror line numbers", async () => {
+  it("toggles editor line numbers", async () => {
     listFiles.mockResolvedValue([{ relativePath: "src/App.vue", size: 11, modifiedAt: 1 }]);
     readFile.mockResolvedValue("const value = 1;\n");
 
