@@ -92,6 +92,16 @@ const props = withDefaults(
     scmFetchBusy?: boolean;
     scmPushBusy?: boolean;
     scmCommitBusy?: boolean;
+    /** When true, show local LLM “Suggest” control (parent gates on IPC + staged changes). */
+    suggestCommitAvailable?: boolean;
+    /** Tooltip / `title` when suggest is disabled (e.g. WebGPU unavailable). */
+    suggestCommitDisabledReason?: string | null;
+    suggestCommitBusy?: boolean;
+    /** `null` = WebGPU not probed yet; `false` = suggest disabled with explanation. */
+    suggestCommitGpuOk?: boolean | null;
+    suggestCommitTruncated?: boolean;
+    /** Up to three lines shown as ghost actions; parent owns generation. */
+    commitCandidates?: readonly string[];
     selectedPath: string | null;
     selectedScope: EntryScope | null;
     mergeResult: FileMergeSidesResult | null;
@@ -113,6 +123,12 @@ const props = withDefaults(
     scmFetchBusy: false,
     scmPushBusy: false,
     scmCommitBusy: false,
+    suggestCommitAvailable: false,
+    suggestCommitDisabledReason: null,
+    suggestCommitBusy: false,
+    suggestCommitGpuOk: null,
+    suggestCommitTruncated: false,
+    commitCandidates: () => [],
     activeThreadId: null
   }
 );
@@ -128,6 +144,8 @@ const emit = defineEmits<{
   fetch: [];
   push: [];
   commit: [];
+  suggestCommit: [];
+  applyCommitCandidate: [message: string];
   openFileInEditor: [path: string];
   branchChanged: [];
 }>();
@@ -228,6 +246,22 @@ const canCommit = computed(
     hasStagedChanges.value &&
     Boolean(commitMessage.value.trim())
 );
+
+const suggestCommitDisabled = computed(() => {
+  if (!props.suggestCommitAvailable) return true;
+  if (props.suggestCommitGpuOk === false) return true;
+  return false;
+});
+
+const suggestCommitTitle = computed(() => {
+  if (!props.suggestCommitAvailable) return undefined;
+  if (props.suggestCommitGpuOk === false) {
+    return props.suggestCommitDisabledReason ?? "WebGPU is not available. Commit suggestions require WebGPU.";
+  }
+  return undefined;
+});
+
+const visibleCommitCandidates = computed(() => [...(props.commitCandidates ?? [])].slice(0, 3));
 
 const commitExpanded = ref(false);
 const actionsOpen = ref(false);
@@ -800,13 +834,13 @@ onBeforeUnmount(() => {
           </div>
         </div>
 
-        <div class="relative">
+        <div class="relative border-t border-border">
           <textarea
             v-model="commitMessage"
             rows="4"
             placeholder="Enter commit message"
             aria-label="Commit message draft"
-            class="w-full resize-none rounded-none border-0 border-t border-border bg-background py-1.5 pb-10 pl-2 pr-7 font-mono text-[10px] leading-snug text-foreground placeholder:text-muted-foreground focus:outline-none"
+            class="w-full resize-none rounded-none border-0 bg-background py-1.5 pl-2 pr-7 font-mono text-[10px] leading-snug text-foreground placeholder:text-muted-foreground focus:outline-none"
             :class="commitExpanded ? 'min-h-[11rem]' : 'min-h-[4.5rem]'"
           />
           <Button
@@ -821,18 +855,61 @@ onBeforeUnmount(() => {
             <Minimize2 v-if="commitExpanded" class="h-3 w-3" aria-hidden="true" />
             <Maximize2 v-else class="h-3 w-3" aria-hidden="true" />
           </Button>
-          <Button
-            type="button"
-            size="xs"
-            variant="default"
-            class="absolute bottom-2 right-2 h-7 shrink-0 px-3 text-[10px]"
-            :disabled="!canCommit"
-            aria-label="Commit staged changes"
-            @click="emit('commit')"
-          >
-            <Loader2 v-if="scmCommitBusy" class="mr-1 h-3 w-3 animate-spin" aria-hidden="true" />
-            Commit
-          </Button>
+          <div class="space-y-1 border-t border-border/80 bg-muted/5 px-2 py-1.5">
+            <p
+              v-if="suggestCommitTruncated"
+              class="text-[9px] leading-tight text-muted-foreground"
+            >
+              Staged diff was truncated for speed.
+            </p>
+            <div v-if="visibleCommitCandidates.length" class="flex flex-wrap gap-1">
+              <Button
+                v-for="(cand, idx) in visibleCommitCandidates"
+                :key="`${idx}:${cand.slice(0, 24)}`"
+                type="button"
+                variant="ghost"
+                size="xs"
+                class="h-auto max-w-full justify-start truncate px-2 py-1 text-left font-mono text-[9px] leading-tight text-muted-foreground hover:text-foreground"
+                :title="cand"
+                @click="emit('applyCommitCandidate', cand)"
+              >
+                {{ cand }}
+              </Button>
+            </div>
+            <div class="flex items-center justify-end gap-1.5">
+              <Button
+                v-if="suggestCommitAvailable"
+                data-testid="scm-suggest-commit"
+                type="button"
+                size="xs"
+                variant="secondary"
+                class="h-7 shrink-0 px-2 text-[10px]"
+                :disabled="suggestCommitDisabled || suggestCommitBusy"
+                :title="suggestCommitTitle"
+                aria-label="Suggest commit message from staged changes"
+                @click="emit('suggestCommit')"
+              >
+                <Loader2
+                  v-if="suggestCommitBusy"
+                  class="mr-1 h-3 w-3 shrink-0 animate-spin"
+                  aria-hidden="true"
+                />
+                Suggest
+              </Button>
+              <Button
+                type="button"
+                size="xs"
+                variant="default"
+                class="h-7 shrink-0 px-3 text-[10px]"
+                :disabled="!canCommit"
+                aria-label="Commit staged changes"
+                @click="emit('commit')"
+              >
+                <Loader2 v-if="scmCommitBusy" class="mr-1 h-3 w-3 animate-spin" aria-hidden="true" />
+                Commit
+              </Button>
+            </div>
+          </div>
         </div>
       </footer>
     </aside>

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeMount, onBeforeUnmount, onMounted, provide, ref, watch } from "vue";
+import { computed, nextTick, onBeforeMount, onBeforeUnmount, onMounted, provide, reactive, ref, watch } from "vue";
 import { ChevronDown, ChevronUp, Plus, Settings } from "lucide-vue-next";
 import Button from "@/components/ui/Button.vue";
 import Badge from "@/components/ui/Badge.vue";
@@ -40,6 +40,7 @@ import {
 import { useTerminalAttentionSounds } from "@/composables/useTerminalAttentionSounds";
 import { useTerminalSoundSettings } from "@/composables/useTerminalSoundSettings";
 import { useToast } from "@/composables/useToast";
+import { useLocalLlm } from "@/composables/useLocalLlm";
 import { usePreviewModalOcclusion } from "@/composables/usePreviewModalOcclusion";
 import { useWorkspaceKeybindings } from "@/composables/useWorkspaceKeybindings";
 import { readPreferredThreadAgent } from "@/composables/usePreferredThreadAgent";
@@ -77,6 +78,7 @@ const terminalBackgroundOutputSound = ref(false);
 const { commands, applySaved, bootstrapCommandLineWithPrompt } = useAgentBootstrapCommands();
 const agentCommandsSettingsOpen = ref(false);
 const toast = useToast();
+const localLlm = reactive(useLocalLlm());
 /** `null` while checking the active worktree; `false` when the folder is not a Git repository. */
 const hasGitRepository = ref<boolean | null>(null);
 const repoStatus = ref<RepoStatusEntry[]>([]);
@@ -543,6 +545,28 @@ function getApi(): WorkspaceApi | null {
 const scmFetchAvailable = computed(() => Boolean(getApi()?.gitFetch));
 const scmPushAvailable = computed(() => Boolean(getApi()?.gitPush));
 const scmCommitAvailable = computed(() => Boolean(getApi()?.commitStaged));
+
+const scmHasStagedFiles = computed(() =>
+  repoStatus.value.some((e) => Boolean(e.stagedKind) && !e.isUntracked)
+);
+
+const scmSuggestCommitAvailable = computed(
+  () =>
+    Boolean(getApi()?.stagedUnifiedDiff) &&
+    hasGitRepository.value === true &&
+    scmHasStagedFiles.value
+);
+
+const scmSuggestCommitBusy = computed(
+  () => localLlm.commitSuggestState === "generating" || localLlm.commitSuggestState === "loading"
+);
+
+const scmSuggestCommitDisabledReason = computed(() => {
+  if (localLlm.webGpuOk === false) {
+    return "WebGPU is not available. Commit suggestions require WebGPU.";
+  }
+  return null;
+});
 
 async function refreshSnapshot(snapshot?: WorkspaceSnapshot): Promise<void> {
   const api = getApi();
@@ -1242,6 +1266,17 @@ async function handleScmCommit(): Promise<void> {
   }
 }
 
+async function handleScmSuggestCommit(): Promise<void> {
+  await localLlm.suggestFromStaged(workspace.activeWorktree?.path ?? null);
+  if (localLlm.commitSuggestState === "error" && localLlm.commitSuggestError) {
+    toast.error("Could not suggest commit", localLlm.commitSuggestError);
+  }
+}
+
+function handleApplyCommitCandidate(message: string): void {
+  scmCommitMessage.value = message;
+}
+
 function handleSelectScmEntry(payload: { path: string; scope: "staged" | "unstaged" }): void {
   selectedScmPath.value = payload.path;
   selectedScmScope.value = payload.scope;
@@ -1794,6 +1829,12 @@ watch(
                       :scm-fetch-busy="scmFetchBusy"
                       :scm-push-busy="scmPushBusy"
                       :scm-commit-busy="scmCommitBusy"
+                      :suggest-commit-available="scmSuggestCommitAvailable"
+                      :suggest-commit-disabled-reason="scmSuggestCommitDisabledReason"
+                      :suggest-commit-busy="scmSuggestCommitBusy"
+                      :suggest-commit-gpu-ok="localLlm.webGpuOk"
+                      :suggest-commit-truncated="localLlm.lastStagedTruncated"
+                      :commit-candidates="localLlm.commitCandidates"
                       :selected-path="selectedScmPath"
                       :selected-scope="selectedScmScope"
                       :merge-result="selectedMergeResult"
@@ -1809,6 +1850,8 @@ watch(
                       @fetch="handleScmFetch"
                       @push="handleScmPush"
                       @commit="handleScmCommit"
+                      @suggest-commit="handleScmSuggestCommit"
+                      @apply-commit-candidate="handleApplyCommitCandidate"
                       @open-file-in-editor="handleScmOpenFileInEditor"
                       @branch-changed="void refreshRepoStatus()"
                     />
