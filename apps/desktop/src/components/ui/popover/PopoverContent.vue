@@ -28,7 +28,7 @@ const delegatedProps = reactiveOmit(props, "class", "collisionBoundary")
 
 const forwarded = useForwardPropsEmits(delegatedProps, emits)
 
-/** Avoid overlapping the native preview `WebContentsView` (invisible mirror in `body`). */
+/** Avoid overlapping the native preview `BrowserView` (invisible mirror in `body`). */
 const collisionBoundaryMerged = computed((): Element[] | undefined => {
   const p = props.collisionBoundary
   const list: Element[] = []

@@ -150,10 +150,20 @@ export type PreviewProbeResult =
   | { ok: true; status: number }
   | { ok: false; code: "invalid" | "network"; message: string };
 
-/** Pixel bounds for positioning the native preview WebContentsView. */
+/** Pixel bounds for positioning the native preview `BrowserView`. */
 export type PreviewBounds = { x: number; y: number; width: number; height: number };
 
-/** Main process → renderer: preview WebContentsView load lifecycle. */
+/** Result of a main-process preview navigation (`BrowserView` load / reload). */
+export type PreviewNativeLoadResult =
+  | { ok: true }
+  | { ok: false; errorCode: number; errorDescription: string };
+
+/** Result of toggling embedded Chrome DevTools for the preview `BrowserView`. */
+export type PreviewDevToolsToggleResult =
+  | { ok: true; open: boolean }
+  | { ok: false; reason: "no-preview" | "no-bounds" | "no-window" };
+
+/** Main process → renderer: preview native layer load lifecycle (badges / status). */
 export type PreviewLoadStatePayload =
   | { kind: "loading"; url: string }
   | { kind: "loaded"; url: string; statusCode: number }

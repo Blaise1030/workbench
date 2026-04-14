@@ -1,5 +1,11 @@
-import { contextBridge, ipcRenderer, webUtils } from "electron";
-import type { AppUpdateAvailability, PreviewProbeResult } from "../src/shared/ipc.js";
+import { contextBridge, ipcRenderer, webUtils, type IpcRendererEvent } from "electron";
+import type {
+  AppUpdateAvailability,
+  PreviewBounds,
+  PreviewDevToolsToggleResult,
+  PreviewNativeLoadResult,
+  PreviewProbeResult
+} from "../src/shared/ipc.js";
 
 /**
  * Sandboxed preload may only `require("electron")`, not sibling modules — keep these strings in sync
@@ -52,6 +58,12 @@ const IPC_CHANNELS = {
   editApplyPatch: "edit:applyPatch",
   previewProbeUrl: "preview:probeUrl",
   previewOpenUrlExternally: "preview:openUrlExternally",
+  previewNativeSetBounds: "preview:nativeSetBounds",
+  previewNativeLoadUrl: "preview:nativeLoadUrl",
+  previewNativeReload: "preview:nativeReload",
+  previewNativeDetach: "preview:nativeDetach",
+  previewNativeToggleDevTools: "preview:nativeToggleDevTools",
+  previewEmbeddedDevtoolsState: "preview:embeddedDevtoolsState",
   terminalPtyCreate: "terminal:ptyCreate",
   terminalPtyWrite: "terminal:ptyWrite",
   terminalPtyResize: "terminal:ptyResize",
@@ -215,5 +227,20 @@ contextBridge.exposeInMainWorld("workspaceApi", {
 
 contextBridge.exposeInMainWorld("previewApi", {
   probeUrl: (url: string) => ipcRenderer.invoke(IPC_CHANNELS.previewProbeUrl, url) as Promise<PreviewProbeResult>,
-  openUrlExternally: (url: string) => ipcRenderer.invoke(IPC_CHANNELS.previewOpenUrlExternally, url)
+  openUrlExternally: (url: string) => ipcRenderer.invoke(IPC_CHANNELS.previewOpenUrlExternally, url),
+  setNativeBounds: (bounds: PreviewBounds) =>
+    ipcRenderer.invoke(IPC_CHANNELS.previewNativeSetBounds, bounds) as Promise<void>,
+  loadNativeUrl: (url: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.previewNativeLoadUrl, url) as Promise<PreviewNativeLoadResult>,
+  reloadNative: () => ipcRenderer.invoke(IPC_CHANNELS.previewNativeReload) as Promise<PreviewNativeLoadResult>,
+  detachNative: () => ipcRenderer.invoke(IPC_CHANNELS.previewNativeDetach) as Promise<void>,
+  toggleEmbeddedDevTools: () =>
+    ipcRenderer.invoke(IPC_CHANNELS.previewNativeToggleDevTools) as Promise<PreviewDevToolsToggleResult>,
+  onPreviewEmbeddedDevtoolsOpen: (callback: (open: boolean) => void) => {
+    const handler = (_event: IpcRendererEvent, payload: { open?: boolean }) => {
+      callback(!!payload?.open);
+    };
+    ipcRenderer.on(IPC_CHANNELS.previewEmbeddedDevtoolsState, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.previewEmbeddedDevtoolsState, handler);
+  }
 });

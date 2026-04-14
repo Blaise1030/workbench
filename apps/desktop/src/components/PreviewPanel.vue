@@ -1,5 +1,5 @@
 <template>
-  <!-- Floating UI collision boundary aligned to the preview content area (in-DOM iframe). -->
+  <!-- Floating UI collision boundary aligned to the preview content area (native BrowserView). -->
   <Teleport to="body">
     <div
       ref="collisionMirrorRef"
@@ -42,26 +42,20 @@
         data-testid="preview-devtools-btn"
         type="button"
         class="shrink-0 rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
-        title="Open in system browser (full DevTools, separate window)"
-        @click="openPreviewInSystemBrowser"
+        :class="{ 'bg-muted text-foreground': previewDevtoolsOpen }"
+        :aria-pressed="previewDevtoolsOpen"
+        title="Toggle embedded Chrome DevTools (device toolbar and Dock side: Chrome ⋮ menu)"
+        @click="toggleEmbeddedDevTools"
       >
         <Bug class="h-3.5 w-3.5" />
       </button>
     </div>
     <div ref="viewportRef" data-testid="preview-viewport" class="relative min-h-0 flex-1 overflow-hidden">
-      <iframe
-        v-if="iframeSrc"
-        :key="iframeReloadKey"
-        ref="iframeRef"
-        data-testid="preview-iframe"
-        class="absolute inset-0 h-full w-full border-0 bg-background"
-        sandbox="allow-scripts allow-forms allow-popups allow-modals allow-downloads allow-same-origin"
-        referrerpolicy="no-referrer-when-downgrade"
-        :src="iframeSrc"
-        @load="onIframeLoad"
-        @error="onIframeError"
+      <div
+        class="absolute inset-0 bg-muted/30"
+        :class="{ 'opacity-0': !activePreviewUrl }"
+        aria-hidden="true"
       />
-      <div v-else class="absolute inset-0 bg-muted/30" aria-hidden="true" />
     </div>
   </div>
 </template>
@@ -81,11 +75,10 @@ const urlInput = ref("");
 const collisionMirrorRef = ref<HTMLDivElement | null>(null);
 const panelRootRef = ref<HTMLDivElement | null>(null);
 const viewportRef = ref<HTMLDivElement | null>(null);
-const iframeRef = ref<HTMLIFrameElement | null>(null);
-/** Current navigation target for the preview iframe. */
-const iframeSrc = ref("");
-/** Bump to force iframe remount (reload). */
-const iframeReloadKey = ref(0);
+/** Current navigation target for the preview BrowserView. */
+const activePreviewUrl = ref("");
+/** Embedded Chrome DevTools split is open (main-process). */
+const previewDevtoolsOpen = ref(false);
 /** Monotonic counter so late `load` / `probeUrl` from a superseded navigation are ignored. */
 let loadSeq = 0;
 
@@ -123,7 +116,9 @@ watch(
   (worktreeId, prevWorktreeId) => {
     loadState.value = null;
     if (prevWorktreeId != null && prevWorktreeId !== worktreeId) {
-      iframeSrc.value = "";
+      activePreviewUrl.value = "";
+      previewDevtoolsOpen.value = false;
+      void getApi()?.detachNative?.().catch(() => {});
     }
     urlInput.value = loadPreviewPanelUrl(worktreeId);
     if (prevWorktreeId != null && prevWorktreeId !== worktreeId) {
@@ -178,6 +173,24 @@ function getApi(): Window["previewApi"] {
   return window.previewApi;
 }
 
+function pushNativeBounds(): void {
+  const api = getApi();
+  if (!api?.setNativeBounds) return;
+  const r = viewportScreenRect.value;
+  if (!r || r.width < 2 || r.height < 2) {
+    void api.setNativeBounds({ x: 0, y: 0, width: 0, height: 0 }).catch(() => {});
+    return;
+  }
+  void api
+    .setNativeBounds({
+      x: Math.round(r.left),
+      y: Math.round(r.top),
+      width: Math.round(r.width),
+      height: Math.round(r.height)
+    })
+    .catch(() => {});
+}
+
 function normalizeUrl(raw: string): string {
   const t = raw.trim();
   if (/^\d+$/.test(t)) return `http://localhost:${t}`;
@@ -211,6 +224,7 @@ function syncPreviewViewportMetrics(): void {
   } else {
     setPreviewNativeViewportTopPx(null);
   }
+  pushNativeBounds();
   void nextTick(() => {
     const mirror = collisionMirrorRef.value;
     const vr = viewportScreenRect.value;
@@ -258,22 +272,60 @@ async function applyProbeAfterLoad(url: string, seq: number): Promise<void> {
   }
 }
 
-function onIframeLoad(): void {
-  const url = iframeSrc.value;
-  if (!url) return;
-  const seq = loadSeq;
-  void applyProbeAfterLoad(url, seq);
+async function runLoadUrl(url: string, seq: number): Promise<void> {
+  pushNativeBounds();
+  const api = getApi();
+  if (!api?.loadNativeUrl) {
+    if (seq !== loadSeq) return;
+    loadState.value = {
+      kind: "failed",
+      url,
+      errorCode: 0,
+      errorDescription: "previewApi.loadNativeUrl is not available"
+    };
+    return;
+  }
+  const result = await api.loadNativeUrl(url);
+  if (seq !== loadSeq) return;
+  if (!result.ok) {
+    loadState.value = {
+      kind: "failed",
+      url,
+      errorCode: result.errorCode,
+      errorDescription: result.errorDescription
+    };
+    return;
+  }
+  await applyProbeAfterLoad(url, seq);
 }
 
-function onIframeError(): void {
-  const url = iframeSrc.value;
+async function runReload(seq: number): Promise<void> {
+  pushNativeBounds();
+  const api = getApi();
+  const url = activePreviewUrl.value;
   if (!url) return;
-  loadState.value = {
-    kind: "failed",
-    url,
-    errorCode: 0,
-    errorDescription: "Iframe load error"
-  };
+  if (!api?.reloadNative) {
+    if (seq !== loadSeq) return;
+    loadState.value = {
+      kind: "failed",
+      url,
+      errorCode: 0,
+      errorDescription: "previewApi.reloadNative is not available"
+    };
+    return;
+  }
+  const result = await api.reloadNative();
+  if (seq !== loadSeq) return;
+  if (!result.ok) {
+    loadState.value = {
+      kind: "failed",
+      url,
+      errorCode: result.errorCode,
+      errorDescription: result.errorDescription
+    };
+    return;
+  }
+  await applyProbeAfterLoad(url, seq);
 }
 
 function navigate(): void {
@@ -283,30 +335,41 @@ function navigate(): void {
   urlInput.value = url;
   savePreviewPanelUrl(workspace.activeWorktreeId, url);
   loadSeq += 1;
+  const seq = loadSeq;
   loadState.value = { kind: "loading", url: "" };
-  if (url === iframeSrc.value) {
-    iframeReloadKey.value += 1;
+  if (url === activePreviewUrl.value) {
+    void runReload(seq);
     return;
   }
-  iframeSrc.value = url;
+  activePreviewUrl.value = url;
+  void runLoadUrl(url, seq);
 }
 
 function reload(): void {
-  const u = iframeSrc.value;
+  const u = activePreviewUrl.value;
   if (!u) return;
   loadSeq += 1;
+  const seq = loadSeq;
   loadState.value = { kind: "loading", url: "" };
-  iframeReloadKey.value += 1;
+  void runReload(seq);
 }
 
-function openPreviewInSystemBrowser(): void {
-  const u = iframeSrc.value.trim();
-  if (!u) return;
-  void getApi()?.openUrlExternally(u).catch(() => {});
+async function toggleEmbeddedDevTools(): Promise<void> {
+  if (!activePreviewUrl.value.trim()) return;
+  const api = getApi();
+  if (!api?.toggleEmbeddedDevTools) return;
+  try {
+    const r = await api.toggleEmbeddedDevTools();
+    if (r.ok) previewDevtoolsOpen.value = r.open;
+    else previewDevtoolsOpen.value = false;
+  } catch {
+    previewDevtoolsOpen.value = false;
+  }
 }
 
 let resizeObserver: ResizeObserver | null = null;
 let viewportMetricsRafId = 0;
+let offEmbeddedDevtoolsState: (() => void) | undefined;
 
 function schedulePreviewViewportMetrics(): void {
   if (viewportMetricsRafId !== 0) {
@@ -319,6 +382,9 @@ function schedulePreviewViewportMetrics(): void {
 }
 
 onMounted(() => {
+  offEmbeddedDevtoolsState = getApi()?.onPreviewEmbeddedDevtoolsOpen?.((open) => {
+    previewDevtoolsOpen.value = open;
+  });
   syncPreviewViewportMetrics();
   resizeObserver = new ResizeObserver(() => schedulePreviewViewportMetrics());
   if (panelRootRef.value) resizeObserver.observe(panelRootRef.value);
@@ -331,6 +397,8 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
+  offEmbeddedDevtoolsState?.();
+  offEmbeddedDevtoolsState = undefined;
   if (viewportMetricsRafId !== 0) {
     cancelAnimationFrame(viewportMetricsRafId);
     viewportMetricsRafId = 0;
@@ -339,6 +407,8 @@ onUnmounted(() => {
   viewportScreenRect.value = null;
   setPreviewNativeViewportTopPx(null);
   setPreviewNativeCollisionEl(null);
-  iframeSrc.value = "";
+  activePreviewUrl.value = "";
+  previewDevtoolsOpen.value = false;
+  void getApi()?.detachNative?.().catch(() => {});
 });
 </script>

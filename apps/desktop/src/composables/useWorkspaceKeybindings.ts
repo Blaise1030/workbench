@@ -229,7 +229,7 @@ export function useWorkspaceKeybindings(ctx: WorkspaceKeybindingContext, enabled
 
   onMounted(() => {
     window.addEventListener("keydown", onKeydown, { capture: true });
-    // When the preview WebContentsView has focus, keydown events never reach this window.
+    // When the preview BrowserView has focus, keydown events never reach this window.
     // The main process intercepts them via `before-input-event` and forwards them here so
     // all workspace shortcuts work regardless of which view is focused.
     disposePreviewShortcut = window.previewApi?.onShortcutFired?.((payload) => {

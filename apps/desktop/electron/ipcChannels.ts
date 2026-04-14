@@ -53,6 +53,18 @@ export const IPC_CHANNELS = {
   previewProbeUrl: "preview:probeUrl",
   /** Open http(s) preview URL in the system browser (e.g. full DevTools). */
   previewOpenUrlExternally: "preview:openUrlExternally",
+  /** Position the preview `BrowserView` over the renderer viewport (DIP, content-area coords). */
+  previewNativeSetBounds: "preview:nativeSetBounds",
+  /** Load http(s) URL in the preview `BrowserView`; resolves when the main frame finishes or fails. */
+  previewNativeLoadUrl: "preview:nativeLoadUrl",
+  /** Reload the preview `BrowserView`. */
+  previewNativeReload: "preview:nativeReload",
+  /** Remove the preview `BrowserView` from the window (e.g. tab hidden or panel unmounted). */
+  previewNativeDetach: "preview:nativeDetach",
+  /** Toggle embedded Chrome DevTools for the preview (device toolbar / responsive). */
+  previewNativeToggleDevTools: "preview:nativeToggleDevTools",
+  /** Main → renderer: embedded preview DevTools visibility (e.g. user closed DevTools from Chrome UI). */
+  previewEmbeddedDevtoolsState: "preview:embeddedDevtoolsState",
   terminalPtyCreate: "terminal:ptyCreate",
   terminalPtyWrite: "terminal:ptyWrite",
   terminalPtyResize: "terminal:ptyResize",

@@ -299,7 +299,7 @@ function syncDetailsPanelPosition(): void {
 }
 
 /**
- * Keep the teleported hover card above the native preview `WebContentsView`, which
+ * Keep the teleported hover card above the native preview `BrowserView`, which
  * composites on top of HTML wherever it overlaps the page.
  */
 function applyDetailsPanelOcclusion(): void {

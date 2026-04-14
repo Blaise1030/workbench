@@ -2,6 +2,13 @@ import fs from "node:fs";
 import path from "node:path";
 import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
 import {
+  previewNativeDetach,
+  previewNativeLoadUrl,
+  previewNativeReload,
+  previewNativeSetBounds,
+  previewNativeToggleEmbeddedDevTools
+} from "./previewBrowserViewHost.js";
+import {
   IPC_CHANNELS,
   type AddProjectInput,
   type AddWorktreeInput,
@@ -514,6 +521,16 @@ function registerIpc(workspaceService: WorkspaceService): void {
     if (typeof url !== "string" || !isSafePreviewOpenExternalUrl(url)) return;
     await shell.openExternal(url);
   });
+
+  ipcMain.handle(IPC_CHANNELS.previewNativeSetBounds, (event, bounds: unknown) => {
+    previewNativeSetBounds(event, bounds);
+  });
+  ipcMain.handle(IPC_CHANNELS.previewNativeDetach, (event) => {
+    previewNativeDetach(event);
+  });
+  ipcMain.handle(IPC_CHANNELS.previewNativeLoadUrl, (event, url: unknown) => previewNativeLoadUrl(event, url));
+  ipcMain.handle(IPC_CHANNELS.previewNativeReload, (event) => previewNativeReload(event));
+  ipcMain.handle(IPC_CHANNELS.previewNativeToggleDevTools, (event) => previewNativeToggleEmbeddedDevTools(event));
 }
 
 const dataDir = app.getPath("userData");

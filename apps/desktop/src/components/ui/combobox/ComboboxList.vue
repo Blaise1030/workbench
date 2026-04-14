@@ -21,7 +21,7 @@ const emits = defineEmits<ComboboxContentEmits>()
 const delegatedProps = reactiveOmit(props, "class", "collisionBoundary")
 const forwarded = useForwardPropsEmits(delegatedProps, emits)
 
-/** Same as `PopoverContent`: keep the list away from the native preview `WebContentsView` region. */
+/** Same as `PopoverContent`: keep the list away from the native preview `BrowserView` region. */
 const collisionBoundaryMerged = computed((): Element[] | undefined => {
   const p = props.collisionBoundary
   const list: Element[] = []

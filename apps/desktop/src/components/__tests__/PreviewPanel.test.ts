@@ -19,16 +19,18 @@ vi.mock("@/stores/workspaceStore", () => ({
 function makePreviewApi() {
   return {
     probeUrl: vi.fn().mockResolvedValue({ ok: true, status: 200 } satisfies PreviewProbeResult),
-    openUrlExternally: vi.fn().mockResolvedValue(undefined)
+    setNativeBounds: vi.fn().mockResolvedValue(undefined),
+    loadNativeUrl: vi.fn().mockResolvedValue({ ok: true } as const),
+    reloadNative: vi.fn().mockResolvedValue({ ok: true } as const),
+    detachNative: vi.fn().mockResolvedValue(undefined),
+    toggleEmbeddedDevTools: vi.fn().mockResolvedValue({ ok: true, open: true } as const),
+    onPreviewEmbeddedDevtoolsOpen: vi.fn().mockReturnValue(() => {})
   };
 }
 
-async function flushIframeLoad(wrapper: ReturnType<typeof mount>): Promise<void> {
-  const iframe = wrapper.find('[data-testid="preview-iframe"]');
-  if (iframe.exists()) {
-    await iframe.trigger("load");
-    await flushPromises();
-  }
+async function flushPreviewNavigation(wrapper: ReturnType<typeof mount>): Promise<void> {
+  await flushPromises();
+  await wrapper.vm.$nextTick();
 }
 
 describe("PreviewPanel", () => {
@@ -51,17 +53,22 @@ describe("PreviewPanel", () => {
     wrapper.unmount();
   });
 
-  it("does not use a native preview layer (no show/hide IPC)", async () => {
+  it("uses the native preview layer (bounds IPC; detach on unmount)", async () => {
     const wrapper = mount(PreviewPanel, { attachTo: document.body });
-    await flushPromises();
-    expect(previewApi).not.toHaveProperty("show");
-    expect(previewApi).not.toHaveProperty("hide");
+    await flushPreviewNavigation(wrapper);
+    expect(previewApi.setNativeBounds).toHaveBeenCalled();
     wrapper.unmount();
+    expect(previewApi.detachNative).toHaveBeenCalled();
   });
 
   it("shows a loading badge after Enter navigation without exposing the URL", async () => {
+    let finishLoad!: (v: { ok: true }) => void;
+    const loadGate = new Promise<{ ok: true }>((resolve) => {
+      finishLoad = resolve;
+    });
+    previewApi.loadNativeUrl.mockImplementationOnce(() => loadGate);
     const wrapper = mount(PreviewPanel, { attachTo: document.body });
-    await flushPromises();
+    await flushPreviewNavigation(wrapper);
     const input = wrapper.find('[data-testid="preview-url-input"]');
     await input.setValue("8080");
     await input.trigger("keydown.enter");
@@ -71,18 +78,19 @@ describe("PreviewPanel", () => {
     expect(badge.text()).toBe("…");
     expect((badge.element as HTMLElement).getAttribute("title")).toBe("Loading…");
     expect(badge.text()).not.toMatch(/localhost|8080/);
-    const iframe = wrapper.find('[data-testid="preview-iframe"]');
-    expect(iframe.exists()).toBe(true);
-    expect(iframe.attributes("src")).toBe("http://localhost:8080");
+    expect(previewApi.loadNativeUrl).toHaveBeenCalledWith("http://localhost:8080");
+    finishLoad!({ ok: true });
+    await flushPreviewNavigation(wrapper);
     wrapper.unmount();
   });
 
   it("saves normalized URL to localStorage for the active worktree on Enter", async () => {
     const wrapper = mount(PreviewPanel, { attachTo: document.body });
-    await flushPromises();
+    await flushPreviewNavigation(wrapper);
     const input = wrapper.find('[data-testid="preview-url-input"]');
     await input.setValue("8080");
     await input.trigger("keydown.enter");
+    await flushPreviewNavigation(wrapper);
     expect(localStorage.getItem("instrument.previewPanelUrl.wt-test-1")).toBe("http://localhost:8080");
     wrapper.unmount();
   });
@@ -90,7 +98,7 @@ describe("PreviewPanel", () => {
   it("restores saved URL from localStorage when mounted", async () => {
     localStorage.setItem("instrument.previewPanelUrl.wt-test-1", "http://localhost:1111");
     const wrapper = mount(PreviewPanel, { attachTo: document.body });
-    await flushPromises();
+    await flushPreviewNavigation(wrapper);
     await wrapper.vm.$nextTick();
     expect((wrapper.find('[data-testid="preview-url-input"]').element as HTMLInputElement).value).toBe(
       "http://localhost:1111"
@@ -98,107 +106,107 @@ describe("PreviewPanel", () => {
     wrapper.unmount();
   });
 
-  it("loads restored URL into the iframe when localStorage has a saved URL", async () => {
+  it("loads restored URL into the BrowserView when localStorage has a saved URL", async () => {
     localStorage.setItem("instrument.previewPanelUrl.wt-test-1", "http://localhost:1111");
     const wrapper = mount(PreviewPanel, { attachTo: document.body });
-    await flushPromises();
+    await flushPreviewNavigation(wrapper);
     await wrapper.vm.$nextTick();
-    const iframe = wrapper.find('[data-testid="preview-iframe"]');
-    expect(iframe.exists()).toBe(true);
-    expect(iframe.attributes("src")).toBe("http://localhost:1111");
+    expect(previewApi.loadNativeUrl).toHaveBeenCalledWith("http://localhost:1111");
     wrapper.unmount();
   });
 
-  it("swaps input and iframe when active worktree changes", async () => {
+  it("swaps input and preview URL when active worktree changes", async () => {
     localStorage.setItem("instrument.previewPanelUrl.wt-test-1", "http://localhost:1");
     localStorage.setItem("instrument.previewPanelUrl.wt-test-2", "http://localhost:2");
     previewPanelWorkspaceStub.activeWorktreeId = "wt-test-1";
     const wrapper = mount(PreviewPanel, { attachTo: document.body });
-    await flushPromises();
+    await flushPreviewNavigation(wrapper);
     await wrapper.vm.$nextTick();
     expect((wrapper.find('[data-testid="preview-url-input"]').element as HTMLInputElement).value).toBe(
       "http://localhost:1"
     );
-    expect(wrapper.find('[data-testid="preview-iframe"]').attributes("src")).toBe("http://localhost:1");
+    expect(previewApi.loadNativeUrl).toHaveBeenCalledWith("http://localhost:1");
     previewPanelWorkspaceStub.activeWorktreeId = "wt-test-2";
     await wrapper.vm.$nextTick();
     await wrapper.vm.$nextTick();
-    await flushPromises();
+    await flushPreviewNavigation(wrapper);
     expect((wrapper.find('[data-testid="preview-url-input"]').element as HTMLInputElement).value).toBe(
       "http://localhost:2"
     );
-    expect(wrapper.find('[data-testid="preview-iframe"]').attributes("src")).toBe("http://localhost:2");
+    expect(previewApi.loadNativeUrl).toHaveBeenCalledWith("http://localhost:2");
     wrapper.unmount();
   });
 
-  it("does not set iframe src when Enter on empty input", async () => {
+  it("does not load a preview when Enter on empty input", async () => {
     const wrapper = mount(PreviewPanel, { attachTo: document.body });
-    await flushPromises();
+    await flushPreviewNavigation(wrapper);
     await wrapper.vm.$nextTick();
+    const loadsBefore = previewApi.loadNativeUrl.mock.calls.length;
     await wrapper.find('[data-testid="preview-url-input"]').trigger("keydown.enter");
-    expect(wrapper.find('[data-testid="preview-iframe"]').exists()).toBe(false);
+    await flushPreviewNavigation(wrapper);
+    expect(previewApi.loadNativeUrl.mock.calls.length).toBe(loadsBefore);
     wrapper.unmount();
   });
 
-  it("normalizes bare port to full URL in the iframe on Enter", async () => {
+  it("normalizes bare port to full URL on Enter", async () => {
     const wrapper = mount(PreviewPanel, { attachTo: document.body });
-    await flushPromises();
+    await flushPreviewNavigation(wrapper);
     const input = wrapper.find('[data-testid="preview-url-input"]');
     await input.setValue("8080");
     await input.trigger("keydown.enter");
-    await wrapper.vm.$nextTick();
-    expect(wrapper.find('[data-testid="preview-iframe"]').attributes("src")).toBe("http://localhost:8080");
+    await flushPreviewNavigation(wrapper);
+    expect(previewApi.loadNativeUrl).toHaveBeenCalledWith("http://localhost:8080");
     wrapper.unmount();
   });
 
   it("normalizes host-only input to full URL on Enter", async () => {
     const wrapper = mount(PreviewPanel, { attachTo: document.body });
-    await flushPromises();
+    await flushPreviewNavigation(wrapper);
     const input = wrapper.find('[data-testid="preview-url-input"]');
     await input.setValue("localhost:5173");
     await input.trigger("keydown.enter");
-    await wrapper.vm.$nextTick();
-    expect(wrapper.find('[data-testid="preview-iframe"]').attributes("src")).toBe("http://localhost:5173");
+    await flushPreviewNavigation(wrapper);
+    expect(previewApi.loadNativeUrl).toHaveBeenCalledWith("http://localhost:5173");
     wrapper.unmount();
   });
 
   it("passes through a full URL unchanged on Enter", async () => {
     const wrapper = mount(PreviewPanel, { attachTo: document.body });
-    await flushPromises();
+    await flushPreviewNavigation(wrapper);
     const input = wrapper.find('[data-testid="preview-url-input"]');
     await input.setValue("http://localhost:4000");
     await input.trigger("keydown.enter");
-    await wrapper.vm.$nextTick();
-    expect(wrapper.find('[data-testid="preview-iframe"]').attributes("src")).toBe("http://localhost:4000");
+    await flushPreviewNavigation(wrapper);
+    expect(previewApi.loadNativeUrl).toHaveBeenCalledWith("http://localhost:4000");
     wrapper.unmount();
   });
 
-  it("remounts iframe on reload so probe can run again", async () => {
+  it("calls reloadNative on reload so probe can run again", async () => {
     const wrapper = mount(PreviewPanel, { attachTo: document.body });
-    await flushPromises();
+    await flushPreviewNavigation(wrapper);
     const input = wrapper.find('[data-testid="preview-url-input"]');
     await input.setValue("http://localhost:7777");
     await input.trigger("keydown.enter");
-    await wrapper.vm.$nextTick();
-    await flushIframeLoad(wrapper);
+    await flushPreviewNavigation(wrapper);
     const probesAfterFirstLoad = previewApi.probeUrl.mock.calls.length;
     expect(probesAfterFirstLoad).toBeGreaterThan(0);
     await wrapper.find('[data-testid="preview-reload-btn"]').trigger("click");
-    await wrapper.vm.$nextTick();
-    await flushIframeLoad(wrapper);
+    await flushPreviewNavigation(wrapper);
+    expect(previewApi.reloadNative).toHaveBeenCalled();
     expect(previewApi.probeUrl.mock.calls.length).toBeGreaterThan(probesAfterFirstLoad);
     wrapper.unmount();
   });
 
-  it("calls previewApi.openUrlExternally when devtools button is clicked", async () => {
+  it("calls previewApi.toggleEmbeddedDevTools when devtools button is clicked", async () => {
     const wrapper = mount(PreviewPanel, { attachTo: document.body });
-    await flushPromises();
+    await flushPreviewNavigation(wrapper);
     const input = wrapper.find('[data-testid="preview-url-input"]');
     await input.setValue("http://localhost:9999");
     await input.trigger("keydown.enter");
-    await wrapper.vm.$nextTick();
+    await flushPreviewNavigation(wrapper);
     await wrapper.find('[data-testid="preview-devtools-btn"]').trigger("click");
-    expect(previewApi.openUrlExternally).toHaveBeenCalledWith("http://localhost:9999");
+    await flushPreviewNavigation(wrapper);
+    expect(previewApi.toggleEmbeddedDevTools).toHaveBeenCalled();
     wrapper.unmount();
   });
 
@@ -208,15 +216,14 @@ describe("PreviewPanel", () => {
     wrapper.unmount();
   });
 
-  it("shows HTTP error badge after iframe load when probe reports status >= 400", async () => {
+  it("shows HTTP error badge after load when probe reports status >= 400", async () => {
     previewApi.probeUrl.mockResolvedValue({ ok: true, status: 500 });
     const wrapper = mount(PreviewPanel, { attachTo: document.body });
-    await flushPromises();
+    await flushPreviewNavigation(wrapper);
     const input = wrapper.find('[data-testid="preview-url-input"]');
     await input.setValue("http://localhost:9/a");
     await input.trigger("keydown.enter");
-    await wrapper.vm.$nextTick();
-    await flushIframeLoad(wrapper);
+    await flushPreviewNavigation(wrapper);
     const badge = wrapper.find('[data-testid="preview-load-badge"]');
     expect(badge.text()).toContain("HTTP 500");
     expect((badge.element as HTMLElement).getAttribute("title")).toMatch(/HTTP 500/);
@@ -231,12 +238,11 @@ describe("PreviewPanel", () => {
       message: "ERR_CONNECTION_REFUSED"
     });
     const wrapper = mount(PreviewPanel, { attachTo: document.body });
-    await flushPromises();
+    await flushPreviewNavigation(wrapper);
     const input = wrapper.find('[data-testid="preview-url-input"]');
     await input.setValue("http://localhost:59999/");
     await input.trigger("keydown.enter");
-    await wrapper.vm.$nextTick();
-    await flushIframeLoad(wrapper);
+    await flushPreviewNavigation(wrapper);
     const badge = wrapper.find('[data-testid="preview-load-badge"]');
     expect((badge.element as HTMLElement).getAttribute("title")).toContain("ERR_CONNECTION_REFUSED");
     expect(badge.text()).not.toContain("localhost");
@@ -254,7 +260,7 @@ describe("PreviewPanel", () => {
     })) as unknown as typeof ResizeObserver;
 
     const wrapper = mount(PreviewPanel, { attachTo: document.body });
-    await flushPromises();
+    await flushPreviewNavigation(wrapper);
     wrapper.unmount();
 
     expect(disconnectSpy).toHaveBeenCalledOnce();

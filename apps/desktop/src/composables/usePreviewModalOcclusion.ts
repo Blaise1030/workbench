@@ -2,7 +2,7 @@ import { onMounted, onUnmounted } from "vue";
 
 /**
  * Reka-ui Dialog / AlertDialog set `data-state` on portaled content. The preview
- * `WebContentsView` is a native sibling above the main page; HTML z-index cannot stack
+ * `BrowserView` is a native sibling above the main page; HTML z-index cannot stack
  * modals above it, so we hide the native layer while any blocking modal is open.
  */
 const OPEN_MODAL_SELECTOR =

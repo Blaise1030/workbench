@@ -96,10 +96,17 @@ interface WorkspaceApi {
   openAppExternalUrl?: (url: string) => Promise<void>;
 }
 
-/** In-renderer preview uses an `<iframe>`; main only helps with HTTP probe and opening the URL externally. */
+/** Preview tab: main-process `BrowserView` + HTTP probe + opening the URL externally. */
 interface PreviewApi {
   probeUrl: (url: string) => Promise<PreviewProbeResult>;
   openUrlExternally: (url: string) => Promise<void>;
+  setNativeBounds: (bounds: import("@shared/ipc").PreviewBounds) => Promise<void>;
+  loadNativeUrl: (url: string) => Promise<import("@shared/ipc").PreviewNativeLoadResult>;
+  reloadNative: () => Promise<import("@shared/ipc").PreviewNativeLoadResult>;
+  detachNative: () => Promise<void>;
+  toggleEmbeddedDevTools: () => Promise<import("@shared/ipc").PreviewDevToolsToggleResult>;
+  /** Subscribe to embedded preview DevTools open/closed (main → renderer). */
+  onPreviewEmbeddedDevtoolsOpen?: (callback: (open: boolean) => void) => () => void;
 }
 
 declare global {
