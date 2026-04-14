@@ -1,5 +1,41 @@
 # Changelog
 
+## [0.9.0](https://github.com/Blaise1030/workbench/compare/v0.8.0...v0.9.0) (2026-04-14)
+
+
+### Features
+
+* add preview IPC channels (reload, setBounds, show, hide) ([a87e4a0](https://github.com/Blaise1030/workbench/commit/a87e4a06e9cbcc341fea545356f87786d68006e1))
+* add PreviewBounds and PreviewApi types ([b5d0a6e](https://github.com/Blaise1030/workbench/commit/b5d0a6efbeb14c39707c0b44b1a7dcacfbb32a8d))
+* add PreviewPanel component and unit tests ([e6200b1](https://github.com/Blaise1030/workbench/commit/e6200b13299f3b1c6391ada8e980572289579dbf))
+* add WebContentsView lifecycle and preview IPC handlers in main process ([a81bcd6](https://github.com/Blaise1030/workbench/commit/a81bcd6cf48563554ec3f0d9cfdbbb34ada77474))
+* **desktop:** add inline thread prompt pane to WorkspaceLayout ([10ac421](https://github.com/Blaise1030/workbench/commit/10ac42182f9c7a0dcde2778f094012eb61e5c221))
+* **desktop:** add MonacoDiffEditor component ([af02aa1](https://github.com/Blaise1030/workbench/commit/af02aa1e5bba5fefc73160cb30c0e9c64fba9b66))
+* **desktop:** add MonacoEditor component ([a75f825](https://github.com/Blaise1030/workbench/commit/a75f8259540a7b0e0c3aae1fd778787fea027e2e))
+* **desktop:** add monacoLanguageIdFromPath utility ([1f372ad](https://github.com/Blaise1030/workbench/commit/1f372ad6b059e97d7d82d55aef1abefa64bdaa5a))
+* **desktop:** add preview WebContentsView DevTools button ([cbb20a6](https://github.com/Blaise1030/workbench/commit/cbb20a60c34a6b6cacf093580f4e1e2c6bdf2b0b))
+* **desktop:** add ThreadInlinePromptEditor component ([d59e931](https://github.com/Blaise1030/workbench/commit/d59e931d01a4603e0320f45b3adfccb3ccd9ced0))
+* **desktop:** empty default preview URL, hide URLs in banners, persist per worktree ([4d1948c](https://github.com/Blaise1030/workbench/commit/4d1948c19edf3df17a363a12a8ded0a29c6da185))
+* **desktop:** inline thread compose in sidebar ([584a637](https://github.com/Blaise1030/workbench/commit/584a6372f5ce6756e2e97a0ba9a42de84898d184))
+* **desktop:** native preview BrowserView host ([031bfa1](https://github.com/Blaise1030/workbench/commit/031bfa143c302daccf0f560d0c7c307772858fcf))
+* **desktop:** show preview load, HTTP, and network errors in the panel ([1e95c21](https://github.com/Blaise1030/workbench/commit/1e95c21f8de02234aa0238f80cccc19769689e47))
+* **desktop:** swap CodeMirrorEditor → MonacoEditor in FileSearchEditor ([9ca071a](https://github.com/Blaise1030/workbench/commit/9ca071a3e1a3de597b0b840785ec449550ba4aad))
+* **desktop:** swap CodeMirrorMergeDiff → MonacoDiffEditor in SourceControlPanel ([8f1f75f](https://github.com/Blaise1030/workbench/commit/8f1f75f170b7feb5194419ea2f3d6a5f50163824))
+* **desktop:** ThreadGroupHeader emits add-thread-inline, wires to inline prompt ([23f4170](https://github.com/Blaise1030/workbench/commit/23f41707701bc85a47d7a4441ff0a0ff26ee6812))
+* **desktop:** wire Preview tab in workspace and persist preview in layout ([707c9bb](https://github.com/Blaise1030/workbench/commit/707c9bb11c06a74bf213d0aea9a8966711d6ef8d))
+* expose previewApi in preload and inline new channel strings ([a07cef9](https://github.com/Blaise1030/workbench/commit/a07cef9d5ed24a238cf4a278d9decc4e4bde771d))
+
+
+### Bug Fixes
+
+* **desktop:** agent PTY bootstrap resume vs prompt ([ffb57e1](https://github.com/Blaise1030/workbench/commit/ffb57e127829c80cc8c5fad3cf57f74af951816a))
+* **desktop:** avoid jsdom canvas stderr in monacoShadcnTheme toHex ([f50fe6e](https://github.com/Blaise1030/workbench/commit/f50fe6edb0e202a8e4548b4598ac6d6dce96f82c))
+* **desktop:** keep project tab hover card above native preview WebContentsView ([8be880a](https://github.com/Blaise1030/workbench/commit/8be880aae193fdb1d7afd55d61f67c115687e673))
+* **desktop:** restore file editor collapse toggle in header ([deb321f](https://github.com/Blaise1030/workbench/commit/deb321f48606f5f893d1ca9221254e36743452d4))
+* **desktop:** steer popovers away from native preview via collision mirror ([13a0dc3](https://github.com/Blaise1030/workbench/commit/13a0dc3860953be9b7dad789c47b80d41d0d6ab8))
+* guard show() rejection and add ResizeObserver disconnect test in PreviewPanel ([3700c2f](https://github.com/Blaise1030/workbench/commit/3700c2f082761ba728879978e61339812d978e9d))
+* handle addChildView failure and document preview constraints in main process ([3ccb19e](https://github.com/Blaise1030/workbench/commit/3ccb19e953832ae1bcc91b383a68f51143075d43))
+
 ## [0.8.0](https://github.com/Blaise1030/workbench/compare/v0.7.0...v0.8.0) (2026-04-12)
 
 
