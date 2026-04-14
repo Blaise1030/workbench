@@ -156,7 +156,8 @@ describe("ProjectTabs", () => {
 
     const nav = wrapper.get('nav[aria-label="Projects"]');
     const tabList = wrapper.get('[role="tablist"]');
-    const actionCluster = wrapper.get('[aria-label="Settings"]').element.parentElement;
+    // Settings sits inside a `relative` wrapper; the cluster row with vertical centering is the grandparent.
+    const actionCluster = wrapper.get('[aria-label="Settings"]').element.parentElement?.parentElement;
 
     expect(nav.classes()).toContain("items-center");
     expect(tabList.classes()).toContain("items-center");
