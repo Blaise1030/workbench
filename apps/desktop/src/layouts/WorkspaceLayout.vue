@@ -990,10 +990,11 @@ async function onInlinePromptSubmit(payload: ThreadCreateWithAgentPayload): Prom
     mode: "prompt"
   };
   inlinePromptThreadId.value = null;
+  /** Snapshot before refresh / LLM so user renames during `refreshSnapshot` still invalidate the model title. */
+  const titleEpochBaseline = threadTitleEpoch.get(threadId) ?? 0;
+  const heuristicTitle = title;
   await refreshSnapshot();
   void (async () => {
-    const epoch = threadTitleEpoch.get(threadId) ?? 0;
-    const heuristicTitle = title;
     try {
       try {
         if (!(await isWebGpuUsable())) return;
@@ -1001,7 +1002,7 @@ async function onInlinePromptSubmit(payload: ThreadCreateWithAgentPayload): Prom
         return;
       }
       const modelTitle = await generateThreadTitle(prompt, THREAD_AGENT_LABELS[agent]);
-      if ((threadTitleEpoch.get(threadId) ?? 0) !== epoch) return;
+      if ((threadTitleEpoch.get(threadId) ?? 0) !== titleEpochBaseline) return;
       const t = workspace.threads.find((th) => th.id === threadId);
       if (!t || t.title.trim() !== heuristicTitle.trim()) return;
       const apiForTitle = getApi();
