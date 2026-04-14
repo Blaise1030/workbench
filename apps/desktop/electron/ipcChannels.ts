@@ -22,6 +22,7 @@ export const IPC_CHANNELS = {
   diffFileDiff: "diff:fileDiff",
   diffFileMergeSides: "diff:fileMergeSides",
   diffWorkingTree: "diff:workingTree",
+  diffStagedUnified: "diff:stagedUnified",
   diffStageAll: "diff:stageAll",
   diffUnstageAll: "diff:unstageAll",
   diffDiscardAll: "diff:discardAll",

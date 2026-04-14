@@ -4,7 +4,8 @@ import type {
   PreviewBounds,
   PreviewDevToolsToggleResult,
   PreviewNativeLoadResult,
-  PreviewProbeResult
+  PreviewProbeResult,
+  StagedUnifiedDiffResult
 } from "../src/shared/ipc.js";
 
 /**
@@ -32,6 +33,7 @@ const IPC_CHANNELS = {
   diffFileDiff: "diff:fileDiff",
   diffFileMergeSides: "diff:fileMergeSides",
   diffWorkingTree: "diff:workingTree",
+  diffStagedUnified: "diff:stagedUnified",
   diffStageAll: "diff:stageAll",
   diffUnstageAll: "diff:unstageAll",
   diffDiscardAll: "diff:discardAll",
@@ -140,6 +142,8 @@ contextBridge.exposeInMainWorld("workspaceApi", {
   fileMergeSides: (cwd: string, file: string, scope: "staged" | "unstaged") =>
     ipcRenderer.invoke(IPC_CHANNELS.diffFileMergeSides, { cwd, file, scope }),
   workingTreeDiff: (cwd: string) => ipcRenderer.invoke(IPC_CHANNELS.diffWorkingTree, cwd),
+  stagedUnifiedDiff: (cwd: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.diffStagedUnified, cwd) as Promise<StagedUnifiedDiffResult>,
   stageAll: (cwd: string) => ipcRenderer.invoke(IPC_CHANNELS.diffStageAll, cwd),
   unstageAll: (cwd: string) => ipcRenderer.invoke(IPC_CHANNELS.diffUnstageAll, cwd),
   discardAll: (cwd: string) => ipcRenderer.invoke(IPC_CHANNELS.diffDiscardAll, cwd),

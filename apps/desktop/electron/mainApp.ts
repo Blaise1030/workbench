@@ -374,6 +374,10 @@ function registerIpc(workspaceService: WorkspaceService): void {
     }
   );
   ipcMain.handle(IPC_CHANNELS.diffWorkingTree, (_, cwd: string) => { assertCwdIsRegistered(cwd); return diffService.workingTreeDiff(cwd); });
+  ipcMain.handle(IPC_CHANNELS.diffStagedUnified, (_, cwd: string) => {
+    assertCwdIsRegistered(cwd);
+    return diffService.stagedUnifiedDiff(cwd);
+  });
   ipcMain.handle(IPC_CHANNELS.diffStageAll, (_, cwd: string) => { assertCwdIsRegistered(cwd); return diffService.stageAll(cwd); });
   ipcMain.handle(IPC_CHANNELS.diffUnstageAll, (_, cwd: string) => { assertCwdIsRegistered(cwd); return diffService.unstageAll(cwd); });
   ipcMain.handle(IPC_CHANNELS.diffDiscardAll, (_, cwd: string) => { assertCwdIsRegistered(cwd); return diffService.discardAll(cwd); });
