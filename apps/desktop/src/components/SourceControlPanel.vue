@@ -27,7 +27,7 @@ import {
   DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu";
 import type { FileMergeSidesResult, RepoStatusEntry } from "@shared/ipc";
-import CodeMirrorMergeDiff from "@/components/CodeMirrorMergeDiff.vue";
+import MonacoDiffEditor from "@/components/MonacoDiffEditor.vue";
 
 const SCM_DIFF_LAYOUT_KEY = "instrument.scmDiffLayout";
 type ScmDiffLayout = "split" | "unified";
@@ -952,7 +952,7 @@ onBeforeUnmount(() => {
               <span class="font-medium text-foreground">{{ mergeResult.modifiedLabel }}</span>
             </template>
           </p>
-          <CodeMirrorMergeDiff
+          <MonacoDiffEditor
             class="min-h-0 flex-1"
             :layout="scmDiffLayout"
             :original="mergeResult.original"
