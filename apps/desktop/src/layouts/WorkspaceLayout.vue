@@ -1736,6 +1736,7 @@ watch(
           @rename="handleRenameThread"
           @collapse="threadsSidebarCollapsed = true"
           @expand="threadsSidebarCollapsed = false"
+          @add-thread-inline="openInlineThreadPrompt"
         />
       </section>
       <section class="flex min-h-0 min-w-0 flex-col border-r border-border">

@@ -48,6 +48,24 @@ describe("ThreadGroupHeader", () => {
     expect(wrapper.get('[data-testid="thread-group-header"]').text()).toContain("feature/checkout");
   });
 
+  it("emits add-thread-inline with the worktreeId when the + button is clicked", async () => {
+    const wrapper = mount(ThreadGroupHeader, {
+      attachTo: document.body,
+      props: {
+        title: "main",
+        threadCount: 0,
+        isStale: false,
+        collapsed: false,
+        isActive: true,
+        isPrimary: true,
+        worktreeIdForCreate: "wt-42"
+      }
+    });
+
+    await wrapper.get('[aria-label="Add thread to group"]').trigger("click");
+    expect(wrapper.emitted("add-thread-inline")).toEqual([["wt-42"]]);
+  });
+
   it("shows add thread in the header even when group menu is hidden (primary)", () => {
     const wrapper = mount(ThreadGroupHeader, {
       props: {

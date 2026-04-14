@@ -12,7 +12,6 @@ import WorktreeStaleCallout from "@/components/WorktreeStaleCallout.vue";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import Button from "@/components/ui/Button.vue";
 import Switch from "@/components/ui/Switch.vue";
-import { openThreadCreateDialog } from "@/composables/threadCreateDialog";
 import { groupThreadsByRelativeDate } from "@/lib/threadDateGroups";
 import type { KeybindingId } from "@/keybindings/registry";
 import { useKeybindingsStore } from "@/stores/keybindingsStore";
@@ -89,6 +88,7 @@ const emit = defineEmits<{
   deleteWorktreeGroup: [worktreeId: string];
   collapse: [];
   expand: [];
+  addThreadInline: [worktreeId: string];
 }>();
 
 const collapsedGroups = ref<Set<string>>(new Set());
@@ -144,29 +144,16 @@ function worktreeIdForGroupAdd(group: SidebarContextGroup): string | null {
   return null;
 }
 
-/** Label for the new-thread dialog when adding from a specific group row or popover. */
-function threadDestinationLabelForGroup(group: SidebarContextGroup): string {
-  if (group.isPrimary) {
-    return (props.contextLabel?.trim() || group.title).trim();
-  }
-  return group.title.trim();
-}
-
 function openNewThreadInCollapsedGroup(group: SidebarContextGroup): void {
   const id = worktreeIdForGroupAdd(group);
   if (id === null) return;
-  openThreadCreateDialog({
-    target: "worktreeGroup",
-    worktreeId: id,
-    destinationContextLabel: threadDestinationLabelForGroup(group)
-  });
+  emit("addThreadInline", id);
 }
 
 function openNewThreadInActiveWorkspace(): void {
-  openThreadCreateDialog({
-    target: "activeWorktree",
-    destinationContextLabel: props.contextLabel?.trim() || null
-  });
+  const id = props.defaultWorktreeId;
+  if (!id) return;
+  emit("addThreadInline", id);
 }
 
 onBeforeUnmount(() => {
@@ -712,6 +699,7 @@ async function openAppUpdateUrl(url: string): Promise<void> {
             :show-actions="!group.isPrimary"
             @toggle="toggleGroup(group.uiKey)"
             :worktree-id-for-create="worktreeIdForGroupAdd(group)"
+            @add-thread-inline="emit('addThreadInline', $event)"
             @delete="group.worktreeId !== null && emit('deleteWorktreeGroup', group.worktreeId)"
           />
 

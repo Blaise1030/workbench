@@ -3,7 +3,6 @@ defineOptions({ inheritAttrs: false });
 
 import { ChevronDown, ChevronRight, EllipsisVertical, Plus, Trash2 } from "lucide-vue-next";
 import { computed, ref } from "vue";
-import { openThreadCreateDialog } from "@/composables/threadCreateDialog";
 import Badge from "@/components/ui/Badge.vue";
 import Button from "@/components/ui/Button.vue";
 import {
@@ -68,17 +67,10 @@ const hoverDetails = computed(() => {
   return `${props.title}\n${props.path ?? "—"}\nBranch: ${props.branch ?? "—"}\nSource branch: ${source}`;
 });
 
-/** Label shown in the new-thread dialog (“adding a thread to …”). */
-const addThreadDestinationLabel = computed(() => {
-  if (props.isPrimary) {
-    return primaryLabelBadgeText.value ?? props.title;
-  }
-  return props.title;
-});
-
 const emit = defineEmits<{
   toggle: [];
   delete: [];
+  "add-thread-inline": [worktreeId: string];
 }>();
 
 const menuOpen = ref(false);
@@ -86,11 +78,7 @@ const menuOpen = ref(false);
 function openAddThreadDialog(): void {
   const id = props.worktreeIdForCreate?.trim();
   if (!id) return;
-  openThreadCreateDialog({
-    target: "worktreeGroup",
-    worktreeId: id,
-    destinationContextLabel: addThreadDestinationLabel.value
-  });
+  emit("add-thread-inline", id);
 }
 </script>
 
