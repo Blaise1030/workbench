@@ -52,7 +52,7 @@ import {
   DialogHeader,
   DialogTitle
 } from "@/components/ui/dialog";
-import { renderMarkdownToHtml } from "@/lib/markdown";
+import { monacoLanguageIdFromPath } from "@/lib/monacoLanguage";
 
 const props = defineProps<{
   worktreePath: string | null;
@@ -155,8 +155,6 @@ const query = ref("");
 const SEARCH_INPUT_DEBOUNCE_MS = 280;
 /** Debounced mirror of `query` for filtering and content IPC (input updates immediately). */
 const debouncedQuery = ref("");
-/** `path`: filter by path; `content`: full-text search (main process). */
-const searchMode = ref<"path" | "content">("path");
 const allFiles = ref<FileSummary[]>([]);
 /** Relative paths whose file contents matched the last content search. */
 const contentMatchPaths = ref<string[]>([]);
@@ -175,7 +173,6 @@ const error = ref<string | null>(null);
 const SIDEBAR_COLLAPSED_KEY = "instrument.fileSearchSidebarCollapsed";
 const EDITOR_COLLAPSED_KEY = "instrument.fileSearchEditorCollapsed";
 const LINE_NUMBERS_VISIBLE_KEY = "instrument.fileSearchLineNumbersVisible";
-const MD_SOURCE_IMAGE_PREVIEWS_KEY = "instrument.markdownSourceImagePreviewsVisible";
 
 function readLocalStorageFlag(key: string, fallback = false): boolean {
   try {
@@ -190,7 +187,6 @@ function readLocalStorageFlag(key: string, fallback = false): boolean {
 const sidebarCollapsed = ref(readLocalStorageFlag(SIDEBAR_COLLAPSED_KEY));
 const editorCollapsed = ref(readLocalStorageFlag(EDITOR_COLLAPSED_KEY));
 const showLineNumbers = ref(readLocalStorageFlag(LINE_NUMBERS_VISIBLE_KEY, true));
-const mdSourceImagePreviews = ref(readLocalStorageFlag(MD_SOURCE_IMAGE_PREVIEWS_KEY, true));
 
 watch(sidebarCollapsed, (collapsed) => {
   try {
@@ -211,15 +207,6 @@ watch(editorCollapsed, (collapsed) => {
 watch(showLineNumbers, (visible) => {
   try {
     localStorage.setItem(LINE_NUMBERS_VISIBLE_KEY, visible ? "1" : "0");
-  } catch {
-    /* ignore quota / private mode */
-  }
-});
-
-watch(mdSourceImagePreviews, (on) => {
-  try {
-    if (typeof localStorage === "undefined") return;
-    localStorage.setItem(MD_SOURCE_IMAGE_PREVIEWS_KEY, on ? "1" : "0");
   } catch {
     /* ignore quota / private mode */
   }
@@ -254,10 +241,6 @@ const hasWorkspace = computed(() => Boolean(props.worktreePath));
 const dirty = computed(
   () => selectedPath.value !== null && draftContent.value !== loadedContent.value
 );
-const isMarkdownFile = computed(() => {
-  const p = selectedPath.value?.toLowerCase() ?? "";
-  return p.endsWith(".md") || p.endsWith(".markdown");
-});
 
 const isImagePreviewFile = computed(() => {
   const p = selectedPath.value;
@@ -271,13 +254,6 @@ const isRasterImageFile = computed(() => {
 
 /** Raster images edited as text cannot be saved safely as UTF-8. */
 const rasterImageSaveBlocked = computed(() => isRasterImageFile.value && dirty.value);
-
-const mdViewMode = ref<"read" | "source">("read");
-
-const mdViewTabs = computed<PillTabItem[]>(() => [
-  { value: "read", label: "Read" },
-  { value: "source", label: "Source" }
-]);
 
 const imageFileViewMode = ref<"preview" | "text">("preview");
 
@@ -392,7 +368,6 @@ const canFindInFile = computed(
     Boolean(selectedPath.value) &&
     !editorCollapsed.value &&
     !isLoadingFile.value &&
-    !(isMarkdownFile.value && mdViewMode.value === "read") &&
     !(isImagePreviewFile.value && imageFileViewMode.value === "preview")
 );
 
@@ -404,64 +379,11 @@ function openFindInFile(): void {
   monacoEditorRef.value?.openFind();
 }
 
-const markdownHtml = computed(() => {
-  if (!isMarkdownFile.value) return "";
-  return renderMarkdownToHtml(draftContent.value);
-});
-
-/** Stable primitives for Markdown image preview props (Monaco keeps these for API compatibility). */
-const markdownImageWorkspaceRoot = computed(() =>
-  isMarkdownFile.value && props.worktreePath ? props.worktreePath : null
-);
-const markdownImageFilePath = computed(() =>
-  isMarkdownFile.value && selectedPath.value ? selectedPath.value : null
-);
-
-/** Extension → Monaco language id. */
+/** Extension → Monaco language id (shared map with diff editor). */
 const editorLanguage = computed(() => {
   const path = selectedPath.value;
   if (!path) return undefined;
-  const dot = path.lastIndexOf(".");
-  if (dot < 0) return "plain";
-  const ext = path.slice(dot + 1).toLowerCase();
-  const map: Record<string, string> = {
-    ts: "typescript",
-    tsx: "tsx",
-    js: "javascript",
-    jsx: "javascript",
-    vue: "vue",
-    json: "json",
-    md: "markdown",
-    css: "css",
-    scss: "scss",
-    sass: "sass",
-    less: "less",
-    html: "html",
-    htm: "html",
-    xml: "xml",
-    yml: "yaml",
-    yaml: "yaml",
-    sh: "shell",
-    bash: "shell",
-    zsh: "shell",
-    py: "python",
-    rs: "rust",
-    go: "go",
-    java: "java",
-    kt: "kotlin",
-    swift: "swift",
-    c: "c",
-    h: "c",
-    cpp: "cpp",
-    cc: "cpp",
-    hpp: "cpp",
-    cs: "csharp",
-    rb: "ruby",
-    php: "php",
-    sql: "sql",
-    toml: "toml"
-  };
-  return map[ext] ?? "plain";
+  return monacoLanguageIdFromPath(path);
 });
 
 function compareTreeNodes(a: FileTreeNodeData, b: FileTreeNodeData): number {
@@ -566,29 +488,10 @@ function ancestorFoldersForAllVisibleFiles(nodes: FileTreeNodeData[]): string[] 
   return [...folders];
 }
 
-function filterTreeNodes(nodes: FileTreeNodeData[], queryText: string): FileTreeNodeData[] {
-  const trimmedQuery = queryText.trim().toLowerCase();
-  if (!trimmedQuery) return nodes;
-
-  const filtered: FileTreeNodeData[] = [];
-  for (const node of nodes) {
-    if (node.kind === "file") {
-      if (node.path.toLowerCase().includes(trimmedQuery)) {
-        filtered.push(node);
-      }
-      continue;
-    }
-
-    const children = filterTreeNodes(node.children, trimmedQuery);
-    if (children.length > 0 || node.path.toLowerCase().includes(trimmedQuery)) {
-      filtered.push({
-        ...node,
-        children
-      });
-    }
-  }
-
-  return filtered;
+function relativePathMatchesQuery(relativePath: string, queryText: string): boolean {
+  const q = queryText.trim().toLowerCase();
+  if (!q) return false;
+  return relativePath.toLowerCase().includes(q);
 }
 
 function defaultExpandedFolders(files: FileSummary[]): Set<string> {
@@ -602,41 +505,38 @@ function defaultExpandedFolders(files: FileSummary[]): Set<string> {
 
 const summariesForTree = computed(() => {
   const files = allFiles.value;
-  /** Path mode never filters by query here — avoids rebuilding the whole tree on every keystroke. */
-  if (searchMode.value === "path") {
-    return files;
-  }
-
   const q = debouncedQuery.value.trim();
   if (!q) return files;
 
-  const matches = new Set(contentMatchPaths.value);
-  if (matches.size === 0) return [];
+  const contentPaths = new Set(contentMatchPaths.value);
 
   return files.filter((f) => {
-    if (f.kind === "directory") {
-      const p = f.relativePath;
-      const prefix = `${p}/`;
-      for (const m of matches) {
-        if (m === p || m.startsWith(prefix)) return true;
-      }
-      return false;
+    if (relativePathMatchesQuery(f.relativePath, q)) return true;
+
+    if (f.kind === "file") {
+      return contentPaths.has(f.relativePath);
     }
-    return matches.has(f.relativePath);
+
+    const p = f.relativePath;
+    const prefix = `${p}/`;
+    for (const m of contentPaths) {
+      if (m === p || m.startsWith(prefix)) return true;
+    }
+    for (const o of files) {
+      if (o.kind !== "file") continue;
+      if (!o.relativePath.startsWith(prefix)) continue;
+      if (relativePathMatchesQuery(o.relativePath, q)) return true;
+      if (contentPaths.has(o.relativePath)) return true;
+    }
+    return false;
   });
 });
 
 const fileTree = computed(() => buildFileTree(summariesForTree.value));
 
-const visibleTree = computed(() => {
-  if (!debouncedQuery.value.trim()) return fileTree.value;
-  if (searchMode.value === "content") return fileTree.value;
-  return filterTreeNodes(fileTree.value, debouncedQuery.value);
-});
+const visibleTree = computed(() => fileTree.value);
 
-const searchPlaceholder = computed(() =>
-  searchMode.value === "content" ? "Search text in files…" : "Search paths…"
-);
+const searchPlaceholder = "Search files by name or contents…";
 
 watchDebounced(
   () => query.value,
@@ -654,46 +554,41 @@ watch(query, (v) => {
   }
 });
 
-/** Avoid stale debounced text when switching mode or workspace. */
-watch([() => searchMode.value, () => props.worktreePath], () => {
-  debouncedQuery.value = query.value;
-});
+/** Avoid stale debounced text when the workspace root changes. */
+watch(
+  () => props.worktreePath,
+  () => {
+    debouncedQuery.value = query.value;
+  }
+);
 
-/** Path mode: on first character of a debounced search, expand folders that lead to visible files. */
-watch(debouncedQuery, (next, prev) => {
-  if ((prev ?? "").trim().length > 0 || next.trim().length === 0) return;
-  if (searchMode.value !== "path") return;
+function expandFoldersForVisibleMatches(): void {
   const nextExpanded = new Set(expandedFolders.value);
   for (const f of ancestorFoldersForAllVisibleFiles(visibleTree.value)) {
     nextExpanded.add(f);
   }
   expandedFolders.value = nextExpanded;
+}
+
+/** On first non-empty debounced query, expand folders that lead to visible files. */
+watch(debouncedQuery, (next, prev) => {
+  if ((prev ?? "").trim().length > 0 || next.trim().length === 0) return;
+  expandFoldersForVisibleMatches();
 });
 
-/** Content mode: when results arrive, expand folders along matching files. */
+/** When full-text results arrive, expand folders along matching files. */
 watch(
   contentMatchPaths,
   () => {
-    if (searchMode.value !== "content" || !debouncedQuery.value.trim()) return;
-    const nextExpanded = new Set(expandedFolders.value);
-    for (const f of ancestorFoldersForAllVisibleFiles(visibleTree.value)) {
-      nextExpanded.add(f);
-    }
-    expandedFolders.value = nextExpanded;
+    if (!debouncedQuery.value.trim()) return;
+    expandFoldersForVisibleMatches();
   },
   { flush: "post" }
 );
 
 watch(
-  [() => debouncedQuery.value, () => searchMode.value, () => props.worktreePath],
+  [() => debouncedQuery.value, () => props.worktreePath],
   async () => {
-    if (searchMode.value !== "content") {
-      contentMatchPaths.value = [];
-      contentSearchError.value = null;
-      isContentSearching.value = false;
-      contentSearchSeq += 1;
-      return;
-    }
     if (!props.worktreePath) {
       contentMatchPaths.value = [];
       contentSearchError.value = null;
@@ -715,6 +610,7 @@ watch(
     const cwd = props.worktreePath;
     const seq = ++contentSearchSeq;
     contentSearchError.value = null;
+    contentMatchPaths.value = [];
     isContentSearching.value = true;
 
     if (!api?.searchFileContents) {
@@ -1046,7 +942,6 @@ function invalidatePendingFileRequests(): void {
 function resetState(): void {
   query.value = "";
   debouncedQuery.value = "";
-  searchMode.value = "path";
   allFiles.value = [];
   contentMatchPaths.value = [];
   contentSearchError.value = null;
@@ -1339,11 +1234,8 @@ async function confirmContextSwitch(nextWorktreePath: string | null): Promise<bo
   return confirmDiscardIfDirty();
 }
 
-watch(selectedPath, (path) => {
+watch(selectedPath, () => {
   externalDropPreview.value = null;
-  if (path && /\.(md|markdown)$/i.test(path)) {
-    mdViewMode.value = "read";
-  }
 });
 
 watch(
@@ -1401,12 +1293,12 @@ defineExpose({
   <section class="flex h-full min-h-0 bg-background text-foreground">
     <div
       id="file-search-sidebar"
-      class="flex shrink-0 flex-col overflow-hidden border-r border-border transition-[width] duration-200 ease-out"
-      :class="sidebarCollapsed ? 'w-11' : 'w-80'"
+      class="flex shrink-0 flex-col overflow-hidden border-r border-border bg-background transition-[width] duration-200 ease-out"
+      :class="sidebarCollapsed ? 'w-11' : 'w-[270px]'"
     >
       <div
         v-if="sidebarCollapsed"
-        class="flex flex-col items-center gap-1 border-b border-border p-1"
+        class="flex flex-col items-center gap-1 border-b border-border bg-background p-1"
       >
         <Button
           data-testid="file-search-sidebar-expand"
@@ -1426,7 +1318,7 @@ defineExpose({
       <template v-else>
         <div
           data-testid="file-search-header"
-          class="flex flex-col gap-1 border-b border-border p-1"
+          class="flex flex-col gap-1 border-b border-border bg-background p-1"
         >
           <div class="relative min-w-0 text-muted-foreground">
             <Search
@@ -1439,46 +1331,13 @@ defineExpose({
               data-testid="file-search-input"
               type="text"
               :placeholder="searchPlaceholder"
-              class="h-8 min-w-0 w-full rounded-md bg-muted py-1 pr-2 pl-8 text-xs focus-visible:ring-2"
+              class="h-8 min-w-0 w-full rounded-md border border-input bg-background py-1 pr-2 pl-8 text-xs font-normal focus-visible:ring-2"
               :disabled="!hasWorkspace"
             />
           </div>
-          <div class="flex min-h-[1.75rem] flex-wrap items-center justify-between gap-x-2 gap-y-2">
+          <div class="flex min-h-[1.75rem] flex-wrap items-center justify-end gap-x-2 gap-y-2">
             <div
-              data-testid="file-search-mode-tabs"
-              class="flex min-w-0 flex-1 items-center justify-start"
-            >
-              <div
-                class="flex shrink-0 items-center gap-px rounded-md border border-border bg-muted/25 p-px"
-                role="group"
-                aria-label="File search mode"
-              >
-                <Button
-                  type="button"
-                  size="xs"
-                  :variant="searchMode === 'path' ? 'default' : 'ghost'"
-                  class="h-6 rounded-sm px-2 text-[10px]"
-                  title="Filter the file list by path or name"
-                  :aria-pressed="searchMode === 'path'"
-                  @click="searchMode = 'path'"
-                >
-                  Path
-                </Button>
-                <Button
-                  type="button"
-                  size="xs"
-                  :variant="searchMode === 'content' ? 'default' : 'ghost'"
-                  class="h-6 rounded-sm px-2 text-[10px]"
-                  title="Search text inside workspace files"
-                  :aria-pressed="searchMode === 'content'"
-                  @click="searchMode = 'content'"
-                >
-                  Text
-                </Button>
-              </div>
-            </div>
-            <div
-              class="flex shrink-0 items-center gap-0.5 rounded-md border border-border/70 bg-muted/20 p-0.5"
+              class="flex shrink-0 items-center gap-0.5 rounded-md border border-border/70 bg-background p-0.5"
               role="toolbar"
               aria-label="File explorer actions"
             >
@@ -1549,34 +1408,18 @@ defineExpose({
                 {{ error }}
               </p>
               <p
-                v-else-if="
-                  searchMode === 'content' &&
-                    debouncedQuery.trim() &&
-                    contentSearchError
-                "
+                v-else-if="debouncedQuery.trim() && contentSearchError"
                 class="px-1.5 py-2 text-xs text-destructive"
               >
                 {{ contentSearchError }}
               </p>
               <p
                 v-else-if="
-                  searchMode === 'content' && debouncedQuery.trim() && isContentSearching
+                  debouncedQuery.trim() && isContentSearching && visibleTree.length === 0
                 "
                 class="px-1.5 py-2 text-xs text-muted-foreground"
               >
                 Searching file contents…
-              </p>
-              <p
-                v-else-if="
-                  searchMode === 'content' &&
-                    debouncedQuery.trim() &&
-                    !isContentSearching &&
-                    contentMatchPaths.length === 0 &&
-                    !contentSearchError
-                "
-                class="px-1.5 py-2 text-xs text-muted-foreground"
-              >
-                No files contain matching text.
               </p>
               <p
                 v-else-if="visibleTree.length === 0"
@@ -1634,8 +1477,8 @@ defineExpose({
             <div
               :class="
                 cn(
-                  badgeVariants({ variant: 'secondary' }),
-                  'inline-flex h-7 min-w-0 max-w-[16rem] shrink-0 items-stretch gap-0.5 rounded-full border-border/60 bg-muted/70 py-0 pr-0.5 pl-1.5 shadow-none'
+                  badgeVariants({ variant: 'outline' }),
+                  'inline-flex h-7 min-w-0 max-w-[16rem] shrink-0 items-stretch gap-0.5 rounded-full border-border/60 bg-background py-0 pr-0.5 pl-1.5 font-normal shadow-none'
                 )
               "
               :title="selectedPath"
@@ -1645,7 +1488,7 @@ defineExpose({
                   class="shrink-0 text-[13px] leading-none"
                   aria-hidden="true"
                 >{{ fileEmojiForPath(selectedPath) }}</span>
-                <span class="min-w-0 truncate text-xs font-medium">{{
+                <span class="min-w-0 truncate text-xs font-normal">{{
                   basenameFromPath(selectedPath)
                 }}</span>
                 <span
@@ -1705,24 +1548,7 @@ defineExpose({
             @click="openFindInFile"
           >
             Find
-          </Button>
-          <Button
-            data-testid="toggle-file-editor-body"
-            type="button"
-            variant="outline"
-            size="icon-xs"
-            class="px-1.5"
-            :disabled="!selectedPath"
-            :title="editorCollapsed ? 'Expand editor' : 'Collapse editor'"
-            :aria-label="editorCollapsed ? 'Expand editor' : 'Collapse editor'"
-            :aria-expanded="selectedPath ? !editorCollapsed : true"
-            aria-controls="file-editor-body"
-            @click="toggleEditorCollapsed"
-          >
-            <Maximize2 v-if="editorCollapsed" class="h-3.5 w-3.5" aria-hidden="true" />
-            <Minimize2 v-else class="h-3.5 w-3.5" aria-hidden="true" />
-            <span class="sr-only">{{ editorCollapsed ? "Expand editor" : "Collapse editor" }}</span>
-          </Button>
+          </Button>          
           <Button
             data-testid="revert-file"
             variant="outline"
@@ -1764,38 +1590,11 @@ defineExpose({
         <div
           v-if="selectedPath && editorCollapsed"
           data-testid="file-editor-collapsed-state"
-          class="flex min-h-[6rem] flex-1 items-center justify-center rounded-md bg-muted/10 px-4 py-6 text-xs text-muted-foreground"
+          class="flex min-h-[6rem] flex-1 items-center justify-center rounded-md bg-background px-4 py-6 text-xs font-normal text-muted-foreground"
         >
           Editor collapsed.
         </div>
         <template v-else>
-          <div
-            v-if="isMarkdownFile && selectedPath"
-            class="absolute top-2 right-3 z-20 flex flex-col items-end gap-1 rounded-lg border border-border/60 bg-background/95 p-0.5 shadow-sm backdrop-blur-sm supports-[backdrop-filter]:bg-background/80"
-          >
-            <PillTabs
-              v-model="mdViewMode"
-              class="min-w-0 shrink-0 [&_[role=tablist]]:px-0 [&_[role=tablist]]:py-0 [&_[role=tab][aria-selected='true']]:bg-foreground [&_[role=tab][aria-selected='true']]:text-background [&_[role=tab][aria-selected='true']]:shadow-sm [&_[role=tab][aria-selected='false']]:hover:bg-transparent"
-              aria-label="Markdown view"
-              :tabs="mdViewTabs"
-            />
-            <Button
-              v-if="mdViewMode === 'source'"
-              data-testid="markdown-source-image-previews-toggle"
-              type="button"
-              variant="ghost"
-              size="xs"
-              class="h-7 shrink-0 px-2 text-[11px] text-muted-foreground hover:text-foreground"
-              :title="
-                mdSourceImagePreviews
-                  ? 'Show Markdown source without inline image previews'
-                  : 'Show resolved images under image syntax in the editor'
-              "
-              @click="mdSourceImagePreviews = !mdSourceImagePreviews"
-            >
-              {{ mdSourceImagePreviews ? "Hide image previews" : "Show image previews" }}
-            </Button>
-          </div>
           <div
             v-if="isImagePreviewFile && selectedPath"
             class="absolute top-2 right-3 z-20 rounded-lg border border-border/60 bg-background/95 p-0.5 shadow-sm backdrop-blur-sm supports-[backdrop-filter]:bg-background/80"
@@ -1835,7 +1634,7 @@ defineExpose({
           <div
             v-else-if="isImagePreviewFile && imageFileViewMode === 'preview' && imagePreviewSrc"
             data-testid="image-file-preview"
-            class="flex min-h-[18rem] flex-1 flex-col items-center justify-center overflow-auto rounded-md bg-muted/10 px-4 py-6"
+            class="flex min-h-[18rem] flex-1 flex-col items-center justify-center overflow-auto rounded-md bg-background px-4 py-6"
           >
             <img
               :src="imagePreviewSrc"
@@ -1847,14 +1646,14 @@ defineExpose({
           <div
             v-else-if="isImagePreviewFile && imageFileViewMode === 'preview' && !imagePreviewSrc"
             data-testid="image-file-preview-unavailable"
-            class="flex min-h-[18rem] flex-1 flex-col items-center justify-center gap-2 rounded-md bg-muted/10 px-4 py-6 text-center text-xs text-muted-foreground"
+            class="flex min-h-[18rem] flex-1 flex-col items-center justify-center gap-2 rounded-md bg-background px-4 py-6 text-center text-xs font-normal text-muted-foreground"
             role="status"
           >
             <p class="max-w-sm">
               Could not build a preview (missing binary, Git LFS pointer not smudged, wrong file type, or over 32 MB).
             </p>
             <p>
-              Use <span class="font-medium text-foreground">Source</span> to inspect the file, or run
+              Use <span class="font-normal text-foreground">Source</span> to inspect the file, or run
               <span class="font-mono">git lfs pull</span> if this is an LFS asset.
             </p>
             <p class="text-[11px] text-muted-foreground/90">
@@ -1862,21 +1661,12 @@ defineExpose({
               the image into the repo.
             </p>
           </div>
-          <div
-            v-else-if="isMarkdownFile && mdViewMode === 'read'"
-            data-testid="markdown-preview"
-            class="markdown-reader h-full min-h-[18rem] overflow-y-auto rounded-md bg-muted/10 px-3 py-3"
-            v-html="markdownHtml"
-          />
           <MonacoEditor
             v-else
             ref="monacoEditorRef"
             v-model="draftContent"
             :language="editorLanguage"
             :show-line-numbers="showLineNumbers"
-            :markdown-workspace-root="markdownImageWorkspaceRoot"
-            :markdown-file-path="markdownImageFilePath"
-            :markdown-image-preview-enabled="mdSourceImagePreviews"
             :queue-selection-hints="queueSelectionHintsEnabled"
             :aria-label="
               selectedPath
@@ -1890,11 +1680,11 @@ defineExpose({
       <div
         v-if="externalDropPreview"
         data-testid="external-image-drop-preview"
-        class="shrink-0 border-t border-border bg-muted/25 px-4 py-3"
+        class="shrink-0 border-t border-border bg-background px-4 py-3"
       >
         <div class="flex items-start justify-between gap-2">
           <p class="min-w-0 text-[11px] leading-snug text-muted-foreground">
-            <span class="font-medium text-foreground">Dropped image</span>
+            <span class="font-normal text-foreground">Dropped image</span>
             (not in the file tree). Save a copy under the worktree to open it in the editor.
           </p>
           <Button

@@ -86,7 +86,10 @@ describe("MonacoDiffEditor", () => {
     });
     expect(editor.createDiffEditor).toHaveBeenCalledWith(
       expect.any(HTMLElement),
-      expect.objectContaining({ renderSideBySide: true })
+      expect.objectContaining({
+        renderSideBySide: true,
+        hideUnchangedRegions: expect.objectContaining({ enabled: true })
+      })
     );
   });
 
@@ -98,7 +101,10 @@ describe("MonacoDiffEditor", () => {
     });
     expect(editor.createDiffEditor).toHaveBeenCalledWith(
       expect.any(HTMLElement),
-      expect.objectContaining({ renderSideBySide: false })
+      expect.objectContaining({
+        renderSideBySide: false,
+        hideUnchangedRegions: expect.objectContaining({ enabled: true })
+      })
     );
   });
 

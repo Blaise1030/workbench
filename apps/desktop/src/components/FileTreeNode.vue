@@ -65,7 +65,7 @@ function isExpanded(path: string): boolean {
             {{ isExpanded(node.path) ? "▾" : "▸" }}
           </span>
           <span class="shrink-0 text-[13px] leading-none" aria-hidden="true">📁</span>
-          <span class="min-w-0 whitespace-nowrap font-medium">{{ node.name }}</span>
+          <span class="min-w-0 whitespace-nowrap font-normal">{{ node.name }}</span>
         </Button>
       </ContextMenuTrigger>
       <ContextMenuContent data-testid="file-tree-context-menu" class="min-w-[11rem]">
@@ -107,7 +107,7 @@ function isExpanded(path: string): boolean {
         >
           <span class="w-3.5 shrink-0" aria-hidden="true" />
           <span class="shrink-0 text-[13px] leading-none" aria-hidden="true">📄</span>
-          <span class="min-w-0 whitespace-nowrap">{{ node.name }}</span>
+          <span class="min-w-0 whitespace-nowrap font-normal">{{ node.name }}</span>
         </Button>
       </ContextMenuTrigger>
       <ContextMenuContent data-testid="file-tree-context-menu" class="min-w-[11rem]">

@@ -1,0 +1,37 @@
+/**
+ * Monaco renders its own scrollbar DOM (not native overflow scrollbars).
+ * These tweaks move it toward macOS / Windows 11-style overlay bars:
+ * thin track, rounded pill thumb, translucent colors from app tokens, no inset shadows.
+ */
+.monaco-app-scrollbars {
+  --vscode-scrollbar-shadow: transparent;
+  --vscode-scrollbarSlider-background: color-mix(in srgb, var(--foreground) 22%, transparent);
+  --vscode-scrollbarSlider-hoverBackground: color-mix(in srgb, var(--foreground) 38%, transparent);
+  --vscode-scrollbarSlider-activeBackground: color-mix(in srgb, var(--foreground) 48%, transparent);
+}
+
+.monaco-app-scrollbars .monaco-scrollable-element > .scrollbar > .slider {
+  border-radius: 9999px;
+  /* Inset the thumb from the “track” edge like overlay scrollbars */
+  box-sizing: border-box;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+/**
+ * Find/replace widget: default Monaco CSS only draws left/right/bottom borders.
+ * Close the frame with app tokens and a light shadow so it reads as a floating panel.
+ */
+.monaco-app-scrollbars .monaco-editor .find-widget {
+  border: 1px solid var(--border);
+  border-radius: min(var(--radius-md), 10px);
+  box-shadow:
+    0 2px 6px rgb(0 0 0 / 0.08),
+    0 8px 24px rgb(0 0 0 / 0.12);
+}
+
+.dark .monaco-app-scrollbars .monaco-editor .find-widget {
+  box-shadow:
+    0 2px 8px rgb(0 0 0 / 0.35),
+    0 12px 28px rgb(0 0 0 / 0.45);
+}

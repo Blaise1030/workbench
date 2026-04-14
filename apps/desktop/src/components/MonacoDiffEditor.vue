@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { inject, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { monaco } from "@/lib/monacoApi";
+import { applyMonacoShadcnTheme } from "@/lib/monacoShadcnTheme";
 import { monacoLanguageIdFromPath } from "@/lib/monacoLanguage";
 import ContextQueueSelectionPopup from "@/components/contextQueue/ContextQueueSelectionPopup.vue";
 import { buildPasteText } from "@/contextQueue/formatters";
@@ -34,10 +35,6 @@ const toast = useToast();
 let diffEditor: monaco.editor.IStandaloneDiffEditor | null = null;
 let colorObserver: MutationObserver | null = null;
 
-function resolveTheme(): string {
-  return document.documentElement.classList.contains("dark") ? "vs-dark" : "vs";
-}
-
 function createModels(): void {
   if (!diffEditor) return;
   const lang = monacoLanguageIdFromPath(props.filePath);
@@ -52,8 +49,13 @@ function createModels(): void {
 
 function attachSelectionListener(): void {
   const modEditor = diffEditor?.getModifiedEditor();
-  if (!modEditor || !threadQueue) return;
+  if (!modEditor) return;
   modEditor.onDidChangeCursorSelection((e) => {
+    if (!threadQueue) {
+      selectionPopupVisible.value = false;
+      pendingSelection.value = null;
+      return;
+    }
     if (e.selection.isEmpty()) {
       selectionPopupVisible.value = false;
       pendingSelection.value = null;
@@ -93,24 +95,39 @@ onMounted(() => {
   const el = hostRef.value;
   if (!el) return;
 
-  monaco.editor.setTheme(resolveTheme());
+  applyMonacoShadcnTheme(monaco);
 
   diffEditor = monaco.editor.createDiffEditor(el, {
     renderSideBySide: props.layout === "split",
+    hideUnchangedRegions: {
+      enabled: true,
+      revealLineCount: 20,
+      minimumLineCount: 4,
+      contextLineCount: 3
+    },
     readOnly: true,
     fontSize: 12,
     fontFamily: "var(--font-app-mono)",
     minimap: { enabled: false },
     scrollBeyondLastLine: false,
     automaticLayout: true,
-    fixedOverflowWidgets: true
+    fixedOverflowWidgets: true,
+    scrollbar: {
+      vertical: "auto",
+      horizontal: "auto",
+      useShadows: false,
+      verticalScrollbarSize: 12,
+      verticalSliderSize: 9,
+      horizontalScrollbarSize: 12,
+      horizontalSliderSize: 9
+    }
   });
 
   createModels();
   attachSelectionListener();
 
   colorObserver = new MutationObserver(() => {
-    monaco.editor.setTheme(resolveTheme());
+    applyMonacoShadcnTheme(monaco);
   });
   colorObserver.observe(document.documentElement, {
     attributes: true,
@@ -206,7 +223,10 @@ async function onInjectDiffSelectionToAgent(): Promise<void> {
 
 <template>
   <div class="relative h-full min-h-0 w-full overflow-hidden">
-    <div ref="hostRef" class="monaco-diff-host h-full min-h-0 w-full overflow-hidden" />
+    <div
+      ref="hostRef"
+      class="monaco-app-scrollbars monaco-diff-host h-full min-h-0 w-full overflow-hidden"
+    />
     <ContextQueueSelectionPopup
       :visible="selectionPopupVisible"
       :anchor="selectionPopupAnchor"

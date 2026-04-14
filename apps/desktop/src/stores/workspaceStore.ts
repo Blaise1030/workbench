@@ -29,12 +29,27 @@ function orderProjectWorktrees(worktrees: Worktree[]): Worktree[] {
   return defaultWorktree ? [defaultWorktree, ...linkedWorktrees] : linkedWorktrees;
 }
 
-function worktreeDisplayLabel(worktree: Worktree): string {
-  if (worktree.isDefault) {
-    const branch = worktree.branch?.trim() ?? "";
-    return branch.length > 0 ? branch : "Primary";
+/**
+ * Human-readable checkout context: checked-out branch and worktree name.
+ * When branch and name are the same (typical for primary), a single segment is shown.
+ */
+export function worktreeBranchNameContextLabel(worktree: Worktree): string {
+  const branch = worktree.branch?.trim() ?? "";
+  const name = worktree.name?.trim() ?? "";
+  if (!branch && !name) {
+    return worktree.isDefault ? "Primary" : "";
   }
-  return worktree.name;
+  if (!branch) return name;
+  if (!name) return branch;
+  if (branch === name) return branch;
+  return `${branch} · ${name}`;
+}
+
+function worktreeDisplayLabel(worktree: Worktree): string {
+  const combined = worktreeBranchNameContextLabel(worktree);
+  if (combined.length > 0) return combined;
+  if (worktree.isDefault) return "Primary";
+  return worktree.name?.trim() || "Worktree";
 }
 
 /** Newest threads first within a worktree. */

@@ -42,10 +42,17 @@ const props = withDefaults(
   defineProps<{
     worktreeId: string;
     worktreePath: string | null;
+    /** Checkout context: branch and worktree name (e.g. `main` or `feat/x · my-worktree`). */
+    threadContextLabel?: string | null;
     defaultAgent?: ThreadAgent;
   }>(),
-  { defaultAgent: undefined }
+  { defaultAgent: undefined, threadContextLabel: null }
 );
+
+const threadContextPhrase = computed(() => {
+  const t = props.threadContextLabel?.trim();
+  return t && t.length > 0 ? t : "this checkout";
+});
 
 const emit = defineEmits<{
   submit: [payload: ThreadCreateWithAgentPayload];
@@ -74,7 +81,7 @@ const threadPromptEditor = useEditor({
   editorProps: {
     attributes: {
       class:
-        "tiptap thread-create-prompt-editor min-h-[10rem] overflow-y-auto px-4 py-4 text-[15px] leading-relaxed text-foreground outline-none focus:outline-none [&_.ProseMirror]:min-h-[10rem] [&_p]:my-1 [&_ul]:my-1 [&_ol]:my-1",
+        "tiptap thread-create-prompt-editor min-h-[11rem] overflow-y-auto px-4 py-4 text-[15px] leading-relaxed text-foreground outline-none focus:outline-none [&_.ProseMirror]:min-h-[11rem] [&_p]:my-1 [&_ul]:my-1 [&_ol]:my-1",
       role: "textbox",
       "aria-multiline": "true",
       "aria-label": "Thread goal or prompt",
@@ -261,145 +268,178 @@ defineExpose({ submit });
 <template>
   <section
     data-testid="inline-prompt-editor"
-    class="flex min-h-0 flex-1 flex-col overflow-hidden bg-card text-card-foreground"
+    class="flex min-h-0 flex-1 flex-col overflow-hidden bg-background text-foreground"
+    aria-labelledby="inline-prompt-heading"
+    aria-describedby="inline-prompt-summary"
     @dragover="onInlineEditorDragOver"
     @drop="onInlineEditorDrop"
   >
-    <!-- Tiptap editor — fills remaining vertical space -->
+    <p id="inline-prompt-summary" class="sr-only">
+      New thread. Start a thread with a coding agent. Attach files with the paperclip, choose an agent, then press Enter
+      or Start thread.
+    </p>
+    <!-- Title + card (editor → attachments → footer), matching new-thread dialog -->
     <div
-      class="thread-create-prompt-host min-h-0 flex-1 overflow-y-auto border-0 bg-transparent"
+      class="flex min-h-0 flex-1 flex-col items-center justify-center overflow-y-auto px-4 py-8"
       role="presentation"
     >
-      <editor-content
-        v-if="threadPromptEditor"
-        :editor="threadPromptEditor"
-        class="min-h-full w-full border-0 bg-transparent"
-      />
-    </div>
+      <div class="flex w-full max-w-3xl flex-col gap-0">
+        <h2
+          id="inline-prompt-heading"
+          class="mb-4 w-full text-center text-2xl font-medium tracking-tight text-foreground md:mb-6 md:text-[1.65rem]"
+        >
+          Building something great ? &#x1F6E0;&#xFE0F;
+        </h2>
 
-    <!-- Attachment strips -->
-    <div
-      v-if="skillAttachments.length || fileAttachments.length"
-      class="flex flex-col gap-1 border-t border-border px-3 py-1.5"
-    >
-      <div v-if="skillAttachments.length" class="flex flex-nowrap gap-1.5 overflow-x-auto [scrollbar-width:thin]">
         <div
-          v-for="a in skillAttachments"
-          :key="a.id"
-          :class="cn(badgeVariants({ variant: 'secondary' }), 'inline-flex h-7 max-w-[16rem] items-center gap-1 pl-2 pr-1')"
+          class="overflow-hidden rounded-2xl border border-border bg-background shadow-sm"
+          data-testid="inline-prompt-compose-card"
         >
-          <BookMarked class="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
-          <span class="min-w-0 truncate font-medium text-foreground">{{ a.name }}</span>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-xs"
-            class="size-6 shrink-0 rounded-full text-muted-foreground hover:bg-background/80 hover:text-destructive"
-            :aria-label="`Remove skill ${a.name}`"
-            @click="removeSkillAttachment(a.id)"
+          <div
+            class="thread-create-prompt-host max-h-[min(36rem,58vh)] min-h-[11rem] w-full overflow-y-auto border-0 bg-background"
+            role="presentation"
           >
-            <X class="size-3" aria-hidden="true" />
-          </Button>
-        </div>
-      </div>
-      <div v-if="fileAttachments.length" class="flex flex-nowrap gap-1.5 overflow-x-auto [scrollbar-width:thin]">
-        <div
-          v-for="a in fileAttachments"
-          :key="a.id"
-          :class="cn(badgeVariants({ variant: 'secondary' }), 'inline-flex h-7 max-w-none shrink-0 items-center gap-1 pl-2 pr-1')"
-        >
-          <span aria-hidden="true">{{ attachmentEmoji(a.name, a.isImage) }}</span>
-          <span class="min-w-0 truncate font-mono text-[11px] font-medium text-foreground">{{ a.isImage ? a.name : a.path }}</span>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-xs"
-            class="size-6 shrink-0 rounded-full text-muted-foreground hover:bg-background/80 hover:text-destructive"
-            :aria-label="`Remove attached file ${a.path}`"
-            @click="removeFileAttachment(a.id)"
+            <editor-content
+              v-if="threadPromptEditor"
+              :editor="threadPromptEditor"
+              class="w-full border-0 bg-muted"
+            />
+          </div>
+
+          <div
+            v-if="skillAttachments.length || fileAttachments.length"
+            class="flex flex-col gap-1 border-t border-border bg-background px-3 py-1.5"
           >
-            <X class="size-3" aria-hidden="true" />
-          </Button>
+            <div v-if="skillAttachments.length" class="flex flex-nowrap gap-1.5 overflow-x-auto [scrollbar-width:thin]">
+              <div
+                v-for="a in skillAttachments"
+                :key="a.id"
+                :class="cn(badgeVariants({ variant: 'secondary' }), 'inline-flex h-7 max-w-[16rem] items-center gap-1 pl-2 pr-1')"
+              >
+                <BookMarked class="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+                <span class="min-w-0 truncate font-medium text-foreground">{{ a.name }}</span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-xs"
+                  class="size-6 shrink-0 rounded-full text-muted-foreground hover:bg-background/80 hover:text-destructive"
+                  :aria-label="`Remove skill ${a.name}`"
+                  @click="removeSkillAttachment(a.id)"
+                >
+                  <X class="size-3" aria-hidden="true" />
+                </Button>
+              </div>
+            </div>
+            <div v-if="fileAttachments.length" class="flex flex-nowrap gap-1.5 overflow-x-auto [scrollbar-width:thin]">
+              <div
+                v-for="a in fileAttachments"
+                :key="a.id"
+                :class="cn(badgeVariants({ variant: 'secondary' }), 'inline-flex h-7 max-w-none shrink-0 items-center gap-1 pl-2 pr-1')"
+              >
+                <span aria-hidden="true">{{ attachmentEmoji(a.name, a.isImage) }}</span>
+                <span class="min-w-0 truncate font-mono text-[11px] font-medium text-foreground">{{ a.isImage ? a.name : a.path }}</span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-xs"
+                  class="size-6 shrink-0 rounded-full text-muted-foreground hover:bg-background/80 hover:text-destructive"
+                  :aria-label="`Remove attached file ${a.path}`"
+                  @click="removeFileAttachment(a.id)"
+                >
+                  <X class="size-3" aria-hidden="true" />
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          <div
+            class="flex flex-wrap items-center justify-between gap-2 border-t border-border bg-background px-2.5 py-2 sm:px-3 [.border-t]:pt-2.5"
+            data-testid="inline-prompt-footer"
+          >
+            <div class="flex min-w-0 flex-1 items-center gap-2 sm:min-w-[12rem] sm:max-w-[min(24rem,45%)]">
+              <input
+                ref="fileInputRef"
+                type="file"
+                class="hidden"
+                multiple
+                accept="image/*,.pdf,.txt,.md,.json,.csv,.ts,.tsx,.js,.jsx,.vue,.py,.rs,.go,.toml,.yaml,.yml,.c,.cpp,.h,.java,.kt,.swift,.rb,.php,.sh,.zsh,.bash,.env"
+                aria-label="Attach files or images"
+                @change="onFileInputChange"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="icon-xs"
+                class="h-9 w-9 shrink-0 rounded-lg"
+                title="Attach files or images"
+                aria-label="Attach files or images"
+                data-testid="inline-prompt-add-file"
+                @click="fileInputRef?.click()"
+              >
+                <Paperclip class="h-5 w-5" stroke-width="2" />
+              </Button>
+              <p
+                data-testid="inline-prompt-context"
+                class="min-w-0 flex-1 truncate text-xs leading-snug text-muted-foreground"
+              >
+                You are adding a thread to
+                <span class="font-medium text-foreground">{{ threadContextPhrase }}</span>.
+              </p>
+            </div>
+
+            <div class="flex min-w-0 flex-wrap items-center justify-end gap-2 sm:flex-nowrap sm:shrink-0">
+              <div class="flex min-w-0 flex-col gap-1">
+                <label class="sr-only" for="inline-prompt-agent-select">Model</label>
+                <Select v-model="selectedAgent">
+                  <SelectTrigger
+                    id="inline-prompt-agent-select"
+                    class="h-9 w-full min-w-[12rem] max-w-[16rem] shrink border-input bg-background text-xs font-medium shadow-xs"
+                    :aria-label="`Model: ${selectedAgentLabel}`"
+                    data-testid="inline-prompt-agent-select"
+                  >
+                    <span class="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
+                      <AgentIcon :agent="selectedAgent" :size="18" class="shrink-0" />
+                      <span class="truncate text-left">{{ selectedAgentLabel }}</span>
+                    </span>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      <SelectLabel>Model</SelectLabel>
+                      <SelectItem v-for="opt in AGENT_OPTIONS" :key="opt.agent" :value="opt.agent">
+                        <AgentIcon :agent="opt.agent" :size="16" class="shrink-0" />
+                        {{ opt.label }}
+                      </SelectItem>
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                class="h-9 rounded-lg text-xs"
+                aria-label="Cancel"
+                data-testid="inline-prompt-cancel"
+                @click="emit('cancel')"
+              >
+                Cancel
+              </Button>
+
+              <Button
+                type="button"
+                size="sm"
+                class="h-9 gap-1.5 rounded-lg bg-foreground px-3 text-xs font-medium text-background hover:bg-foreground/90"
+                aria-label="Start thread"
+                title="Start thread"
+                @click="submit"
+              >
+                <MessageSquarePlus class="size-3.5 shrink-0" aria-hidden="true" />
+                Start thread
+              </Button>
+            </div>
+          </div>
         </div>
-      </div>
-    </div>
-
-    <!-- Bottom action bar -->
-    <div class="flex flex-wrap items-center justify-between gap-2 border-t border-border bg-muted px-2.5 py-2">
-      <div class="flex items-center gap-1">
-        <input
-          ref="fileInputRef"
-          type="file"
-          class="hidden"
-          multiple
-          accept="image/*,.pdf,.txt,.md,.json,.csv,.ts,.tsx,.js,.jsx,.vue,.py,.rs,.go,.toml,.yaml,.yml,.c,.cpp,.h,.java,.kt,.swift,.rb,.php,.sh,.zsh,.bash,.env"
-          aria-label="Attach files or images"
-          @change="onFileInputChange"
-        />
-        <Button
-          type="button"
-          variant="outline"
-          size="icon-xs"
-          class="h-9 w-9 shrink-0 rounded-lg"
-          title="Attach files or images"
-          aria-label="Attach files or images"
-          data-testid="inline-prompt-add-file"
-          @click="fileInputRef?.click()"
-        >
-          <Paperclip class="h-5 w-5" stroke-width="2" />
-        </Button>
-      </div>
-
-      <div class="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-2 sm:flex-nowrap">
-        <div class="flex min-w-0 flex-col gap-1">
-          <label class="sr-only" for="inline-prompt-agent-select">Model</label>
-          <Select v-model="selectedAgent">
-            <SelectTrigger
-              id="inline-prompt-agent-select"
-              class="h-9 w-full min-w-[12rem] max-w-[16rem] shrink border-input bg-background text-xs font-medium shadow-xs"
-              :aria-label="`Model: ${selectedAgentLabel}`"
-              data-testid="inline-prompt-agent-select"
-            >
-              <span class="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
-                <AgentIcon :agent="selectedAgent" :size="18" class="shrink-0" />
-                <span class="truncate text-left">{{ selectedAgentLabel }}</span>
-              </span>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectGroup>
-                <SelectLabel>Model</SelectLabel>
-                <SelectItem v-for="opt in AGENT_OPTIONS" :key="opt.agent" :value="opt.agent">
-                  <AgentIcon :agent="opt.agent" :size="16" class="shrink-0" />
-                  {{ opt.label }}
-                </SelectItem>
-              </SelectGroup>
-            </SelectContent>
-          </Select>
-        </div>
-
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          class="h-9 rounded-lg text-xs text-muted-foreground"
-          aria-label="Cancel"
-          data-testid="inline-prompt-cancel"
-          @click="emit('cancel')"
-        >
-          Cancel
-        </Button>
-
-        <Button
-          type="button"
-          size="sm"
-          class="h-9 gap-1.5 rounded-lg bg-foreground px-3 text-xs font-medium text-background hover:bg-foreground/90"
-          aria-label="Start thread"
-          title="Start thread"
-          @click="submit"
-        >
-          <MessageSquarePlus class="size-3.5 shrink-0" aria-hidden="true" />
-          Start thread
-        </Button>
       </div>
     </div>
   </section>

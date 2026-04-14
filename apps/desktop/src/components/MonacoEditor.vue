@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref, toRef, watch } from "vue";
 import { monaco } from "@/lib/monacoApi";
+import { applyMonacoShadcnTheme } from "@/lib/monacoShadcnTheme";
 
 export type QueueableEditorSelection = {
   selectedText: string;
@@ -15,10 +16,6 @@ const props = withDefaults(
     language?: string;
     ariaLabel?: string;
     showLineNumbers?: boolean;
-    /** Unused in Monaco — kept for API compatibility with FileSearchEditor’s legacy props. */
-    markdownWorkspaceRoot?: string | null;
-    markdownFilePath?: string | null;
-    markdownImagePreviewEnabled?: boolean;
     queueSelectionHints?: boolean;
   }>(),
   { showLineNumbers: true }
@@ -36,16 +33,52 @@ const hostRef = ref<HTMLDivElement | null>(null);
 let editor: monaco.editor.IStandaloneCodeEditor | null = null;
 let suppressChange = false;
 let colorObserver: MutationObserver | null = null;
+let queueableScrollRaf = 0;
 
-function resolveTheme(): string {
-  return document.documentElement.classList.contains("dark") ? "vs-dark" : "vs";
+function emitQueueableTextSelection(sel: monaco.Selection | null): void {
+  if (!editor || !props.queueSelectionHints) {
+    emit("queueable-text-selection", null);
+    return;
+  }
+  const model = editor.getModel();
+  if (!model || !sel || sel.isEmpty()) {
+    emit("queueable-text-selection", null);
+    return;
+  }
+  const text = model.getValueInRange(sel);
+  if (!text.trim()) {
+    emit("queueable-text-selection", null);
+    return;
+  }
+  const domNode = editor.getDomNode();
+  /** Caret / active end of the highlight (not the normalized Range end). */
+  const coords = editor.getScrolledVisiblePosition({
+    lineNumber: sel.positionLineNumber,
+    column: sel.positionColumn
+  });
+  if (!coords || !domNode) {
+    emit("queueable-text-selection", null);
+    return;
+  }
+  const rect = domNode.getBoundingClientRect();
+  emit("queueable-text-selection", {
+    selectedText: text,
+    lineStart: sel.startLineNumber,
+    lineEnd: sel.endLineNumber,
+    anchor: {
+      left: rect.left + coords.left,
+      top: rect.top + coords.top,
+      width: 2,
+      height: coords.height
+    }
+  });
 }
 
 onMounted(() => {
   const el = hostRef.value;
   if (!el) return;
 
-  monaco.editor.setTheme(resolveTheme());
+  applyMonacoShadcnTheme(monaco);
 
   editor = monaco.editor.create(el, {
     value: props.modelValue,
@@ -59,6 +92,15 @@ onMounted(() => {
     automaticLayout: true,
     fixedOverflowWidgets: true,
     ariaLabel: props.ariaLabel,
+    scrollbar: {
+      vertical: "auto",
+      horizontal: "auto",
+      useShadows: false,
+      verticalScrollbarSize: 12,
+      verticalSliderSize: 9,
+      horizontalScrollbarSize: 12,
+      horizontalSliderSize: 9
+    }
   });
 
   editor.onDidChangeModelContent(() => {
@@ -66,44 +108,23 @@ onMounted(() => {
     emit("update:modelValue", editor!.getValue());
   });
 
-  if (props.queueSelectionHints) {
-    editor.onDidChangeCursorSelection((e) => {
-      const model = editor!.getModel();
-      if (!model || e.selection.isEmpty()) {
-        emit("queueable-text-selection", null);
-        return;
-      }
-      const text = model.getValueInRange(e.selection);
-      if (!text.trim()) {
-        emit("queueable-text-selection", null);
-        return;
-      }
-      const domNode = editor!.getDomNode();
-      const coords = editor!.getScrolledVisiblePosition({
-        lineNumber: e.selection.endLineNumber,
-        column: e.selection.endColumn
-      });
-      if (!coords || !domNode) {
-        emit("queueable-text-selection", null);
-        return;
-      }
-      const rect = domNode.getBoundingClientRect();
-      emit("queueable-text-selection", {
-        selectedText: text,
-        lineStart: e.selection.startLineNumber,
-        lineEnd: e.selection.endLineNumber,
-        anchor: {
-          left: rect.left + coords.left,
-          top: rect.top + coords.top,
-          width: 2,
-          height: coords.height
-        }
-      });
+  // Always subscribe: `queueSelectionHints` is often false at mount (no thread yet) and
+  // becomes true later — conditional registration would never attach the listener.
+  editor.onDidChangeCursorSelection((e) => {
+    emitQueueableTextSelection(e.selection);
+  });
+
+  editor.onDidScrollChange(() => {
+    if (!props.queueSelectionHints) return;
+    if (queueableScrollRaf) cancelAnimationFrame(queueableScrollRaf);
+    queueableScrollRaf = requestAnimationFrame(() => {
+      queueableScrollRaf = 0;
+      emitQueueableTextSelection(editor?.getSelection() ?? null);
     });
-  }
+  });
 
   colorObserver = new MutationObserver(() => {
-    monaco.editor.setTheme(resolveTheme());
+    applyMonacoShadcnTheme(monaco);
   });
   colorObserver.observe(document.documentElement, {
     attributes: true,
@@ -112,6 +133,8 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
+  if (queueableScrollRaf) cancelAnimationFrame(queueableScrollRaf);
+  queueableScrollRaf = 0;
   colorObserver?.disconnect();
   colorObserver = null;
   editor?.dispose();
@@ -145,6 +168,14 @@ watch(
   }
 );
 
+watch(
+  () => props.queueSelectionHints,
+  (enabled) => {
+    if (!enabled) emit("queueable-text-selection", null);
+    else if (editor) emitQueueableTextSelection(editor.getSelection());
+  }
+);
+
 function openFind(): void {
   editor?.trigger("keyboard", "actions.find", null);
 }
@@ -156,7 +187,7 @@ defineExpose({ openFind });
   <div
     ref="hostRef"
     data-testid="file-editor"
-    class="flex min-h-0 w-full flex-1 overflow-hidden"
+    class="monaco-app-scrollbars flex min-h-0 w-full flex-1 overflow-hidden"
     :data-language="language"
     :data-line-numbers="showLineNumbers === false ? 'hidden' : 'visible'"
   />

@@ -374,7 +374,7 @@ defineExpose({ openMenu: openOverlay, threadPromptEditor });
       @dragover="onThreadCreateDragOver"
       @drop="onThreadCreateDrop"
     >
-      <h1 class="mb-6 text-center text-2xl pt-2">Building something great ? 🛠️</h1>
+      <h1 class="mb-6 text-center text-2xl pt-2">Building something great ? 🛠️ asdasdasd</h1>
       <Card
         class="gap-0 overflow-hidden rounded-2xl border border-border bg-card py-0 shadow-none ring-0"
       >        

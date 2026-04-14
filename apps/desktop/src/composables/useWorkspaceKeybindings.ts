@@ -179,7 +179,10 @@ export function useWorkspaceKeybindings(ctx: WorkspaceKeybindingContext, enabled
 
     const def = findDefinitionIn(definitions, id);
 
-    if (def && NAV_IDS.includes(def.id) && typing) return;
+    // Block NAV_IDS in non-terminal typing surfaces (CodeMirror, inputs, etc.).
+    // The integrated terminal is intentionally excluded: workspace shortcuts should
+    // fire even when it is focused.
+    if (def && NAV_IDS.includes(def.id) && typing && !inTerminal) return;
 
     if (!def) return;
     if (!eventMatchesBinding(ev, def)) return;

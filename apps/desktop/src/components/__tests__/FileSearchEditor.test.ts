@@ -58,7 +58,6 @@ describe("FileSearchEditor", () => {
     localStorage.removeItem("instrument.fileSearchSidebarCollapsed");
     localStorage.removeItem("instrument.fileSearchEditorCollapsed");
     localStorage.removeItem("instrument.fileSearchLineNumbersVisible");
-    localStorage.removeItem("instrument.markdownSourceImagePreviewsVisible");
     listFiles.mockReset();
     searchFileContents.mockReset();
     readFile.mockReset();
@@ -213,7 +212,8 @@ describe("FileSearchEditor", () => {
     expect(input.classes()).toContain("h-8");
     expect(input.classes()).toContain("rounded-md");
     expect(input.classes()).toContain("border");
-    expect(input.classes()).toContain("bg-muted");
+    expect(input.classes()).toContain("bg-background");
+    expect(input.classes()).toContain("font-normal");
     expect(input.classes()).toContain("focus-visible:ring-2");
     expect(input.classes()).toContain("disabled:bg-input/50");
   });
@@ -360,7 +360,7 @@ describe("FileSearchEditor", () => {
     );
   });
 
-  it("calls searchFileContents in Text mode after debounce", async () => {
+  it("calls searchFileContents after debounce", async () => {
     listFiles.mockResolvedValue([
       { relativePath: "src/App.vue", size: 11, modifiedAt: 1 },
       { relativePath: "src/features/FileSearchEditor.vue", size: 11, modifiedAt: 2 }
@@ -371,12 +371,6 @@ describe("FileSearchEditor", () => {
       props: { worktreePath: "/tmp/project" }
     });
 
-    await flushPromises();
-
-    const modeButtons = wrapper.get('[data-testid="file-search-mode-tabs"]').findAll("button");
-    const textMode = modeButtons.find((b) => b.text() === "Text");
-    expect(textMode).toBeDefined();
-    await textMode!.trigger("click");
     await flushPromises();
 
     await wrapper.get('[data-testid="file-search-input"]').setValue("hello");
@@ -510,7 +504,7 @@ describe("FileSearchEditor", () => {
     );
   });
 
-  it("renders sanitized markdown preview for .md files on Read tab", async () => {
+  it("opens Markdown files in the Monaco editor", async () => {
     listFiles.mockResolvedValue([{ relativePath: "README.md", size: 20, modifiedAt: 1 }]);
     readFile.mockResolvedValue("# Hello\n\n**Bold** text.");
 
@@ -522,67 +516,10 @@ describe("FileSearchEditor", () => {
     await wrapper.get('[data-testid="file-node-README.md"]').trigger("click");
     await flushPromises();
 
-    const preview = wrapper.get('[data-testid="markdown-preview"]');
-    expect(preview.element.innerHTML).toContain("Hello");
-    expect(preview.element.innerHTML).toContain("<strong>");
-    expect(preview.element.innerHTML).not.toContain("<script");
-  });
-
-  it("switches markdown from Read to Source to show the raw editor", async () => {
-    listFiles.mockResolvedValue([{ relativePath: "note.md", size: 8, modifiedAt: 1 }]);
-    readFile.mockResolvedValue("# x");
-
-    const wrapper = mount(FileSearchEditor, {
-      props: { worktreePath: "/tmp/project" }
-    });
-
-    await flushPromises();
-    await wrapper.get('[data-testid="file-node-note.md"]').trigger("click");
-    await flushPromises();
-
-    expect(wrapper.find('[data-testid="markdown-preview"]').exists()).toBe(true);
-
-    const tabs = wrapper.findAll('[role="tab"]');
-    const source = tabs.find((t) => t.text().includes("Source"));
-    expect(source).toBeDefined();
-    await source!.trigger("click");
-    await flushPromises();
-
     expect(wrapper.find('[data-testid="markdown-preview"]').exists()).toBe(false);
-    expect(wrapper.find('[data-testid="file-editor"]').exists()).toBe(true);
-  });
-
-  it("shows a Markdown source toggle for inline image previews", async () => {
-    listFiles.mockResolvedValue([{ relativePath: "pic.md", size: 8, modifiedAt: 1 }]);
-    readFile.mockResolvedValue("# x");
-
-    const wrapper = mount(FileSearchEditor, {
-      props: { worktreePath: "/tmp/project" }
-    });
-
-    await flushPromises();
-    await wrapper.get('[data-testid="file-node-pic.md"]').trigger("click");
-    await flushPromises();
-
-    expect(wrapper.find('[data-testid="markdown-source-image-previews-toggle"]').exists()).toBe(
-      false
-    );
-
-    const tabs = wrapper.findAll('[role="tab"]');
-    const source = tabs.find((t) => t.text().includes("Source"));
-    await source!.trigger("click");
-    await flushPromises();
-
-    const toggle = wrapper.get('[data-testid="markdown-source-image-previews-toggle"]');
-    expect(toggle.text()).toContain("Hide image previews");
-
-    await toggle.trigger("click");
-    await flushPromises();
-    expect(toggle.text()).toContain("Show image previews");
-
-    await toggle.trigger("click");
-    await flushPromises();
-    expect(toggle.text()).toContain("Hide image previews");
+    const editor = wrapper.get('[data-testid="file-editor"]');
+    expect(editor.attributes("data-language")).toBe("markdown");
+    expect((editor.element as HTMLTextAreaElement).value).toContain("# Hello");
   });
 
   it("opens raster images in Preview without readFile", async () => {

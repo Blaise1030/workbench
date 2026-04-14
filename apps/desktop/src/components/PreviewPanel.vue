@@ -30,68 +30,6 @@
         spellcheck="false"
         @keydown.enter="navigate"
       />
-      <TooltipProvider :delay-duration="300">
-        <div
-          class="flex shrink-0 items-center gap-0.5 rounded-md border border-border bg-muted/30 p-0.5"
-          role="group"
-          aria-label="Preview viewport size"
-        >
-          <Tooltip>
-            <TooltipTrigger as-child>
-              <button
-                type="button"
-                data-testid="preview-emulation-mobile"
-                :class="emulationToggleClass('mobile')"
-                :aria-pressed="deviceEmulationPreset === 'mobile'"
-                aria-label="Mobile preview, 390 by 844. Press again to use full panel."
-                @click="setDeviceEmulationPreset('mobile')"
-              >
-                <Smartphone class="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-                <span class="max-sm:sr-only">Mobile</span>
-              </button>
-            </TooltipTrigger>
-            <TooltipContent side="bottom" class="max-w-[16rem]">
-              Mobile viewport (390×844). Matches many phone layouts. Click again to fill the preview panel.
-            </TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger as-child>
-              <button
-                type="button"
-                data-testid="preview-emulation-tablet"
-                :class="emulationToggleClass('tablet')"
-                :aria-pressed="deviceEmulationPreset === 'tablet'"
-                aria-label="Tablet preview, 834 by 1194. Press again to use full panel."
-                @click="setDeviceEmulationPreset('tablet')"
-              >
-                <Tablet class="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-                <span class="max-sm:sr-only">Tablet</span>
-              </button>
-            </TooltipTrigger>
-            <TooltipContent side="bottom" class="max-w-[16rem]">
-              Tablet viewport (834×1194). Click again to fill the preview panel.
-            </TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger as-child>
-              <button
-                type="button"
-                data-testid="preview-emulation-desktop"
-                :class="emulationToggleClass('desktop')"
-                :aria-pressed="deviceEmulationPreset === null"
-                aria-label="Desktop preview, full panel width"
-                @click="setDeviceEmulationPreset('desktop')"
-              >
-                <Monitor class="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-                <span class="max-sm:sr-only">Desktop</span>
-              </button>
-            </TooltipTrigger>
-            <TooltipContent side="bottom" class="max-w-[16rem]">
-              Desktop — use the full preview area with no device frame.
-            </TooltipContent>
-          </Tooltip>
-        </div>
-      </TooltipProvider>
       <button
         data-testid="preview-reload-btn"
         class="shrink-0 rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
@@ -104,7 +42,7 @@
         data-testid="preview-devtools-btn"
         type="button"
         class="shrink-0 rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
-        title="Open preview DevTools (docked below the page). Mobile, Tablet, and Desktop set viewport emulation."
+        title="Open preview DevTools (docked below the page)"
         @click="openPreviewDevTools"
       >
         <Bug class="h-3.5 w-3.5" />
@@ -120,8 +58,7 @@ import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import { setPreviewNativeCollisionEl, setPreviewNativeViewportTopPx } from "@/composables/previewNativeViewportTop";
 import Badge from "@/components/ui/Badge.vue";
 import type { BadgeVariant } from "@/components/ui/badge";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Bug, Monitor, RotateCw, Smartphone, Tablet } from "lucide-vue-next";
+import { Bug, RotateCw } from "lucide-vue-next";
 import type { PreviewLoadStatePayload } from "@shared/ipc";
 import { loadPreviewPanelUrl, savePreviewPanelUrl } from "@/composables/usePreviewPanelUrlPersistence";
 import { useWorkspaceStore } from "@/stores/workspaceStore";
@@ -136,7 +73,15 @@ const viewportScreenRect = ref<{ top: number; left: number; width: number; heigh
 
 const collisionMirrorStyle = computed(() => {
   const r = viewportScreenRect.value;
-  if (!r || r.width < 2 || r.height < 2) {
+  if (
+    !r ||
+    !Number.isFinite(r.top) ||
+    !Number.isFinite(r.left) ||
+    !Number.isFinite(r.width) ||
+    !Number.isFinite(r.height) ||
+    r.width < 2 ||
+    r.height < 2
+  ) {
     return { display: "none" } as Record<string, string>;
   }
   return {
@@ -152,35 +97,6 @@ const collisionMirrorStyle = computed(() => {
   } as Record<string, string>;
 });
 const loadState = ref<PreviewLoadStatePayload | null>(null);
-/** `null` = desktop (no emulation); otherwise active preset sent to main. */
-const deviceEmulationPreset = ref<"mobile" | "tablet" | null>(null);
-
-function emulationToggleClass(p: "mobile" | "tablet" | "desktop"): string {
-  const active = p === "desktop" ? deviceEmulationPreset.value === null : deviceEmulationPreset.value === p;
-  return [
-    "inline-flex shrink-0 items-center gap-1 rounded px-1.5 py-1 text-[11px] font-medium outline-none transition-colors",
-    active
-      ? "bg-background text-foreground shadow-sm ring-1 ring-border"
-      : "text-muted-foreground hover:bg-muted hover:text-foreground"
-  ].join(" ");
-}
-
-async function setDeviceEmulationPreset(p: "mobile" | "tablet" | "desktop"): Promise<void> {
-  const api = getApi();
-  if (!api?.setDeviceEmulation) return;
-  if (p === "desktop") {
-    deviceEmulationPreset.value = null;
-    await api.setDeviceEmulation("desktop");
-    return;
-  }
-  if (deviceEmulationPreset.value === p) {
-    deviceEmulationPreset.value = null;
-    await api.setDeviceEmulation("desktop");
-    return;
-  }
-  deviceEmulationPreset.value = p;
-  await api.setDeviceEmulation(p);
-}
 
 watch(
   () => workspace.activeWorktreeId,
@@ -221,9 +137,14 @@ const loadBadge = computed((): null | { label: string; title: string; variant: B
       variant: "destructive"
     };
   }
-  const title = `${s.errorDescription} (${s.errorCode})`;
-  const short =
-    s.errorDescription.length > 18 ? `${s.errorDescription.slice(0, 16)}…` : s.errorDescription;
+  if (s.kind !== "failed") return null;
+  const desc =
+    typeof s.errorDescription === "string" && s.errorDescription.trim()
+      ? s.errorDescription.trim()
+      : "Load failed";
+  const code = typeof s.errorCode === "number" && Number.isFinite(s.errorCode) ? s.errorCode : 0;
+  const title = `${desc} (${code})`;
+  const short = desc.length > 18 ? `${desc.slice(0, 16)}…` : desc;
   return {
     label: short,
     title,
@@ -252,19 +173,37 @@ function syncPreviewViewportMetrics(): void {
     return;
   }
   const r = el.getBoundingClientRect();
+  const top = r.top;
+  const left = r.left;
+  const width = r.width;
+  const height = r.height;
+  const dimsOk =
+    Number.isFinite(top) &&
+    Number.isFinite(left) &&
+    Number.isFinite(width) &&
+    Number.isFinite(height) &&
+    width >= 2 &&
+    height >= 2;
   viewportScreenRect.value = {
-    top: r.top,
-    left: r.left,
-    width: r.width,
-    height: r.height
+    top,
+    left,
+    width,
+    height
   };
-  setPreviewNativeViewportTopPx(Math.round(r.top));
-  void getApi()?.setBounds({
-    x: Math.round(r.left),
-    y: Math.round(r.top),
-    width: Math.round(r.width),
-    height: Math.round(r.height)
-  });
+  /** Flex layout often reports 0×0 on first paint; invalid bounds have crashed native `WebContentsView.setBounds`. */
+  if (dimsOk) {
+    setPreviewNativeViewportTopPx(Math.round(top));
+    void getApi()
+      ?.setBounds({
+        x: Math.round(left),
+        y: Math.round(top),
+        width: Math.round(width),
+        height: Math.round(height)
+      })
+      .catch(() => {});
+  } else {
+    setPreviewNativeViewportTopPx(null);
+  }
   void nextTick(() => {
     const mirror = collisionMirrorRef.value;
     const vr = viewportScreenRect.value;
@@ -279,16 +218,16 @@ function navigate(): void {
   urlInput.value = url;
   savePreviewPanelUrl(workspace.activeWorktreeId, url);
   loadState.value = { kind: "loading", url: "" };
-  void getApi()?.setUrl(url);
+  void getApi()?.setUrl(url).catch(() => {});
 }
 
 function reload(): void {
   loadState.value = { kind: "loading", url: "" };
-  void getApi()?.reload();
+  void getApi()?.reload().catch(() => {});
 }
 
 function openPreviewDevTools(): void {
-  void getApi()?.openDevTools();
+  void getApi()?.openDevTools().catch(() => {});
 }
 
 let resizeObserver: ResizeObserver | null = null;
@@ -296,9 +235,11 @@ let unsubscribeLoadState: (() => void) | null = null;
 
 onMounted(async () => {
   await getApi()?.show().catch(console.error);
+  void getApi()?.setDeviceEmulation("desktop").catch(() => {});
   syncPreviewViewportMetrics();
   resizeObserver = new ResizeObserver(() => syncPreviewViewportMetrics());
   if (panelRootRef.value) resizeObserver.observe(panelRootRef.value);
+  if (viewportRef.value) resizeObserver.observe(viewportRef.value);
 
   const api = getApi();
   if (api?.onLoadState) {
@@ -325,8 +266,7 @@ onUnmounted(() => {
   viewportScreenRect.value = null;
   setPreviewNativeViewportTopPx(null);
   setPreviewNativeCollisionEl(null);
-  deviceEmulationPreset.value = null;
-  void getApi()?.setDeviceEmulation("desktop");
-  void getApi()?.hide();
+  void getApi()?.setDeviceEmulation("desktop").catch(() => {});
+  void getApi()?.hide().catch(() => {});
 });
 </script>

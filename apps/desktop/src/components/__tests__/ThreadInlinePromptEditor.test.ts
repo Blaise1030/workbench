@@ -39,6 +39,17 @@ describe("ThreadInlinePromptEditor", () => {
     expect(wrapper.find('[data-testid="inline-prompt-add-file"]').exists()).toBe(true);
   });
 
+  it("shows footer context when threadContextLabel is set", () => {
+    wrapper = mount(ThreadInlinePromptEditor, {
+      attachTo: document.body,
+      props: { worktreeId: "wt-1", worktreePath: null, threadContextLabel: "feature/auth" }
+    });
+    const el = wrapper.find('[data-testid="inline-prompt-context"]');
+    expect(el.exists()).toBe(true);
+    expect(el.text()).toContain("You are adding a thread to");
+    expect(el.text()).toContain("feature/auth");
+  });
+
   it("emits cancel when the cancel button is clicked", async () => {
     wrapper = mount(ThreadInlinePromptEditor, {
       attachTo: document.body,

@@ -17,8 +17,10 @@ const mockEditor = {
     return { dispose: vi.fn() };
   }),
   onDidChangeCursorSelection: vi.fn(() => ({ dispose: vi.fn() })),
+  onDidScrollChange: vi.fn(() => ({ dispose: vi.fn() })),
   getModel: vi.fn(() => mockModel),
   getDomNode: vi.fn(() => document.createElement("div")),
+  getSelection: vi.fn(() => null),
   getScrolledVisiblePosition: vi.fn(() => ({ left: 0, top: 0, height: 14 })),
   updateOptions: vi.fn(),
   trigger: vi.fn(),

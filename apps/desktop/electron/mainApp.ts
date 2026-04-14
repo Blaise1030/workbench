@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { app, BrowserWindow, dialog, ipcMain, shell, WebContentsView, type WebContents } from "electron";
+import { app, BrowserView, BrowserWindow, dialog, ipcMain, shell, type Rectangle, type WebContents } from "electron";
 import {
   IPC_CHANNELS,
   type AddProjectInput,
@@ -35,10 +35,19 @@ import { WorkspaceService } from "./services/workspaceService.js";
 import { WorkspaceStore } from "./storage/store.js";
 
 // Single-window assumption: one preview view per app instance.
-let previewView: WebContentsView | null = null;
+/**
+ * `BrowserWindow` + `BrowserView` for the in-window preview (not `WebContentsView`).
+ * On recent macOS + Electron, `contentView.addChildView(WebContentsView)` has been
+ * associated with main-process crashes; `BrowserView` is deprecated but still the
+ * more battle-tested embedding path.
+ */
+let previewBrowserView: BrowserView | null = null;
 /** BrowserWindow that opened the preview (for main → renderer IPC). */
 let previewHostWindow: BrowserWindow | null = null;
 let disposePreviewLoadBroadcast: (() => void) | null = null;
+/** Last successful `setBounds` from the renderer (for re-applying after modal occlusion). */
+let lastPreviewBounds: Rectangle | null = null;
+let previewDetachedForModalOcclusion = false;
 
 function sendPreviewLoadState(win: BrowserWindow | null | undefined, payload: PreviewLoadStatePayload): void {
   if (!win?.webContents || win.isDestroyed()) return;
@@ -101,20 +110,25 @@ function applyPreviewDeviceEmulation(wc: WebContents, preset: string): void {
 function attachPreviewLoadBroadcast(wc: WebContents, hostWin: BrowserWindow): () => void {
   disposePreviewLoadHooks();
 
-  const filter: Electron.WebRequestFilter = { urls: ["<all_urls>"] };
   let lastMainFrame: { statusCode: number; statusLine: string; url: string } | null = null;
   let mainFrameFailed = false;
 
-  const onCompleted = (details: Electron.OnCompletedListenerDetails): void => {
-    if (details.resourceType !== "mainFrame") return;
-    if (details.webContentsId !== wc.id) return;
+  /**
+   * Use `did-navigate` for HTTP status — avoids `session.webRequest`, which has been
+   * implicated in main-process crashes (native → JS callback / teardown races on some
+   * macOS + Electron builds).
+   */
+  const onDidNavigate = (_event: unknown, url: string, httpResponseCode: number, httpStatusText: string): void => {
+    if (httpResponseCode < 0) {
+      lastMainFrame = null;
+      return;
+    }
     lastMainFrame = {
-      statusCode: details.statusCode,
-      statusLine: details.statusLine,
-      url: details.url
+      statusCode: httpResponseCode,
+      statusLine: httpStatusText,
+      url
     };
   };
-  wc.session.webRequest.onCompleted(filter, onCompleted);
 
   const onStart = (): void => {
     lastMainFrame = null;
@@ -156,17 +170,18 @@ function attachPreviewLoadBroadcast(wc: WebContents, hostWin: BrowserWindow): ()
     });
   };
 
+  wc.on("did-navigate", onDidNavigate);
   wc.on("did-start-loading", onStart);
   wc.on("did-finish-load", onFinish);
   wc.on("did-fail-load", onFail);
   wc.on("did-fail-provisional-load", onFail);
 
   return (): void => {
+    wc.removeListener("did-navigate", onDidNavigate);
     wc.removeListener("did-start-loading", onStart);
     wc.removeListener("did-finish-load", onFinish);
     wc.removeListener("did-fail-load", onFail);
     wc.removeListener("did-fail-provisional-load", onFail);
-    wc.session.webRequest.onCompleted(filter, null);
   };
 }
 
@@ -621,34 +636,39 @@ function registerIpc(workspaceService: WorkspaceService): void {
     await shell.openExternal(url);
   });
 
-  ipcMain.handle(IPC_CHANNELS.previewShow, (event) => {
-    if (previewView) return;
+  ipcMain.handle(IPC_CHANNELS.previewShow, async (event) => {
+    if (previewBrowserView) return;
+    /** Yield before native view setup so we are not nested under the IPC stack (stability on some macOS builds). */
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    if (previewBrowserView) return;
     const win =
       BrowserWindow.fromWebContents(event.sender) ??
       BrowserWindow.getFocusedWindow() ??
       BrowserWindow.getAllWindows()[0];
     if (!win) return;
-    previewView = new WebContentsView({
+    previewBrowserView = new BrowserView({
       webPreferences: {
         nodeIntegration: false,
         contextIsolation: true,
         sandbox: true,
-        /** Own session so `webRequest` main-frame events map to this `webContents` (HTTP status / errors). */
+        /** Own session so preview cookies/cache stay isolated from the workbench. */
         partition: "persist:instrument.preview"
       }
     });
+    previewDetachedForModalOcclusion = false;
+    lastPreviewBounds = null;
     try {
-      win.contentView.addChildView(previewView);
+      win.setBrowserView(previewBrowserView);
     } catch (err) {
-      previewView.webContents.close();
-      previewView = null;
+      previewBrowserView.webContents.close();
+      previewBrowserView = null;
       throw err;
     }
     previewHostWindow = win;
-    disposePreviewLoadBroadcast = attachPreviewLoadBroadcast(previewView.webContents, win);
+    disposePreviewLoadBroadcast = attachPreviewLoadBroadcast(previewBrowserView.webContents, win);
 
     // Forward workspace-owned key combos to the renderer. When focus is inside the
-    // WebContentsView its keydown events never reach the BrowserWindow, so we intercept
+    // embedded preview its keydown events never reach the BrowserWindow, so we intercept
     // them here and re-emit via IPC so `useWorkspaceKeybindings` can handle them.
     const PREVIEW_WORKSPACE_CODES = new Set([
       "BracketLeft", "BracketRight",
@@ -656,7 +676,7 @@ function registerIpc(workspaceService: WorkspaceService): void {
       "Digit1", "Digit2", "Digit3", "Digit4", "Digit5", "Digit6", "Digit7", "Digit8", "Digit9",
       "Comma", "Backslash", "Enter"
     ]);
-    previewView.webContents.on("before-input-event", (inputEvent, input) => {
+    previewBrowserView.webContents.on("before-input-event", (inputEvent, input) => {
       if (input.type !== "keyDown") return;
       if (!previewHostWindow || previewHostWindow.isDestroyed()) return;
       const mac = process.platform === "darwin";
@@ -674,36 +694,60 @@ function registerIpc(workspaceService: WorkspaceService): void {
   });
 
   ipcMain.handle(IPC_CHANNELS.previewHide, () => {
-    if (!previewView) return;
+    if (!previewBrowserView) return;
     disposePreviewLoadHooks();
+    const host = previewHostWindow;
     previewHostWindow = null;
+    previewDetachedForModalOcclusion = false;
+    lastPreviewBounds = null;
     try {
-      previewView.webContents.disableDeviceEmulation();
+      previewBrowserView.webContents.disableDeviceEmulation();
     } catch {
       /* noop */
     }
-    for (const win of BrowserWindow.getAllWindows()) {
-      try { win.contentView.removeChildView(previewView!); } catch { /* already removed */ }
+    if (host && !host.isDestroyed()) {
+      try {
+        if (host.getBrowserView() === previewBrowserView) {
+          host.setBrowserView(null);
+        }
+      } catch {
+        /* already removed */
+      }
     }
-    previewView.webContents.close();
-    previewView = null;
+    previewBrowserView.webContents.close();
+    previewBrowserView = null;
   });
 
   ipcMain.handle(IPC_CHANNELS.previewSetBounds, (_, bounds: { x: number; y: number; width: number; height: number }) => {
-    if (!previewView) return;
-    previewView.setBounds({
-      x: Math.round(bounds.x),
-      y: Math.round(bounds.y),
-      width: Math.round(bounds.width),
-      height: Math.round(bounds.height)
-    });
+    if (!previewBrowserView) return;
+    const x = Math.round(bounds.x);
+    const y = Math.round(bounds.y);
+    const width = Math.round(bounds.width);
+    const height = Math.round(bounds.height);
+    if (
+      !Number.isFinite(x) ||
+      !Number.isFinite(y) ||
+      !Number.isFinite(width) ||
+      !Number.isFinite(height) ||
+      width < 2 ||
+      height < 2
+    ) {
+      return;
+    }
+    try {
+      const rect = { x, y, width, height };
+      previewBrowserView.setBounds(rect);
+      lastPreviewBounds = rect;
+    } catch {
+      /* invalid bounds / view detaching */
+    }
   });
 
   ipcMain.handle(IPC_CHANNELS.previewSetUrl, (event, url: string) => {
-    if (!previewView) return;
+    if (!previewBrowserView) return;
     const win = previewSenderHostWindow(event);
     sendPreviewLoadState(win, { kind: "loading", url });
-    void previewView.webContents.loadURL(url);
+    void previewBrowserView.webContents.loadURL(url);
   });
 
   ipcMain.handle(IPC_CHANNELS.previewProbeUrl, async (_, url: string) => {
@@ -724,31 +768,44 @@ function registerIpc(workspaceService: WorkspaceService): void {
   });
 
   ipcMain.handle(IPC_CHANNELS.previewReload, (event) => {
-    if (!previewView) return;
+    if (!previewBrowserView) return;
     const win = previewSenderHostWindow(event);
     sendPreviewLoadState(win, {
       kind: "loading",
-      url: previewView.webContents.getURL() || ""
+      url: previewBrowserView.webContents.getURL() || ""
     });
-    previewView.webContents.reload();
+    previewBrowserView.webContents.reload();
   });
 
   ipcMain.handle(IPC_CHANNELS.previewOpenDevTools, () => {
-    if (!previewView) return;
-    /** Dock inside the preview `WebContentsView` (split below the page). */
-    previewView.webContents.openDevTools({ mode: "bottom" });
+    if (!previewBrowserView) return;
+    /** Dock inside the preview web contents (split below the page). */
+    previewBrowserView.webContents.openDevTools({ mode: "bottom" });
   });
 
   ipcMain.handle(IPC_CHANNELS.previewSetDeviceEmulation, (_, payload: unknown) => {
-    if (!previewView || typeof payload !== "string") return;
+    if (!previewBrowserView || typeof payload !== "string") return;
     if (!PREVIEW_DEVICE_EMULATION_PRESETS.has(payload)) return;
-    applyPreviewDeviceEmulation(previewView.webContents, payload);
+    applyPreviewDeviceEmulation(previewBrowserView.webContents, payload);
   });
 
   ipcMain.handle(IPC_CHANNELS.previewSetOccludedByModal, (_, occluded: unknown) => {
-    if (!previewView || typeof occluded !== "boolean") return;
+    if (!previewBrowserView || typeof occluded !== "boolean") return;
+    const host = previewHostWindow;
+    if (!host || host.isDestroyed()) return;
     try {
-      previewView.setVisible(!occluded);
+      if (occluded) {
+        if (host.getBrowserView() === previewBrowserView) {
+          host.setBrowserView(null);
+          previewDetachedForModalOcclusion = true;
+        }
+      } else if (previewDetachedForModalOcclusion) {
+        host.setBrowserView(previewBrowserView);
+        previewDetachedForModalOcclusion = false;
+        if (lastPreviewBounds) {
+          previewBrowserView.setBounds(lastPreviewBounds);
+        }
+      }
     } catch {
       /* preview tearing down */
     }

@@ -27,6 +27,11 @@ import { useAgentBootstrapCommands } from "@/composables/useAgentBootstrapComman
 import { threadAgentResumeCommand } from "@shared/threadAgentBootstrap";
 import { isValidResumeSessionId } from "@shared/resumeSessionId";
 import {
+  clearInlineThreadDraft,
+  loadInlineThreadDraft,
+  saveInlineThreadDraft
+} from "@/composables/useInlineThreadDraftPersistence";
+import {
   loadTerminalLayout,
   resolveCenterTab,
   resolveShellOverlayTab,
@@ -260,6 +265,15 @@ const threadCreateHostRef = ref<InstanceType<typeof ThreadCreateButton> | null>(
 /** Thread currently in "compose prompt" mode — shows inline editor instead of xterm. */
 const inlinePromptThreadId = ref<string | null>(null);
 const inlinePromptEditorRef = ref<{ submit: () => void } | null>(null);
+/** Display label for the worktree where the inline draft thread will live (footer copy). */
+const inlinePromptThreadContextLabel = computed(() => {
+  const tid = inlinePromptThreadId.value;
+  if (!tid) return null;
+  const thread = workspace.threads.find((t) => t.id === tid);
+  if (!thread) return null;
+  const ctx = workspace.threadContexts.find((c) => c.worktreeId === thread.worktreeId);
+  return ctx?.displayLabel ?? null;
+});
 /** Destination hint + submit routing for the shared new-thread dialog */
 const threadCreateSubmitTarget = ref<
   { kind: "default" } | { kind: "group"; worktreeId: string }
@@ -971,6 +985,8 @@ function onTerminalBootstrapConsumed(): void {
 async function onInlinePromptSubmit(payload: ThreadCreateWithAgentPayload): Promise<void> {
   const threadId = inlinePromptThreadId.value;
   if (!threadId) return;
+  const draftWt = workspace.threads.find((t) => t.id === threadId)?.worktreeId;
+  if (draftWt) clearInlineThreadDraft(draftWt);
   const { agent, prompt } = payload;
   const api = getApi();
   // Rename the thread from placeholder to the derived title.
@@ -993,6 +1009,8 @@ async function onInlinePromptSubmit(payload: ThreadCreateWithAgentPayload): Prom
 async function onInlinePromptCancel(): Promise<void> {
   const threadId = inlinePromptThreadId.value;
   if (!threadId) return;
+  const draftWt = workspace.threads.find((t) => t.id === threadId)?.worktreeId;
+  if (draftWt) clearInlineThreadDraft(draftWt);
   inlinePromptThreadId.value = null;
   await handleRemoveThread(threadId);
 }
@@ -1004,6 +1022,10 @@ function onSaveAgentSettings(payload: { commands: Record<ThreadAgent, string> })
 async function handleRemoveThread(threadId: string): Promise<void> {
   const api = getApi();
   if (!api) return;
+  const threadWt = workspace.threads.find((t) => t.id === threadId)?.worktreeId;
+  if (threadWt && loadInlineThreadDraft(threadWt) === threadId) {
+    clearInlineThreadDraft(threadWt);
+  }
   const wasActive = workspace.activeThreadId === threadId;
   const nextThread = wasActive
     ? workspace.activeThreads.find((t) => t.id !== threadId) ?? null
@@ -1082,6 +1104,19 @@ function applyThreadCreateOpen(opts: ThreadCreateDialogOpenOptions): void {
 /** Register early so `openThreadCreateDialog` works before the rest of setup finishes (and after HMR of this module). */
 const disposeThreadCreateDialog = registerThreadCreateDialogOpener(applyThreadCreateOpen);
 
+function tryRestoreInlineThreadDraft(): void {
+  const wt = workspace.activeWorktreeId;
+  if (!wt) return;
+  const draftId = loadInlineThreadDraft(wt);
+  if (!draftId) return;
+  if (!workspace.threads.some((t) => t.id === draftId)) {
+    clearInlineThreadDraft(wt);
+    return;
+  }
+  if (workspace.activeThreadId !== draftId) return;
+  inlinePromptThreadId.value = draftId;
+}
+
 async function openInlineThreadPrompt(worktreeId: string): Promise<void> {
   const api = getApi();
   if (!api || !workspace.activeProjectId) return;
@@ -1094,6 +1129,7 @@ async function openInlineThreadPrompt(worktreeId: string): Promise<void> {
   if (!created?.id) return;
   await refreshSnapshot();
   inlinePromptThreadId.value = created.id;
+  saveInlineThreadDraft(worktreeId, created.id);
   mainCenterTab.value = "agent";
 }
 
@@ -1510,6 +1546,18 @@ watch(
 );
 
 watch(
+  () =>
+    `${workspace.activeWorktreeId ?? ""}\0${workspace.activeThreadId ?? ""}\0${workspace.threads
+      .map((t) => t.id)
+      .sort()
+      .join(",")}`,
+  () => {
+    tryRestoreInlineThreadDraft();
+  },
+  { immediate: true }
+);
+
+watch(
   () => workspace.activeWorktreeId,
   async (wt, prev) => {
     if (!wt) {
@@ -1914,6 +1962,7 @@ watch(
                       ref="inlinePromptEditorRef"
                       :worktree-id="workspace.activeWorktreeId ?? ''"
                       :worktree-path="workspace.activeWorktree?.path ?? null"
+                      :thread-context-label="inlinePromptThreadContextLabel"
                       @submit="onInlinePromptSubmit"
                       @cancel="onInlinePromptCancel"
                     />

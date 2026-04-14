@@ -63,8 +63,15 @@ describe("PreviewPanel", () => {
 
   it("calls previewApi.show on mount", async () => {
     const wrapper = mount(PreviewPanel, { attachTo: document.body });
-    await wrapper.vm.$nextTick();
+    await flushPromises();
     expect(previewApi.show).toHaveBeenCalledOnce();
+    wrapper.unmount();
+  });
+
+  it("uses desktop preview (no device emulation) when the panel mounts", async () => {
+    const wrapper = mount(PreviewPanel, { attachTo: document.body });
+    await flushPromises();
+    expect(previewApi.setDeviceEmulation).toHaveBeenCalledWith("desktop");
     wrapper.unmount();
   });
 
@@ -214,22 +221,6 @@ describe("PreviewPanel", () => {
     await flushPromises();
     await wrapper.find('[data-testid="preview-devtools-btn"]').trigger("click");
     expect(previewApi.openDevTools).toHaveBeenCalledOnce();
-    wrapper.unmount();
-  });
-
-  it("calls setDeviceEmulation when mobile preset is chosen", async () => {
-    const wrapper = mount(PreviewPanel, { attachTo: document.body });
-    await flushPromises();
-    await wrapper.find('[data-testid="preview-emulation-mobile"]').trigger("click");
-    expect(previewApi.setDeviceEmulation).toHaveBeenCalledWith("mobile");
-    wrapper.unmount();
-  });
-
-  it("calls setDeviceEmulation desktop when desktop preset is chosen", async () => {
-    const wrapper = mount(PreviewPanel, { attachTo: document.body });
-    await flushPromises();
-    await wrapper.find('[data-testid="preview-emulation-desktop"]').trigger("click");
-    expect(previewApi.setDeviceEmulation).toHaveBeenCalledWith("desktop");
     wrapper.unmount();
   });
 

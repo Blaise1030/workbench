@@ -1,6 +1,6 @@
 import { createPinia, setActivePinia } from "pinia";
 import { beforeEach, describe, expect, it } from "vitest";
-import { useWorkspaceStore } from "../workspaceStore";
+import { useWorkspaceStore, worktreeBranchNameContextLabel } from "../workspaceStore";
 import type { Project, Thread, Worktree } from "@shared/domain";
 
 function makeSnapshot() {
@@ -148,5 +148,21 @@ describe("workspaceStore", () => {
       isDefault: true,
       threadCount: 1
     });
+  });
+
+  it("worktreeBranchNameContextLabel joins branch and worktree name when they differ", () => {
+    const wt: Worktree = {
+      id: "wt-1",
+      projectId: "project-1",
+      name: "Auth UI",
+      branch: "feat/auth",
+      path: "/tmp/wt",
+      isActive: true,
+      isDefault: false,
+      baseBranch: "main",
+      createdAt: "2026-04-07T00:00:00.000Z",
+      updatedAt: "2026-04-07T00:00:00.000Z"
+    };
+    expect(worktreeBranchNameContextLabel(wt)).toBe("feat/auth · Auth UI");
   });
 });
