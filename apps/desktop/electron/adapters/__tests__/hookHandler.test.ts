@@ -120,4 +120,11 @@ describe("handleHookEvent", () => {
     expect(deps.onChanged).not.toHaveBeenCalled();
     expect(deps.onNotification).not.toHaveBeenCalled();
   });
+
+  it("empty threadId → does nothing", () => {
+    const deps = makeDeps();
+    handleHookEvent({ hook_event_name: "SessionStart", session_id: "sid-abc" }, "", deps);
+    expect(deps.workspaceService.captureResumeId).not.toHaveBeenCalled();
+    expect(deps.onChanged).not.toHaveBeenCalled();
+  });
 });
