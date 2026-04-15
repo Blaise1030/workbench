@@ -28,7 +28,7 @@ export class PtyService {
   /**
    * @param sessionId Stable PTY key: thread id, or `__wt:${worktreeId}` when no thread is active.
    */
-  getOrCreate(sessionId: string, cwd: string, worktreeId: string): { buffer: string; created: boolean } {
+  getOrCreate(sessionId: string, cwd: string, worktreeId: string, extraEnv?: Record<string, string>): { buffer: string; created: boolean } {
     const existing = this.sessions.get(sessionId);
     if (existing) {
       return { buffer: existing.buffer, created: false };
@@ -38,7 +38,7 @@ export class PtyService {
     const instance = pty.spawn(shell, [], {
       name: "xterm-256color",
       cwd,
-      env: process.env as Record<string, string>,
+      env: { ...(process.env as Record<string, string>), ...extraEnv },
       cols: 80,
       rows: 24
     });
