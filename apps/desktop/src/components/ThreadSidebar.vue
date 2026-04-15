@@ -421,10 +421,6 @@ function displayThreadsForGroup(group: SidebarContextGroup): Thread[] {
   return group.threads.slice(0, THREAD_GROUP_PREVIEW_COUNT);
 }
 
-function displayThreadDateSubgroups(group: SidebarContextGroup) {
-  return groupThreadsByRelativeDate(displayThreadsForGroup(group));
-}
-
 function showThreadListShowMore(group: SidebarContextGroup): boolean {
   return group.threads.length > THREAD_GROUP_PREVIEW_COUNT && !isThreadListExpanded(group.uiKey);
 }
@@ -545,14 +541,14 @@ async function openAppUpdateUrl(url: string): Promise<void> {
         </div>
       </template>
     </section>
-    <div v-else class="min-h-0 flex-1 overflow-y-auto pb-3 pt-3">
-      <div
-        v-for="(group, groupIndex) in branchFilteredContextGroups"
-        :key="group.uiKey"
-        :data-testid="`thread-group-section-${group.uiKey}`"
-        :class="groupIndex > 0 ? 'mt-2' : ''"
-      >
-        <template v-if="collapsed">
+    <div v-else class="flex min-h-0 flex-1 flex-col">
+      <div v-if="collapsed" class="min-h-0 flex-1 overflow-y-auto pb-3 pt-3">
+        <div
+          v-for="(group, groupIndex) in branchFilteredContextGroups"
+          :key="group.uiKey"
+          :data-testid="`thread-group-section-${group.uiKey}`"
+          :class="groupIndex > 0 ? 'mt-2' : ''"
+        >
           <div class="px-2">
             <Popover
               :open="openCollapsedGroupId === group.uiKey"
@@ -576,7 +572,7 @@ async function openAppUpdateUrl(url: string): Promise<void> {
                   @pointerenter="onCollapsedGroupTriggerPointerEnter(group.uiKey)"
                   @pointerleave="onCollapsedGroupTriggerPointerLeave"
                 >
-                  <span aria-hidden="true">{{ group.isPrimary ? "⭐️" : "🌳" }}</span>
+                  <span aria-hidden="true">{{ group.isPrimary ? '⭐️' : '🌳' }}</span>
                 </Button>
               </PopoverTrigger>
               <PopoverContent
@@ -590,7 +586,7 @@ async function openAppUpdateUrl(url: string): Promise<void> {
               >
                 <div class="flex shrink-0 flex-col gap-1 border-b border-border px-2 py-2 text-xs">
                   <div class="flex items-center gap-2 font-medium">
-                    <span aria-hidden="true">{{ group.isPrimary ? "⭐️" : "🌳" }}</span>
+                    <span aria-hidden="true">{{ group.isPrimary ? '⭐️' : '🌳' }}</span>
                     <span class="min-w-0 truncate">{{ group.title }}</span>
                   </div>
                   <div
@@ -609,7 +605,7 @@ async function openAppUpdateUrl(url: string): Promise<void> {
                     </div>
                     <div>
                       Source branch:
-                      <span class="text-foreground">{{ group.baseBranch?.trim() ? group.baseBranch : "—" }}</span>
+                      <span class="text-foreground">{{ group.baseBranch?.trim() ? group.baseBranch : '—' }}</span>
                     </div>
                   </div>
                 </div>
@@ -628,7 +624,7 @@ async function openAppUpdateUrl(url: string): Promise<void> {
                   </div>
                   <ul v-else class="min-w-0 space-y-0.5 pt-2">
                     <template
-                      v-for="(subgroup, sgIdx) in displayThreadDateSubgroups(group)"
+                      v-for="(subgroup, sgIdx) in groupThreadsByRelativeDate(displayThreadsForGroup(group))"
                       :key="`${group.uiKey}-date-${sgIdx}`"
                     >
                       <li
@@ -713,135 +709,45 @@ async function openAppUpdateUrl(url: string): Promise<void> {
               </PopoverContent>
             </Popover>
           </div>
-        </template>
-        <template v-else>
-          <ThreadGroupHeader
-            :data-thread-group-id="group.worktreeId ?? undefined"
-            :title="group.title"
-            :context-badge-label="
-              group.isPrimary
-                ? group.isActive
-                  ? (contextLabel ?? group.title)
-                  : group.title
-                : null
-            "
-            :branch="group.branch"
-            :base-branch="group.baseBranch"
-            :path="group.path"
-            :thread-count="group.threads.length"
-            :is-stale="group.isStale"
-            :is-active="group.isActive"
-            :collapsed="effectiveCollapsedGroups.has(group.uiKey)"
-            :is-primary="group.isPrimary"
-            :show-actions="!group.isPrimary"
-            @toggle="toggleGroup(group.uiKey)"
-            :worktree-id-for-create="worktreeIdForGroupAdd(group)"
-            @add-thread-inline="emit('addThreadInline', $event)"
-            @delete="group.worktreeId !== null && emit('deleteWorktreeGroup', group.worktreeId)"
+        </div>
+      </div>
+      <div v-else class="min-h-0 flex-1 flex flex-col overflow-y-auto pb-3 pt-3">
+        <div
+          v-if="branchFilterAvailable"
+          class="flex items-center gap-2 px-4 py-2"
+          title="Threads created on the checked-out branch in each group."
+        >
+          <Switch
+            id="thread-sidebar-filter-current-branch"
+            v-model="filterByCurrentBranch"
+            class="shrink-0"
+            data-testid="thread-sidebar-filter-current-branch"
+            aria-label="Threads from this branch only"
           />
-
-          <div
-            v-if="groupIndex === 0 && branchFilterAvailable"
-            class="flex items-center gap-2 py-0.5 px-5"
-            title="Threads created on the checked-out branch in each group."
+          <label
+            class="min-w-0 user-select-none cursor-pointer text-left text-[11px] leading-snug text-muted-foreground"
+            for="thread-sidebar-filter-current-branch"
           >
-            <Switch
-              id="thread-sidebar-filter-current-branch"
-              v-model="filterByCurrentBranch"
-              class="shrink-0"
-              data-testid="thread-sidebar-filter-current-branch"
-              aria-label="Threads from this branch only"
-            />
-            <label
-              class="min-w-0 user-select-none cursor-pointer text-left text-[11px] leading-snug text-muted-foreground"
-              for="thread-sidebar-filter-current-branch"
-            >
-              Threads from this branch only
-            </label>
-          </div>
-
-          <WorktreeStaleCallout
-            v-if="!group.isPrimary && group.worktreeId !== null && group.isStale && group.threads.length > 0 && !effectiveCollapsedGroups.has(group.uiKey)"
-            :branch="group.branch ?? ''"
-            @delete="emit('deleteWorktreeGroup', group.worktreeId)"
+            Threads from this branch only
+          </label>
+        </div>
+        <ul class="min-w-0 space-y-2 px-3">
+          <ThreadSidebarNodes
+            v-for="node in sidebarNodes"
+            :key="node.id"
+            :node="node"
+            :expanded-contexts="expandedContexts"
+            :collapsed="collapsed"
+            @toggle-context="toggleGroup"
+            @add-thread="emit('addThreadInline', $event)"
+            @delete-context="(id) => emit('deleteWorktreeGroup', id)"
+            @expand-thread-list="expandThreadListForGroup"
+            @collapse-thread-list="collapseThreadListForGroup"
+            @select-thread="emit('select', $event)"
+            @remove-thread="emit('remove', $event)"
+            @rename-thread="(id, title) => emit('rename', id, title)"
           />
-
-          <ul
-            :data-testid="`thread-group-threads-${group.uiKey}`"
-            v-show="!effectiveCollapsedGroups.has(group.uiKey)"
-            class="min-w-0 space-y-0.5 pl-3 pr-2 pt-2"
-          >
-            <template
-              v-for="(subgroup, sgIdx) in displayThreadDateSubgroups(group)"
-              :key="`${group.uiKey}-date-${sgIdx}`"
-            >
-              <li
-                role="presentation"
-                class="list-none px-2 pb-0.5 pt-2 first:pt-0"
-                :data-testid="`thread-date-subgroup-${group.uiKey}-${sgIdx}`"
-              >
-                <span
-                  class="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground"
-                >
-                  {{ subgroup.label }}
-                </span>
-              </li>
-              <li
-                v-for="thread in subgroup.threads"
-                :key="thread.id"
-                class="min-w-0"
-                :data-testid="`thread-list-item-${thread.id}`"
-              >
-                <ThreadRow
-                  data-testid="thread-row"
-                  :thread="thread"
-                  :collapsed="collapsed"
-                  :is-active="thread.id === activeThreadId"
-                  :hide-agent-icon="thread.id === inlinePromptThreadId"
-                  :needs-idle-attention="Boolean(idleAttentionByThreadId?.[thread.id])"
-                  :run-status="runStatusByThreadId?.[thread.id] ?? null"
-                  @select="emit('select', thread.id)"
-                  @remove="emit('remove', thread.id)"
-                  @rename="(title) => emit('rename', thread.id, title)"
-                />
-              </li>
-            </template>
-          </ul>
-          <div
-            v-if="
-              showThreadListShowMore(group) && !effectiveCollapsedGroups.has(group.uiKey)
-            "
-            class="flex justify-center px-2 pt-1"
-          >
-            <Button
-              type="button"
-              variant="outline"
-              size="xs"
-              class="w-auto shrink-0"
-              :data-testid="`thread-group-show-more-${group.uiKey}`"
-              @click="expandThreadListForGroup(group.uiKey)"
-            >
-              Show more threads
-            </Button>
-          </div>
-          <div
-            v-if="
-              showThreadListShowLess(group) && !effectiveCollapsedGroups.has(group.uiKey)
-            "
-            class="flex justify-center px-2 pt-1"
-          >
-            <Button
-              type="button"
-              variant="outline"
-              size="xs"
-              class="w-auto shrink-0"
-              :data-testid="`thread-group-show-less-${group.uiKey}`"
-              @click="collapseThreadListForGroup(group.uiKey)"
-            >
-              Show less
-            </Button>
-          </div>
-        </template>
+        </ul>
       </div>
     </div>
     <footer
