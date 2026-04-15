@@ -159,6 +159,7 @@ function handleArchiveClick(): void {
     ]"
     @mouseenter="rowHovered = true"
     @mouseleave="rowHovered = false"
+    @click="emit('select')"
   >
     <template v-if="collapsed && !isEditing">
       <Tooltip :delay-duration="0">
@@ -214,8 +215,7 @@ function handleArchiveClick(): void {
                 tabindex="0"
                 role="button"
                 :aria-current="isActive ? 'true' : undefined"
-                :aria-label="rowAriaLabel"
-                @click="emit('select')"
+                :aria-label="rowAriaLabel"                
                 @dblclick.stop.prevent="startRename"
                 @keydown.enter.prevent="emit('select')"
                 @keydown.space.prevent="emit('select')"

@@ -81,6 +81,11 @@ export default defineConfig(async () => {
       }
     }
   },
+  worker: {
+    // Workers created via `new URL(..., import.meta.url)` can produce multiple chunks.
+    // Use ESM output so Rollup code-splitting is supported in CI builds.
+    format: "es"
+  },
   resolve: {
     alias: {
       "@": fileURLToPath(new URL("./src", import.meta.url)),
