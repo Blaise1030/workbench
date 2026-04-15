@@ -3,6 +3,21 @@ import tailwindcss from "@tailwindcss/vite";
 import vue from "@vitejs/plugin-vue";
 import { defineConfig, type PluginOption } from "vite";
 
+// When running from inside a git worktree, runViteDev.cjs passes WORKTREE_ROOT (the absolute
+// path to this worktree's root). Use it to scope watch.ignored to sibling worktrees only,
+// so HMR still fires for our own source files.
+const worktreeRoot = process.env.WORKTREE_ROOT ?? null;
+
+function buildWatchIgnored(): (string | ((f: string) => boolean))[] {
+  if (worktreeRoot) {
+    return [
+      (f: string) => f.includes("/.worktrees/") && !f.startsWith(worktreeRoot),
+      "**/.claude/worktrees/**"
+    ];
+  }
+  return ["**/.worktrees/**", "**/.claude/worktrees/**"];
+}
+
 const analyze = process.env.ANALYZE === "1";
 
 export default defineConfig(async () => {
@@ -47,7 +62,9 @@ export default defineConfig(async () => {
     watch: {
       // Ignore git worktree checkouts — they duplicate the source tree and cause
       // ENOENT crashes when deleted while Vite's file watcher is still active.
-      ignored: ["**/.worktrees/**", "**/.claude/worktrees/**"]
+      // When running from inside a worktree, only ignore sibling worktrees so that
+      // HMR still fires for our own source files.
+      ignored: buildWatchIgnored()
     }
   },
   build: {

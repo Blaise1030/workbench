@@ -1,5 +1,5 @@
 import type { StagedUnifiedDiffResult } from "@shared/ipc";
-import { buildCommitSuggestionPrompt } from "./commitPrompt";
+import { buildCommitSystemPrompt, buildCommitSuggestionPrompt } from "./commitPrompt";
 import { DEFAULT_MLC_MODEL_ID } from "./constants";
 import { parseCommitCandidates, parseThreadTitle } from "./parseModelText";
 import { buildThreadTitlePrompt } from "./threadTitlePrompt";
@@ -47,11 +47,11 @@ async function drain(): Promise<void> {
       );
       const out = await eng.chat.completions.create({
         messages: [
-          { role: "system", content: "You output concise git subject lines only." },
+          { role: "system", content: buildCommitSystemPrompt() },
           { role: "user", content: prompt },
         ],
         temperature: 0.2,
-        max_tokens: 200,
+        max_tokens: 256,
       });
       const text = out.choices[0]?.message?.content?.trim() ?? "";
       const cands = parseCommitCandidates(text);

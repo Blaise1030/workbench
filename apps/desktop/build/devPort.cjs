@@ -1,4 +1,4 @@
-const DEFAULT_DEV_PORT = "5180";
+const DEFAULT_DEV_PORT = "5181";
 
 function getDevPort(env = process.env) {
   const port = env.PORT?.trim();

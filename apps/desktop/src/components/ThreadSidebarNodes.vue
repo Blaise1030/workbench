@@ -3,7 +3,7 @@ defineOptions({ name: "ThreadSidebarNodes" });
 
 import type { RunStatus, Thread } from "@shared/domain";
 import { computed } from "vue";
-import { Plus } from "lucide-vue-next";
+import { Plus, Archive} from "lucide-vue-next";
 import ThreadRow from "@/components/ThreadRow.vue";
 import WorktreeStaleCallout from "@/components/WorktreeStaleCallout.vue";
 import Button from "@/components/ui/Button.vue";
@@ -83,15 +83,26 @@ const subgroupsWithNodes = computed((): SubgroupWithNodes[] => {
     }),
   }));
 });
+
+const hasContextMenuActions = computed(
+  () => props.node.kind === "context" && props.node.isWorktree
+);
+
+const contextBadge = computed(() => {
+  if (props.node.kind !== "context") return "";
+  if (props.node.isPrimary) return "☀️";
+  if (props.node.isWorktree) return "🌳";
+  return "";
+});
 </script>
 
 <template>
   <!-- Context node = directory -->
   <li v-if="node.kind === 'context'">
-    <ContextMenu>
+    <ContextMenu v-if="hasContextMenuActions">
       <ContextMenuTrigger as-child>
         <div
-          class="flex w-full min-w-0 max-w-none items-center gap-1.5 rounded-md px-1.5 py-1 text-left text-xs transition-colors hover:bg-muted"
+          class="flex w-full active:translate-y-[1px] min-w-0 max-w-none items-center gap-1.5 rounded-md px-1.5 py-1 text-left text-xs transition-colors hover:bg-muted"
           :class="node.isStale ? 'text-destructive' : 'text-foreground'"
         >
           <button
@@ -102,8 +113,15 @@ const subgroupsWithNodes = computed((): SubgroupWithNodes[] => {
             :aria-expanded="isExpanded"
             @click="emit('toggleContext', node.id)"
           >
-            <span class="w-3.5 shrink-0 text-center text-[10px] leading-none text-muted-foreground">
+            <span class="w-3.5 shrink-0 text-center text-lg leading-none text-muted-foreground">
               {{ isExpanded ? "▾" : "▸" }}
+            </span>
+            <span
+              v-if="contextBadge"
+              class="shrink-0 text-[11px] leading-none"
+              aria-hidden="true"
+            >
+              {{ contextBadge }}
             </span>
             <span class="min-w-0 flex-1 truncate font-medium">{{ node.title }}</span>
           </button>
@@ -112,29 +130,66 @@ const subgroupsWithNodes = computed((): SubgroupWithNodes[] => {
             type="button"
             variant="ghost"
             size="icon-xs"
-            class="h-4 w-4 shrink-0 text-muted-foreground hover:text-foreground"
+            class="shrink-0 text-muted-foreground hover:text-foreground"
             :aria-label="`Add thread to ${node.title}`"
             @click.stop="emit('addThread', node.addThreadTargetId)"
           >
-            <Plus class="h-3 w-3" />
+            <Plus />
           </Button>
         </div>
       </ContextMenuTrigger>
       <ContextMenuContent class="min-w-[11rem]">
         <ContextMenuItem
-          v-if="node.isWorktree"
-          variant="destructive"
-          class="text-xs"
+          variant="destructive"         
+          class="text-destructive" 
           @select="emit('deleteContext', node.id)"
         >
+          <Archive />
           Delete context
         </ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>
+    <div
+      v-else
+      class="flex active:translate-y-px  w-full min-w-0 max-w-none items-center gap-1.5 rounded-md px-1.5 py-1 text-left text-xs transition-colors hover:bg-muted"
+      :class="node.isStale ? 'text-destructive' : 'text-foreground'"
+    >
+      <button
+        type="button"
+        class="flex min-w-0 flex-1 items-center justify-start gap-1.5 rounded-sm text-left outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background"
+        data-testid="thread-group-header"
+        :data-thread-group-id="node.id"
+        :aria-expanded="isExpanded"
+        @click="emit('toggleContext', node.id)"
+      >
+        <span class="w-3.5 shrink-0 text-center text-lg leading-none text-muted-foreground">
+          {{ isExpanded ? "▾" : "▸" }}
+        </span>
+        <span
+          v-if="contextBadge"
+          class="shrink-0 text-[11px] leading-none"
+          aria-hidden="true"
+        >
+          {{ contextBadge }}
+        </span>
+        <span class="min-w-0 flex-1 truncate font-medium">{{ node.title }}</span>
+      </button>
+      <Button
+        v-if="node.addThreadTargetId !== null && !node.isStale"
+        type="button"
+        variant="ghost"
+        size="icon-xs"
+        class="shrink-0 text-muted-foreground hover:text-foreground"
+        :aria-label="`Add thread to ${node.title}`"
+        @click.stop="emit('addThread', node.addThreadTargetId)"
+      >
+        <Plus />
+      </Button>
+    </div>
 
     <ul
       v-show="isExpanded"
-      class="ml-3 space-y-0.5 border-l border-border/60 pl-2"
+      class="ml-3 space-y-0.5 border-l border-border pl-2"
       :data-testid="'thread-group-threads-' + node.id"
       :data-thread-group-id="node.id"
     >

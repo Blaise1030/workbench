@@ -56,9 +56,7 @@ const emit = defineEmits<{
     v-if="collapsed"
     class="flex shrink-0 select-none flex-col items-center gap-1.5 px-1"
   >
-    <span class="sr-only"
-      >{{ APP_BRAND_BADGE }} {{ APP_PRERELEASE_BADGE }} {{ contextLabel ?? "" }}</span
-    >
+    <span class="sr-only">{{ APP_BRAND_BADGE }} {{ APP_PRERELEASE_BADGE }} {{ contextLabel ?? "" }}</span>
     <div class="min-h-11 flex flex-col items-center gap-1">
       <WorkbenchLogoMark variant="md" />
     </div>
@@ -106,9 +104,8 @@ const emit = defineEmits<{
       </Button>
     </div>
     <p
-      v-if="releaseTagDisplay"
       data-testid="thread-topbar-app-version"
-      class="w-full truncate pb-0.5 text-end font-mono text-[10px] leading-none text-muted-foreground"
+      class="min-h-[12px] w-full truncate pb-0.5 text-end font-mono text-[10px] leading-none text-muted-foreground"
     >
       {{ releaseTagDisplay }}
     </p>

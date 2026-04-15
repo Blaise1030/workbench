@@ -66,6 +66,12 @@ export const IPC_CHANNELS = {
   previewNativeToggleDevTools: "preview:nativeToggleDevTools",
   /** Main → renderer: embedded preview DevTools visibility (e.g. user closed DevTools from Chrome UI). */
   previewEmbeddedDevtoolsState: "preview:embeddedDevtoolsState",
+  /** Navigate the preview `BrowserView` back one step in history. */
+  previewNativeGoBack: "preview:nativeGoBack",
+  /** Navigate the preview `BrowserView` forward one step in history. */
+  previewNativeGoForward: "preview:nativeGoForward",
+  /** Main → renderer: URL changed due to in-page navigation (SPA route change etc.). */
+  previewNavigationUrl: "preview:navigationUrl",
   terminalPtyCreate: "terminal:ptyCreate",
   terminalPtyWrite: "terminal:ptyWrite",
   terminalPtyResize: "terminal:ptyResize",

@@ -16,8 +16,7 @@
       <Badge
         v-if="loadBadge"
         data-testid="preview-load-badge"
-        :variant="loadBadge.variant"
-        class="max-w-[min(11rem,42%)] shrink-0 truncate border-border px-1.5 py-0 font-mono text-[10px] tabular-nums leading-none"
+        :variant="loadBadge.variant"        
         :title="loadBadge.title"
       >
         {{ loadBadge.label }}
@@ -30,6 +29,24 @@
         spellcheck="false"
         @keydown.enter="navigate"
       />
+      <button
+        data-testid="preview-back-btn"
+        class="shrink-0 rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-30 disabled:cursor-not-allowed"
+        title="Back"
+        :disabled="!canGoBack"
+        @click="goBack"
+      >
+        <ChevronLeft class="h-3.5 w-3.5" />
+      </button>
+      <button
+        data-testid="preview-forward-btn"
+        class="shrink-0 rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-30 disabled:cursor-not-allowed"
+        title="Forward"
+        :disabled="!canGoForward"
+        @click="goForward"
+      >
+        <ChevronRight class="h-3.5 w-3.5" />
+      </button>
       <button
         data-testid="preview-reload-btn"
         class="shrink-0 rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
@@ -50,6 +67,13 @@
         <Bug class="h-3.5 w-3.5" />
       </button>
     </div>
+    <!-- Indeterminate loading bar -->
+    <div class="relative h-0.5 w-full shrink-0 overflow-hidden bg-transparent">
+      <div
+        v-if="loadState?.kind === 'loading'"
+        class="preview-loading-bar absolute inset-y-0 left-0 w-1/3 rounded-full bg-primary"
+      />
+    </div>
     <div ref="viewportRef" data-testid="preview-viewport" class="relative min-h-0 flex-1 overflow-hidden">
       <div
         class="absolute inset-0 bg-muted/30"
@@ -65,7 +89,7 @@ import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import { setPreviewNativeCollisionEl, setPreviewNativeViewportTopPx } from "@/composables/previewNativeViewportTop";
 import Badge from "@/components/ui/Badge.vue";
 import type { BadgeVariant } from "@/components/ui/badge";
-import { Bug, RotateCw } from "lucide-vue-next";
+import { Bug, ChevronLeft, ChevronRight, RotateCw } from "lucide-vue-next";
 import type { PreviewLoadStatePayload } from "@shared/ipc";
 import { loadPreviewPanelUrl, savePreviewPanelUrl } from "@/composables/usePreviewPanelUrlPersistence";
 import { useWorkspaceStore } from "@/stores/workspaceStore";
@@ -79,6 +103,9 @@ const viewportRef = ref<HTMLDivElement | null>(null);
 const activePreviewUrl = ref("");
 /** Embedded Chrome DevTools split is open (main-process). */
 const previewDevtoolsOpen = ref(false);
+/** Whether the preview BrowserView can navigate back/forward. */
+const canGoBack = ref(false);
+const canGoForward = ref(false);
 /** Monotonic counter so late `load` / `probeUrl` from a superseded navigation are ignored. */
 let loadSeq = 0;
 
@@ -118,6 +145,8 @@ watch(
     if (prevWorktreeId != null && prevWorktreeId !== worktreeId) {
       activePreviewUrl.value = "";
       previewDevtoolsOpen.value = false;
+      canGoBack.value = false;
+      canGoForward.value = false;
       void getApi()?.detachNative?.().catch(() => {});
     }
     urlInput.value = loadPreviewPanelUrl(worktreeId);
@@ -345,6 +374,14 @@ function navigate(): void {
   void runLoadUrl(url, seq);
 }
 
+function goBack(): void {
+  void getApi()?.goBack?.();
+}
+
+function goForward(): void {
+  void getApi()?.goForward?.();
+}
+
 function reload(): void {
   const u = activePreviewUrl.value;
   if (!u) return;
@@ -370,6 +407,7 @@ async function toggleEmbeddedDevTools(): Promise<void> {
 let resizeObserver: ResizeObserver | null = null;
 let viewportMetricsRafId = 0;
 let offEmbeddedDevtoolsState: (() => void) | undefined;
+let offNavigationUrl: (() => void) | undefined;
 
 function schedulePreviewViewportMetrics(): void {
   if (viewportMetricsRafId !== 0) {
@@ -385,6 +423,11 @@ onMounted(() => {
   offEmbeddedDevtoolsState = getApi()?.onPreviewEmbeddedDevtoolsOpen?.((open) => {
     previewDevtoolsOpen.value = open;
   });
+  offNavigationUrl = getApi()?.onNavigationUrl?.((url, back, forward) => {
+    urlInput.value = url;
+    canGoBack.value = back;
+    canGoForward.value = forward;
+  });
   syncPreviewViewportMetrics();
   resizeObserver = new ResizeObserver(() => schedulePreviewViewportMetrics());
   if (panelRootRef.value) resizeObserver.observe(panelRootRef.value);
@@ -399,6 +442,8 @@ onMounted(() => {
 onUnmounted(() => {
   offEmbeddedDevtoolsState?.();
   offEmbeddedDevtoolsState = undefined;
+  offNavigationUrl?.();
+  offNavigationUrl = undefined;
   if (viewportMetricsRafId !== 0) {
     cancelAnimationFrame(viewportMetricsRafId);
     viewportMetricsRafId = 0;
@@ -412,3 +457,24 @@ onUnmounted(() => {
   void getApi()?.detachNative?.().catch(() => {});
 });
 </script>
+
+<style scoped>
+@keyframes preview-sweep {
+  0% {
+    left: -40%;
+    width: 40%;
+  }
+  50% {
+    left: 30%;
+    width: 60%;
+  }
+  100% {
+    left: 110%;
+    width: 40%;
+  }
+}
+
+.preview-loading-bar {
+  animation: preview-sweep 1.4s ease-in-out infinite;
+}
+</style>

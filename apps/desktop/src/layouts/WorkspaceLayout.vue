@@ -562,8 +562,7 @@ const scmHasStagedFiles = computed(() =>
 const scmSuggestCommitAvailable = computed(
   () =>
     Boolean(getApi()?.stagedUnifiedDiff) &&
-    hasGitRepository.value === true &&
-    scmHasStagedFiles.value
+    hasGitRepository.value === true
 );
 
 const scmSuggestCommitBusy = computed(
@@ -1300,13 +1299,12 @@ async function handleScmCommit(): Promise<void> {
 
 async function handleScmSuggestCommit(): Promise<void> {
   await localLlm.suggestFromStaged(workspace.activeWorktree?.path ?? null);
+  if (localLlm.commitSuggestState === "ready" && localLlm.commitCandidates.length > 0) {
+    scmCommitMessage.value = localLlm.commitCandidates[0];
+  }
   if (localLlm.commitSuggestState === "error" && localLlm.commitSuggestError) {
     toast.error("Could not suggest commit", localLlm.commitSuggestError);
   }
-}
-
-function handleApplyCommitCandidate(message: string): void {
-  scmCommitMessage.value = message;
 }
 
 function handleSelectScmEntry(payload: { path: string; scope: "staged" | "unstaged" }): void {
@@ -1883,7 +1881,6 @@ watch(
                       @push="handleScmPush"
                       @commit="handleScmCommit"
                       @suggest-commit="handleScmSuggestCommit"
-                      @apply-commit-candidate="handleApplyCommitCandidate"
                       @open-file-in-editor="handleScmOpenFileInEditor"
                       @branch-changed="void refreshRepoStatus()"
                     />
