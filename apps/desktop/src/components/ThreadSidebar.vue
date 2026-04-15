@@ -5,16 +5,15 @@ import type { WorkspaceThreadContext } from "@/stores/workspaceStore";
 import { Download, FileText, Plus, X } from "lucide-vue-next";
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import BranchPicker from "@/components/BranchPicker.vue";
-import ThreadGroupHeader from "@/components/ThreadGroupHeader.vue";
 import ThreadRow from "@/components/ThreadRow.vue";
 import ThreadTopBar from "@/components/ThreadTopBar.vue";
-import WorktreeStaleCallout from "@/components/WorktreeStaleCallout.vue";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import Button from "@/components/ui/Button.vue";
 import Switch from "@/components/ui/Switch.vue";
 import { groupThreadsByRelativeDate } from "@/lib/threadDateGroups";
 import type { KeybindingId } from "@/keybindings/registry";
 import { useKeybindingsStore } from "@/stores/keybindingsStore";
+import ThreadSidebarNodes, { type ThreadSidebarNodeData } from "@/components/ThreadSidebarNodes.vue";
 
 const keybindings = useKeybindingsStore();
 function titleWithShortcut(label: string, id: KeybindingId): string {
@@ -433,6 +432,40 @@ function showThreadListShowMore(group: SidebarContextGroup): boolean {
 function showThreadListShowLess(group: SidebarContextGroup): boolean {
   return group.threads.length > THREAD_GROUP_PREVIEW_COUNT && isThreadListExpanded(group.uiKey);
 }
+
+type ContextNode = Extract<ThreadSidebarNodeData, { kind: "context" }>;
+
+const sidebarNodes = computed<ContextNode[]>(() =>
+  branchFilteredContextGroups.value.map((group) => ({
+    kind: "context" as const,
+    id: group.uiKey,
+    title: group.title,
+    isWorktree: !group.isPrimary && group.worktreeId !== null,
+    isPrimary: group.isPrimary,
+    isStale: group.isStale,
+    branch: group.branch,
+    showMore: showThreadListShowMore(group),
+    showLess: showThreadListShowLess(group),
+    threads: displayThreadsForGroup(group).map((thread) => ({
+      kind: "thread" as const,
+      thread,
+      isActive: thread.id === props.activeThreadId,
+      runStatus: props.runStatusByThreadId?.[thread.id] ?? null,
+      needsIdleAttention: Boolean(props.idleAttentionByThreadId?.[thread.id]),
+      hideAgentIcon: thread.id === props.inlinePromptThreadId,
+    })),
+  }))
+);
+
+const expandedContexts = computed<Set<string>>(() => {
+  const expanded = new Set<string>();
+  for (const group of branchFilteredContextGroups.value) {
+    if (!effectiveCollapsedGroups.value.has(group.uiKey)) {
+      expanded.add(group.uiKey);
+    }
+  }
+  return expanded;
+});
 
 function handleCollapsedGroupSelect(threadId: string): void {
   openCollapsedGroupId.value = null;
