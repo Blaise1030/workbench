@@ -35,4 +35,14 @@ describe("notification service", () => {
     );
     expect(showMock).toHaveBeenCalled();
   });
+
+  it("trigger is a no-op when Notification.isSupported() returns false", async () => {
+    const { Notification } = await import("electron");
+    const mockNotification = vi.fn();
+    (Notification as unknown as { isSupported: () => boolean }).isSupported = () => false;
+    (Notification as unknown as ReturnType<typeof vi.fn>).mockImplementation(mockNotification);
+    const service = new NotificationService();
+    service.trigger("done", "MyProject", "Build the login page");
+    expect(mockNotification).not.toHaveBeenCalled();
+  });
 });
