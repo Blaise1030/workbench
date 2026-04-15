@@ -1,5 +1,17 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi, beforeEach } from "vitest";
 import { NotificationService } from "../notificationService";
+
+const { mockNotificationConstructor } = vi.hoisted(() => {
+  const showMock = vi.fn();
+  const ctor = vi.fn().mockImplementation(() => ({ show: showMock }));
+  (ctor as unknown as { isSupported: () => boolean }).isSupported = () => true;
+  return { mockNotificationConstructor: ctor };
+});
+
+// Mock Electron's Notification class (not available in jsdom)
+vi.mock("electron", () => ({
+  Notification: mockNotificationConstructor,
+}));
 
 describe("notification service", () => {
   it("maps states to tones", () => {
@@ -8,5 +20,19 @@ describe("notification service", () => {
     expect(service.getTone("needsReview")).toBe("Mi");
     expect(service.getTone("failed")).toBe("Fa");
     expect(service.getTone("previewReady")).toBe("So");
+  });
+
+  it("trigger creates and shows an Electron Notification", async () => {
+    const { Notification } = await import("electron");
+    const showMock = vi.fn();
+    (Notification as unknown as ReturnType<typeof vi.fn>).mockImplementation(() => ({
+      show: showMock,
+    }));
+    const service = new NotificationService();
+    service.trigger("done", "MyProject", "Build the login page");
+    expect(Notification).toHaveBeenCalledWith(
+      expect.objectContaining({ title: "MyProject", body: "MyProject, Build the login page is done" })
+    );
+    expect(showMock).toHaveBeenCalled();
   });
 });
