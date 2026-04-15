@@ -318,7 +318,8 @@ describe("ThreadSidebar", () => {
     wrapper = mountThreadSidebar( { props: { threads, activeThreadId: "t1" } });
     await wrapper.get('[data-testid="thread-select"]').trigger("dblclick");
     const input = wrapper.get('[data-testid="thread-rename-input"]');
-    await input.setValue("Renamed");
+    (input.element as HTMLElement).textContent = "Renamed";
+    await input.trigger("input");
     await input.trigger("keydown", { key: "Enter" });
     expect(wrapper.emitted("rename")).toEqual([["t1", "Renamed"]]);
   });

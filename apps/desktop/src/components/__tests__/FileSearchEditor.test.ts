@@ -8,6 +8,33 @@ vi.mock("@/components/ui/Button.vue", () => ({
   default: { template: "<button v-bind=\"$attrs\"><slot /></button>" }
 }));
 
+vi.mock("@/components/ui/tooltip", () => ({
+  TooltipProvider: defineComponent({
+    name: "TooltipProvider",
+    setup(_, { slots }) {
+      return () => h("div", slots.default?.());
+    }
+  }),
+  Tooltip: defineComponent({
+    name: "Tooltip",
+    setup(_, { slots }) {
+      return () => h("div", slots.default?.());
+    }
+  }),
+  TooltipTrigger: defineComponent({
+    name: "TooltipTrigger",
+    setup(_, { slots }) {
+      return () => h("div", slots.default?.());
+    }
+  }),
+  TooltipContent: defineComponent({
+    name: "TooltipContent",
+    setup(_, { slots }) {
+      return () => h("div", slots.default?.());
+    }
+  })
+}));
+
 vi.mock("@/components/MonacoEditor.vue", () => ({
   default: defineComponent({
     name: "MonacoEditor",
@@ -269,7 +296,7 @@ describe("FileSearchEditor", () => {
     expect(wrapper.find('[data-testid="file-search-input"]').exists()).toBe(true);
   });
 
-  it("collapses and expands the file editor body", async () => {
+  it("keeps the file editor body visible without a collapse toggle", async () => {
     listFiles.mockResolvedValue([{ relativePath: "src/App.vue", size: 11, modifiedAt: 1 }]);
     readFile.mockResolvedValue("const value = 1;\n");
 
@@ -283,15 +310,7 @@ describe("FileSearchEditor", () => {
 
     expect(wrapper.find('[data-testid="file-editor"]').exists()).toBe(true);
 
-    await wrapper.get('[data-testid="toggle-file-editor-body"]').trigger("click");
-    await flushPromises();
-
-    expect(wrapper.find('[data-testid="file-editor"]').exists()).toBe(false);
-    expect(wrapper.get('[data-testid="file-editor-collapsed-state"]').text()).toContain("Editor collapsed");
-
-    await wrapper.get('[data-testid="toggle-file-editor-body"]').trigger("click");
-    await flushPromises();
-
+    expect(wrapper.find('[data-testid="toggle-file-editor-body"]').exists()).toBe(false);
     expect(wrapper.find('[data-testid="file-editor-collapsed-state"]').exists()).toBe(false);
     expect(wrapper.find('[data-testid="file-editor"]').exists()).toBe(true);
   });

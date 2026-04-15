@@ -85,7 +85,7 @@ describe("ThreadGroupHeader", () => {
     expect(wrapper.find('[aria-label="Thread group actions"]').exists()).toBe(false);
   });
 
-  it("opens a shadcn dropdown menu for group actions", async () => {
+  it("renders the remove group action button when actions are enabled", async () => {
     const wrapper = mount(ThreadGroupHeader, {
       attachTo: document.body,
       props: {
@@ -101,10 +101,8 @@ describe("ThreadGroupHeader", () => {
       }
     });
 
-    await wrapper.get('[aria-label="Thread group actions"]').trigger("click");
-
-    const content = document.querySelector('[data-slot="dropdown-menu-content"]');
-    expect(content).not.toBeNull();
-    expect(content?.textContent).toContain("Delete group");
+    const removeButton = wrapper.get('button[title="Remove thread group"]');
+    await removeButton.trigger("click");
+    expect(wrapper.emitted("delete")).toEqual([[]]);
   });
 });
