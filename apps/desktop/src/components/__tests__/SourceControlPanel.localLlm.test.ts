@@ -16,7 +16,7 @@ const baseProps = {
 };
 
 describe("SourceControlPanel local LLM controls", () => {
-  it("does not render Suggest when suggestCommitAvailable is false", () => {
+  it("does not render Suggest when feature flag is off", () => {
     const wrapper = mount(SourceControlPanel, {
       shallow: true,
       props: {
@@ -27,7 +27,7 @@ describe("SourceControlPanel local LLM controls", () => {
     expect(wrapper.find('[data-testid="scm-suggest-commit"]').exists()).toBe(false);
   });
 
-  it("renders Suggest when available and WebGPU is ok", () => {
+  it("still does not render Suggest even when available and WebGPU is ok", () => {
     const wrapper = mount(SourceControlPanel, {
       shallow: true,
       props: {
@@ -36,6 +36,6 @@ describe("SourceControlPanel local LLM controls", () => {
         suggestCommitGpuOk: true
       }
     });
-    expect(wrapper.find('[data-testid="scm-suggest-commit"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="scm-suggest-commit"]').exists()).toBe(false);
   });
 });

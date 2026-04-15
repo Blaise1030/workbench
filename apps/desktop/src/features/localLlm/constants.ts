@@ -5,3 +5,7 @@ export const DEFAULT_MLC_MODEL_ID = "Phi-3.5-mini-instruct-q4f16_1-MLC" as const
 export const MAX_THREAD_TITLE_CHARS = 60;
 export const MAX_USER_MESSAGE_FOR_TITLE_CHARS = 8000;
 export const COMMIT_CANDIDATE_COUNT = 1;
+/** Keep local commit prompting snappy even on very large staged diffs. */
+export const LOCAL_COMMIT_DIFF_BUDGET_CHARS = 120_000;
+/** Conservative budget for fast subject-line generation. */
+export const COMMIT_SUGGEST_MAX_TOKENS = 128;

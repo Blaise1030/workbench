@@ -42,7 +42,7 @@ import { useTerminalSoundSettings } from "@/composables/useTerminalSoundSettings
 import { useToast } from "@/composables/useToast";
 import { useLocalLlm } from "@/composables/useLocalLlm";
 import { isWebGpuUsable } from "@/features/localLlm/webgpuSupport";
-import { generateThreadTitle } from "@/features/localLlm/engine";
+import { generateThreadTitle } from "@/features/localLlm/client";
 import { usePreviewModalOcclusion } from "@/composables/usePreviewModalOcclusion";
 import { useWorkspaceKeybindings } from "@/composables/useWorkspaceKeybindings";
 import { readPreferredThreadAgent } from "@/composables/usePreferredThreadAgent";

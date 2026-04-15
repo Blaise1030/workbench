@@ -31,6 +31,8 @@ import MonacoDiffEditor from "@/components/MonacoDiffEditor.vue";
 
 const SCM_DIFF_LAYOUT_KEY = "instrument.scmDiffLayout";
 type ScmDiffLayout = "split" | "unified";
+/** Temporary product toggle: hide only local-LLM commit suggestion control. */
+const SHOW_SUGGEST_COMMIT_BUTTON = false;
 
 function readScmDiffLayout(): ScmDiffLayout {
   try {
@@ -857,7 +859,7 @@ onBeforeUnmount(() => {
         <div class="flex items-center justify-between px-2 py-1.5 border-t">
           <div class="flex items-center gap-1">            
             <Button
-              v-if="suggestCommitAvailable"
+              v-if="SHOW_SUGGEST_COMMIT_BUTTON && suggestCommitAvailable"
               data-testid="scm-suggest-commit"
               type="button"
               variant="outline"

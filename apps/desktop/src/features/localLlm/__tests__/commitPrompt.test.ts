@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { buildCommitSuggestionPrompt, buildCommitSystemPrompt } from "@/features/localLlm/commitPrompt";
+import {
+  buildCommitSuggestionPrompt,
+  buildCommitSystemPrompt,
+  prepareCommitDiffForPrompt
+} from "@/features/localLlm/commitPrompt";
 
 describe("buildCommitSystemPrompt", () => {
   it("contains output rules and an example", () => {
@@ -29,5 +33,23 @@ describe("buildCommitSuggestionPrompt", () => {
   it("when truncated is true, includes a note mentioning truncation", () => {
     const out = buildCommitSuggestionPrompt("x", true);
     expect(out.toLowerCase()).toMatch(/truncated/);
+  });
+});
+
+describe("prepareCommitDiffForPrompt", () => {
+  it("keeps short diffs unchanged", () => {
+    const diff = "diff --git a/a.ts b/a.ts\n+hello\n";
+    expect(prepareCommitDiffForPrompt(diff)).toEqual({
+      unifiedDiff: diff,
+      locallyTrimmed: false
+    });
+  });
+
+  it("trims oversized diffs to a stricter local cap", () => {
+    const big = "x".repeat(500_000);
+    const prepared = prepareCommitDiffForPrompt(big);
+    expect(prepared.locallyTrimmed).toBe(true);
+    expect(prepared.unifiedDiff.length).toBeLessThan(big.length);
+    expect(prepared.unifiedDiff).toContain("# Local diff budget applied");
   });
 });

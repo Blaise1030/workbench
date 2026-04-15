@@ -1,6 +1,6 @@
 import { ref } from "vue";
 import type { StagedUnifiedDiffResult } from "@shared/ipc";
-import { generateCommitCandidates } from "@/features/localLlm/engine";
+import { generateCommitCandidates } from "@/features/localLlm/client";
 import { isWebGpuUsable } from "@/features/localLlm/webgpuSupport";
 
 export type CommitSuggestState = "idle" | "loading" | "ready" | "generating" | "error";

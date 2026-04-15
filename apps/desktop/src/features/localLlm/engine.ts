@@ -1,6 +1,10 @@
 import type { StagedUnifiedDiffResult } from "@shared/ipc";
-import { buildCommitSystemPrompt, buildCommitSuggestionPrompt } from "./commitPrompt";
-import { DEFAULT_MLC_MODEL_ID } from "./constants";
+import {
+  buildCommitSystemPrompt,
+  buildCommitSuggestionPrompt,
+  prepareCommitDiffForPrompt
+} from "./commitPrompt";
+import { COMMIT_SUGGEST_MAX_TOKENS, DEFAULT_MLC_MODEL_ID } from "./constants";
 import { parseCommitCandidates, parseThreadTitle } from "./parseModelText";
 import { buildThreadTitlePrompt } from "./threadTitlePrompt";
 import { isWebGpuUsable } from "./webgpuSupport";
@@ -41,9 +45,10 @@ async function drain(): Promise<void> {
   try {
     const eng = await ensureEngine();
     if (item.job.kind === "commit") {
+      const prepared = prepareCommitDiffForPrompt(item.job.diff.unifiedDiff);
       const prompt = buildCommitSuggestionPrompt(
-        item.job.diff.unifiedDiff,
-        item.job.diff.truncated,
+        prepared.unifiedDiff,
+        item.job.diff.truncated || prepared.locallyTrimmed,
       );
       const out = await eng.chat.completions.create({
         messages: [
@@ -51,7 +56,7 @@ async function drain(): Promise<void> {
           { role: "user", content: prompt },
         ],
         temperature: 0.2,
-        max_tokens: 256,
+        max_tokens: COMMIT_SUGGEST_MAX_TOKENS,
       });
       const text = out.choices[0]?.message?.content?.trim() ?? "";
       const cands = parseCommitCandidates(text);

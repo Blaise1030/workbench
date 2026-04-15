@@ -1,4 +1,4 @@
-import { COMMIT_CANDIDATE_COUNT } from "./constants";
+import { COMMIT_CANDIDATE_COUNT, LOCAL_COMMIT_DIFF_BUDGET_CHARS } from "./constants";
 
 /**
  * System message sets the complete role + output contract.
@@ -27,4 +27,23 @@ export function buildCommitSystemPrompt(): string {
 export function buildCommitSuggestionPrompt(unifiedDiff: string, truncated: boolean): string {
   const truncNote = truncated ? "\n(diff was truncated — infer from visible changes only)" : "";
   return `${unifiedDiff}${truncNote}\n\nWrite ${COMMIT_CANDIDATE_COUNT} commit subject lines for the changes above.`;
+}
+
+/**
+ * Applies a strict renderer-side budget before prompt assembly so large diffs
+ * do not overwhelm the LLM call path.
+ */
+export function prepareCommitDiffForPrompt(unifiedDiff: string): {
+  unifiedDiff: string;
+  locallyTrimmed: boolean;
+} {
+  if (unifiedDiff.length <= LOCAL_COMMIT_DIFF_BUDGET_CHARS) {
+    return { unifiedDiff, locallyTrimmed: false };
+  }
+  const note = `\n\n# Local diff budget applied (${unifiedDiff.length.toLocaleString()} chars total).`;
+  const safe = Math.max(0, LOCAL_COMMIT_DIFF_BUDGET_CHARS - note.length);
+  return {
+    unifiedDiff: `${unifiedDiff.slice(0, safe)}${note}`,
+    locallyTrimmed: true
+  };
 }
