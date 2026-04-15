@@ -20,8 +20,12 @@ describe("HookServer", () => {
     await server.start();
 
     const received: unknown[] = [];
+    let resolveReceived!: () => void;
+    const receivedPromise = new Promise<void>((r) => { resolveReceived = r; });
+
     server.setHandler((event, threadId) => {
       received.push({ event, threadId });
+      resolveReceived();
     });
 
     const url = `${server.getUrl()}/hook?thread=thread-abc`;
@@ -32,7 +36,7 @@ describe("HookServer", () => {
       body: JSON.stringify(body),
     });
 
-    await new Promise((r) => setTimeout(r, 10));
+    await receivedPromise;
     expect(received).toHaveLength(1);
     expect(received[0]).toEqual({
       event: { hook_event_name: "SessionStart", session_id: "sid-123" },
