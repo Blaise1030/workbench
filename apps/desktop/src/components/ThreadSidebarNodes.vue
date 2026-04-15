@@ -14,6 +14,16 @@ import {
 } from "@/components/ui/context-menu";
 import { groupThreadsByRelativeDate } from "@/lib/threadDateGroups";
 
+/** Leaf node shape; context rows reference only these as `threads` children. */
+export type ThreadSidebarThreadNode = {
+  kind: "thread";
+  thread: Thread;
+  isActive: boolean;
+  runStatus: RunStatus | null;
+  needsIdleAttention: boolean;
+  hideAgentIcon: boolean;
+};
+
 export type ThreadSidebarNodeData =
   | {
       kind: "context";
@@ -24,20 +34,13 @@ export type ThreadSidebarNodeData =
       isPrimary: boolean;
       isStale: boolean;
       branch: string | null;
-      threads: ThreadSidebarNodeData[];
+      threads: ThreadSidebarThreadNode[];
       showMore: boolean;
       showLess: boolean;
     }
-  | {
-      kind: "thread";
-      thread: Thread;
-      isActive: boolean;
-      runStatus: RunStatus | null;
-      needsIdleAttention: boolean;
-      hideAgentIcon: boolean;
-    };
+  | ThreadSidebarThreadNode;
 
-type ThreadNode = Extract<ThreadSidebarNodeData, { kind: "thread" }>;
+type ThreadNode = ThreadSidebarThreadNode;
 
 type SubgroupWithNodes = {
   label: string;
@@ -67,13 +70,14 @@ const isExpanded = computed(
 
 const subgroupsWithNodes = computed((): SubgroupWithNodes[] => {
   if (props.node.kind !== "context") return [];
-  const threadNodes = props.node.threads.filter(
-    (n): n is ThreadNode => n.kind === "thread"
-  );
-  const nodeMap = new Map(threadNodes.map((n) => [n.thread.id, n]));
+  const threadNodes = props.node.threads;
+  const nodeMap = new Map(threadNodes.map((n) => [n.thread.id, n] as const));
   return groupThreadsByRelativeDate(threadNodes.map((n) => n.thread)).map((sg) => ({
     label: sg.label,
-    nodes: sg.threads.map((t) => nodeMap.get(t.id)!).filter(Boolean),
+    nodes: sg.threads.flatMap((t) => {
+      const n = nodeMap.get(t.id);
+      return n ? [n] : [];
+    }),
   }));
 });
 </script>
@@ -83,29 +87,31 @@ const subgroupsWithNodes = computed((): SubgroupWithNodes[] => {
   <li v-if="node.kind === 'context'">
     <ContextMenu>
       <ContextMenuTrigger as-child>
-        <Button
-          type="button"
-          variant="ghost"
-          size="xs"
-          class="flex w-full min-w-0 max-w-none items-center justify-start gap-1.5 rounded-md px-1.5 py-1 text-left text-xs transition-colors hover:bg-muted"
+        <div
+          class="flex w-full min-w-0 max-w-none items-center gap-1.5 rounded-md px-1.5 py-1 text-left text-xs transition-colors hover:bg-muted"
           :class="node.isStale ? 'text-destructive' : 'text-foreground'"
-          @click="emit('toggleContext', node.id)"
         >
-          <span class="w-3.5 shrink-0 text-center text-[10px] leading-none text-muted-foreground">
-            {{ isExpanded ? "▾" : "▸" }}
-          </span>
-          <span class="min-w-0 flex-1 truncate font-medium">{{ node.title }}</span>
+          <button
+            type="button"
+            class="flex min-w-0 flex-1 items-center justify-start gap-1.5 rounded-sm text-left outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background"
+            @click="emit('toggleContext', node.id)"
+          >
+            <span class="w-3.5 shrink-0 text-center text-[10px] leading-none text-muted-foreground">
+              {{ isExpanded ? "▾" : "▸" }}
+            </span>
+            <span class="min-w-0 flex-1 truncate font-medium">{{ node.title }}</span>
+          </button>
           <Button
             type="button"
             variant="ghost"
             size="icon-xs"
-            class="ml-auto h-4 w-4 shrink-0 text-muted-foreground hover:text-foreground"
+            class="h-4 w-4 shrink-0 text-muted-foreground hover:text-foreground"
             :aria-label="`Add thread to ${node.title}`"
             @click.stop="emit('addThread', node.id)"
           >
             <Plus class="h-3 w-3" />
           </Button>
-        </Button>
+        </div>
       </ContextMenuTrigger>
       <ContextMenuContent class="min-w-[11rem]">
         <ContextMenuItem
