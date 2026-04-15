@@ -732,7 +732,7 @@ async function openAppUpdateUrl(url: string): Promise<void> {
             Threads from this branch only
           </label>
         </div>
-        <ul class="min-w-0 space-y-2 px-3">
+        <ul class="min-w-0 space-y-2 px-1.5">
           <ThreadSidebarNodes
             v-for="node in sidebarNodes"
             :key="node.id"

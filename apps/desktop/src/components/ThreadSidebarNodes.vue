@@ -102,7 +102,7 @@ const contextBadge = computed(() => {
     <ContextMenu v-if="hasContextMenuActions">
       <ContextMenuTrigger as-child>
         <div
-          class="flex w-full active:translate-y-[1px] min-w-0 max-w-none items-center gap-1.5 rounded-md px-1.5 py-1 text-left text-xs transition-colors hover:bg-muted"
+          class="flex w-full active:translate-y-[1px] min-w-0 max-w-none cursor-pointer items-center gap-1.5 rounded-md px-1 py-1 text-left text-xs transition-colors hover:bg-muted"
           :class="node.isStale ? 'text-destructive' : 'text-foreground'"
         >
           <button
@@ -151,7 +151,7 @@ const contextBadge = computed(() => {
     </ContextMenu>
     <div
       v-else
-      class="flex active:translate-y-px  w-full min-w-0 max-w-none items-center gap-1.5 rounded-md px-1.5 py-1 text-left text-xs transition-colors hover:bg-muted"
+      class="flex active:translate-y-px  w-full min-w-0 max-w-none items-center gap-1.5 rounded-md px-1 py-0.5 cursor-pointer text-left text-xs transition-colors hover:bg-muted"
       :class="node.isStale ? 'text-destructive' : 'text-foreground'"
     >
       <button
@@ -189,7 +189,7 @@ const contextBadge = computed(() => {
 
     <ul
       v-show="isExpanded"
-      class="ml-3 space-y-0.5 border-l border-border pl-2"
+      class="ml-2.5 space-y-0.5 border-l border-border pl-2"
       :data-testid="'thread-group-threads-' + node.id"
       :data-thread-group-id="node.id"
     >
