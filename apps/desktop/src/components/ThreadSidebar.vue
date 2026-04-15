@@ -435,6 +435,7 @@ const sidebarNodes = computed<ContextNode[]>(() =>
   branchFilteredContextGroups.value.map((group) => ({
     kind: "context" as const,
     id: group.uiKey,
+    addThreadTargetId: worktreeIdForGroupAdd(group),
     title: group.title,
     isWorktree: !group.isPrimary && group.worktreeId !== null,
     isPrimary: group.isPrimary,

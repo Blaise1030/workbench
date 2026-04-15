@@ -5,6 +5,7 @@ import type { RunStatus, Thread } from "@shared/domain";
 import { computed } from "vue";
 import { Plus } from "lucide-vue-next";
 import ThreadRow from "@/components/ThreadRow.vue";
+import WorktreeStaleCallout from "@/components/WorktreeStaleCallout.vue";
 import Button from "@/components/ui/Button.vue";
 import {
   ContextMenu,
@@ -28,6 +29,8 @@ export type ThreadSidebarNodeData =
   | {
       kind: "context";
       id: string;
+      /** Worktree id for `addThreadInline` — matches `worktreeIdForGroupAdd` semantics (not always equal to `id` / uiKey). */
+      addThreadTargetId: string | null;
       title: string;
       /** true = non-primary worktree; shows "Delete context" in context menu */
       isWorktree: boolean;
@@ -55,7 +58,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   toggleContext: [id: string];
-  addThread: [contextId: string];
+  addThread: [worktreeId: string];
   deleteContext: [id: string];
   expandThreadList: [contextId: string];
   collapseThreadList: [contextId: string];
@@ -94,6 +97,9 @@ const subgroupsWithNodes = computed((): SubgroupWithNodes[] => {
           <button
             type="button"
             class="flex min-w-0 flex-1 items-center justify-start gap-1.5 rounded-sm text-left outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background"
+            data-testid="thread-group-header"
+            :data-thread-group-id="node.id"
+            :aria-expanded="isExpanded"
             @click="emit('toggleContext', node.id)"
           >
             <span class="w-3.5 shrink-0 text-center text-[10px] leading-none text-muted-foreground">
@@ -102,12 +108,13 @@ const subgroupsWithNodes = computed((): SubgroupWithNodes[] => {
             <span class="min-w-0 flex-1 truncate font-medium">{{ node.title }}</span>
           </button>
           <Button
+            v-if="node.addThreadTargetId !== null && !node.isStale"
             type="button"
             variant="ghost"
             size="icon-xs"
             class="h-4 w-4 shrink-0 text-muted-foreground hover:text-foreground"
             :aria-label="`Add thread to ${node.title}`"
-            @click.stop="emit('addThread', node.id)"
+            @click.stop="emit('addThread', node.addThreadTargetId)"
           >
             <Plus class="h-3 w-3" />
           </Button>
@@ -126,60 +133,79 @@ const subgroupsWithNodes = computed((): SubgroupWithNodes[] => {
     </ContextMenu>
 
     <ul
-      v-if="isExpanded"
+      v-show="isExpanded"
       class="ml-3 space-y-0.5 border-l border-border/60 pl-2"
+      :data-testid="'thread-group-threads-' + node.id"
+      :data-thread-group-id="node.id"
     >
-      <template v-for="(sg, sgIdx) in subgroupsWithNodes" :key="sgIdx">
-        <li role="presentation" class="list-none pb-0.5 pt-2 first:pt-0">
-          <span class="text-[8px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-            {{ sg.label }}
-          </span>
-        </li>
-        <li
-          v-for="threadNode in sg.nodes"
-          :key="threadNode.thread.id"
-          class="min-w-0"
-        >
-          <ThreadRow
-            :thread="threadNode.thread"
-            :is-active="threadNode.isActive"
-            :run-status="threadNode.runStatus"
-            :needs-idle-attention="threadNode.needsIdleAttention"
-            :hide-agent-icon="threadNode.hideAgentIcon"
-            :collapsed="collapsed"
-            @select="emit('selectThread', threadNode.thread.id)"
-            @remove="emit('removeThread', threadNode.thread.id)"
-            @rename="(title) => emit('renameThread', threadNode.thread.id, title)"
+      <template v-if="node.isStale">
+        <li v-if="isExpanded" class="list-none px-0 pt-1 pb-1">
+          <WorktreeStaleCallout
+            :branch="node.branch?.trim() || node.title"
+            @delete="emit('deleteContext', node.id)"
           />
         </li>
       </template>
-      <li v-if="node.showMore" class="flex justify-center px-2 pt-1">
-        <Button
-          type="button"
-          variant="outline"
-          size="xs"
-          class="w-auto shrink-0"
-          @click="emit('expandThreadList', node.id)"
-        >
-          Show more threads
-        </Button>
-      </li>
-      <li v-if="node.showLess" class="flex justify-center px-2 pt-1">
-        <Button
-          type="button"
-          variant="outline"
-          size="xs"
-          class="w-auto shrink-0"
-          @click="emit('collapseThreadList', node.id)"
-        >
-          Show less
-        </Button>
-      </li>
+      <template v-else>
+        <template v-for="(sg, sgIdx) in subgroupsWithNodes" :key="sgIdx">
+          <li role="presentation" class="list-none pb-0.5 pt-2 first:pt-0">
+            <span class="text-[8px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+              {{ sg.label }}
+            </span>
+          </li>
+          <li
+            v-for="threadNode in sg.nodes"
+            :key="threadNode.thread.id"
+            class="min-w-0"
+            :data-testid="'thread-list-item-' + threadNode.thread.id"
+          >
+            <ThreadRow
+              :thread="threadNode.thread"
+              :is-active="threadNode.isActive"
+              :run-status="threadNode.runStatus"
+              :needs-idle-attention="threadNode.needsIdleAttention"
+              :hide-agent-icon="threadNode.hideAgentIcon"
+              :collapsed="collapsed"
+              @select="emit('selectThread', threadNode.thread.id)"
+              @remove="emit('removeThread', threadNode.thread.id)"
+              @rename="(title) => emit('renameThread', threadNode.thread.id, title)"
+            />
+          </li>
+        </template>
+        <li v-if="node.showMore" class="flex justify-center px-2 pt-1">
+          <Button
+            type="button"
+            variant="outline"
+            size="xs"
+            class="w-auto shrink-0"
+            :data-testid="'thread-group-show-more-' + node.id"
+            @click="emit('expandThreadList', node.id)"
+          >
+            Show more threads
+          </Button>
+        </li>
+        <li v-if="node.showLess" class="flex justify-center px-2 pt-1">
+          <Button
+            type="button"
+            variant="outline"
+            size="xs"
+            class="w-auto shrink-0"
+            :data-testid="'thread-group-show-less-' + node.id"
+            @click="emit('collapseThreadList', node.id)"
+          >
+            Show less
+          </Button>
+        </li>
+      </template>
     </ul>
   </li>
 
   <!-- Thread node = file (leaf; direct embed of ThreadRow) -->
-  <li v-else-if="node.kind === 'thread'" class="min-w-0">
+  <li
+    v-else-if="node.kind === 'thread'"
+    class="min-w-0"
+    :data-testid="'thread-list-item-' + node.thread.id"
+  >
     <ThreadRow
       :thread="node.thread"
       :is-active="node.isActive"
