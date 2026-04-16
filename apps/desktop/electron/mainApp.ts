@@ -27,7 +27,6 @@ import {
   type RenameThreadInput,
   type ReorderProjectsInput
 } from "../src/shared/ipc.js";
-import type { ThreadAgent } from "../src/shared/domain.js";
 import { DiffService } from "./services/diffService.js";
 import { EditService } from "./services/editService.js";
 import { FileService } from "./services/fileService.js";
@@ -36,9 +35,7 @@ import { PtyService } from "./services/ptyService.js";
 import { createGitAdapter } from "./services/gitAdapter.js";
 import { shouldAllowAppClose } from "./lifecycle/closeConfirmation.js";
 import { buildCloseConfirmationDetail } from "./lifecycle/closeConfirmation.js";
-import { captureResumeIdsBeforeQuit } from "./lifecycle/quitResumeCapture.js";
 import { collectResumeIdsFromActiveTerminals } from "./lifecycle/quitResumeCapture.js";
-import { extractResumeIdFromStdout, RESUME_CAPTURE_TAIL_CHARS } from "./adapters/resumeIdCapture.js";
 import { GitHeadWatcher } from "./services/gitHeadWatcher.js";
 import { WorkspaceService } from "./services/workspaceService.js";
 import { WorkspaceStore } from "./storage/store.js";
@@ -55,9 +52,6 @@ function isSafePreviewOpenExternalUrl(url: string): boolean {
     return false;
   }
 }
-
-/** Threads whose PTY we scan for resume IDs (stdout + submitted command lines). */
-const AGENTS_WITH_RESUME_CAPTURE: ThreadAgent[] = ["cursor", "claude", "codex", "gemini"];
 
 const WORKBENCH_RELEASES_LATEST_API =
   "https://api.github.com/repos/Blaise1030/workbench/releases/latest";
@@ -605,32 +599,7 @@ gitHeadWatcher = new GitHeadWatcher({
   onWorkspaceMetadataChanged: emitWorkspaceDidChange
 });
 ptyService.setSubmittedInputListener((sessionId, input) => {
-  let didChange = workspaceService.maybeRenameThreadFromPrompt(sessionId, input);
-  // Capture resume/session UUID from a submitted shell line (e.g. `gemini --resume <uuid>` Enter).
-  if (!sessionId.startsWith("__")) {
-    const thread = workspaceService.getSnapshot().threads.find((t) => t.id === sessionId);
-    if (thread && AGENTS_WITH_RESUME_CAPTURE.includes(thread.agent)) {
-      const fromLine = extractResumeIdFromStdout(input);
-      if (fromLine && workspaceService.captureResumeId(sessionId, fromLine)) {
-        didChange = true;
-      }
-    }
-  }
-  if (didChange) emitWorkspaceDidChange();
-});
-ptyService.setSessionOutputListener((sessionId) => {
-  // Thread-bound sessions use the thread id as PTY session key; ignore shell/worktree sessions.
-  if (sessionId.startsWith("__")) return;
-  const thread = workspaceService.getSnapshot().threads.find((t) => t.id === sessionId);
-  if (!thread || !AGENTS_WITH_RESUME_CAPTURE.includes(thread.agent)) return;
-  const { buffer } = ptyService.getBuffer(sessionId);
-  const tail =
-    buffer.length > RESUME_CAPTURE_TAIL_CHARS
-      ? buffer.slice(-RESUME_CAPTURE_TAIL_CHARS)
-      : buffer;
-  const resumeId = extractResumeIdFromStdout(tail);
-  if (!resumeId) return;
-  if (workspaceService.captureResumeId(sessionId, resumeId)) {
+  if (workspaceService.maybeRenameThreadFromPrompt(sessionId, input)) {
     emitWorkspaceDidChange();
   }
 });
@@ -655,14 +624,10 @@ app.on("before-quit", (event) => {
       hasConfirmedClose = true;
       if (resumeCaptureOnQuitInFlight) return;
       resumeCaptureOnQuitInFlight = true;
-      void captureResumeIdsBeforeQuit(store, workspaceService, ptyService)
-        .catch((err) => console.error("[electron] resume capture on quit failed:", err))
-        .finally(() => {
-          allowQuitAfterResumeCapture = true;
-          resumeCaptureOnQuitInFlight = false;
-          ptyService.killNonThreadSessions();
-          app.quit();
-        });
+      allowQuitAfterResumeCapture = true;
+      resumeCaptureOnQuitInFlight = false;
+      ptyService.killNonThreadSessions();
+      app.quit();
     })
     .finally(() => {
       closeConfirmationInFlight = false;

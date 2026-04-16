@@ -8,7 +8,27 @@ const RESUME_SESSION_ID_REGEX =
 
 export const RESUME_SESSION_ID_LENGTH = 36;
 
+const OPAQUE_RESUME_ID_MIN = 3;
+const OPAQUE_RESUME_ID_MAX = 128;
+
+/** Safe for unquoted use in `cursor agent --resume=<id>` (no spaces or shell metacharacters). */
+function isValidOpaqueResumeSessionId(id: string): boolean {
+  if (id.length < OPAQUE_RESUME_ID_MIN || id.length > OPAQUE_RESUME_ID_MAX) return false;
+  return /^[A-Za-z0-9_.-]+$/.test(id);
+}
+
 export function isValidResumeSessionId(id: string): boolean {
   const t = id.trim();
   return t.length === RESUME_SESSION_ID_LENGTH && RESUME_SESSION_ID_REGEX.test(t);
+}
+
+/**
+ * IDs we persist and replay for `--resume`: canonical UUIDs, or provider opaque tokens
+ * (e.g. Cursor hook `SessionStart` / CLI output) that are safe to embed in a shell line.
+ */
+export function isValidPersistedResumeId(id: string): boolean {
+  const t = id.trim();
+  if (t.length === 0) return false;
+  if (isValidResumeSessionId(t)) return true;
+  return isValidOpaqueResumeSessionId(t);
 }

@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { isValidResumeSessionId, RESUME_SESSION_ID_LENGTH } from "../resumeSessionId";
+import {
+  isValidPersistedResumeId,
+  isValidResumeSessionId,
+  RESUME_SESSION_ID_LENGTH
+} from "../resumeSessionId";
 
 describe("isValidResumeSessionId", () => {
   it("accepts a canonical UUID (example from product)", () => {
@@ -27,5 +31,23 @@ describe("isValidResumeSessionId", () => {
   it("rejects empty or garbage", () => {
     expect(isValidResumeSessionId("")).toBe(false);
     expect(isValidResumeSessionId("not-a-uuid-at-all-here-ok")).toBe(false);
+  });
+});
+
+describe("isValidPersistedResumeId", () => {
+  it("accepts UUIDs", () => {
+    expect(isValidPersistedResumeId("cb1438da-39bb-4f7f-8108-510fe91963e1")).toBe(true);
+  });
+
+  it("accepts opaque hook/CLI tokens (Cursor SessionStart, etc.)", () => {
+    expect(isValidPersistedResumeId("sid-cursor")).toBe(true);
+    expect(isValidPersistedResumeId("session-abc-123")).toBe(true);
+  });
+
+  it("rejects shell-unsafe or garbage tokens", () => {
+    expect(isValidPersistedResumeId("bad;id")).toBe(false);
+    expect(isValidPersistedResumeId("a/b")).toBe(false);
+    expect(isValidPersistedResumeId("$(x)")).toBe(false);
+    expect(isValidPersistedResumeId("ab")).toBe(false);
   });
 });

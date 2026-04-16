@@ -25,7 +25,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { useAgentBootstrapCommands } from "@/composables/useAgentBootstrapCommands";
 import { threadAgentResumeCommand } from "@shared/threadAgentBootstrap";
 import type { PendingAgentBootstrap } from "@shared/pendingAgentBootstrap";
-import { isValidResumeSessionId } from "@shared/resumeSessionId";
+import { isValidPersistedResumeId } from "@shared/resumeSessionId";
 import {
   clearInlineThreadDraft,
   loadInlineThreadDraft,
@@ -48,6 +48,7 @@ import { useWorkspaceKeybindings } from "@/composables/useWorkspaceKeybindings";
 import { readPreferredThreadAgent } from "@/composables/usePreferredThreadAgent";
 import { formatShortcut, MOD_DIGIT_SLOT_CODES } from "@/keybindings/registry";
 import { useKeybindingsStore } from "@/stores/keybindingsStore";
+import { deriveThreadTitleFromLine } from "@/lib/deriveThreadTitleFromLine";
 import { LruMap } from "@/lib/lruMap";
 import { useWorkspaceStore } from "@/stores/workspaceStore";
 import { useThreadPtyRunStatus } from "@/composables/useThreadPtyRunStatus";
@@ -269,6 +270,7 @@ function bumpThreadTitleEpoch(threadId: string): void {
 /** Thread currently in "compose prompt" mode — shows inline editor instead of xterm. */
 const inlinePromptThreadId = ref<string | null>(null);
 const inlinePromptEditorRef = ref<{ submit: () => void } | null>(null);
+
 /** Display label for the worktree where the inline draft thread will live (footer copy). */
 const inlinePromptThreadContextLabel = computed(() => {
   const tid = inlinePromptThreadId.value;
@@ -506,7 +508,7 @@ function maybeSetResumeBootstrap(threadId: string | null): void {
   if (
     !session?.resumeId ||
     session.status !== "resumable" ||
-    !isValidResumeSessionId(session.resumeId)
+    !isValidPersistedResumeId(session.resumeId)
   ) return;
   if (pendingAgentBootstrap.value?.threadId === threadId) return;
   pendingAgentBootstrap.value = {
@@ -941,6 +943,111 @@ const THREAD_AGENT_LABELS: Record<ThreadAgent, string> = {
   gemini: "Gemini CLI"
 };
 
+/** While the thread title is still generic, refine it from the first line typed in the agent PTY (before Enter). */
+function threadTitleEligibleForTerminalDraftLlm(thread: Thread): boolean {
+  if (thread.title.trim() === "New thread") return true;
+  const base = THREAD_AGENT_LABELS[thread.agent];
+  return thread.title === base || thread.title.startsWith(`${base} · `);
+}
+
+const firstLineTitleCaptureThreadId = ref<string | null>(null);
+const terminalTitleDraftBuffer = ref("");
+
+const TERMINAL_DRAFT_LLM_DEBOUNCE_MS = 450;
+
+let terminalDraftLlmTimer: ReturnType<typeof setTimeout> | null = null;
+
+function clearTerminalDraftLlmDebounce(): void {
+  if (terminalDraftLlmTimer !== null) {
+    clearTimeout(terminalDraftLlmTimer);
+    terminalDraftLlmTimer = null;
+  }
+}
+
+function stopFirstLineTitleCapture(): void {
+  clearTerminalDraftLlmDebounce();
+  firstLineTitleCaptureThreadId.value = null;
+  terminalTitleDraftBuffer.value = "";
+}
+
+function scheduleTerminalDraftLlmDebounce(threadId: string): void {
+  clearTerminalDraftLlmDebounce();
+  terminalDraftLlmTimer = setTimeout(() => {
+    terminalDraftLlmTimer = null;
+    void runTerminalDraftLlmTitle(threadId);
+  }, TERMINAL_DRAFT_LLM_DEBOUNCE_MS);
+}
+
+async function runTerminalDraftLlmTitle(threadId: string, draftOverride?: string): Promise<void> {
+  const trimmed = (draftOverride ?? terminalTitleDraftBuffer.value).trim();
+  if (trimmed.length < 1) return;
+
+  const thread = workspace.threads.find((t) => t.id === threadId);
+  if (!thread || !threadTitleEligibleForTerminalDraftLlm(thread)) return;
+
+  const api = getApi();
+  if (!api?.renameThread) return;
+
+  const label = THREAD_AGENT_LABELS[thread.agent];
+  const titleEpochBaseline = threadTitleEpoch.get(threadId) ?? 0;
+
+  let nextTitle: string | null = null;
+  try {
+    if (await isWebGpuUsable()) {
+      nextTitle = await generateThreadTitle(trimmed, label);
+    }
+  } catch {
+    nextTitle = null;
+  }
+  if (!nextTitle) {
+    nextTitle = deriveThreadTitleFromLine(trimmed);
+  }
+  if (!nextTitle) return;
+
+  if ((threadTitleEpoch.get(threadId) ?? 0) !== titleEpochBaseline) return;
+  const t = workspace.threads.find((th) => th.id === threadId);
+  if (!t || !threadTitleEligibleForTerminalDraftLlm(t)) return;
+
+  try {
+    await api.renameThread({ threadId, title: nextTitle });
+    await refreshSnapshot();
+  } catch {
+    /* keep title */
+  }
+}
+
+function appendTerminalTitleDraft(threadId: string, chunk: string): void {
+  if (firstLineTitleCaptureThreadId.value !== threadId) return;
+
+  const thread = workspace.threads.find((t) => t.id === threadId);
+  if (!thread || !threadTitleEligibleForTerminalDraftLlm(thread)) {
+    stopFirstLineTitleCapture();
+    return;
+  }
+
+  for (const c of chunk) {
+    if (c === "\r" || c === "\n") {
+      clearTerminalDraftLlmDebounce();
+      const line = terminalTitleDraftBuffer.value;
+      terminalTitleDraftBuffer.value = "";
+      firstLineTitleCaptureThreadId.value = null;
+      void runTerminalDraftLlmTitle(threadId, line);
+      return;
+    }
+    if (c === "\u007f" || c === "\b") {
+      terminalTitleDraftBuffer.value = terminalTitleDraftBuffer.value.slice(0, -1);
+    } else {
+      const code = c.codePointAt(0)!;
+      if (code >= 32 || c === "\t") terminalTitleDraftBuffer.value += c;
+    }
+  }
+  scheduleTerminalDraftLlmDebounce(threadId);
+}
+
+function onAgentTerminalStdinChunk(sessionId: string, data: string): void {
+  appendTerminalTitleDraft(sessionId, data);
+}
+
 function defaultTitleForAgent(agent: ThreadAgent): string {
   const label = THREAD_AGENT_LABELS[agent];
   const sameAgentCount = workspace.activeThreads.filter((t) => t.agent === agent).length;
@@ -969,6 +1076,7 @@ function onTerminalBootstrapConsumed(): void {
 async function onInlinePromptSubmit(payload: ThreadCreateWithAgentPayload): Promise<void> {
   const threadId = inlinePromptThreadId.value;
   if (!threadId) return;
+  stopFirstLineTitleCapture();
   const draftWt = workspace.threads.find((t) => t.id === threadId)?.worktreeId;
   if (draftWt) clearInlineThreadDraft(draftWt);
   const { agent, prompt } = payload;
@@ -980,6 +1088,8 @@ async function onInlinePromptSubmit(payload: ThreadCreateWithAgentPayload): Prom
     // Optimistic UI update: refreshSnapshot shortly re-syncs server state.
     localDraft.agent = agent;
   }
+  // The agent is chosen at submit time; stop rendering this row as a "pending agent" draft immediately.
+  inlinePromptThreadId.value = null;
   if (api?.updateThread) {
     try {
       await api.updateThread({ threadId, agent });
@@ -1001,7 +1111,8 @@ async function onInlinePromptSubmit(payload: ThreadCreateWithAgentPayload): Prom
     command: bootstrapCommandLineWithPrompt(agent, prompt),
     mode: "prompt"
   };
-  inlinePromptThreadId.value = null;
+  firstLineTitleCaptureThreadId.value = threadId;
+  terminalTitleDraftBuffer.value = "";
   /** Snapshot before refresh / LLM so user renames during `refreshSnapshot` still invalidate the model title. */
   const titleEpochBaseline = threadTitleEpoch.get(threadId) ?? 0;
   const heuristicTitle = title;
@@ -1030,6 +1141,7 @@ async function onInlinePromptSubmit(payload: ThreadCreateWithAgentPayload): Prom
 async function onInlinePromptCancel(): Promise<void> {
   const threadId = inlinePromptThreadId.value;
   if (!threadId) return;
+  stopFirstLineTitleCapture();
   const draftWt = workspace.threads.find((t) => t.id === threadId)?.worktreeId;
   if (draftWt) clearInlineThreadDraft(draftWt);
   inlinePromptThreadId.value = null;
@@ -1041,6 +1153,7 @@ function onSaveAgentSettings(payload: { commands: Record<ThreadAgent, string> })
 }
 
 async function handleRemoveThread(threadId: string): Promise<void> {
+  if (firstLineTitleCaptureThreadId.value === threadId) stopFirstLineTitleCapture();
   const api = getApi();
   if (!api) return;
   const threadWt = workspace.threads.find((t) => t.id === threadId)?.worktreeId;
@@ -1094,9 +1207,14 @@ function tryRestoreInlineThreadDraft(): void {
 
 async function openInlineThreadPrompt(worktreeId: string): Promise<void> {
   const api = getApi();
-  if (!api || !workspace.activeProjectId) return;
+  if (!api) return;
+  const projectId =
+    workspace.activeProjectId ??
+    workspace.worktrees.find((worktree) => worktree.id === worktreeId)?.projectId ??
+    null;
+  if (!projectId) return;
   const created = await api.createThread({
-    projectId: workspace.activeProjectId,
+    projectId,
     worktreeId,
     title: "New thread",
     agent: readPreferredThreadAgent()
@@ -1109,7 +1227,7 @@ async function openInlineThreadPrompt(worktreeId: string): Promise<void> {
 }
 
 function openAddThreadFromToolbarOrEmpty(): void {
-  const worktreeId = workspace.defaultWorktree?.id;
+  const worktreeId = resolvePrimaryWorktreeId();
   if (!worktreeId) return;
   void openInlineThreadPrompt(worktreeId);
 }
@@ -1360,10 +1478,24 @@ function toggleThreadsSidebar(): void {
   threadsSidebarCollapsed.value = !threadsSidebarCollapsed.value;
 }
 
+function resolvePrimaryWorktreeId(): string | null {
+  const defaultId = workspace.defaultWorktree?.id ?? null;
+  if (defaultId) return defaultId;
+
+  const primaryContextId = workspace.threadContexts.find((context) => context.isDefault)?.worktreeId ?? null;
+  if (primaryContextId) return primaryContextId;
+
+  if (workspace.activeWorktreeId) return workspace.activeWorktreeId;
+
+  const firstActiveProjectWorktree =
+    workspace.worktrees.find((worktree) => worktree.projectId === workspace.activeProjectId)?.id ?? null;
+  return firstActiveProjectWorktree;
+}
+
 const workspaceLauncherOpen = ref(false);
 
 function openNewThreadMenuFromShortcut(): void {
-  const worktreeId = workspace.defaultWorktree?.id;
+  const worktreeId = resolvePrimaryWorktreeId();
   if (!worktreeId) return;
   void openInlineThreadPrompt(worktreeId);
 }
@@ -1960,6 +2092,7 @@ watch(
                       :cwd="workspace.activeWorktree?.path ?? ''"
                       :pending-agent-bootstrap="pendingAgentBootstrap"
                       @bootstrap-consumed="onTerminalBootstrapConsumed"
+                      @stdin-chunk="onAgentTerminalStdinChunk"
                       @user-typed="markPtyUserInput"
                     />
                   </div>

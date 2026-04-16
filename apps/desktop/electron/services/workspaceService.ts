@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import path from "node:path";
 import type { Project, Thread, ThreadAgent, Worktree } from "../../src/shared/domain.js";
-import { isValidResumeSessionId } from "../../src/shared/resumeSessionId.js";
+import { isValidPersistedResumeId } from "../../src/shared/resumeSessionId.js";
 import type { CreateThreadInput, CreateWorktreeGroupInput, WorkspaceSnapshot } from "../../src/shared/ipc.js";
 import { WorkspaceStore } from "../storage/store.js";
 
@@ -45,6 +45,16 @@ export function deriveThreadTitleFromPrompt(input: string): string | null {
 function hasDefaultGeneratedTitle(thread: Thread): boolean {
   const base = DEFAULT_THREAD_TITLES[thread.agent];
   return thread.title === base || thread.title.startsWith(`${base} · `);
+}
+
+/** Inline composer creates threads with this title until submit (see WorkspaceLayout `createThread`). */
+const INLINE_COMPOSER_PLACEHOLDER_TITLE = "New thread";
+
+function threadTitleEligibleForPromptDerivedRename(thread: Thread): boolean {
+  return (
+    hasDefaultGeneratedTitle(thread) ||
+    thread.title.trim() === INLINE_COMPOSER_PLACEHOLDER_TITLE
+  );
 }
 
 export class WorkspaceService {
@@ -107,8 +117,10 @@ export class WorkspaceService {
    *   worktree row's `branch` (used by main process after reading `HEAD` from disk so it matches SCM state).
    */
   createThread(input: CreateThreadInput, createdBranchOverride?: string | null): Thread {
+    const snapshot = this.store.getSnapshot();
+
     const now = new Date().toISOString();
-    const worktree = this.store.getSnapshot().worktrees.find((w) => w.id === input.worktreeId);
+    const worktree = snapshot.worktrees.find((w) => w.id === input.worktreeId);
     const createdBranch =
       createdBranchOverride !== undefined ? createdBranchOverride : (worktree?.branch ?? null);
     const thread: Thread = {
@@ -163,7 +175,7 @@ export class WorkspaceService {
       };
     }
 
-    if (!hasDefaultGeneratedTitle(thread)) {
+    if (!threadTitleEligibleForPromptDerivedRename(thread)) {
       return {
         renamed: false,
         captured: false,
@@ -210,20 +222,20 @@ export class WorkspaceService {
 
   /**
    * Persists the detected provider resume/session id for a thread (e.g. from
-   * `cursor agent --resume=<uuid>`). Skips invalid strings. If a valid id is
-   * already stored, does nothing (including when the new id differs). If the
-   * stored id is missing or not a valid UUID, replaces it with the new valid id.
+   * `cursor agent --resume=<id>` or hook `SessionStart`). Skips invalid strings.
+   * If a persistable id is already stored, does nothing (including when the new id differs).
+   * If the stored id is missing or not persistable, replaces it with the new id.
    */
   captureResumeId(threadId: string, resumeId: string): boolean {
     const thread = this.store.getThread(threadId);
     if (!thread) return false;
 
     const trimmed = resumeId.trim();
-    if (!isValidResumeSessionId(trimmed)) return false;
+    if (!isValidPersistedResumeId(trimmed)) return false;
 
     const existing = this.store.getThreadSession(threadId);
     const stored = existing?.resumeId?.trim() ?? "";
-    const hasValidStored = stored !== "" && isValidResumeSessionId(stored);
+    const hasValidStored = stored !== "" && isValidPersistedResumeId(stored);
     if (hasValidStored) return false;
 
     const now = new Date().toISOString();

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { ThreadAgent, ThreadCreateWithAgentPayload } from "@shared/domain";
-import { computed, onBeforeUnmount, onMounted, ref } from "vue";
+import { computed, onBeforeUnmount, onMounted } from "vue";
 import AgentIcon from "@/components/ui/AgentIcon.vue";
 import Button from "@/components/ui/Button.vue";
 import { readPreferredThreadAgent } from "@/composables/usePreferredThreadAgent";
@@ -29,7 +29,7 @@ const emit = defineEmits<{
 
 const preferredAgent = computed(() => props.defaultAgent ?? readPreferredThreadAgent());
 
-function startAgent(agent: ThreadAgent): void {  
+function startAgent(agent: ThreadAgent): void {
   emit("submit", { agent, prompt: "" });
 }
 
@@ -85,4 +85,3 @@ defineExpose({ submit });
     </div>
   </section>
 </template>
-

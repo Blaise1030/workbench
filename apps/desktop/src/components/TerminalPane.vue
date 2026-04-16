@@ -64,6 +64,8 @@ const props = withDefaults(
 const emit = defineEmits<{
   bootstrapConsumed: [];
   "user-typed": [sessionId: string];
+  /** Raw stdin from xterm before it is sent to the PTY (agent pane only). Used to derive thread titles from the first line. */
+  "stdin-chunk": [sessionId: string, data: string];
 }>();
 
 const paneAriaLabel = computed(() =>
@@ -308,6 +310,7 @@ onMounted(async () => {
       const sid = activeSessionId.value;
       if (sid) {
         emit("user-typed", sid);
+        if (props.ptyKind === "agent") emit("stdin-chunk", sid, data);
         void api.ptyWrite(sid, data);
       }
     });

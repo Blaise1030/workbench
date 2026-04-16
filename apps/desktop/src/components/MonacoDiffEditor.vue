@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { inject, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { monaco } from "@/lib/monacoApi";
-import { applyMonacoShadcnTheme } from "@/lib/monacoShadcnTheme";
+import { applyMonacoGithubTheme } from "@/lib/monacoGithubTheme";
 import { monacoLanguageIdFromPath } from "@/lib/monacoLanguage";
 import ContextQueueSelectionPopup from "@/components/contextQueue/ContextQueueSelectionPopup.vue";
 import { buildPasteText } from "@/contextQueue/formatters";
@@ -95,7 +95,7 @@ onMounted(() => {
   const el = hostRef.value;
   if (!el) return;
 
-  applyMonacoShadcnTheme(monaco);
+  applyMonacoGithubTheme(monaco);
 
   diffEditor = monaco.editor.createDiffEditor(el, {
     renderSideBySide: props.layout === "split",
@@ -127,7 +127,7 @@ onMounted(() => {
   attachSelectionListener();
 
   colorObserver = new MutationObserver(() => {
-    applyMonacoShadcnTheme(monaco);
+    applyMonacoGithubTheme(monaco);
   });
   colorObserver.observe(document.documentElement, {
     attributes: true,

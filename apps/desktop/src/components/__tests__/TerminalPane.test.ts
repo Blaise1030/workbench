@@ -138,6 +138,20 @@ describe("TerminalPane", () => {
     expect(wrapper.emitted("bootstrapConsumed")).toEqual([[]]);
   });
 
+  it("emits stdin-chunk for agent PTY when xterm sends data", async () => {
+    const { wrapper } = mountPaneWithPtyCreate(
+      vi.fn<WorkspaceApi["ptyCreate"]>().mockResolvedValue({ buffer: "", created: true }),
+      null
+    );
+    await flushPromises();
+
+    const dataHandler = onDataMock.mock.calls[0]?.[0] as ((data: string) => void) | undefined;
+    expect(dataHandler).toBeTypeOf("function");
+    dataHandler!("hi");
+
+    expect(wrapper.emitted("stdin-chunk")).toEqual([["thread-1", "hi"]]);
+  });
+
   it("injects bootstrap when pending is set after the PTY already exists", async () => {
     const ptyCreate = vi
       .fn<WorkspaceApi["ptyCreate"]>()

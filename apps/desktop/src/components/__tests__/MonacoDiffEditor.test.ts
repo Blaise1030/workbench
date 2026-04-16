@@ -21,6 +21,7 @@ const mockModEditor = {
 const mockDiffEditor = {
   getOriginalEditor: vi.fn(() => mockOrigEditor),
   getModifiedEditor: vi.fn(() => mockModEditor),
+  getModel: vi.fn(() => ({ original: mockOrigModel, modified: mockModModel })),
   setModel: vi.fn(),
   updateOptions: vi.fn(),
   dispose: vi.fn(),

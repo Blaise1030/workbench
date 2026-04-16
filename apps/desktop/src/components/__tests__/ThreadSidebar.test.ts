@@ -39,6 +39,7 @@ const ThreadSidebarTestHost = defineComponent({
     "select",
     "remove",
     "rename",
+    "addThreadInline",
     "createWorktreeGroup",
     "cancelBranchPicker",
     "showBranchPicker",
@@ -66,6 +67,7 @@ const ThreadSidebarTestHost = defineComponent({
             onSelect: (threadId: string) => emit("select", threadId),
             onRemove: (threadId: string) => emit("remove", threadId),
             onRename: (threadId: string, newTitle: string) => emit("rename", threadId, newTitle),
+            onAddThreadInline: (worktreeId: string) => emit("addThreadInline", worktreeId),
             onCreateWorktreeGroup: (branch: string, baseBranch: string | null) =>
               emit("createWorktreeGroup", branch, baseBranch),
             onCancelBranchPicker: () => emit("cancelBranchPicker"),
@@ -211,6 +213,83 @@ describe("ThreadSidebar", () => {
     expect(wrapper.text()).toContain("No threads");
     expect(wrapper.text()).not.toContain("No threads yet");
     expect(wrapper.find('[aria-label="Add worktree"]').exists()).toBe(true);
+  });
+
+  it("emits addThreadInline from empty-state CTA when primary context exists without defaultWorktreeId", async () => {
+    const defaultWorktree: Worktree = {
+      id: "w-default",
+      projectId: "p1",
+      name: "main",
+      branch: "main",
+      path: "/tmp/repo",
+      isActive: true,
+      isDefault: true,
+      baseBranch: null,
+      lastActiveThreadId: null,
+      createdAt: "2026-04-07T00:00:00Z",
+      updatedAt: "2026-04-07T00:00:00Z"
+    };
+
+    wrapper = mountThreadSidebar({
+      props: {
+        threads: [],
+        activeThreadId: null,
+        projectId: "p1",
+        threadContexts: [makeThreadContext(defaultWorktree, [])]
+      }
+    });
+
+    await wrapper.get('[data-testid="thread-sidebar-empty-add-thread"]').trigger("click");
+
+    expect(wrapper.emitted("addThreadInline")).toEqual([["w-default"]]);
+  });
+
+  it("keeps add-thread affordances visible for populated worktree contexts", () => {
+    const linkedWorktree: Worktree = {
+      id: "w-feat",
+      projectId: "p1",
+      name: "feat/auth",
+      branch: "feat/auth",
+      path: "/tmp/.worktrees/feat-auth",
+      isActive: true,
+      isDefault: false,
+      baseBranch: "main",
+      lastActiveThreadId: "t2",
+      createdAt: "2026-04-07T00:00:00Z",
+      updatedAt: "2026-04-07T00:00:00Z"
+    };
+
+    wrapper = mountThreadSidebar( {
+      props: {
+        threads: [
+          {
+            id: "t2",
+            projectId: "p1",
+            worktreeId: "w-feat",
+            title: "Grouped thread",
+            agent: "codex",
+            createdAt: "2026-04-07T00:01:00Z",
+            updatedAt: "2026-04-07T00:01:00Z"
+          }
+        ],
+        activeThreadId: "t2",
+        threadContexts: [makeThreadContext(linkedWorktree, [
+          {
+            id: "t2",
+            projectId: "p1",
+            worktreeId: "w-feat",
+            title: "Grouped thread",
+            agent: "codex",
+            createdAt: "2026-04-07T00:01:00Z",
+            updatedAt: "2026-04-07T00:01:00Z"
+          }
+        ])],
+        threadGroups: [linkedWorktree],
+        defaultWorktreeId: "w-default"
+      }
+    });
+
+    expect(wrapper.find('[aria-label="Add thread to feat/auth"]').exists()).toBe(true);
   });
 
   it("renders a labeled add-worktree button in the footer when expanded", () => {

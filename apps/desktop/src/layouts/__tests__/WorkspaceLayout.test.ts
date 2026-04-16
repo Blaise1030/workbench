@@ -129,16 +129,21 @@ vi.mock("@/components/ThreadInlinePromptEditor.vue", () => ({
 }));
 vi.mock("@/components/ThreadSidebar.vue", () => ({
   default: {
-    props: ["threads"],
+    props: ["threads", "inlinePromptThreadId"],
     emits: ["select", "reorder", "rename"],
     computed: {
       titles(): string {
         return this.threads.map((t: { title: string }) => t.title).join("|");
+      },
+      agents(): string {
+        return this.threads.map((t: { agent: string }) => t.agent).join("|");
       }
     },
     template: `
       <div>
         <div data-testid="thread-sidebar">{{ titles }}</div>
+        <div data-testid="thread-sidebar-agents">{{ agents }}</div>
+        <div data-testid="thread-sidebar-inline-prompt-thread-id">{{ inlinePromptThreadId ?? "" }}</div>
         <button
           type="button"
           data-testid="thread-sidebar-reorder"
@@ -1812,6 +1817,125 @@ describe("WorkspaceLayout", () => {
       threadId: "thread-new",
       title: "Model refined title"
     });
+  });
+
+  it("clears pending inline state immediately after agent selection so the sidebar can show the chosen icon", async () => {
+    const { default: WorkspaceLayout } = await import("../WorkspaceLayout.vue");
+    llmMocks.isWebGpuUsable.mockResolvedValue(false);
+
+    const empty = makeSnapshot([]);
+    const snapshotWithNewThread: WorkspaceSnapshot = {
+      ...empty,
+      threads: [
+        {
+          id: "thread-new",
+          projectId: "project-1",
+          worktreeId: "worktree-1",
+          title: "New thread",
+          agent: "claude",
+          createdBranch: null,
+          createdAt: "2026-04-14T00:00:00.000Z",
+          updatedAt: "2026-04-14T00:00:00.000Z"
+        }
+      ],
+      activeThreadId: "thread-new",
+      threadSessions: []
+    };
+    const snapshotAfterSubmit: WorkspaceSnapshot = {
+      ...snapshotWithNewThread,
+      threads: [
+        {
+          ...snapshotWithNewThread.threads[0]!,
+          title: "Codex CLI",
+          agent: "codex"
+        }
+      ]
+    };
+
+    const getSnapshot = vi
+      .fn<WorkspaceApi["getSnapshot"]>()
+      .mockResolvedValueOnce(empty)
+      .mockResolvedValueOnce(snapshotWithNewThread)
+      .mockResolvedValueOnce(snapshotAfterSubmit);
+    const changedFiles = vi.fn<WorkspaceApi["changedFiles"]>().mockResolvedValue([]);
+    const createThread = vi.fn<WorkspaceApi["createThread"]>().mockResolvedValue({
+      id: "thread-new",
+      projectId: "project-1",
+      worktreeId: "worktree-1",
+      title: "New thread",
+      agent: "claude",
+      createdBranch: null,
+      createdAt: "2026-04-14T00:00:00.000Z",
+      updatedAt: "2026-04-14T00:00:00.000Z"
+    });
+    const renameThread = vi.fn<WorkspaceApi["renameThread"]>().mockResolvedValue(undefined);
+    const updateThread = vi.fn<NonNullable<WorkspaceApi["updateThread"]>>().mockResolvedValue(undefined);
+
+    window.workspaceApi = {
+      getSnapshot,
+      changedFiles,
+      isGitRepository: vi.fn().mockResolvedValue(true),
+      addProject: vi.fn(),
+      addWorktree: vi.fn(),
+      setActive: vi.fn(),
+      createThread,
+      setActiveThread: vi.fn(),
+      deleteThread: vi.fn(),
+      renameThread,
+      updateThread,
+      startRun: vi.fn(),
+      sendRunInput: vi.fn(),
+      interruptRun: vi.fn(),
+      fileDiff: vi.fn(),
+      fileMergeSides: vi.fn().mockResolvedValue({
+        kind: "ok" as const,
+        original: "",
+        modified: "",
+        originalLabel: "HEAD",
+        modifiedLabel: "Staged"
+      }),
+      stageAll: vi.fn(),
+      discardAll: vi.fn(),
+      listFiles: vi.fn(),
+      searchFiles: vi.fn(),
+      readFile: vi.fn(),
+      writeFile: vi.fn(),
+      createFile: vi.fn(),
+      deleteFile: vi.fn(),
+      createFolder: vi.fn(),
+      deleteFolder: vi.fn(),
+      applyPatch: vi.fn(),
+      ptyCreate: vi.fn().mockResolvedValue({ buffer: "" }),
+      ptyWrite: vi.fn(),
+      ptyResize: vi.fn(),
+      ptyKill: vi.fn(),
+      onPtyData: vi.fn(() => () => {}),
+      pickRepoDirectory: vi.fn(),
+      onWorkspaceChanged: vi.fn(() => () => {}),
+      onWorkingTreeFilesChanged: vi.fn(() => () => {})
+    };
+
+    const wrapper = mount(WorkspaceLayout, {
+      global: {
+        plugins: [createPinia()]
+      }
+    });
+
+    await flushPromises();
+    await wrapper.get('[data-testid="workspace-create-thread-empty-state"]').trigger("click");
+    await flushPromises();
+
+    expect(wrapper.get('[data-testid="thread-sidebar-inline-prompt-thread-id"]').text()).toBe("thread-new");
+
+    inlinePromptHarness.emitSubmit!({
+      agent: "codex",
+      prompt: "",
+      threadTitle: undefined
+    });
+    await flushPromises();
+
+    expect(wrapper.get('[data-testid="thread-sidebar-inline-prompt-thread-id"]').text()).toBe("");
+    expect(wrapper.get('[data-testid="thread-sidebar-agents"]').text()).toContain("codex");
   });
 
   it("does not apply WebLLM rename when thread title epoch bumps before the model returns", async () => {

@@ -153,9 +153,22 @@ function openNewThreadInCollapsedGroup(group: SidebarContextGroup): void {
 }
 
 function openNewThreadInActiveWorkspace(): void {
-  const id = props.defaultWorktreeId;
+  const id = resolvePrimaryWorktreeId();
   if (!id) return;
   emit("addThreadInline", id);
+}
+
+function resolvePrimaryWorktreeId(): string | null {
+  if (props.defaultWorktreeId) return props.defaultWorktreeId;
+
+  const primaryContextId =
+    props.threadContexts?.find((context) => context.isDefault)?.worktreeId ?? null;
+  if (primaryContextId) return primaryContextId;
+
+  const primaryGroupId = contextGroups.value.find((group) => group.isPrimary)?.worktreeId ?? null;
+  if (primaryGroupId) return primaryGroupId;
+
+  return props.threads[0]?.worktreeId ?? null;
 }
 
 onBeforeUnmount(() => {

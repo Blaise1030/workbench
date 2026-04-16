@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref, toRef, watch } from "vue";
 import { monaco } from "@/lib/monacoApi";
-import { applyMonacoShadcnTheme } from "@/lib/monacoShadcnTheme";
+import { applyMonacoGithubTheme } from "@/lib/monacoGithubTheme";
 
 export type QueueableEditorSelection = {
   selectedText: string;
@@ -86,7 +86,7 @@ onMounted(() => {
   const el = hostRef.value;
   if (!el) return;
 
-  applyMonacoShadcnTheme(monaco);
+  applyMonacoGithubTheme(monaco);
 
   editor = monaco.editor.create(el, {
     value: props.modelValue,
@@ -136,7 +136,7 @@ onMounted(() => {
   });
 
   colorObserver = new MutationObserver(() => {
-    applyMonacoShadcnTheme(monaco);
+    applyMonacoGithubTheme(monaco);
   });
   colorObserver.observe(document.documentElement, {
     attributes: true,

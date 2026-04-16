@@ -1,5 +1,5 @@
 import { extractResumeIdFromStdout, RESUME_CAPTURE_TAIL_CHARS } from "../adapters/resumeIdCapture.js";
-import { isValidResumeSessionId } from "../../src/shared/resumeSessionId.js";
+import { isValidPersistedResumeId } from "../../src/shared/resumeSessionId.js";
 import type { PtyService } from "../services/ptyService.js";
 import type { WorkspaceService } from "../services/workspaceService.js";
 import type { WorkspaceStore } from "../storage/store.js";
@@ -45,7 +45,7 @@ export async function collectResumeIdsFromActiveTerminals(ptyService: PtyService
         const { buffer } = ptyService.getBuffer(sessionId);
         const tail = bufferTail(buffer);
         const resumeId = extractResumeIdFromStdout(tail);
-        if (resumeId && isValidResumeSessionId(resumeId)) {
+        if (resumeId && isValidPersistedResumeId(resumeId)) {
           found.add(resumeId);
           return;
         }
@@ -72,7 +72,7 @@ export async function captureResumeIdsBeforeQuit(
       if (!thread) return;
 
       const row = store.getThreadSession(sessionId);
-      if (row?.resumeId && isValidResumeSessionId(row.resumeId)) return;
+      if (row?.resumeId && isValidPersistedResumeId(row.resumeId)) return;
 
       await sendCtrlCRepeated(ptyService, sessionId);
 
