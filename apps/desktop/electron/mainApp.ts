@@ -41,6 +41,10 @@ import { extractResumeIdFromStdout, RESUME_CAPTURE_TAIL_CHARS } from "./adapters
 import { GitHeadWatcher } from "./services/gitHeadWatcher.js";
 import { WorkspaceService } from "./services/workspaceService.js";
 import { WorkspaceStore } from "./storage/store.js";
+import { HookServer } from "./services/hookServer.js";
+import { registerAllAgentHooks } from "./services/hookRegistrationService.js";
+import { handleHookEvent } from "./adapters/hookHandler.js";
+import { NotificationService } from "./services/notificationService.js";
 
 function isSafePreviewOpenExternalUrl(url: string): boolean {
   try {
@@ -150,6 +154,8 @@ const diffService = new DiffService();
 const editService = new EditService();
 const fileService = new FileService();
 const ptyService = new PtyService();
+const notificationService = new NotificationService();
+const hookServer = new HookServer();
 let gitHeadWatcher: GitHeadWatcher | null = null;
 let hasConfirmedClose = false;
 let closeConfirmationInFlight = false;
@@ -465,7 +471,16 @@ function registerIpc(workspaceService: WorkspaceService): void {
     IPC_CHANNELS.terminalPtyCreate,
     (_, payload: { sessionId: string; cwd: string; worktreeId: string }) => {
       assertCwdIsRegistered(payload.cwd);
-      return ptyService.getOrCreate(payload.sessionId, payload.cwd, payload.worktreeId);
+      const extraEnv: Record<string, string> = {};
+      if (!payload.sessionId.startsWith("__")) {
+        try {
+          extraEnv["INSTRUMENT_HOOK_URL"] = hookServer.getUrl();
+        } catch {
+          // hookServer not started yet — no env injected
+        }
+        extraEnv["INSTRUMENT_THREAD_ID"] = payload.sessionId;
+      }
+      return ptyService.getOrCreate(payload.sessionId, payload.cwd, payload.worktreeId, extraEnv);
     }
   );
   ipcMain.handle(IPC_CHANNELS.terminalPtyWrite, (_, payload: { sessionId: string; data: string }) => {
@@ -547,6 +562,25 @@ const store = new WorkspaceStore(dataDir);
 store.migrate(schemaSql);
 const gitAdapter = createGitAdapter();
 const workspaceService = new WorkspaceService(store, gitAdapter);
+
+const hookScriptsDir = path.join(app.getPath("userData"), "hooks");
+void hookServer.start().then(() => {
+  hookServer.setHandler((event, threadId) => {
+    handleHookEvent(event, threadId, {
+      workspaceService,
+      onChanged: emitWorkspaceDidChange,
+      onNotification: (kind, tid) => {
+        const snapshot = workspaceService.getSnapshot();
+        const thread = snapshot.threads.find((t) => t.id === tid);
+        if (!thread) return;
+        const project = snapshot.projects.find((p) => p.id === thread.projectId);
+        notificationService.trigger(kind, project?.name ?? "", thread.title);
+      },
+    });
+  });
+  registerAllAgentHooks(hookScriptsDir);
+}).catch((err) => console.warn("[instrument] HookServer start failed:", err));
+
 gitHeadWatcher = new GitHeadWatcher({
   diffService,
   workspaceService,
