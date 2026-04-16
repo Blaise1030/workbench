@@ -67,16 +67,6 @@ describe("ThreadRow", () => {
     expect(rowEmitted(wrapper, "select")).toHaveLength(1);
   });
 
-  it("collapsed mode uses icon button with thread title as accessible name", async () => {
-    wrapper = mountThreadRow({ thread, isActive: false, collapsed: true });
-    const btn = wrapper.get('[data-testid="thread-select"]');
-    expect(btn.classes()).toContain("cursor-pointer");
-    expect(btn.attributes("aria-label")).toBe(thread.title);
-    expect(wrapper.find('[data-testid="thread-archive"]').exists()).toBe(false);
-    await btn.trigger("click");
-    expect(rowEmitted(wrapper, "select")).toHaveLength(1);
-  });
-
   it("uses the thread title as the collapsed row accessible label", async () => {
     wrapper = mountThreadRow({ thread, isActive: false, collapsed: true }, { attachTo: document.body });
 
