@@ -565,7 +565,7 @@ const gitAdapter = createGitAdapter();
 const workspaceService = new WorkspaceService(store, gitAdapter);
 
 // Use home directory to avoid spaces in paths like "Application Support" on macOS
-const hookScriptsDir = path.join(os.homedir(), ".instrument", "hooks");
+const hookScriptsDir = path.join(os.homedir(), ".workbench", "hooks");
 void hookServer.start().then(() => {
   hookServer.setHandler((event, threadId) => {
     handleHookEvent(event, threadId, {
