@@ -1,5 +1,0 @@
-Object.defineProperty(__vite_ssr_exports__, "default", { enumerable: true, configurable: true, get(){ try { return __vite_ssr_export_default__ } catch {} }});
-const __vite_ssr_export_default__ = ""
-
-//# sourceMappingSource=vite-node
-//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJtYXBwaW5ncyI6IiJ9

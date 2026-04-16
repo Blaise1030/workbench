@@ -391,10 +391,6 @@ function navigate(): void {
   void runLoadUrl(url, seq);
 }
 
-function goBack(): void {
-  void getApi()?.goBack?.();
-}
-
 function goForward(): void {
   void getApi()?.goForward?.();
 }
