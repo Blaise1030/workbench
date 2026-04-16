@@ -10,6 +10,7 @@ export const IPC_CHANNELS = {
   workspaceCreateThread: "workspace:createThread",
   workspaceSetActiveThread: "workspace:setActiveThread",
   workspaceDeleteThread: "workspace:deleteThread",
+  workspaceRenameThread: "workspace:renameThread",
   workspaceUpdateThread: "workspace:updateThread",
   workspaceDidChange: "workspace:didChange",
   /** Repo working tree may have changed (save, patch, etc.); refresh diff / git state in renderer. */

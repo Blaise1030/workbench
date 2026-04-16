@@ -52,6 +52,11 @@ export interface DeleteThreadInput {
   threadId: string;
 }
 
+export interface RenameThreadInput {
+  threadId: string;
+  title: string;
+}
+
 export interface UpdateThreadInput {
   threadId: string;
   title?: string;
