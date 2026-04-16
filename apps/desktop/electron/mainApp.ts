@@ -27,6 +27,7 @@ import {
   type RenameThreadInput,
   type ReorderProjectsInput
 } from "../src/shared/ipc.js";
+import type { ThreadAgent } from "../src/shared/domain.js";
 import { DiffService } from "./services/diffService.js";
 import { EditService } from "./services/editService.js";
 import { FileService } from "./services/fileService.js";
