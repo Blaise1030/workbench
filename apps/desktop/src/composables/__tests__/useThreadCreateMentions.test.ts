@@ -20,6 +20,8 @@ describe("useThreadCreateMentions helpers", () => {
 
   it("isSkillLikePath matches common skill locations", () => {
     expect(isSkillLikePath(".claude/skills/foo/SKILL.md")).toBe(true);
+    expect(isSkillLikePath(".codex/skills/bar/SKILL.md")).toBe(true);
+    expect(isSkillLikePath(".gemini/skills/baz/SKILL.md")).toBe(true);
     expect(isSkillLikePath("lib/SKILL.md")).toBe(true);
     expect(isSkillLikePath("src/main.ts")).toBe(false);
   });

@@ -4,6 +4,19 @@
 @import "./geist-font.css";
 @import "./monaco-scrollbar.css";
 
+/**
+ * TipTap `@tiptap/extension-placeholder` — the extension sets `data-placeholder` on empty nodes
+ * but does not ship styles; without this rule the in-editor hint is invisible.
+ */
+.tiptap p.is-editor-empty:first-child::before,
+.tiptap p.is-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+  color: var(--muted-foreground);
+}
+
 /* Loaded via index.html (Google Fonts). Sidebar product wordmark. */
 .font-app-brand-title {
   font-family: "Bungee Shade", cursive;

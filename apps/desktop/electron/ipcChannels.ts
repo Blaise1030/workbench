@@ -88,10 +88,14 @@ export const IPC_CHANNELS = {
   workspaceListBranches: "workspace:listBranches",
   workspaceWorktreeHealth: "workspace:worktreeHealth",
   workspaceSyncWorktrees: "workspace:syncWorktrees",
+  /** Absolute skill-directory roots from renderer (Settings → Agents); used to allow `files:search` outside worktrees. */
+  workspaceSetAgentSkillSearchRoots: "workspace:setAgentSkillSearchRoots",
   /** macOS often captures ⌘, for the app menu; main sends this so the renderer can open settings. */
   uiOpenWorkspaceSettings: "ui:openWorkspaceSettings",
   /** Running app semver from Electron `app.getVersion()`. */
   appGetVersion: "app:getVersion",
+  /** Absolute user home directory (`os.homedir()`), for expanding `~/` paths when the worktree path does not imply a home prefix. */
+  appGetUserHomeDir: "app:getUserHomeDir",
   /** GitHub-style release tag for this build (from bundled `package.json` semver when available). */
   appGetReleaseTag: "app:getReleaseTag",
   /** Packaged app only: GitHub latest release vs bundled app semver (same source as release tag). */

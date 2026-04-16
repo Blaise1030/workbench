@@ -84,8 +84,10 @@ const IPC_CHANNELS = {
   workspaceListBranches: "workspace:listBranches",
   workspaceWorktreeHealth: "workspace:worktreeHealth",
   workspaceSyncWorktrees: "workspace:syncWorktrees",
+  workspaceSetAgentSkillSearchRoots: "workspace:setAgentSkillSearchRoots",
   uiOpenWorkspaceSettings: "ui:openWorkspaceSettings",
   appGetVersion: "app:getVersion",
+  appGetUserHomeDir: "app:getUserHomeDir",
   appGetReleaseTag: "app:getReleaseTag",
   appGetUpdateAvailability: "app:getUpdateAvailability",
   appOpenExternalUrl: "app:openExternalUrl",
@@ -138,6 +140,8 @@ contextBridge.exposeInMainWorld("workspaceApi", {
   listBranches: (projectId: string) => ipcRenderer.invoke(IPC_CHANNELS.workspaceListBranches, { projectId }),
   worktreeHealth: (worktreeId: string) => ipcRenderer.invoke(IPC_CHANNELS.workspaceWorktreeHealth, { worktreeId }),
   syncWorktrees: (projectId: string) => ipcRenderer.invoke(IPC_CHANNELS.workspaceSyncWorktrees, { projectId }),
+  setAgentSkillSearchRoots: (roots: string[]) =>
+    ipcRenderer.invoke(IPC_CHANNELS.workspaceSetAgentSkillSearchRoots, roots),
   startRun: (payload: unknown) => ipcRenderer.invoke(IPC_CHANNELS.runStart, payload),
   sendRunInput: (runId: string, input: string) => ipcRenderer.invoke(IPC_CHANNELS.runSendInput, { runId, input }),
   interruptRun: (runId: string) => ipcRenderer.invoke(IPC_CHANNELS.runInterrupt, runId),
@@ -231,6 +235,7 @@ contextBridge.exposeInMainWorld("workspaceApi", {
   /** Absolute path for a file from a drag-and-drop `DataTransfer` (Electron). */
   getPathForFile: (file: File) => webUtils.getPathForFile(file),
   getAppVersion: () => ipcRenderer.invoke(IPC_CHANNELS.appGetVersion) as Promise<string>,
+  getUserHomeDir: () => ipcRenderer.invoke(IPC_CHANNELS.appGetUserHomeDir) as Promise<string>,
   getAppReleaseTag: () => ipcRenderer.invoke(IPC_CHANNELS.appGetReleaseTag) as Promise<string>,
   getAppUpdateAvailability: () =>
     ipcRenderer.invoke(IPC_CHANNELS.appGetUpdateAvailability) as Promise<AppUpdateAvailability | null>,

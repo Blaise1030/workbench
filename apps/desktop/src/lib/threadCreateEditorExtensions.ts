@@ -9,8 +9,8 @@ import { VueRenderer } from "@tiptap/vue-3";
 import ThreadCreateSuggestionList from "@/components/threadCreate/ThreadCreateSuggestionList.vue";
 import { absolutePathInWorktree, isSkillLikePath, parseMentionAtCursor } from "@/composables/useThreadCreateMentions";
 import {
-  filterSlashCommands,
-  parseSlashCommandAtCursor
+  parseSlashCommandAtCursor,
+  searchSlashSkills
 } from "@/composables/useThreadCreatePromptCompletions";
 import { promptDocFlatText, promptFlatOffsetAtDocPos } from "@/lib/threadCreateTipTap";
 
@@ -311,20 +311,27 @@ export const ThreadMention = Mention.extend({
         default: null,
         parseHTML: (el) => el.getAttribute("data-item-kind"),
         renderHTML: (attrs) => (attrs.itemKind ? { "data-item-kind": attrs.itemKind } : {})
+      },
+      sourceTrigger: {
+        default: null,
+        parseHTML: (el) => el.getAttribute("data-source-trigger"),
+        renderHTML: (attrs) => (attrs.sourceTrigger ? { "data-source-trigger": attrs.sourceTrigger } : {})
       }
     };
   },
   renderHTML({ node, HTMLAttributes }) {
     const kind = String(node.attrs.itemKind ?? "");
+    const sourceTrigger = String(node.attrs.sourceTrigger ?? "");
     const label = String(node.attrs.label ?? "");
-    if (kind === "slash") {
+    if (sourceTrigger === "slash") {
       return [
         "span",
         mergeAttributes(
           {
             class:
               "thread-mention-slash inline-flex max-w-[18rem] items-center gap-0.5 rounded-md border border-primary/35 bg-primary/10 px-1.5 py-0.5 align-middle font-mono text-[11px] font-medium text-foreground",
-            "data-item-kind": "slash"
+            "data-item-kind": kind,
+            "data-source-trigger": "slash"
           },
           HTMLAttributes
         ),
@@ -372,13 +379,15 @@ export function createThreadCreatePromptExtensions(options: ThreadCreateExtensio
           return parseSlashCommandAtCursor(text, cursor).active;
         },
         items: ({ query }) =>
-          filterSlashCommands(query).map((c) => ({
-            id: c.insert,
-            // Mention renderText/HTML prepends `char` — label must omit the leading `/`.
-            label: c.label,
-            description: c.description,
-            itemKind: "slash" as const
-          })),
+          searchSlashSkills(options.getWorktreePath() ?? "", query).then((skills) =>
+            skills.map((skill) => ({
+              id: skill.id,
+              label: skill.label,
+              description: skill.description,
+              itemKind: "skill" as const,
+              sourceTrigger: "slash" as const
+            }))
+          ),
         render: () => createSuggestionRender("slash")
       },
       {
@@ -398,11 +407,18 @@ export function createThreadCreatePromptExtensions(options: ThreadCreateExtensio
           atMentionLoading = true;
           try {
             const paths = await api.searchFiles(cwd, query);
-            return paths.slice(0, 80).map((relativePath) => {
-              const abs = absolutePathInWorktree(cwd, relativePath);
-              const kind = isSkillLikePath(relativePath) ? ("skill" as const) : ("file" as const);
-              return { id: abs, label: relativePath, itemKind: kind };
-            });
+            return paths
+              .filter((relativePath) => !isSkillLikePath(relativePath))
+              .slice(0, 80)
+              .map((relativePath) => {
+                const abs = absolutePathInWorktree(cwd, relativePath);
+                return {
+                  id: abs,
+                  label: relativePath,
+                  itemKind: "file" as const,
+                  sourceTrigger: "at" as const
+                };
+              });
           } catch {
             return [];
           } finally {

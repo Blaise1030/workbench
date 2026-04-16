@@ -21,30 +21,41 @@ describe("ThreadInlinePromptEditor", () => {
       props: { worktreeId: "wt-1", worktreePath: null }
     });
     expect(wrapper.find('[data-testid="inline-prompt-editor"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="inline-prompt-tiptap-placeholder-hint"]').exists()).toBe(true);
   });
 
-  it("renders the four agent buttons", () => {
+  it("shows thread context label when provided", () => {
+    wrapper = mount(ThreadInlinePromptEditor, {
+      attachTo: document.body,
+      props: {
+        worktreeId: "wt-1",
+        worktreePath: null,
+        threadContextLabel: "feature/foo · my-worktree"
+      }
+    });
+    expect(wrapper.text()).toContain("feature/foo · my-worktree");
+  });
+
+  it("renders start and cancel controls", () => {
     wrapper = mount(ThreadInlinePromptEditor, {
       attachTo: document.body,
       props: { worktreeId: "wt-1", worktreePath: null }
     });
-    expect(wrapper.find('[data-testid="inline-prompt-agent-claude"]').exists()).toBe(true);
-    expect(wrapper.find('[data-testid="inline-prompt-agent-cursor"]').exists()).toBe(true);
-    expect(wrapper.find('[data-testid="inline-prompt-agent-codex"]').exists()).toBe(true);
-    expect(wrapper.find('[data-testid="inline-prompt-agent-gemini"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="inline-prompt-cancel"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="inline-prompt-start-thread"]').exists()).toBe(true);
   });
 
-  it("emits submit with payload when an agent button is clicked", async () => {
+  it("emits submit payload when start thread is clicked", async () => {
     wrapper = mount(ThreadInlinePromptEditor, {
       attachTo: document.body,
       props: { worktreeId: "wt-1", worktreePath: null }
     });
     await nextTick();
-    await wrapper.find('[data-testid="inline-prompt-agent-codex"]').trigger("click");
+    await wrapper.find('[data-testid="inline-prompt-start-thread"]').trigger("click");
     await nextTick();
     const emitted = wrapper.emitted("submit");
     expect(emitted).toBeTruthy();
-    expect(emitted![0][0]).toMatchObject({ agent: "codex", prompt: "" });
+    expect(emitted![0][0]).toMatchObject({ agent: "claude" });
   });
 
   it("emits submit with preferred agent when the exposed submit is called", async () => {

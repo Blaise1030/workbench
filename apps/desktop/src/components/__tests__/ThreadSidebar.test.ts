@@ -140,7 +140,7 @@ describe("ThreadSidebar", () => {
     };
   }
 
-  it("shows icon-only thread rows when collapsed", () => {
+  it("marks the sidebar as collapsed and hides the rail", () => {
     wrapper = mountThreadSidebar( {
       props: {
         threads: threeThreadsNewestFirst,
@@ -150,11 +150,10 @@ describe("ThreadSidebar", () => {
     });
 
     expect(wrapper.get("aside").attributes("data-thread-sidebar-collapsed")).toBe("true");
-    expect(wrapper.findAll('[data-testid="thread-select"]')).toHaveLength(0);
-    expect(wrapper.findAll('[data-testid="thread-group-collapsed-trigger"]')).toHaveLength(1);
+    expect(wrapper.get("aside").classes()).toContain("hidden");
   });
 
-  it("supports collapsed primary fallback popover without a default worktree id", async () => {
+  it("renders a primary fallback group without a default worktree id", async () => {
     wrapper = mountThreadSidebar( {
       props: {
         threads: threeThreadsNewestFirst,
@@ -165,13 +164,8 @@ describe("ThreadSidebar", () => {
       attachTo: document.body
     });
 
-    const trigger = wrapper.get('[data-testid="thread-group-section-__sidebar-primary__"] [data-testid="thread-group-collapsed-trigger"]');
-    expect(trigger.attributes("aria-expanded")).toBe("false");
-
-    await trigger.trigger("click");
-
-    expect(trigger.attributes("aria-expanded")).toBe("true");
-    expect(document.querySelector('[data-testid="thread-group-collapsed-popover"]')?.textContent).toContain("Codex CLI · test");
+    expect(wrapper.find('[data-thread-group-id="__sidebar-primary__"]').exists()).toBe(true);
+    expect(wrapper.findAll('[data-testid="thread-row"]')).toHaveLength(3);
   });
 
   it("renders the expand toggle in the top bar when collapsed", async () => {
@@ -314,10 +308,9 @@ describe("ThreadSidebar", () => {
     });
 
     const button = wrapper.get('[aria-label="Add worktree"]');
-    expect(button.attributes("data-size")).toBe("sm");
-    expect(button.classes()).toContain("h-7");
-    expect(button.classes()).toContain("gap-1");
-    expect(button.classes()).toContain("px-2.5");
+    expect(button.attributes("data-size")).toBe("xs");
+    expect(button.classes()).toContain("self-center");
+    expect(button.classes()).toContain("rounded-md");
   });
 
   it("renders an icon-only add-worktree button in the footer when collapsed", () => {
@@ -1248,7 +1241,7 @@ describe("ThreadSidebar", () => {
     ).toBe("none");
   });
 
-  it("lists threads in collapsed group popovers without drag handles", async () => {
+  it("lists collapsed group threads without drag handles", async () => {
     const worktree: Worktree = {
       id: "w-feat",
       projectId: "p1",
@@ -1294,17 +1287,11 @@ describe("ThreadSidebar", () => {
       attachTo: document.body
     });
 
-    await wrapper
-      .get('[data-testid="thread-group-section-w-feat"] [data-testid="thread-group-collapsed-trigger"]')
-      .trigger("click");
-
-    const popover = document.querySelector('[data-testid="thread-group-collapsed-popover"]');
-    expect(popover).not.toBeNull();
-    expect(popover?.querySelectorAll('[data-testid="thread-drag-handle"]')).toHaveLength(0);
-    expect(popover?.querySelectorAll('[data-testid="thread-row"]')).toHaveLength(2);
+    expect(wrapper.findAll('[data-testid="thread-drag-handle"]')).toHaveLength(0);
+    expect(wrapper.findAll('[data-testid="thread-row"]')).toHaveLength(2);
   });
 
-  it("hides stale worktree callouts when the sidebar is collapsed", () => {
+  it("keeps stale worktree callouts out of view when the sidebar is collapsed", () => {
     const worktree: Worktree = {
       id: "w-feat",
       projectId: "p1",
@@ -1340,8 +1327,7 @@ describe("ThreadSidebar", () => {
       }
     });
 
-    expect(wrapper.findComponent({ name: "WorktreeStaleCallout" }).exists()).toBe(false);
-    expect(wrapper.text()).not.toContain("Delete group & threads");
+    expect(wrapper.get("aside").classes()).toContain("hidden");
   });
 
   it("hides stale worktree callouts when the group is collapsed", async () => {
@@ -1389,7 +1375,7 @@ describe("ThreadSidebar", () => {
     expect(wrapper.text()).not.toContain("Delete group & threads");
   });
 
-  it("uses the worktree name on the collapsed group trigger", async () => {
+  it("uses the worktree name in the group header when collapsed", async () => {
     const worktree: Worktree = {
       id: "w-feat",
       projectId: "p1",
@@ -1425,14 +1411,10 @@ describe("ThreadSidebar", () => {
       attachTo: document.body
     });
 
-    expect(
-      wrapper
-        .get('[data-testid="thread-group-section-w-feat"] [data-testid="thread-group-collapsed-trigger"]')
-        .attributes("aria-label")
-    ).toBe("Worktree feat/auth");
+    expect(wrapper.get('[data-thread-group-id="w-feat"]').text()).toContain("feat/auth");
   });
 
-  it("opens a popover thread list for collapsed worktree groups on click", async () => {
+  it("renders grouped thread rows when collapsed", async () => {
     const worktree: Worktree = {
       id: "w-feat",
       projectId: "p1",
@@ -1468,16 +1450,8 @@ describe("ThreadSidebar", () => {
       attachTo: document.body
     });
 
-    expect(document.querySelector('[data-testid="thread-group-collapsed-popover"]')).toBeNull();
-
-    await wrapper
-      .get('[data-testid="thread-group-section-w-feat"] [data-testid="thread-group-collapsed-trigger"]')
-      .trigger("click");
-
-    const popover = document.querySelector('[data-testid="thread-group-collapsed-popover"]');
-    expect(popover).not.toBeNull();
-    expect(popover?.textContent).toContain("Grouped thread");
-    expect(document.querySelectorAll('[data-testid="thread-group-collapsed-popover"] [data-testid="thread-row"]')).toHaveLength(1);
+    expect(wrapper.get('[data-thread-group-id="w-feat"]').attributes("aria-expanded")).toBe("true");
+    expect(wrapper.findAll('[data-testid="thread-row"]')).toHaveLength(1);
   });
 
   it("shows 12 threads with Show more, then full list with Show less", async () => {

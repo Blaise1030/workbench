@@ -23,6 +23,7 @@ import { useThreadContextQueue } from "@/composables/useThreadContextQueue";
 import ThreadSidebar from "@/components/ThreadSidebar.vue";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAgentBootstrapCommands } from "@/composables/useAgentBootstrapCommands";
+import { expandUserSkillRoot, useAgentSkillRoots } from "@/composables/useAgentSkillRoots";
 import { threadAgentResumeCommand } from "@shared/threadAgentBootstrap";
 import type { PendingAgentBootstrap } from "@shared/pendingAgentBootstrap";
 import { isValidPersistedResumeId } from "@shared/resumeSessionId";
@@ -79,6 +80,7 @@ const { terminalNotificationsEnabled, terminalActivitySensitivity } = useTermina
 const terminalBellSound = ref(true);
 const terminalBackgroundOutputSound = ref(false);
 const { commands, applySaved, bootstrapCommandLineWithPrompt } = useAgentBootstrapCommands();
+const { skillRoots: agentSkillRoots, applySaved: applySavedAgentSkillRoots } = useAgentSkillRoots();
 const agentCommandsSettingsOpen = ref(false);
 const toast = useToast();
 const localLlm = reactive(useLocalLlm());
@@ -551,6 +553,37 @@ const activeWorktreePath = computed(
 function getApi(): WorkspaceApi | null {
   return window.workspaceApi ?? null;
 }
+
+const AGENT_KEYS_FOR_SKILL_ROOT_SYNC: ThreadAgent[] = ["claude", "cursor", "codex", "gemini"];
+
+async function syncAgentSkillSearchRootsToMain(): Promise<void> {
+  const api = getApi();
+  if (!api?.setAgentSkillSearchRoots) return;
+  let home: string | null = null;
+  try {
+    const h = await api.getUserHomeDir?.();
+    home = typeof h === "string" && h.trim() ? h.trim() : null;
+  } catch {
+    home = null;
+  }
+  const roots: string[] = [];
+  const seen = new Set<string>();
+  for (const agent of AGENT_KEYS_FOR_SKILL_ROOT_SYNC) {
+    const expanded = expandUserSkillRoot(agentSkillRoots.value[agent], home);
+    if (!expanded || seen.has(expanded)) continue;
+    seen.add(expanded);
+    roots.push(expanded);
+  }
+  await api.setAgentSkillSearchRoots(roots);
+}
+
+watch(
+  agentSkillRoots,
+  () => {
+    void syncAgentSkillSearchRootsToMain();
+  },
+  { deep: true, immediate: true }
+);
 
 const scmFetchAvailable = computed(() => Boolean(getApi()?.gitFetch));
 const scmPushAvailable = computed(() => Boolean(getApi()?.gitPush));
@@ -1148,8 +1181,12 @@ async function onInlinePromptCancel(): Promise<void> {
   await handleRemoveThread(threadId);
 }
 
-function onSaveAgentSettings(payload: { commands: Record<ThreadAgent, string> }): void {
+function onSaveAgentSettings(payload: {
+  commands: Record<ThreadAgent, string>;
+  skillRoots: Record<ThreadAgent, string>;
+}): void {
   applySaved(payload.commands);
+  applySavedAgentSkillRoots(payload.skillRoots);
 }
 
 async function handleRemoveThread(threadId: string): Promise<void> {
@@ -2233,6 +2270,7 @@ watch(
     <AgentCommandsSettingsDialog
       v-model="agentCommandsSettingsOpen"
       :commands="commands"
+      :skill-roots="agentSkillRoots"
       @save="onSaveAgentSettings"
     />
 

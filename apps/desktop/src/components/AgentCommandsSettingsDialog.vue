@@ -19,6 +19,7 @@ import {
   SelectTrigger,
   SelectValue
 } from "@/components/ui/select";
+import { THREAD_AGENT_SKILL_ROOT_DEFAULT } from "@shared/threadAgentSkillRoots";
 import { usePreferredThreadAgent } from "@/composables/usePreferredThreadAgent";
 import { useTerminalSoundSettings } from "@/composables/useTerminalSoundSettings";
 import type { TerminalActivitySensitivity } from "@/terminal/activitySensitivity";
@@ -39,10 +40,12 @@ const modelValue = defineModel<boolean>({ default: false });
 const props = defineProps<{
   /** Current saved commands (all four agents). */
   commands: Record<ThreadAgent, string>;
+  /** Per-agent directories searched for skill packages (`SKILL.md`). */
+  skillRoots: Record<ThreadAgent, string>;
 }>();
 
 const emit = defineEmits<{
-  save: [payload: { commands: Record<ThreadAgent, string> }];
+  save: [payload: { commands: Record<ThreadAgent, string>; skillRoots: Record<ThreadAgent, string> }];
 }>();
 
 const AGENT_ROWS: { agent: ThreadAgent; label: string }[] = [
@@ -53,6 +56,7 @@ const AGENT_ROWS: { agent: ThreadAgent; label: string }[] = [
 ];
 
 const draft = ref<Record<ThreadAgent, string>>({ ...props.commands });
+const draftSkillRoots = ref<Record<ThreadAgent, string>>({ ...props.skillRoots });
 const panelRef = ref<HTMLElement | null>(null);
 
 const { preferredAgent, setPreferredAgent, syncFromStorage } = usePreferredThreadAgent();
@@ -179,6 +183,7 @@ watch(modelValue, async (isOpen) => {
   stopRecording();
   if (isOpen) {
     draft.value = { ...props.commands };
+    draftSkillRoots.value = { ...props.skillRoots };
     syncFromStorage();
     activeSection.value = "agents";
     bindEscapeWhileOpen();
@@ -200,6 +205,15 @@ watch(
   { deep: true }
 );
 
+watch(
+  () => props.skillRoots,
+  (r) => {
+    if (modelValue.value) return;
+    draftSkillRoots.value = { ...r };
+  },
+  { deep: true }
+);
+
 onBeforeUnmount(() => {
   removeEscapeListener?.();
   stopRecording();
@@ -211,10 +225,11 @@ function close(): void {
 
 function resetDraftToDefaults(): void {
   draft.value = { ...THREAD_AGENT_BOOTSTRAP_COMMAND };
+  draftSkillRoots.value = { ...THREAD_AGENT_SKILL_ROOT_DEFAULT };
 }
 
 function save(): void {
-  emit("save", { commands: { ...draft.value } });
+  emit("save", { commands: { ...draft.value }, skillRoots: { ...draftSkillRoots.value } });
   modelValue.value = false;
 }
 </script>
@@ -260,9 +275,22 @@ function save(): void {
               for you. Use the same executable name you would run in a normal shell (it must be on your
               <span class="whitespace-nowrap font-mono text-[13px] text-foreground/90">PATH</span>).
             </p>
+            <p class="mt-3 text-[11px] leading-snug text-muted-foreground">
+              Each <span class="font-medium text-foreground/90">Skills directory</span> is searched for packages with
+              <span class="font-mono">SKILL.md</span> when you use <span class="font-mono">/</span> in the thread prompt.
+              Use <span class="font-mono">~</span> or an absolute path.
+            </p>
 
-            <div class="mt-3 space-y-3">
-              <div v-for="row in AGENT_ROWS" :key="row.agent" class="space-y-1">
+            <div
+              class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4"
+              role="group"
+              aria-label="Per-agent terminal command and skills directory"
+            >
+              <div
+                v-for="row in AGENT_ROWS"
+                :key="row.agent"
+                class="flex min-h-0 min-w-0 flex-col gap-2 rounded-lg border border-border/70 bg-muted/25 p-3"
+              >
                 <label
                   class="flex items-center gap-2 text-sm font-medium text-foreground"
                   :for="`agent-cmd-${row.agent}`"
@@ -275,6 +303,19 @@ function save(): void {
                   v-model="draft[row.agent]"
                   type="text"
                   class="w-full rounded-md border border-input bg-background px-2.5 py-1.5 text-sm outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring"
+                  autocomplete="off"
+                  spellcheck="false"
+                />
+                <label
+                  class="mt-0.5 block text-xs font-medium text-muted-foreground"
+                  :for="`agent-skill-root-${row.agent}`"
+                  >Skills directory</label
+                >
+                <input
+                  :id="`agent-skill-root-${row.agent}`"
+                  v-model="draftSkillRoots[row.agent]"
+                  type="text"
+                  class="w-full min-w-0 rounded-md border border-input bg-background px-2.5 py-1.5 font-mono text-[13px] outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring"
                   autocomplete="off"
                   spellcheck="false"
                 />

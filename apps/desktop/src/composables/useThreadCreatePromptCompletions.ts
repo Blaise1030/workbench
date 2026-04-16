@@ -1,5 +1,11 @@
 import { computed, ref, watch, type Ref } from "vue";
+import type { ThreadAgent } from "@shared/domain";
 import {
+  expandUserSkillRoot,
+  readStoredAgentSkillRoots
+} from "@/composables/useAgentSkillRoots";
+import {
+  absolutePathInWorktree,
   isSkillLikePath,
   parseMentionAtCursor,
   type ThreadMentionItem
@@ -9,62 +15,142 @@ function getApi() {
   return typeof window !== "undefined" ? window.workspaceApi ?? null : null;
 }
 
-/** Slash tokens inserted into the prompt (agents often treat these as commands). */
-export type ThreadSlashCommand = {
+export type ThreadSlashSkill = {
   id: string;
   label: string;
   insert: string;
   description: string;
-  keywords?: string;
+  source: "repo" | "user";
 };
 
-export const THREAD_CREATE_SLASH_COMMANDS: ThreadSlashCommand[] = [
-  {
-    id: "review",
-    label: "review",
-    insert: "/review",
-    description: "Request a code review",
-    keywords: "inspect check"
-  },
-  {
-    id: "plan",
-    label: "plan",
-    insert: "/plan",
-    description: "Plan before implementing",
-    keywords: "design outline"
-  },
-  {
-    id: "fix",
-    label: "fix",
-    insert: "/fix",
-    description: "Fix a bug or failing behavior",
-    keywords: "bug repair"
-  },
-  {
-    id: "test",
-    label: "test",
-    insert: "/test",
-    description: "Add or update tests",
-    keywords: "spec coverage"
-  },
-  {
-    id: "explain",
-    label: "explain",
-    insert: "/explain",
-    description: "Explain code or behavior",
-    keywords: "how why"
-  },
-  {
-    id: "refactor",
-    label: "refactor",
-    insert: "/refactor",
-    description: "Refactor for clarity or structure",
-    keywords: "cleanup restructure"
-  }
-];
+function normalizeSlashes(p: string): string {
+  return p.replace(/\\/g, "/");
+}
 
 /**
- * `/command` at line start or after whitespace; query has no spaces or extra `/` (avoids paths).
+ * Name of the directory under each agent config folder where skill packages live
+ * (e.g. `~/.claude/skills/<skill-folder>/SKILL.md`).
+ */
+export const AGENT_SKILLS_DIRECTORY_NAME = "skills";
+
+/**
+ * Display label: parent folder of `SKILL.md` / `skill.md` when present, else the last path segment.
+ */
+export function skillDisplayLabelFromRelativePath(relativePath: string): string {
+  const parts = normalizeSlashes(relativePath)
+    .split("/")
+    .filter(Boolean);
+  if (parts.length === 0) return relativePath.trim() || relativePath;
+  const last = parts[parts.length - 1]!;
+  if (/^skill\.md$/i.test(last) && parts.length >= 2) {
+    return parts[parts.length - 2]!;
+  }
+  return last;
+}
+
+function guessHomeDirFromWorktreePath(cwd: string): string | null {
+  const n = normalizeSlashes(cwd);
+  const mPosix = n.match(/^\/(Users|home)\/[^/]+/);
+  if (mPosix) return mPosix[0];
+  const mWindows = n.match(/^[A-Za-z]:\/Users\/[^/]+/);
+  if (mWindows) return mWindows[0];
+  return null;
+}
+
+async function resolveHomeDirForSkillSearch(worktreePath: string): Promise<string | null> {
+  const fromWorktree = guessHomeDirFromWorktreePath(worktreePath);
+  if (fromWorktree) return fromWorktree;
+  const api = getApi();
+  if (!api?.getUserHomeDir) return null;
+  try {
+    const h = await api.getUserHomeDir();
+    return typeof h === "string" && h.trim() ? h.trim() : null;
+  } catch {
+    return null;
+  }
+}
+
+const THREAD_AGENTS: ThreadAgent[] = ["claude", "cursor", "codex", "gemini"];
+
+/** Absolute search roots from Settings → Agents (skill directories), deduped. */
+function userSkillRootsFromSettings(cwd: string, home: string | null): string[] {
+  const stored = readStoredAgentSkillRoots();
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const agent of THREAD_AGENTS) {
+    const expanded = expandUserSkillRoot(stored[agent], home);
+    if (!expanded || seen.has(expanded)) continue;
+    seen.add(expanded);
+    out.push(expanded);
+  }
+  return out;
+}
+
+function withHomeTilde(pathValue: string, home: string | null): string {
+  if (!home) return pathValue;
+  const full = normalizeSlashes(pathValue);
+  const h = normalizeSlashes(home);
+  return full === h || full.startsWith(`${h}/`) ? `~${full.slice(h.length)}` : pathValue;
+}
+
+export async function searchSlashSkills(
+  worktreePath: string,
+  query: string
+): Promise<ThreadSlashSkill[]> {
+  const api = getApi();
+  if (!api) return [];
+
+  const out = new Map<string, ThreadSlashSkill>();
+  const home = await resolveHomeDirForSkillSearch(worktreePath);
+
+  const repoPaths = await api.searchFiles(worktreePath, query).catch(() => [] as string[]);
+  for (const relativePath of repoPaths) {
+    if (!isSkillLikePath(relativePath)) continue;
+    const abs = absolutePathInWorktree(worktreePath, relativePath);
+    const display = skillDisplayLabelFromRelativePath(relativePath);
+    out.set(abs, {
+      id: abs,
+      label: display,
+      insert: relativePath,
+      description: relativePath,
+      source: "repo"
+    });
+  }
+
+  const roots = userSkillRootsFromSettings(worktreePath, home);
+  const searches = await Promise.all(
+    roots.map(async (root) => ({
+      root,
+      paths: await api.searchFiles(root, query).catch(() => [] as string[])
+    }))
+  );
+
+  for (const result of searches) {
+    for (const relativePath of result.paths) {
+      if (!isSkillLikePath(relativePath)) continue;
+      const abs = absolutePathInWorktree(result.root, relativePath);
+      if (out.has(abs)) continue;
+      const display = skillDisplayLabelFromRelativePath(relativePath);
+      out.set(abs, {
+        id: abs,
+        label: display,
+        insert: withHomeTilde(`${result.root}/${relativePath}`, home),
+        description: withHomeTilde(`${result.root}/${relativePath}`, home),
+        source: "user"
+      });
+    }
+  }
+
+  return [...out.values()]
+    .sort((a, b) => {
+      if (a.source !== b.source) return a.source === "repo" ? -1 : 1;
+      return a.label.localeCompare(b.label);
+    })
+    .slice(0, 80);
+}
+
+/**
+ * `/skill` at line start or after whitespace; query has no spaces or extra `/` (avoids paths).
  * Ignores `@…` so `@mention` does not clash with slash menus.
  */
 export function parseSlashCommandAtCursor(
@@ -85,15 +171,6 @@ export function parseSlashCommandAtCursor(
   return { active: true, start: slash, query: afterSlash };
 }
 
-export function filterSlashCommands(query: string): ThreadSlashCommand[] {
-  const q = query.trim().toLowerCase();
-  if (!q) return [...THREAD_CREATE_SLASH_COMMANDS];
-  return THREAD_CREATE_SLASH_COMMANDS.filter((c) => {
-    const hay = `${c.label} ${c.description} ${c.keywords ?? ""}`.toLowerCase();
-    return c.label.toLowerCase().startsWith(q) || hay.includes(q);
-  });
-}
-
 export type PromptCompletionKind = "mention" | "slash";
 
 export function useThreadCreatePromptCompletions(options: {
@@ -103,14 +180,14 @@ export function useThreadCreatePromptCompletions(options: {
   /** Cursor offset in `getPlainText()`. */
   getCursor: () => number;
   onPickMention: (item: ThreadMentionItem, replaceFrom: number, replaceTo: number) => void;
-  onPickSlash: (command: ThreadSlashCommand, replaceFrom: number, replaceTo: number) => void;
+  onPickSlash: (command: ThreadSlashSkill, replaceFrom: number, replaceTo: number) => void;
 }): {
   menuOpen: Ref<boolean>;
   menuKind: Ref<PromptCompletionKind | null>;
   mentionQuery: Ref<string>;
   mentionLoading: Ref<boolean>;
   mentionItems: Ref<ThreadMentionItem[]>;
-  slashItems: Ref<ThreadSlashCommand[]>;
+  slashItems: Ref<ThreadSlashSkill[]>;
   selectedIndex: Ref<number>;
   onPromptInput: () => void;
   handlePromptKeydown: (e: KeyboardEvent) => boolean;
@@ -122,12 +199,13 @@ export function useThreadCreatePromptCompletions(options: {
   const mentionQuery = ref("");
   const mentionLoading = ref(false);
   const mentionItems = ref<ThreadMentionItem[]>([]);
-  const slashItems = ref<ThreadSlashCommand[]>([]);
+  const slashItems = ref<ThreadSlashSkill[]>([]);
   const selectedIndex = ref(0);
 
   const menuOpen = computed(() => menuKind.value !== null);
 
-  let fetchSeq = 0;
+  let fetchMentionSeq = 0;
+  let fetchSlashSeq = 0;
 
   async function fetchMentionItems(query: string): Promise<void> {
     const cwd = options.worktreePath.value;
@@ -137,24 +215,37 @@ export function useThreadCreatePromptCompletions(options: {
       mentionLoading.value = false;
       return;
     }
-    const seq = ++fetchSeq;
+    const seq = ++fetchMentionSeq;
     mentionLoading.value = true;
     try {
       const paths = await api.searchFiles(cwd, query);
-      if (seq !== fetchSeq) return;
-      const mapped: ThreadMentionItem[] = paths.slice(0, 200).map((relativePath) => ({
-        relativePath,
-        kind: isSkillLikePath(relativePath) ? "skill" : "file"
-      }));
-      mapped.sort((a, b) => {
-        if (a.kind !== b.kind) return a.kind === "skill" ? -1 : 1;
-        return a.relativePath.localeCompare(b.relativePath);
-      });
+      if (seq !== fetchMentionSeq) return;
+      const mapped: ThreadMentionItem[] = paths
+        .slice(0, 200)
+        .filter((relativePath) => !isSkillLikePath(relativePath))
+        .map((relativePath) => ({
+          relativePath,
+          kind: "file"
+        }));
+      mapped.sort((a, b) => a.relativePath.localeCompare(b.relativePath));
       mentionItems.value = mapped.slice(0, 80);
       selectedIndex.value = 0;
     } finally {
-      if (seq === fetchSeq) mentionLoading.value = false;
+      if (seq === fetchMentionSeq) mentionLoading.value = false;
     }
+  }
+
+  async function fetchSlashItems(query: string): Promise<void> {
+    const cwd = options.worktreePath.value;
+    if (!cwd) {
+      slashItems.value = [];
+      return;
+    }
+    const seq = ++fetchSlashSeq;
+    const items = await searchSlashSkills(cwd, query);
+    if (seq !== fetchSlashSeq) return;
+    slashItems.value = items;
+    selectedIndex.value = 0;
   }
 
   function syncFromPrompt(): void {
@@ -195,10 +286,9 @@ export function useThreadCreatePromptCompletions(options: {
         menuKind.value = null;
         return;
       }
-      slashItems.value = filterSlashCommands(parsed.query);
+      void fetchSlashItems(parsed.query);
       mentionItems.value = [];
       mentionLoading.value = false;
-      selectedIndex.value = 0;
     }
   }
 

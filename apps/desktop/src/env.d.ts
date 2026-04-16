@@ -85,6 +85,8 @@ interface WorkspaceApi {
   /** Main process fired after ⌘, / Ctrl+, (see `before-input-event` in Electron main). */
   onOpenWorkspaceSettings?: (callback: () => void) => () => void;
   syncWorktrees?: (projectId: string) => Promise<unknown>;
+  /** Electron: absolute skill-directory roots from Settings → Agents (custom paths outside ~/.*/skills). */
+  setAgentSkillSearchRoots?: (roots: string[]) => Promise<void>;
   pickRepoDirectory: () => Promise<string | null>;
   /** Present when running under Electron preload; maps a webkitdirectory file to the chosen folder path. */
   resolveRepoRootFromWebkitFile?: (file: File) => string;
@@ -92,6 +94,8 @@ interface WorkspaceApi {
   getPathForFile?: (file: File) => string;
   /** Electron: `app.getVersion()` (semver string). */
   getAppVersion?: () => Promise<string>;
+  /** Electron: `os.homedir()` for expanding `~` in agent skill directories and similar. */
+  getUserHomeDir?: () => Promise<string>;
   /** Electron: GitHub-style release tag for this build (from bundled app semver). */
   getAppReleaseTag?: () => Promise<string>;
   /** Packaged Electron: latest GitHub release vs running version, or null. */

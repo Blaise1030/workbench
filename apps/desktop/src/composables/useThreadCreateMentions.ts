@@ -12,6 +12,8 @@ export function isSkillLikePath(relativePath: string): boolean {
   if (p.includes("/skills/")) return true;
   if (p.includes(".claude/skills")) return true;
   if (p.includes(".cursor/skills")) return true;
+  if (p.includes(".codex/skills")) return true;
+  if (p.includes(".gemini/skills")) return true;
   if (p.includes(".agents/skills")) return true;
   return false;
 }

@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { BookMarked, Slash } from "lucide-vue-next";
-import { computed } from "vue";
+import { computed, nextTick, ref, watch } from "vue";
 
 export type SlashSuggestionItem = {
   id: string;
   label: string;
   description: string;
-  itemKind: "slash";
+  itemKind: "skill";
 };
 
 export type AtSuggestionItem = {
@@ -28,11 +28,26 @@ const props = withDefaults(
   { loading: false }
 );
 
-const heading = computed(() => (props.variant === "slash" ? "Commands" : "Files"));
+const heading = computed(() => (props.variant === "slash" ? "Skills" : "Files"));
 
 function isSkillRow(item: SuggestionRow): boolean {
   return item.itemKind === "skill";
 }
+
+const listScrollRef = ref<HTMLElement | null>(null);
+
+watch(
+  () => [props.selectedIndex, props.items.length, props.loading, props.variant] as const,
+  async () => {
+    await nextTick();
+    const root = listScrollRef.value;
+    if (!root || props.loading || props.items.length === 0) return;
+    const row = root.querySelector<HTMLElement>(
+      `[data-suggestion-index="${props.selectedIndex}"]`
+    );
+    row?.scrollIntoView({ block: "nearest" });
+  }
+);
 </script>
 
 <template>
@@ -40,7 +55,7 @@ function isSkillRow(item: SuggestionRow): boolean {
     data-testid="thread-create-suggestion-menu"
     class="flex min-h-0 min-w-[12rem] max-w-[min(100vw-2rem,22rem)] max-h-[min(13rem,45vh)] flex-col overflow-hidden rounded-lg border border-border bg-popover text-popover-foreground shadow-lg"
     role="listbox"
-    :aria-label="variant === 'slash' ? 'Slash commands' : 'Files and skills'"
+    :aria-label="variant === 'slash' ? 'Slash skills' : 'Files'"
   >
     <div
       class="shrink-0 border-b border-border/60 px-2 pb-0.5 pt-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground"
@@ -48,18 +63,22 @@ function isSkillRow(item: SuggestionRow): boolean {
       {{ heading }}
     </div>
     <div
+      ref="listScrollRef"
       class="min-h-0 flex-1 overflow-y-auto overscroll-contain py-1 [scrollbar-width:thin]"
     >
-      <div v-if="loading" class="px-3 py-2 text-xs text-muted-foreground">Searching files…</div>
+      <div v-if="loading" class="px-3 py-2 text-xs text-muted-foreground">
+        {{ variant === "slash" ? "Searching skills…" : "Searching files…" }}
+      </div>
       <template v-else-if="items.length === 0">
         <p class="px-3 py-2 text-xs text-muted-foreground">
-          {{ variant === "slash" ? "No matching commands." : "No matching files." }}
+          {{ variant === "slash" ? "No matching skills." : "No matching files." }}
         </p>
       </template>
       <template v-else>
         <button
           v-for="(item, idx) in items"
           :key="`${variant}-${item.id}-${idx}`"
+          :data-suggestion-index="idx"
           type="button"
           role="option"
           class="flex w-full min-w-0 flex-col gap-0.5 px-2 py-1.5 text-left text-xs hover:bg-accent"
@@ -80,7 +99,7 @@ function isSkillRow(item: SuggestionRow): boolean {
             />
             <span v-else class="shrink-0 text-[13px] leading-none" aria-hidden="true">📄</span>
             <span class="min-w-0 truncate font-mono text-[11px] font-medium text-foreground">{{
-              variant === "slash" ? (item as SlashSuggestionItem).id : item.label
+              item.label
             }}</span>
           </span>
           <span

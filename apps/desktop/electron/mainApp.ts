@@ -265,6 +265,45 @@ function readWorkspaceSchemaSql(): string {
   throw new Error(`workspace schema not found. Tried:\n${candidates.join("\n")}`);
 }
 
+/** Absolute paths from renderer (Settings → Agent skill directories); allows `files:search` when not under a worktree. */
+let agentSkillSearchRootsAbs: string[] = [];
+
+const DEFAULT_AGENT_SKILL_ROOT_SEGMENTS: ReadonlyArray<readonly [string, string]> = [
+  [".claude", "skills"],
+  [".cursor", "skills"],
+  [".codex", "skills"],
+  [".gemini", "skills"]
+];
+
+function defaultAgentSkillSearchRootsFromHome(home: string): string[] {
+  return DEFAULT_AGENT_SKILL_ROOT_SEGMENTS.map((segs) => path.resolve(path.join(home, ...segs)));
+}
+
+function isResolvedPathUnderAnyRoot(resolvedPath: string, roots: string[]): boolean {
+  return roots.some((root) => resolvedPath === root || resolvedPath.startsWith(root + path.sep));
+}
+
+/**
+ * `files:search` / `files:searchContent` may target agent skill dirs (~/.claude/skills, …) as well as worktrees.
+ * Other file IPC handlers still require a registered worktree.
+ */
+function assertCwdAllowedForFileSearch(cwd: string): void {
+  const snapshot = workspaceService.getSnapshot();
+  const registered = snapshot.worktrees.some(
+    (wt) => cwd === wt.path || cwd.startsWith(wt.path + path.sep)
+  );
+  if (registered) return;
+
+  const resolved = path.resolve(cwd);
+  const home = os.homedir();
+  if (isResolvedPathUnderAnyRoot(resolved, defaultAgentSkillSearchRootsFromHome(home))) return;
+  if (isResolvedPathUnderAnyRoot(resolved, agentSkillSearchRootsAbs)) return;
+
+  throw new Error(
+    `Operation refused: cwd is not allowed for file search (not a worktree or agent skill directory): "${cwd}"`
+  );
+}
+
 /**
  * Asserts that `cwd` is a registered worktree path or a sub-path of one.
  * Exempt handlers: diffIsGitRepository, diffInitGitRepository (used before project is registered).
@@ -354,6 +393,24 @@ function registerIpc(workspaceService: WorkspaceService): void {
     if (imported) emitWorkspaceDidChange();
     return workspaceService.getSnapshot();
   });
+  ipcMain.handle(IPC_CHANNELS.workspaceSetAgentSkillSearchRoots, (_, roots: unknown) => {
+    if (!Array.isArray(roots)) {
+      agentSkillSearchRootsAbs = [];
+      return;
+    }
+    const out: string[] = [];
+    const seen = new Set<string>();
+    for (const r of roots) {
+      if (typeof r !== "string") continue;
+      const t = r.trim();
+      if (!t) continue;
+      const n = path.resolve(t);
+      if (seen.has(n)) continue;
+      seen.add(n);
+      out.push(n);
+    }
+    agentSkillSearchRootsAbs = out;
+  });
 
   ipcMain.handle(IPC_CHANNELS.runStart, (_, payload: { agent: ThreadAgent; cwd: string; prompt: string }) => {
     assertCwdIsRegistered(payload.cwd);
@@ -418,11 +475,11 @@ function registerIpc(workspaceService: WorkspaceService): void {
     return fileService.listFileSummariesCached(cwd);
   });
   ipcMain.handle(IPC_CHANNELS.filesSearch, (_, payload: { cwd: string; query: string }) => {
-    assertCwdIsRegistered(payload.cwd);
+    assertCwdAllowedForFileSearch(payload.cwd);
     return fileService.searchFiles(payload.cwd, payload.query);
   });
   ipcMain.handle(IPC_CHANNELS.filesSearchContent, (_, payload: { cwd: string; query: string }) => {
-    assertCwdIsRegistered(payload.cwd);
+    assertCwdAllowedForFileSearch(payload.cwd);
     return fileService.searchFileContents(payload.cwd, payload.query);
   });
   ipcMain.handle(IPC_CHANNELS.filesRead, (_, payload: FileReadInput) => {
@@ -513,6 +570,7 @@ function registerIpc(workspaceService: WorkspaceService): void {
   });
 
   ipcMain.handle(IPC_CHANNELS.appGetVersion, () => app.getVersion());
+  ipcMain.handle(IPC_CHANNELS.appGetUserHomeDir, () => os.homedir());
   ipcMain.handle(IPC_CHANNELS.appGetReleaseTag, () => getAppReleaseTag());
   ipcMain.handle(IPC_CHANNELS.appGetUpdateAvailability, () => getWorkbenchUpdateAvailability());
   ipcMain.handle(IPC_CHANNELS.appOpenExternalUrl, async (_, url: unknown) => {

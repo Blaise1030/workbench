@@ -5,7 +5,7 @@ import StarterKit from "@tiptap/starter-kit";
 import { EditorContent, useEditor } from "@tiptap/vue-3";
 import { Check, Paperclip, X } from "lucide-vue-next";
 import type { Ref } from "vue";
-import { computed, nextTick, onBeforeUnmount, ref, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import Button from "@/components/ui/Button.vue";
 import Textarea from "@/components/ui/Textarea.vue";
 import { badgeVariants } from "@/components/ui/badge";
@@ -38,6 +38,8 @@ const props = withDefaults(
     showQueueRemove?: boolean;
     /** Accessible label for the queue Remove control */
     queueRemoveAriaLabel?: string;
+    /** TipTap mode: show the internal Done control that toggles to read-only blob */
+    showDoneButton?: boolean;
   }>(),
   {
     placeholder: "",
@@ -48,7 +50,8 @@ const props = withDefaults(
     worktreePath: null,
     contextTagLabel: null,
     showQueueRemove: false,
-    queueRemoveAriaLabel: "Remove this queue entry"
+    queueRemoveAriaLabel: "Remove this queue entry",
+    showDoneButton: true
   }
 );
 
@@ -58,13 +61,14 @@ const emit = defineEmits<{
 
 const prompt = defineModel<string>("prompt", { default: "" });
 const attachments = defineModel<LocalFileAttachment[]>("attachments", { default: () => [] });
+const skillPaths = defineModel<string[]>("skillPaths", { default: () => [] });
 
 const fileInputRef = ref<HTMLInputElement | null>(null);
 
 /** Push TipTap doc → v-models (flat note + inline file paths). Call on Done and unmount. */
 function applyEditorToModels(editor: Editor): void {
   prompt.value = promptDocFlatText(editor.state.doc);
-  const { filePaths } = collectDocAttachmentPaths(editor.state.doc);
+  const { filePaths, skillPaths: inlineSkillPaths } = collectDocAttachmentPaths(editor.state.doc);
   const baseName = (p: string) => p.split("/").pop() ?? p;
   const isImagePath = (p: string) =>
     /\.(png|jpg|jpeg|gif|webp|svg|bmp|tiff|ico)$/i.test(baseName(p));
@@ -81,6 +85,7 @@ function applyEditorToModels(editor: Editor): void {
     seen.add(a.path);
     return true;
   });
+  skillPaths.value = [...inlineSkillPaths];
 }
 
 // TipTap editor — only instantiated when tiptap=true (prop is static after mount)
@@ -91,7 +96,7 @@ const tiptapEditor: Ref<Editor | null | undefined> = props.tiptap
         Placeholder.configure({
           placeholder:
             props.placeholder ||
-            "Optional note for the agent — use @ for files, / for commands, paperclip for attachments"
+            "Optional note for the agent — use @ for files, / for skills, paperclip for attachments"
         }),
         ThreadQueueContextTag,
         ThreadImageBadge,
@@ -103,12 +108,12 @@ const tiptapEditor: Ref<Editor | null | undefined> = props.tiptap
       editorProps: {
         attributes: {
           class:
-            "tiptap min-h-[3.25rem] max-h-[10rem] overflow-y-auto px-2.5 py-1.5 text-[13px] leading-snug text-foreground outline-none focus:outline-none [&_p]:my-0.5 [&_p:first-child]:mb-0",
+            "tiptap min-h-[7rem] max-h-[12rem] overflow-y-auto px-2.5 py-1.5 text-[13px] leading-snug text-foreground outline-none focus:outline-none [&_p]:my-0.5 [&_p:first-child]:mb-0",
           role: "textbox",
           "aria-multiline": "true",
           "aria-placeholder":
             props.placeholder ||
-            "Optional note for the agent — use @ for files, / for commands, paperclip for attachments"
+            "Optional note for the agent — use @ for files, / for skills, paperclip for attachments"
         },
         handleKeyDown(view, event) {
           if (isThreadCreateSuggestionActive(view)) {
@@ -153,6 +158,16 @@ const tiptapEditor: Ref<Editor | null | undefined> = props.tiptap
     })
   : ref(null);
 
+onMounted(() => {
+  if (!props.tiptap) return;
+  // `immediatelyRender: false` defers mounting the ProseMirror view; focus after it exists.
+  void nextTick(() => {
+    void nextTick(() => {
+      tiptapEditor.value?.chain().focus("end").run();
+    });
+  });
+});
+
 onBeforeUnmount(() => {
   const ed = tiptapEditor.value;
   if (props.tiptap && ed && !ed.isDestroyed) {
@@ -164,12 +179,6 @@ onBeforeUnmount(() => {
 const isEditing = ref(true);
 
 const isDocEmpty = computed(() => tiptapEditor.value?.isEmpty ?? true);
-
-const tiptapHintText = computed(
-  () =>
-    props.placeholder?.trim() ||
-    "Optional note for the agent — use @ for files, / for commands, paperclip for attachments"
-);
 
 watch(isEditing, (v) => {
   tiptapEditor.value?.setEditable(v);
@@ -369,7 +378,11 @@ function onDrop(e: DragEvent): void {
 }
 
 defineExpose({
-  openFilePicker: () => fileInputRef.value?.click()
+  openFilePicker: () => fileInputRef.value?.click(),
+  flushToModels: () => {
+    const editor = tiptapEditor.value;
+    if (editor) applyEditorToModels(editor);
+  }
 });
 </script>
 
@@ -473,20 +486,19 @@ defineExpose({
       "
       :role="!isEditing && !isDocEmpty ? 'button' : undefined"
       :tabindex="!isEditing && !isDocEmpty ? 0 : undefined"
-      :data-testid="!isEditing && !isDocEmpty ? `${testIdPrefix}-tiptap-blob` : undefined"
+      :data-testid="
+        isEditing
+          ? `${testIdPrefix}-tiptap-placeholder-hint`
+          : !isDocEmpty
+            ? `${testIdPrefix}-tiptap-blob`
+            : undefined
+      "
       :aria-label="!isEditing && !isDocEmpty ? 'Click to edit comment' : undefined"
       @click="!isEditing && !isDocEmpty ? onBlobClick() : undefined"
       @keydown.enter="onBlobWrapperKeydownEnter"
       @keydown.space="onBlobWrapperKeydownSpace"
     >
       <EditorContent :editor="tiptapEditor" />
-      <p
-        v-if="isEditing"
-        class="pointer-events-none border-t border-border/50 px-2.5 py-1.5 text-[11px] leading-snug text-muted-foreground select-none"
-        :data-testid="`${testIdPrefix}-tiptap-placeholder-hint`"
-      >
-        {{ tiptapHintText }}
-      </p>
     </div>
 
     <div
@@ -537,31 +549,34 @@ defineExpose({
       >
         <Paperclip class="size-3.5" stroke-width="2" />
       </Button>
-      <div class="ms-auto flex items-center gap-1.5">
-        <Button
-          v-if="showQueueRemove"
-          type="button"
-          variant="ghost"
-          size="sm"
-          class="h-7 px-2.5 text-[11px] text-muted-foreground hover:text-destructive"
-          :data-testid="`${testIdPrefix}-queue-remove`"
-          :aria-label="queueRemoveAriaLabel"
-          @click="onQueueRemoveClick"
-        >
-          Remove
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          class="inline-flex h-7 items-center gap-1.5 px-2.5 text-[11px]"
-          :data-testid="`${testIdPrefix}-tiptap-done`"
-          @click="onDone"
-        >
-          <Check class="size-3.5 shrink-0" stroke-width="2" aria-hidden="true" />
-          <span>Done</span>
-        </Button>
-      </div>
+      <slot name="footer">
+        <div class="ms-auto flex items-center gap-1.5">
+          <Button
+            v-if="showQueueRemove"
+            type="button"
+            variant="ghost"
+            size="sm"
+            class="h-7 px-2.5 text-[11px] text-muted-foreground hover:text-destructive"
+            :data-testid="`${testIdPrefix}-queue-remove`"
+            :aria-label="queueRemoveAriaLabel"
+            @click="onQueueRemoveClick"
+          >
+            Remove
+          </Button>
+          <Button
+            v-if="showDoneButton"
+            type="button"
+            variant="outline"
+            size="sm"
+            class="inline-flex h-7 items-center gap-1.5 px-2.5 text-[11px]"
+            :data-testid="`${testIdPrefix}-tiptap-done`"
+            @click="onDone"
+          >
+            <Check class="size-3.5 shrink-0" stroke-width="2" aria-hidden="true" />
+            <span>Done</span>
+          </Button>
+        </div>
+      </slot>      
     </div>
   </div>
 </template>
