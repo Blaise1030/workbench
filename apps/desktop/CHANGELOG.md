@@ -1,5 +1,41 @@
 # Changelog
 
+## [0.10.0](https://github.com/Blaise1030/workbench/compare/v0.9.0...v0.10.0) (2026-04-16)
+
+
+### Features
+
+* **agents:** async WebLLM thread title after first send ([d950932](https://github.com/Blaise1030/workbench/commit/d9509323e444a6726e676f80edd106b2281e228b))
+* **desktop:** add extraEnv param to PtyService.getOrCreate ([1394599](https://github.com/Blaise1030/workbench/commit/139459927995054ad7ae6c5a79c90510958173ae))
+* **desktop:** add HookHandler to dispatch agent hook events ([422e16d](https://github.com/Blaise1030/workbench/commit/422e16dcdcdc4714b2c6341f09e6fa8f5ec43c3b))
+* **desktop:** add HookRegistrationService for agent hook scripts ([757dcf8](https://github.com/Blaise1030/workbench/commit/757dcf80afa9079a8e7625335c7006413348b46a))
+* **desktop:** add HookServer for agent lifecycle hook events ([c11eec1](https://github.com/Blaise1030/workbench/commit/c11eec1d4172266f7119d22f94bafdb287868a77))
+* **desktop:** add NotificationService.trigger for OS notification delivery ([c60231e](https://github.com/Blaise1030/workbench/commit/c60231ef5592c5bc377b5e508ef7a5aab9eeb8fb))
+* **desktop:** wire HookServer and HookRegistrationService into app startup ([e93e5f0](https://github.com/Blaise1030/workbench/commit/e93e5f04667fb04e4c15e3d820de55e7117d89c8))
+* **local-llm:** add prompts and output parsers with tests ([6235562](https://github.com/Blaise1030/workbench/commit/6235562c755672965c4a1f87f7a0d87d51839251))
+* **local-llm:** lazy WebLLM engine with WebGPU gate and queue ([7b78af0](https://github.com/Blaise1030/workbench/commit/7b78af00c20f88e789ed9c0c68b02ae6ffff4017))
+* **scm:** IPC for staged unified diff for local LLM ([654b741](https://github.com/Blaise1030/workbench/commit/654b741b137d81592f8df3f0fe59d4892898ebea))
+* **scm:** suggest commit messages via local WebLLM ([2588513](https://github.com/Blaise1030/workbench/commit/258851355aa0a74131d6bfb0d53844c1a4be455c))
+* **sidebar:** implement ThreadSidebarNodes with context/thread node pattern ([ff52873](https://github.com/Blaise1030/workbench/commit/ff528738e3f83e4e253f2f37aa4b1c4eb8dd81a4))
+* **sidebar:** replace ThreadGroupHeader+ThreadRow loop with ThreadSidebarNodes ([068f4e8](https://github.com/Blaise1030/workbench/commit/068f4e83fec5f49eb179007be60de9d6c3c47a41))
+* **sidebar:** wire node-based context/thread model in ThreadSidebar script ([92d2b24](https://github.com/Blaise1030/workbench/commit/92d2b242713bb8992d970b0f9eb63d485bbd4126))
+* updated hooks ([1539299](https://github.com/Blaise1030/workbench/commit/153929925031b10fce24c07a69e54133697d9ec1))
+* updated thread sidebar to be more  minimal ([a5b0d69](https://github.com/Blaise1030/workbench/commit/a5b0d6971fff2e1087a9ae5f1aa7982aa872f5e3))
+* updated to hook based notification ([5719fdc](https://github.com/Blaise1030/workbench/commit/5719fdc5a587404b939c7ea5aec342432366f5a9))
+
+
+### Bug Fixes
+
+* **agents:** capture thread title epoch before refreshSnapshot ([49f4d2b](https://github.com/Blaise1030/workbench/commit/49f4d2b70f54e0cb8b352dbcda4416250db9a6cf))
+* browser behaviours ([dd06a42](https://github.com/Blaise1030/workbench/commit/dd06a424968dbdce0855f7cc9b357d36f2f7aa83))
+* **desktop:** add RenameThreadInput type and workspaceRenameThread IPC channel ([bede801](https://github.com/Blaise1030/workbench/commit/bede8012e03dc5c6701bc2cfdc334b898d6ad0f1))
+* **desktop:** change hook scripts dir to ~/.workbench/hooks ([5342b1b](https://github.com/Blaise1030/workbench/commit/5342b1bc004ba0e52bc02cdf6a5ae2a9dca8a151))
+* **desktop:** fix HookServer robustness issues (error handling, stop, guard) ([3b8201d](https://github.com/Blaise1030/workbench/commit/3b8201d9555272ae165d194fb7dfa46396d1f193))
+* **desktop:** resolve typecheck issues from hooks reliability wiring ([205e84f](https://github.com/Blaise1030/workbench/commit/205e84fd3a755aab6125d673c6f3053c35f29a32))
+* **desktop:** use space-free path for hook scripts to fix macOS shell split ([e63f1d2](https://github.com/Blaise1030/workbench/commit/e63f1d261ebc9a8201291332a8c9b82b8354876f))
+* **sidebar:** align node add-thread target id and restore group test hooks ([22c27ea](https://github.com/Blaise1030/workbench/commit/22c27ea1ad37b52bdfaccd28e18b67ce93a63c96))
+* **sidebar:** resolve ThreadSidebarNodes markup and typing risks ([b0e19c3](https://github.com/Blaise1030/workbench/commit/b0e19c30ea3d3b5c99d691dc601c4aef75cdc8fe))
+
 ## [0.9.0](https://github.com/Blaise1030/workbench/compare/v0.8.0...v0.9.0) (2026-04-14)
 
 
