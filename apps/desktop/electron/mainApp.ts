@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
 import {
@@ -563,7 +564,8 @@ store.migrate(schemaSql);
 const gitAdapter = createGitAdapter();
 const workspaceService = new WorkspaceService(store, gitAdapter);
 
-const hookScriptsDir = path.join(app.getPath("userData"), "hooks");
+// Use home directory to avoid spaces in paths like "Application Support" on macOS
+const hookScriptsDir = path.join(os.homedir(), ".instrument", "hooks");
 void hookServer.start().then(() => {
   hookServer.setHandler((event, threadId) => {
     handleHookEvent(event, threadId, {

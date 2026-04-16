@@ -74,10 +74,11 @@ export function registerAgentHooks(
     if (!Array.isArray(hooks[event])) hooks[event] = [];
     const entries = hooks[event] as Array<{ hooks: Array<{ type?: string; command?: string }> }>;
     const alreadyRegistered = entries.some((e) =>
-      e.hooks?.some((h) => h.command === scriptPath)
+      e.hooks?.some((h) => h.command === scriptPath || h.command === `"${scriptPath}"`)
     );
     if (alreadyRegistered) continue;
-    entries.push({ hooks: [{ type: "command", command: scriptPath }] });
+    // Quote path to handle spaces (e.g. macOS "Application Support")
+    entries.push({ hooks: [{ type: "command", command: `"${scriptPath}"` }] });
   }
 
   fs.mkdirSync(path.dirname(settingsPath), { recursive: true });
