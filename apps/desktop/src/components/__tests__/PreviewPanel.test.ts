@@ -17,6 +17,8 @@ vi.mock("@/stores/workspaceStore", () => ({
 }));
 
 function makePreviewApi() {
+  let onEmbeddedDevtoolsOpen: ((open: boolean) => void) | null = null;
+  let onNavigationUrl: ((url: string, back: boolean, forward: boolean) => void) | null = null;
   return {
     probeUrl: vi.fn().mockResolvedValue({ ok: true, status: 200 } satisfies PreviewProbeResult),
     setNativeBounds: vi.fn().mockResolvedValue(undefined),
@@ -24,7 +26,24 @@ function makePreviewApi() {
     reloadNative: vi.fn().mockResolvedValue({ ok: true } as const),
     detachNative: vi.fn().mockResolvedValue(undefined),
     toggleEmbeddedDevTools: vi.fn().mockResolvedValue({ ok: true, open: true } as const),
-    onPreviewEmbeddedDevtoolsOpen: vi.fn().mockReturnValue(() => {})
+    onPreviewEmbeddedDevtoolsOpen: vi.fn().mockImplementation((callback: (open: boolean) => void) => {
+      onEmbeddedDevtoolsOpen = callback;
+      return () => {
+        onEmbeddedDevtoolsOpen = null;
+      };
+    }),
+    onNavigationUrl: vi.fn().mockImplementation((callback: (url: string, back: boolean, forward: boolean) => void) => {
+      onNavigationUrl = callback;
+      return () => {
+        onNavigationUrl = null;
+      };
+    }),
+    emitEmbeddedDevtoolsOpen(open: boolean) {
+      onEmbeddedDevtoolsOpen?.(open);
+    },
+    emitNavigationUrl(url: string, back: boolean, forward: boolean) {
+      onNavigationUrl?.(url, back, forward);
+    }
   };
 }
 
@@ -207,6 +226,58 @@ describe("PreviewPanel", () => {
     await wrapper.find('[data-testid="preview-devtools-btn"]').trigger("click");
     await flushPreviewNavigation(wrapper);
     expect(previewApi.toggleEmbeddedDevTools).toHaveBeenCalled();
+    expect(localStorage.getItem("instrument.previewPanelDevtoolsOpen.wt-test-1")).toBe("1");
+    wrapper.unmount();
+  });
+
+  it("persists URL when native navigation updates it", async () => {
+    const wrapper = mount(PreviewPanel, { attachTo: document.body });
+    await flushPreviewNavigation(wrapper);
+    previewApi.emitNavigationUrl("http://localhost:4321/next", false, true);
+    await flushPreviewNavigation(wrapper);
+    expect(localStorage.getItem("instrument.previewPanelUrl.wt-test-1")).toBe("http://localhost:4321/next");
+    wrapper.unmount();
+  });
+
+  it("re-applies persisted devtools state when returning to same worktree", async () => {
+    localStorage.setItem("instrument.previewPanelUrl.wt-test-1", "http://localhost:1111");
+    localStorage.setItem("instrument.previewPanelUrl.wt-test-2", "http://localhost:2222");
+    localStorage.setItem("instrument.previewPanelDevtoolsOpen.wt-test-1", "1");
+    previewPanelWorkspaceStub.activeWorktreeId = "wt-test-1";
+    const wrapper = mount(PreviewPanel, { attachTo: document.body });
+    await flushPreviewNavigation(wrapper);
+    expect(previewApi.toggleEmbeddedDevTools).toHaveBeenCalledTimes(1);
+
+    previewPanelWorkspaceStub.activeWorktreeId = "wt-test-2";
+    await flushPreviewNavigation(wrapper);
+    expect(previewApi.toggleEmbeddedDevTools).toHaveBeenCalledTimes(1);
+
+    previewPanelWorkspaceStub.activeWorktreeId = "wt-test-1";
+    await flushPreviewNavigation(wrapper);
+    expect(previewApi.toggleEmbeddedDevTools).toHaveBeenCalledTimes(2);
+    wrapper.unmount();
+  });
+
+  it("does not reload the preview when hidden and shown again in the same worktree", async () => {
+    localStorage.setItem("instrument.previewPanelUrl.wt-test-1", "http://localhost:1111");
+    const wrapper = mount(PreviewPanel, {
+      attachTo: document.body,
+      props: { isVisible: true }
+    });
+    await flushPreviewNavigation(wrapper);
+    expect(previewApi.loadNativeUrl).toHaveBeenCalledTimes(1);
+    expect(previewApi.loadNativeUrl).toHaveBeenLastCalledWith("http://localhost:1111");
+    previewApi.loadNativeUrl.mockClear();
+    previewApi.reloadNative.mockClear();
+
+    await wrapper.setProps({ isVisible: false });
+    await flushPreviewNavigation(wrapper);
+
+    await wrapper.setProps({ isVisible: true });
+    await flushPreviewNavigation(wrapper);
+
+    expect(previewApi.loadNativeUrl).not.toHaveBeenCalled();
+    expect(previewApi.reloadNative).not.toHaveBeenCalled();
     wrapper.unmount();
   });
 

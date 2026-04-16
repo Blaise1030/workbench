@@ -6,8 +6,7 @@ import type {
   PreviewNativeLoadResult,
   PreviewProbeResult,
   StagedUnifiedDiffResult,
-  PreviewNavigationState,
-  PreviewProbeResult
+  PreviewNavigationState
 } from "../src/shared/ipc.js";
 
 /**
@@ -90,7 +89,7 @@ const IPC_CHANNELS = {
   appGetReleaseTag: "app:getReleaseTag",
   appGetUpdateAvailability: "app:getUpdateAvailability",
   appOpenExternalUrl: "app:openExternalUrl",
-  previewNavigationUrl: "preview:navigationUrl"
+  previewNavigationUrl: "preview:navigationUrl",
   threadRunStateChanged: "thread:runStateChanged"
 } as const;
 
@@ -271,6 +270,7 @@ contextBridge.exposeInMainWorld("previewApi", {
     };
     ipcRenderer.on(IPC_CHANNELS.previewNavigationUrl, handler);
     return () => ipcRenderer.removeListener(IPC_CHANNELS.previewNavigationUrl, handler);
+  },
   goBack: () => ipcRenderer.invoke(IPC_CHANNELS.previewNativeGoBack) as Promise<void>,
   goForward: () => ipcRenderer.invoke(IPC_CHANNELS.previewNativeGoForward) as Promise<void>,
   onNavigationStateChanged: (callback: (state: PreviewNavigationState) => void) => {

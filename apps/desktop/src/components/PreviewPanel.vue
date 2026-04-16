@@ -12,25 +12,7 @@
     <!-- URL bar -->
     <div
       class="flex shrink-0 flex-wrap items-center gap-x-1.5 gap-y-1 border-b border-border bg-background px-2 py-1"
-    >
-      <button
-        data-testid="preview-back-btn"
-        class="shrink-0 rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
-        title="Back"
-        :disabled="!canGoBack"
-        @click="goBack"
-      >
-        <ChevronLeft class="h-3.5 w-3.5" />
-      </button>
-      <button
-        data-testid="preview-forward-btn"
-        class="shrink-0 rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
-        title="Forward"
-        :disabled="!canGoForward"
-        @click="goForward"
-      >
-        <ChevronRight class="h-3.5 w-3.5" />
-      </button>
+    >     
       <Badge
         v-if="loadBadge"
         data-testid="preview-load-badge"
@@ -109,10 +91,23 @@ import Badge from "@/components/ui/Badge.vue";
 import type { BadgeVariant } from "@/components/ui/badge";
 import { Bug, ChevronLeft, ChevronRight, RotateCw } from "lucide-vue-next";
 import type { PreviewLoadStatePayload } from "@shared/ipc";
-import { loadPreviewPanelUrl, savePreviewPanelUrl } from "@/composables/usePreviewPanelUrlPersistence";
+import {
+  loadPreviewPanelDevtoolsOpen,
+  loadPreviewPanelUrl,
+  savePreviewPanelDevtoolsOpen,
+  savePreviewPanelUrl
+} from "@/composables/usePreviewPanelUrlPersistence";
 import { useWorkspaceStore } from "@/stores/workspaceStore";
 
 const workspace = useWorkspaceStore();
+const props = withDefaults(
+  defineProps<{
+    isVisible?: boolean;
+  }>(),
+  {
+    isVisible: true
+  }
+);
 const urlInput = ref("");
 const collisionMirrorRef = ref<HTMLDivElement | null>(null);
 const panelRootRef = ref<HTMLDivElement | null>(null);
@@ -121,6 +116,7 @@ const viewportRef = ref<HTMLDivElement | null>(null);
 const activePreviewUrl = ref("");
 /** Embedded Chrome DevTools split is open (main-process). */
 const previewDevtoolsOpen = ref(false);
+const persistedDevtoolsOpen = ref(false);
 const canGoBack = ref(false);
 const canGoForward = ref(false);
 /** Monotonic counter so late `load` / `probeUrl` from a superseded navigation are ignored. */
@@ -162,14 +158,33 @@ watch(
     if (prevWorktreeId != null && prevWorktreeId !== worktreeId) {
       activePreviewUrl.value = "";
       previewDevtoolsOpen.value = false;
+      persistedDevtoolsOpen.value = false;
       canGoBack.value = false;
       canGoForward.value = false;
       void getApi()?.detachNative?.().catch(() => {});
     }
     urlInput.value = loadPreviewPanelUrl(worktreeId);
-    if (prevWorktreeId != null && prevWorktreeId !== worktreeId) {
+    persistedDevtoolsOpen.value = loadPreviewPanelDevtoolsOpen(worktreeId);
+    if (props.isVisible && prevWorktreeId != null && prevWorktreeId !== worktreeId) {
       void nextTick(() => navigate());
     }
+  },
+  { immediate: true }
+);
+
+watch(
+  () => props.isVisible,
+  (visible) => {
+    if (!visible) {
+      pushNativeBounds();
+      return;
+    }
+    void nextTick(() => {
+      syncPreviewViewportMetrics();
+      if (!activePreviewUrl.value.trim()) {
+        navigate();
+      }
+    });
   },
   { immediate: true }
 );
@@ -222,6 +237,10 @@ function getApi(): Window["previewApi"] {
 function pushNativeBounds(): void {
   const api = getApi();
   if (!api?.setNativeBounds) return;
+  if (!props.isVisible) {
+    void api.setNativeBounds({ x: 0, y: 0, width: 0, height: 0 }).catch(() => {});
+    return;
+  }
   const r = viewportScreenRect.value;
   if (!r || r.width < 2 || r.height < 2) {
     void api.setNativeBounds({ x: 0, y: 0, width: 0, height: 0 }).catch(() => {});
@@ -343,6 +362,7 @@ async function runLoadUrl(url: string, seq: number): Promise<void> {
     return;
   }
   await applyProbeAfterLoad(url, seq);
+  await syncEmbeddedDevToolsWithPersistence(seq);
 }
 
 async function runReload(seq: number): Promise<void> {
@@ -372,9 +392,26 @@ async function runReload(seq: number): Promise<void> {
     return;
   }
   await applyProbeAfterLoad(url, seq);
+  await syncEmbeddedDevToolsWithPersistence(seq);
+}
+
+async function syncEmbeddedDevToolsWithPersistence(seq: number): Promise<void> {
+  if (seq !== loadSeq) return;
+  if (!activePreviewUrl.value.trim()) return;
+  if (previewDevtoolsOpen.value === persistedDevtoolsOpen.value) return;
+  const api = getApi();
+  if (!api?.toggleEmbeddedDevTools) return;
+  try {
+    const r = await api.toggleEmbeddedDevTools();
+    if (seq !== loadSeq) return;
+    if (r.ok) previewDevtoolsOpen.value = r.open;
+  } catch {
+    /* no-op */
+  }
 }
 
 function navigate(): void {
+  if (!props.isVisible) return;
   const raw = urlInput.value.trim();
   if (!raw) return;
   const url = normalizeUrl(raw);
@@ -391,11 +428,8 @@ function navigate(): void {
   void runLoadUrl(url, seq);
 }
 
-function goForward(): void {
-  void getApi()?.goForward?.();
-}
-
 function reload(): void {
+  if (!props.isVisible) return;
   const u = activePreviewUrl.value;
   if (!u) return;
   loadSeq += 1;
@@ -410,8 +444,13 @@ async function toggleEmbeddedDevTools(): Promise<void> {
   if (!api?.toggleEmbeddedDevTools) return;
   try {
     const r = await api.toggleEmbeddedDevTools();
-    if (r.ok) previewDevtoolsOpen.value = r.open;
-    else previewDevtoolsOpen.value = false;
+    if (r.ok) {
+      previewDevtoolsOpen.value = r.open;
+      persistedDevtoolsOpen.value = r.open;
+      savePreviewPanelDevtoolsOpen(workspace.activeWorktreeId, r.open);
+    } else {
+      previewDevtoolsOpen.value = false;
+    }
   } catch {
     previewDevtoolsOpen.value = false;
   }
@@ -443,14 +482,21 @@ function schedulePreviewViewportMetrics(): void {
 
 onMounted(() => {
   offEmbeddedDevtoolsState = getApi()?.onPreviewEmbeddedDevtoolsOpen?.((open) => {
+    // Runtime open/close updates can be transient while navigating; keep persisted
+    // value as user intent so devtools can be restored ("warm") after page changes.
     previewDevtoolsOpen.value = open;
   });
   offNavigationUrl = getApi()?.onNavigationUrl?.((url, back, forward) => {
     urlInput.value = url;
+    savePreviewPanelUrl(workspace.activeWorktreeId, url);
     canGoBack.value = back;
     canGoForward.value = forward;
+  });
   offNavigationStateChanged = getApi()?.onNavigationStateChanged?.((state) => {
-    if (state.url) urlInput.value = state.url;
+    if (state.url) {
+      urlInput.value = state.url;
+      savePreviewPanelUrl(workspace.activeWorktreeId, state.url);
+    }
     canGoBack.value = state.canGoBack;
     canGoForward.value = state.canGoForward;
   });
@@ -461,7 +507,7 @@ onMounted(() => {
 
   void nextTick(() => {
     syncPreviewViewportMetrics();
-    navigate();
+    if (props.isVisible) navigate();
   });
 });
 
@@ -486,6 +532,7 @@ onUnmounted(() => {
   canGoForward.value = false;
   void getApi()?.detachNative?.().catch(() => {});
 });
+
 </script>
 
 <style scoped>

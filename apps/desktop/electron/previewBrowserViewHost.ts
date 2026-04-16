@@ -1,6 +1,6 @@
 import { BrowserView, BrowserWindow, type Event, type IpcMainInvokeEvent } from "electron";
 import { IPC_CHANNELS } from "./ipcChannels.js";
-import type { PreviewBounds, PreviewDevToolsToggleResult, PreviewNavigationState } from "../src/shared/ipc.js";
+import type { PreviewBounds, PreviewDevToolsToggleResult } from "../src/shared/ipc.js";
 
 let previewPageView: BrowserView | null = null;
 let lastBounds: PreviewBounds | null = null;
@@ -23,6 +23,16 @@ function notifyNavigationUrl(win: BrowserWindow | null, url: string): void {
   });
 }
 
+function notifyNavigationState(win: BrowserWindow | null): void {
+  const wc = previewPageView?.webContents;
+  if (!wc) return;
+  win?.webContents.send(IPC_CHANNELS.previewNavigationStateChanged, {
+    url: wc.getURL() ?? "",
+    canGoBack: wc.navigationHistory.canGoBack(),
+    canGoForward: wc.navigationHistory.canGoForward()
+  });
+}
+
 function getOrCreatePreviewPageView(): BrowserView {
   if (!previewPageView) {
     previewPageView = new BrowserView({
@@ -37,9 +47,11 @@ function getOrCreatePreviewPageView(): BrowserView {
     });
     previewPageView.webContents.on("did-navigate", (_event, url) => {
       notifyNavigationUrl(lastWin, url);
+      notifyNavigationState(lastWin);
     });
     previewPageView.webContents.on("did-navigate-in-page", (_event, url) => {
       notifyNavigationUrl(lastWin, url);
+      notifyNavigationState(lastWin);
     });
   }
   return previewPageView;
@@ -263,14 +275,3 @@ export function previewNativeToggleEmbeddedDevTools(event: IpcMainInvokeEvent): 
   return { ok: true, open: true };
 }
 
-export function previewNativeGoBack(_event: IpcMainInvokeEvent): void {
-  const wc = previewPageView?.webContents;
-  if (!wc?.navigationHistory.canGoBack()) return;
-  wc.navigationHistory.goBack();
-}
-
-export function previewNativeGoForward(_event: IpcMainInvokeEvent): void {
-  const wc = previewPageView?.webContents;
-  if (!wc?.navigationHistory.canGoForward()) return;
-  wc.navigationHistory.goForward();
-}

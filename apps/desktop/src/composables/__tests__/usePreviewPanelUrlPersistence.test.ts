@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { loadPreviewPanelUrl, savePreviewPanelUrl } from "../usePreviewPanelUrlPersistence";
+import {
+  loadPreviewPanelDevtoolsOpen,
+  loadPreviewPanelUrl,
+  savePreviewPanelDevtoolsOpen,
+  savePreviewPanelUrl
+} from "../usePreviewPanelUrlPersistence";
 
 describe("usePreviewPanelUrlPersistence", () => {
   afterEach(() => {
@@ -23,5 +28,17 @@ describe("usePreviewPanelUrlPersistence", () => {
     savePreviewPanelUrl("wt-a", "  ");
     expect(loadPreviewPanelUrl("wt-a")).toBe("");
     expect(localStorage.getItem("instrument.previewPanelUrl.wt-a")).toBeNull();
+  });
+
+  it("round-trips devtools-open state per worktree", () => {
+    savePreviewPanelDevtoolsOpen("wt-a", true);
+    savePreviewPanelDevtoolsOpen("wt-b", false);
+    expect(loadPreviewPanelDevtoolsOpen("wt-a")).toBe(true);
+    expect(loadPreviewPanelDevtoolsOpen("wt-b")).toBe(false);
+  });
+
+  it("defaults devtools-open to false when missing worktree id", () => {
+    expect(loadPreviewPanelDevtoolsOpen(null)).toBe(false);
+    expect(loadPreviewPanelDevtoolsOpen(undefined)).toBe(false);
   });
 });

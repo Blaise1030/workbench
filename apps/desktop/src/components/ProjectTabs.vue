@@ -107,10 +107,10 @@ const emit = defineEmits<{
 
 /** Browser-style tab strip: inactive = text on chrome; active = muted surface. */
 const tabChrome =
-  "relative z-0 flex w-full overflow-visible py-1 max-w-full select-none items-center gap-px border-b border-zinc-300/80 bg-zinc-200/95 px-1 dark:border-zinc-800 dark:bg-zinc-950";
+  "relative z-0 flex w-full overflow-visible max-w-full select-none items-center gap-px border-b border-zinc-300/80 bg-zinc-200/95 px-1 dark:border-zinc-800 dark:bg-zinc-950";
 
 const tabListClass =
-  "inline-flex h-full min-w-0 max-w-full flex-1 items-center gap-0.5 overflow-x-auto overflow-y-visible pr-0.5 [scrollbar-width:thin]";
+  "inline-flex h-full min-w-0 max-w-full py-1 flex-1 items-center gap-0.5 overflow-x-auto overflow-y-visible pr-0.5 [scrollbar-width:thin]";
 
 const tabInactive =
   "inline-flex max-w-[14rem] shrink-0 items-center gap-1.5 rounded-lg border border-transparent px-2.5 py-0.5 text-left text-xs font-medium whitespace-nowrap text-zinc-600 transition-[color,background-color] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-200 dark:text-zinc-400 dark:focus-visible:ring-offset-zinc-950";
