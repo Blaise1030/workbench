@@ -1,0 +1,41 @@
+Object.defineProperty(__vite_ssr_exports__, "default", { enumerable: true, configurable: true, get(){ try { return __vite_ssr_export_default__ } catch {} }});
+const __vite_ssr_import_0__ = await __vite_ssr_import__("/@fs/Users/blaisetiong/Developer/instrument/.worktrees/hooks-reliability/node_modules/.pnpm/vue@3.5.32_typescript@5.9.3/node_modules/vue/index.mjs", {"importedNames":["defineComponent"]});
+const __vite_ssr_import_1__ = await __vite_ssr_import__("/@fs/Users/blaisetiong/Developer/instrument/.worktrees/hooks-reliability/node_modules/.pnpm/vue@3.5.32_typescript@5.9.3/node_modules/vue/index.mjs", {"importedNames":["computed","useAttrs"]});
+const __vite_ssr_import_2__ = await __vite_ssr_import__("/src/lib/utils.ts", {"importedNames":["cn"]});
+const __vite_ssr_import_3__ = await __vite_ssr_import__("/src/components/ui/badge.ts", {"importedNames":["badgeVariants"]});const __vite_ssr_import_4__ = await __vite_ssr_import__("/@fs/Users/blaisetiong/Developer/instrument/.worktrees/hooks-reliability/node_modules/.pnpm/vue@3.5.32_typescript@5.9.3/node_modules/vue/index.mjs", {"importedNames":["renderSlot","mergeProps","openBlock","createElementBlock"]});const __vite_ssr_import_5__ = await __vite_ssr_import__("/@id/__x00__plugin-vue:export-helper", {"importedNames":["default"]});
+const _sfc_main = /* @__PURE__ */ (0,__vite_ssr_import_0__.defineComponent)({
+  __name: "Badge",
+  props: {
+    variant: { type: null, required: false, default: "default" }
+  },
+  setup(__props, { expose: __expose }) {
+    __expose();
+    const props = __props;
+    const attrs = (0,__vite_ssr_import_1__.useAttrs)();
+    const mergedClassName = (0,__vite_ssr_import_1__.computed)(
+      () => (0,__vite_ssr_import_2__.cn)(
+        (0,__vite_ssr_import_3__.badgeVariants)({ variant: props.variant }),
+        typeof attrs.class === "string" ? attrs.class : void 0
+      )
+    );
+    const __returned__ = { props, attrs, mergedClassName };
+    Object.defineProperty(__returned__, "__isScriptSetup", { enumerable: false, value: true });
+    return __returned__;
+  }
+});
+
+const _hoisted_1 = ["data-variant"];
+function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
+  return (0,__vite_ssr_import_4__.openBlock)(), (0,__vite_ssr_import_4__.createElementBlock)("span", (0,__vite_ssr_import_4__.mergeProps)($setup.attrs, {
+    "data-slot": "badge",
+    "data-variant": $setup.props.variant,
+    class: $setup.mergedClassName
+  }), [
+    (0,__vite_ssr_import_4__.renderSlot)(_ctx.$slots, "default")
+  ], 16, _hoisted_1);
+}
+
+const __vite_ssr_export_default__ = /* @__PURE__ */ (0,__vite_ssr_import_5__.default)(_sfc_main, [["render", _sfc_render], ["__file", "/Users/blaisetiong/Developer/instrument/.worktrees/hooks-reliability/apps/desktop/src/components/ui/Badge.vue"]]);
+
+//# sourceMappingSource=vite-node
+//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJ2ZXJzaW9uIjozLCJtYXBwaW5ncyI6Ijs7QUFDQTtBQUNBO0FBQ0E7Ozs7Ozs7O0FBRUEsVUFBTSxRQUFRO0FBU2QsVUFBTSxXQUFRLGdDQUFTO0FBRXZCLFVBQU0scUJBQWtCO0FBQUEsTUFBUyxTQUMvQjtBQUFBLFdBQ0UscUNBQWMsRUFBRSxTQUFTLE1BQU0sUUFBUSxDQUFDO0FBQUEsUUFDeEMsT0FBTyxNQUFNLFVBQVUsV0FBVyxNQUFNLFFBQVE7QUFBQSxNQUNsRDtBQUFBLElBQ0Y7Ozs7Ozs7OzttREFJRSwwQ0FPTyxXQVBQLGtDQU9PLE9BTkcsT0FBSztBQUFBLElBQ2IsYUFBVTtBQUFBLElBQ1QsZ0JBQWMsYUFBTTtBQUFBLElBQ3BCLE9BQU87QUFBQTtPQUVSLGtDQUFRO0FBQUEiLCJuYW1lcyI6W10sImlnbm9yZUxpc3QiOltdLCJzb3VyY2VzIjpbIkJhZGdlLnZ1ZSJdLCJzb3VyY2VzQ29udGVudCI6WyI8c2NyaXB0IHNldHVwIGxhbmc9XCJ0c1wiPlxuaW1wb3J0IHsgY29tcHV0ZWQsIHVzZUF0dHJzIH0gZnJvbSBcInZ1ZVwiO1xuaW1wb3J0IHsgY24gfSBmcm9tIFwiQC9saWIvdXRpbHNcIjtcbmltcG9ydCB7IGJhZGdlVmFyaWFudHMsIHR5cGUgQmFkZ2VWYXJpYW50IH0gZnJvbSBcIkAvY29tcG9uZW50cy91aS9iYWRnZVwiO1xuXG5jb25zdCBwcm9wcyA9IHdpdGhEZWZhdWx0cyhcbiAgZGVmaW5lUHJvcHM8e1xuICAgIHZhcmlhbnQ/OiBCYWRnZVZhcmlhbnQ7XG4gIH0+KCksXG4gIHtcbiAgICB2YXJpYW50OiBcImRlZmF1bHRcIlxuICB9XG4pO1xuXG5jb25zdCBhdHRycyA9IHVzZUF0dHJzKCk7XG5cbmNvbnN0IG1lcmdlZENsYXNzTmFtZSA9IGNvbXB1dGVkKCgpID0+XG4gIGNuKFxuICAgIGJhZGdlVmFyaWFudHMoeyB2YXJpYW50OiBwcm9wcy52YXJpYW50IH0pLFxuICAgIHR5cGVvZiBhdHRycy5jbGFzcyA9PT0gXCJzdHJpbmdcIiA/IGF0dHJzLmNsYXNzIDogdW5kZWZpbmVkXG4gIClcbik7XG48L3NjcmlwdD5cblxuPHRlbXBsYXRlPlxuICA8c3BhblxuICAgIHYtYmluZD1cImF0dHJzXCJcbiAgICBkYXRhLXNsb3Q9XCJiYWRnZVwiXG4gICAgOmRhdGEtdmFyaWFudD1cInByb3BzLnZhcmlhbnRcIlxuICAgIDpjbGFzcz1cIm1lcmdlZENsYXNzTmFtZVwiXG4gID5cbiAgICA8c2xvdCAvPlxuICA8L3NwYW4+XG48L3RlbXBsYXRlPlxuIl0sImZpbGUiOiIvc3JjL2NvbXBvbmVudHMvdWkvQmFkZ2UudnVlIn0=

@@ -52,9 +52,10 @@ export interface DeleteThreadInput {
   threadId: string;
 }
 
-export interface RenameThreadInput {
+export interface UpdateThreadInput {
   threadId: string;
-  title: string;
+  title?: string;
+  agent?: ThreadAgent;
 }
 
 export interface FileReadInput {
@@ -185,3 +186,10 @@ export type PreviewLoadStatePayload =
 
 /** Preview `WebContents.enableDeviceEmulation` preset (Chromium device mode). */
 export type PreviewDeviceEmulationPreset = "clear" | "mobile" | "tablet" | "desktop";
+
+/** Main → renderer: navigation state pushed after any BrowserView navigation. */
+export interface PreviewNavigationState {
+  url: string;
+  canGoBack: boolean;
+  canGoForward: boolean;
+}

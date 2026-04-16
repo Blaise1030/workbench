@@ -1,0 +1,119 @@
+Object.defineProperty(__vite_ssr_exports__, "default", { enumerable: true, configurable: true, get(){ try { return __vite_ssr_export_default__ } catch {} }});
+const __vite_ssr_import_0__ = await __vite_ssr_import__("/@fs/Users/blaisetiong/Developer/instrument/.worktrees/hooks-reliability/node_modules/.pnpm/vue@3.5.32_typescript@5.9.3/node_modules/vue/index.mjs", {"importedNames":["defineComponent"]});
+const __vite_ssr_import_1__ = await __vite_ssr_import__("/@fs/Users/blaisetiong/Developer/instrument/.worktrees/hooks-reliability/node_modules/.pnpm/vue@3.5.32_typescript@5.9.3/node_modules/vue/index.mjs", {"importedNames":["computed"]});
+const __vite_ssr_import_2__ = await __vite_ssr_import__("/src/components/ui/select/index.ts", {"importedNames":["Select","SelectContent","SelectItem","SelectTrigger","SelectValue"]});const __vite_ssr_import_3__ = await __vite_ssr_import__("/@fs/Users/blaisetiong/Developer/instrument/.worktrees/hooks-reliability/node_modules/.pnpm/vue@3.5.32_typescript@5.9.3/node_modules/vue/index.mjs", {"importedNames":["createElementVNode","toDisplayString","createTextVNode","withCtx","createVNode","renderList","Fragment","openBlock","createElementBlock","createBlock"]});const __vite_ssr_import_4__ = await __vite_ssr_import__("/@id/__x00__plugin-vue:export-helper", {"importedNames":["default"]});
+
+
+
+
+
+
+const _sfc_main = /* @__PURE__ */ (0,__vite_ssr_import_0__.defineComponent)({
+  __name: "WorktreeSwitcher",
+  props: {
+    worktrees: { type: Array, required: true },
+    activeWorktreeId: { type: [String, null], required: true }
+  },
+  emits: ["select"],
+  setup(__props, { expose: __expose, emit: __emit }) {
+    __expose();
+    const props = __props;
+    const emit = __emit;
+    const activeWorktreeLabel = (0,__vite_ssr_import_1__.computed)(
+      () => props.worktrees.find((worktree) => worktree.id === props.activeWorktreeId)?.branch ?? ""
+    );
+    const selectedWorktreeId = (0,__vite_ssr_import_1__.computed)({
+      get: () => props.activeWorktreeId ?? "",
+      set: (value) => {
+        if (value) emit("select", value);
+      }
+    });
+    const __returned__ = { props, emit, activeWorktreeLabel, selectedWorktreeId, get Select() {
+      return __vite_ssr_import_2__.Select;
+    }, get SelectContent() {
+      return __vite_ssr_import_2__.SelectContent;
+    }, get SelectItem() {
+      return __vite_ssr_import_2__.SelectItem;
+    }, get SelectTrigger() {
+      return __vite_ssr_import_2__.SelectTrigger;
+    }, get SelectValue() {
+      return __vite_ssr_import_2__.SelectValue;
+    } };
+    Object.defineProperty(__returned__, "__isScriptSetup", { enumerable: false, value: true });
+    return __returned__;
+  }
+});
+
+const _hoisted_1 = { class: "flex items-center gap-2 text-sm" };
+function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
+  return (0,__vite_ssr_import_3__.openBlock)(), (0,__vite_ssr_import_3__.createElementBlock)("label", _hoisted_1, [
+    _cache[1] || (_cache[1] = (0,__vite_ssr_import_3__.createElementVNode)(
+      "span",
+      null,
+      "Worktree",
+      -1
+      /* CACHED */
+    )),
+    (0,__vite_ssr_import_3__.createVNode)($setup["Select"], {
+      modelValue: $setup.selectedWorktreeId,
+      "onUpdate:modelValue": _cache[0] || (_cache[0] = ($event) => $setup.selectedWorktreeId = $event)
+    }, {
+      default: (0,__vite_ssr_import_3__.withCtx)(() => [
+        (0,__vite_ssr_import_3__.createVNode)($setup["SelectTrigger"], { class: "h-8 min-w-[11rem] bg-background text-sm" }, {
+          default: (0,__vite_ssr_import_3__.withCtx)(() => [
+            (0,__vite_ssr_import_3__.createVNode)($setup["SelectValue"], {
+              placeholder: $setup.activeWorktreeLabel || "Select worktree"
+            }, {
+              default: (0,__vite_ssr_import_3__.withCtx)(() => [
+                (0,__vite_ssr_import_3__.createTextVNode)(
+                  (0,__vite_ssr_import_3__.toDisplayString)($setup.activeWorktreeLabel),
+                  1
+                  /* TEXT */
+                )
+              ]),
+              _: 1
+              /* STABLE */
+            }, 8, ["placeholder"])
+          ]),
+          _: 1
+          /* STABLE */
+        }),
+        (0,__vite_ssr_import_3__.createVNode)($setup["SelectContent"], null, {
+          default: (0,__vite_ssr_import_3__.withCtx)(() => [
+            ((0,__vite_ssr_import_3__.openBlock)(true), (0,__vite_ssr_import_3__.createElementBlock)(
+              (0,__vite_ssr_import_3__.Fragment),
+              null,
+              (0,__vite_ssr_import_3__.renderList)($props.worktrees, (worktree) => {
+                return (0,__vite_ssr_import_3__.openBlock)(), (0,__vite_ssr_import_3__.createBlock)($setup["SelectItem"], {
+                  key: worktree.id,
+                  value: worktree.id
+                }, {
+                  default: (0,__vite_ssr_import_3__.withCtx)(() => [
+                    (0,__vite_ssr_import_3__.createTextVNode)(
+                      (0,__vite_ssr_import_3__.toDisplayString)(worktree.branch),
+                      1
+                      /* TEXT */
+                    )
+                  ]),
+                  _: 2
+                  /* DYNAMIC */
+                }, 1032, ["value"]);
+              }),
+              128
+              /* KEYED_FRAGMENT */
+            ))
+          ]),
+          _: 1
+          /* STABLE */
+        })
+      ]),
+      _: 1
+      /* STABLE */
+    }, 8, ["modelValue"])
+  ]);
+}
+
+const __vite_ssr_export_default__ = /* @__PURE__ */ (0,__vite_ssr_import_4__.default)(_sfc_main, [["render", _sfc_render], ["__file", "/Users/blaisetiong/Developer/instrument/.worktrees/hooks-reliability/apps/desktop/src/components/WorktreeSwitcher.vue"]]);
+
+//# sourceMappingSource=vite-node
+//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJ2ZXJzaW9uIjozLCJtYXBwaW5ncyI6Ijs7QUFFQTtBQUNBOzs7Ozs7Ozs7Ozs7Ozs7O0FBUUEsVUFBTSxRQUFRO0FBS2QsVUFBTSxPQUFPO0FBSWIsVUFBTSx5QkFBc0I7QUFBQSxNQUMxQixNQUFNLE1BQU0sVUFBVSxLQUFLLENBQUMsYUFBYSxTQUFTLE9BQU8sTUFBTSxnQkFBZ0IsR0FBRyxVQUFVO0FBQUEsSUFDOUY7QUFFQSxVQUFNLHdCQUFxQixnQ0FBUztBQUFBLE1BQ2xDLEtBQUssTUFBTSxNQUFNLG9CQUFvQjtBQUFBLE1BQ3JDLEtBQUssQ0FBQyxVQUFrQjtBQUN0QixZQUFJLE1BQU8sTUFBSyxVQUFVLEtBQUs7QUFBQSxNQUNqQztBQUFBLElBQ0YsQ0FBQzs7Ozs7Ozs7Ozs7Ozs7Ozs7cUJBSVEsT0FBTSxrQ0FBaUM7O21EQUE5QywwQ0FjUSxTQWRSLFlBY1E7QUFBQSxpQ0FiTjtBQUFBLE1BQXFCO0FBQUE7QUFBQSxNQUFmO0FBQUEsTUFBUTtBQUFBO0FBQUE7QUFBQSxPQUNkLG1DQVdTO0FBQUEsa0JBWFE7QUFBQSwrRkFBa0I7QUFBQTtpREFDakMsTUFJZ0I7QUFBQSxXQUpoQixtQ0FJZ0IsMkJBSkQsT0FBTSwwQ0FBeUM7QUFBQSxxREFDNUQsTUFFYztBQUFBLGVBRmQsbUNBRWM7QUFBQSxjQUZBLGFBQWEsOEJBQW1CO0FBQUE7eURBQzVDLE1BQXlCO0FBQUE7NERBQXRCLDBCQUFtQjtBQUFBO0FBQUE7QUFBQTtBQUFBOzs7Ozs7OztXQUcxQixtQ0FJZ0I7QUFBQSxxREFIRixNQUE2QjtBQUFBLDJEQUF6QztBQUFBLGlCQUVhO0FBQUE7QUFBQSxtREFGa0Isa0JBQVMsQ0FBckIsYUFBUTtpRUFBM0IsbUNBRWE7QUFBQSxrQkFGOEIsS0FBSyxTQUFTO0FBQUEsa0JBQUssT0FBTyxTQUFTO0FBQUE7NkRBQzVFLE1BQXFCO0FBQUE7Z0VBQWxCLFNBQVMsTUFBTTtBQUFBO0FBQUE7QUFBQTtBQUFBIiwibmFtZXMiOltdLCJpZ25vcmVMaXN0IjpbXSwic291cmNlcyI6WyJXb3JrdHJlZVN3aXRjaGVyLnZ1ZSJdLCJzb3VyY2VzQ29udGVudCI6WyI8c2NyaXB0IHNldHVwIGxhbmc9XCJ0c1wiPlxuaW1wb3J0IHR5cGUgeyBXb3JrdHJlZSB9IGZyb20gXCJAc2hhcmVkL2RvbWFpblwiO1xuaW1wb3J0IHsgY29tcHV0ZWQgfSBmcm9tIFwidnVlXCI7XG5pbXBvcnQge1xuICBTZWxlY3QsXG4gIFNlbGVjdENvbnRlbnQsXG4gIFNlbGVjdEl0ZW0sXG4gIFNlbGVjdFRyaWdnZXIsXG4gIFNlbGVjdFZhbHVlXG59IGZyb20gXCJAL2NvbXBvbmVudHMvdWkvc2VsZWN0XCI7XG5cbmNvbnN0IHByb3BzID0gZGVmaW5lUHJvcHM8e1xuICB3b3JrdHJlZXM6IFdvcmt0cmVlW107XG4gIGFjdGl2ZVdvcmt0cmVlSWQ6IHN0cmluZyB8IG51bGw7XG59PigpO1xuXG5jb25zdCBlbWl0ID0gZGVmaW5lRW1pdHM8e1xuICBzZWxlY3Q6IFt3b3JrdHJlZUlkOiBzdHJpbmddO1xufT4oKTtcblxuY29uc3QgYWN0aXZlV29ya3RyZWVMYWJlbCA9IGNvbXB1dGVkKFxuICAoKSA9PiBwcm9wcy53b3JrdHJlZXMuZmluZCgod29ya3RyZWUpID0+IHdvcmt0cmVlLmlkID09PSBwcm9wcy5hY3RpdmVXb3JrdHJlZUlkKT8uYnJhbmNoID8/IFwiXCJcbik7XG5cbmNvbnN0IHNlbGVjdGVkV29ya3RyZWVJZCA9IGNvbXB1dGVkKHtcbiAgZ2V0OiAoKSA9PiBwcm9wcy5hY3RpdmVXb3JrdHJlZUlkID8/IFwiXCIsXG4gIHNldDogKHZhbHVlOiBzdHJpbmcpID0+IHtcbiAgICBpZiAodmFsdWUpIGVtaXQoXCJzZWxlY3RcIiwgdmFsdWUpO1xuICB9XG59KTtcbjwvc2NyaXB0PlxuXG48dGVtcGxhdGU+XG4gIDxsYWJlbCBjbGFzcz1cImZsZXggaXRlbXMtY2VudGVyIGdhcC0yIHRleHQtc21cIj5cbiAgICA8c3Bhbj5Xb3JrdHJlZTwvc3Bhbj5cbiAgICA8U2VsZWN0IHYtbW9kZWw9XCJzZWxlY3RlZFdvcmt0cmVlSWRcIj5cbiAgICAgIDxTZWxlY3RUcmlnZ2VyIGNsYXNzPVwiaC04IG1pbi13LVsxMXJlbV0gYmctYmFja2dyb3VuZCB0ZXh0LXNtXCI+XG4gICAgICAgIDxTZWxlY3RWYWx1ZSA6cGxhY2Vob2xkZXI9XCJhY3RpdmVXb3JrdHJlZUxhYmVsIHx8ICdTZWxlY3Qgd29ya3RyZWUnXCI+XG4gICAgICAgICAge3sgYWN0aXZlV29ya3RyZWVMYWJlbCB9fVxuICAgICAgICA8L1NlbGVjdFZhbHVlPlxuICAgICAgPC9TZWxlY3RUcmlnZ2VyPlxuICAgICAgPFNlbGVjdENvbnRlbnQ+XG4gICAgICAgIDxTZWxlY3RJdGVtIHYtZm9yPVwid29ya3RyZWUgaW4gd29ya3RyZWVzXCIgOmtleT1cIndvcmt0cmVlLmlkXCIgOnZhbHVlPVwid29ya3RyZWUuaWRcIj5cbiAgICAgICAgICB7eyB3b3JrdHJlZS5icmFuY2ggfX1cbiAgICAgICAgPC9TZWxlY3RJdGVtPlxuICAgICAgPC9TZWxlY3RDb250ZW50PlxuICAgIDwvU2VsZWN0PlxuICA8L2xhYmVsPlxuPC90ZW1wbGF0ZT5cbiJdLCJmaWxlIjoiL3NyYy9jb21wb25lbnRzL1dvcmt0cmVlU3dpdGNoZXIudnVlIn0=

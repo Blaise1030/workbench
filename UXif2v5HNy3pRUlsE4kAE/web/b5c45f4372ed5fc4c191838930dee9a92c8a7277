@@ -1,0 +1,40 @@
+Object.defineProperty(__vite_ssr_exports__, "default", { enumerable: true, configurable: true, get(){ try { return __vite_ssr_export_default__ } catch {} }});
+const __vite_ssr_import_0__ = await __vite_ssr_import__("/@fs/Users/blaisetiong/Developer/instrument/.worktrees/hooks-reliability/node_modules/.pnpm/vue@3.5.32_typescript@5.9.3/node_modules/vue/index.mjs", {"importedNames":["defineComponent"]});
+const __vite_ssr_import_1__ = await __vite_ssr_import__("/@fs/Users/blaisetiong/Developer/instrument/.worktrees/hooks-reliability/node_modules/.pnpm/reka-ui@2.9.5_vue@3.5.32/node_modules/reka-ui/dist/index.js", {"importedNames":["SelectGroup"]});const __vite_ssr_import_2__ = await __vite_ssr_import__("/@fs/Users/blaisetiong/Developer/instrument/.worktrees/hooks-reliability/node_modules/.pnpm/vue@3.5.32_typescript@5.9.3/node_modules/vue/index.mjs", {"importedNames":["renderSlot","mergeProps","withCtx","openBlock","createBlock"]});const __vite_ssr_import_3__ = await __vite_ssr_import__("/@id/__x00__plugin-vue:export-helper", {"importedNames":["default"]});
+const _sfc_main = /* @__PURE__ */ (0,__vite_ssr_import_0__.defineComponent)({
+  __name: "SelectGroup",
+  props: {
+    asChild: { type: Boolean, required: false },
+    as: { type: null, required: false }
+  },
+  setup(__props, { expose: __expose }) {
+    __expose();
+    const props = __props;
+    const __returned__ = { props, get SelectGroup() {
+      return __vite_ssr_import_1__.SelectGroup;
+    } };
+    Object.defineProperty(__returned__, "__isScriptSetup", { enumerable: false, value: true });
+    return __returned__;
+  }
+});
+
+function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
+  return (0,__vite_ssr_import_2__.openBlock)(), (0,__vite_ssr_import_2__.createBlock)(
+    $setup["SelectGroup"],
+    (0,__vite_ssr_import_2__.mergeProps)({ "data-slot": "select-group" }, $setup.props),
+    {
+      default: (0,__vite_ssr_import_2__.withCtx)(() => [
+        (0,__vite_ssr_import_2__.renderSlot)(_ctx.$slots, "default")
+      ]),
+      _: 3
+      /* FORWARDED */
+    },
+    16
+    /* FULL_PROPS */
+  );
+}
+
+const __vite_ssr_export_default__ = /* @__PURE__ */ (0,__vite_ssr_import_3__.default)(_sfc_main, [["render", _sfc_render], ["__file", "/Users/blaisetiong/Developer/instrument/.worktrees/hooks-reliability/apps/desktop/src/components/ui/select/SelectGroup.vue"]]);
+
+//# sourceMappingSource=vite-node
+//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJ2ZXJzaW9uIjozLCJtYXBwaW5ncyI6Ijs7QUFFQTs7Ozs7Ozs7O0FBRUEsVUFBTSxRQUFROzs7Ozs7Ozs7O21EQUlaO0FBQUEsSUFLYztBQUFBLE9BTGQsa0NBS2MsRUFKWixhQUFVLGVBQWMsR0FDaEIsWUFBSztBQUFBO0FBQUEsaURBRWIsTUFBUTtBQUFBLFdBQVIsa0NBQVE7QUFBQSIsIm5hbWVzIjpbXSwiaWdub3JlTGlzdCI6W10sInNvdXJjZXMiOlsiU2VsZWN0R3JvdXAudnVlIl0sInNvdXJjZXNDb250ZW50IjpbIjxzY3JpcHQgc2V0dXAgbGFuZz1cInRzXCI+XG5pbXBvcnQgdHlwZSB7IFNlbGVjdEdyb3VwUHJvcHMgfSBmcm9tIFwicmVrYS11aVwiXG5pbXBvcnQgeyBTZWxlY3RHcm91cCB9IGZyb20gXCJyZWthLXVpXCJcblxuY29uc3QgcHJvcHMgPSBkZWZpbmVQcm9wczxTZWxlY3RHcm91cFByb3BzPigpXG48L3NjcmlwdD5cblxuPHRlbXBsYXRlPlxuICA8U2VsZWN0R3JvdXBcbiAgICBkYXRhLXNsb3Q9XCJzZWxlY3QtZ3JvdXBcIlxuICAgIHYtYmluZD1cInByb3BzXCJcbiAgPlxuICAgIDxzbG90IC8+XG4gIDwvU2VsZWN0R3JvdXA+XG48L3RlbXBsYXRlPlxuIl0sImZpbGUiOiIvc3JjL2NvbXBvbmVudHMvdWkvc2VsZWN0L1NlbGVjdEdyb3VwLnZ1ZSJ9

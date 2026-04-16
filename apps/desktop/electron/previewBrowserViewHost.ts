@@ -1,12 +1,14 @@
 import { BrowserView, BrowserWindow, type Event, type IpcMainInvokeEvent } from "electron";
 import { IPC_CHANNELS } from "./ipcChannels.js";
-import type { PreviewBounds, PreviewDevToolsToggleResult } from "../src/shared/ipc.js";
+import type { PreviewBounds, PreviewDevToolsToggleResult, PreviewNavigationState } from "../src/shared/ipc.js";
 
 let previewPageView: BrowserView | null = null;
 let lastBounds: PreviewBounds | null = null;
 let lastWin: BrowserWindow | null = null;
 /** Tracks whether we toggled DevTools on (also cleared when DevTools closes). */
 let embeddedDevToolsOpen = false;
+/** URL currently loaded in the BrowserView (persists across detach/re-attach). */
+let lastLoadedUrl: string | null = null;
 
 function notifyEmbeddedDevtoolsState(win: BrowserWindow | null, open: boolean): void {
   win?.webContents.send(IPC_CHANNELS.previewEmbeddedDevtoolsState, { open });
@@ -139,6 +141,11 @@ export async function previewNativeLoadUrl(
   }
   const win = windowFromEvent(event);
   if (!win) return { ok: false, errorCode: -1, errorDescription: "No BrowserWindow" };
+  // If the URL is already loaded in the BrowserView, just re-attach without reloading.
+  if (url === lastLoadedUrl && previewPageView) {
+    attachPageViewToWindow(win);
+    return { ok: true };
+  }
   const view = attachPageViewToWindow(win);
   const wc = view.webContents;
   return await new Promise((resolve) => {
@@ -148,6 +155,7 @@ export async function previewNativeLoadUrl(
     };
     const onFinish = (): void => {
       cleanup();
+      lastLoadedUrl = url;
       resolve({ ok: true });
     };
     const onFail = (
@@ -208,6 +216,26 @@ export async function previewNativeReload(
     wc.once("did-fail-load", onFail);
     wc.reload();
   });
+}
+
+export function previewNativeGoBack(event: IpcMainInvokeEvent): void {
+  const win = windowFromEvent(event);
+  if (!previewPageView) return;
+  const wc = previewPageView.webContents;
+  if (wc.navigationHistory.canGoBack()) {
+    wc.navigationHistory.goBack();
+  }
+  notifyNavigationState(win);
+}
+
+export function previewNativeGoForward(event: IpcMainInvokeEvent): void {
+  const win = windowFromEvent(event);
+  if (!previewPageView) return;
+  const wc = previewPageView.webContents;
+  if (wc.navigationHistory.canGoForward()) {
+    wc.navigationHistory.goForward();
+  }
+  notifyNavigationState(win);
 }
 
 export function previewNativeToggleEmbeddedDevTools(event: IpcMainInvokeEvent): PreviewDevToolsToggleResult {

@@ -13,6 +13,24 @@
     <div
       class="flex shrink-0 flex-wrap items-center gap-x-1.5 gap-y-1 border-b border-border bg-background px-2 py-1"
     >
+      <button
+        data-testid="preview-back-btn"
+        class="shrink-0 rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
+        title="Back"
+        :disabled="!canGoBack"
+        @click="goBack"
+      >
+        <ChevronLeft class="h-3.5 w-3.5" />
+      </button>
+      <button
+        data-testid="preview-forward-btn"
+        class="shrink-0 rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
+        title="Forward"
+        :disabled="!canGoForward"
+        @click="goForward"
+      >
+        <ChevronRight class="h-3.5 w-3.5" />
+      </button>
       <Badge
         v-if="loadBadge"
         data-testid="preview-load-badge"
@@ -103,7 +121,6 @@ const viewportRef = ref<HTMLDivElement | null>(null);
 const activePreviewUrl = ref("");
 /** Embedded Chrome DevTools split is open (main-process). */
 const previewDevtoolsOpen = ref(false);
-/** Whether the preview BrowserView can navigate back/forward. */
 const canGoBack = ref(false);
 const canGoForward = ref(false);
 /** Monotonic counter so late `load` / `probeUrl` from a superseded navigation are ignored. */
@@ -404,10 +421,19 @@ async function toggleEmbeddedDevTools(): Promise<void> {
   }
 }
 
+async function goBack(): Promise<void> {
+  await getApi()?.goBack?.();
+}
+
+async function goForward(): Promise<void> {
+  await getApi()?.goForward?.();
+}
+
 let resizeObserver: ResizeObserver | null = null;
 let viewportMetricsRafId = 0;
 let offEmbeddedDevtoolsState: (() => void) | undefined;
 let offNavigationUrl: (() => void) | undefined;
+let offNavigationStateChanged: (() => void) | undefined;
 
 function schedulePreviewViewportMetrics(): void {
   if (viewportMetricsRafId !== 0) {
@@ -427,6 +453,10 @@ onMounted(() => {
     urlInput.value = url;
     canGoBack.value = back;
     canGoForward.value = forward;
+  offNavigationStateChanged = getApi()?.onNavigationStateChanged?.((state) => {
+    if (state.url) urlInput.value = state.url;
+    canGoBack.value = state.canGoBack;
+    canGoForward.value = state.canGoForward;
   });
   syncPreviewViewportMetrics();
   resizeObserver = new ResizeObserver(() => schedulePreviewViewportMetrics());
@@ -444,6 +474,8 @@ onUnmounted(() => {
   offEmbeddedDevtoolsState = undefined;
   offNavigationUrl?.();
   offNavigationUrl = undefined;
+  offNavigationStateChanged?.();
+  offNavigationStateChanged = undefined;
   if (viewportMetricsRafId !== 0) {
     cancelAnimationFrame(viewportMetricsRafId);
     viewportMetricsRafId = 0;
@@ -454,6 +486,8 @@ onUnmounted(() => {
   setPreviewNativeCollisionEl(null);
   activePreviewUrl.value = "";
   previewDevtoolsOpen.value = false;
+  canGoBack.value = false;
+  canGoForward.value = false;
   void getApi()?.detachNative?.().catch(() => {});
 });
 </script>

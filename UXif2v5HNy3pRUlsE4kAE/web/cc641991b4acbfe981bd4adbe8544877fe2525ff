@@ -1,0 +1,69 @@
+Object.defineProperty(__vite_ssr_exports__, "default", { enumerable: true, configurable: true, get(){ try { return __vite_ssr_export_default__ } catch {} }});
+const __vite_ssr_import_0__ = await __vite_ssr_import__("/@fs/Users/blaisetiong/Developer/instrument/.worktrees/hooks-reliability/node_modules/.pnpm/vue@3.5.32_typescript@5.9.3/node_modules/vue/index.mjs", {"importedNames":["defineComponent"]});
+const __vite_ssr_import_1__ = await __vite_ssr_import__("/@fs/Users/blaisetiong/Developer/instrument/.worktrees/hooks-reliability/node_modules/.pnpm/@vueuse+core@14.2.1_vue@3.5.32/node_modules/@vueuse/core/dist/index.js", {"importedNames":["reactiveOmit"]});
+const __vite_ssr_import_2__ = await __vite_ssr_import__("/@fs/Users/blaisetiong/Developer/instrument/.worktrees/hooks-reliability/node_modules/.pnpm/reka-ui@2.9.5_vue@3.5.32/node_modules/reka-ui/dist/index.js", {"importedNames":["ContextMenuSubContent","useForwardPropsEmits"]});
+
+
+
+const __vite_ssr_import_3__ = await __vite_ssr_import__("/src/lib/utils.ts", {"importedNames":["cn"]});const __vite_ssr_import_4__ = await __vite_ssr_import__("/@fs/Users/blaisetiong/Developer/instrument/.worktrees/hooks-reliability/node_modules/.pnpm/vue@3.5.32_typescript@5.9.3/node_modules/vue/index.mjs", {"importedNames":["renderSlot","mergeProps","withCtx","openBlock","createBlock"]});const __vite_ssr_import_5__ = await __vite_ssr_import__("/@id/__x00__plugin-vue:export-helper", {"importedNames":["default"]});
+const _sfc_main = /* @__PURE__ */ (0,__vite_ssr_import_0__.defineComponent)({
+  __name: "ContextMenuSubContent",
+  props: {
+    forceMount: { type: Boolean, required: false },
+    loop: { type: Boolean, required: false },
+    sideOffset: { type: Number, required: false },
+    sideFlip: { type: Boolean, required: false },
+    alignOffset: { type: Number, required: false },
+    alignFlip: { type: Boolean, required: false },
+    avoidCollisions: { type: Boolean, required: false },
+    collisionBoundary: { type: null, required: false },
+    collisionPadding: { type: [Number, Object], required: false },
+    arrowPadding: { type: Number, required: false },
+    hideShiftedArrow: { type: Boolean, required: false },
+    sticky: { type: String, required: false },
+    hideWhenDetached: { type: Boolean, required: false },
+    positionStrategy: { type: String, required: false },
+    updatePositionStrategy: { type: String, required: false },
+    disableUpdateOnLayoutShift: { type: Boolean, required: false },
+    prioritizePosition: { type: Boolean, required: false },
+    reference: { type: null, required: false },
+    asChild: { type: Boolean, required: false },
+    as: { type: null, required: false },
+    class: { type: [Boolean, null, String, Object, Array], required: false, skipCheck: true }
+  },
+  emits: ["escapeKeyDown", "pointerDownOutside", "focusOutside", "interactOutside", "entryFocus", "openAutoFocus", "closeAutoFocus"],
+  setup(__props, { expose: __expose, emit: __emit }) {
+    __expose();
+    const props = __props;
+    const emits = __emit;
+    const delegatedProps = (0,__vite_ssr_import_1__.reactiveOmit)(props, "class");
+    const forwarded = (0,__vite_ssr_import_2__.useForwardPropsEmits)(delegatedProps, emits);
+    const __returned__ = { props, emits, delegatedProps, forwarded, get ContextMenuSubContent() {
+      return __vite_ssr_import_2__.ContextMenuSubContent;
+    }, get cn() {
+      return __vite_ssr_import_3__.cn;
+    } };
+    Object.defineProperty(__returned__, "__isScriptSetup", { enumerable: false, value: true });
+    return __returned__;
+  }
+});
+
+function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
+  return (0,__vite_ssr_import_4__.openBlock)(), (0,__vite_ssr_import_4__.createBlock)($setup["ContextMenuSubContent"], (0,__vite_ssr_import_4__.mergeProps)({ "data-slot": "context-menu-sub-content" }, $setup.forwarded, {
+    class: $setup.cn(
+      "bg-popover text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 z-50 min-w-[8rem] origin-(--reka-context-menu-content-transform-origin) overflow-hidden rounded-md border p-1 shadow-lg",
+      $setup.props.class
+    )
+  }), {
+    default: (0,__vite_ssr_import_4__.withCtx)(() => [
+      (0,__vite_ssr_import_4__.renderSlot)(_ctx.$slots, "default")
+    ]),
+    _: 3
+    /* FORWARDED */
+  }, 16, ["class"]);
+}
+
+const __vite_ssr_export_default__ = /* @__PURE__ */ (0,__vite_ssr_import_5__.default)(_sfc_main, [["render", _sfc_render], ["__file", "/Users/blaisetiong/Developer/instrument/.worktrees/hooks-reliability/apps/desktop/src/components/ui/context-menu/ContextMenuSubContent.vue"]]);
+
+//# sourceMappingSource=vite-node
+//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJ2ZXJzaW9uIjozLCJtYXBwaW5ncyI6Ijs7QUFHQTtBQUNBOzs7O0FBSUE7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7O0FBRUEsVUFBTSxRQUFRO0FBQ2QsVUFBTSxRQUFRO0FBRWQsVUFBTSxvQkFBaUIsb0NBQWEsT0FBTyxPQUFPO0FBRWxELFVBQU0sZUFBWSw0Q0FBcUIsZ0JBQWdCLEtBQUs7Ozs7Ozs7Ozs7OzttREFJMUQsbUNBV3dCLG9DQVh4QixrQ0FXd0IsRUFWdEIsYUFBVSwyQkFBMEIsR0FDNUIsa0JBQVM7QUFBQSxJQUNoQixPQUFjO0FBQUE7TUFBbWdCLGFBQU07QUFBQTs7K0NBT3hoQixNQUFRO0FBQUEsU0FBUixrQ0FBUTtBQUFBIiwibmFtZXMiOltdLCJpZ25vcmVMaXN0IjpbXSwic291cmNlcyI6WyJDb250ZXh0TWVudVN1YkNvbnRlbnQudnVlIl0sInNvdXJjZXNDb250ZW50IjpbIjxzY3JpcHQgc2V0dXAgbGFuZz1cInRzXCI+XG5pbXBvcnQgdHlwZSB7IERyb3Bkb3duTWVudVN1YkNvbnRlbnRFbWl0cywgRHJvcGRvd25NZW51U3ViQ29udGVudFByb3BzIH0gZnJvbSBcInJla2EtdWlcIlxuaW1wb3J0IHR5cGUgeyBIVE1MQXR0cmlidXRlcyB9IGZyb20gXCJ2dWVcIlxuaW1wb3J0IHsgcmVhY3RpdmVPbWl0IH0gZnJvbSBcIkB2dWV1c2UvY29yZVwiXG5pbXBvcnQge1xuICBDb250ZXh0TWVudVN1YkNvbnRlbnQsXG4gIHVzZUZvcndhcmRQcm9wc0VtaXRzLFxufSBmcm9tIFwicmVrYS11aVwiXG5pbXBvcnQgeyBjbiB9IGZyb20gXCJAL2xpYi91dGlsc1wiXG5cbmNvbnN0IHByb3BzID0gZGVmaW5lUHJvcHM8RHJvcGRvd25NZW51U3ViQ29udGVudFByb3BzICYgeyBjbGFzcz86IEhUTUxBdHRyaWJ1dGVzW1wiY2xhc3NcIl0gfT4oKVxuY29uc3QgZW1pdHMgPSBkZWZpbmVFbWl0czxEcm9wZG93bk1lbnVTdWJDb250ZW50RW1pdHM+KClcblxuY29uc3QgZGVsZWdhdGVkUHJvcHMgPSByZWFjdGl2ZU9taXQocHJvcHMsIFwiY2xhc3NcIilcblxuY29uc3QgZm9yd2FyZGVkID0gdXNlRm9yd2FyZFByb3BzRW1pdHMoZGVsZWdhdGVkUHJvcHMsIGVtaXRzKVxuPC9zY3JpcHQ+XG5cbjx0ZW1wbGF0ZT5cbiAgPENvbnRleHRNZW51U3ViQ29udGVudFxuICAgIGRhdGEtc2xvdD1cImNvbnRleHQtbWVudS1zdWItY29udGVudFwiXG4gICAgdi1iaW5kPVwiZm9yd2FyZGVkXCJcbiAgICA6Y2xhc3M9XCJcbiAgICAgIGNuKFxuICAgICAgICAnYmctcG9wb3ZlciB0ZXh0LXBvcG92ZXItZm9yZWdyb3VuZCBkYXRhLVtzdGF0ZT1vcGVuXTphbmltYXRlLWluIGRhdGEtW3N0YXRlPWNsb3NlZF06YW5pbWF0ZS1vdXQgZGF0YS1bc3RhdGU9Y2xvc2VkXTpmYWRlLW91dC0wIGRhdGEtW3N0YXRlPW9wZW5dOmZhZGUtaW4tMCBkYXRhLVtzdGF0ZT1jbG9zZWRdOnpvb20tb3V0LTk1IGRhdGEtW3N0YXRlPW9wZW5dOnpvb20taW4tOTUgZGF0YS1bc2lkZT1ib3R0b21dOnNsaWRlLWluLWZyb20tdG9wLTIgZGF0YS1bc2lkZT1sZWZ0XTpzbGlkZS1pbi1mcm9tLXJpZ2h0LTIgZGF0YS1bc2lkZT1yaWdodF06c2xpZGUtaW4tZnJvbS1sZWZ0LTIgZGF0YS1bc2lkZT10b3BdOnNsaWRlLWluLWZyb20tYm90dG9tLTIgei01MCBtaW4tdy1bOHJlbV0gb3JpZ2luLSgtLXJla2EtY29udGV4dC1tZW51LWNvbnRlbnQtdHJhbnNmb3JtLW9yaWdpbikgb3ZlcmZsb3ctaGlkZGVuIHJvdW5kZWQtbWQgYm9yZGVyIHAtMSBzaGFkb3ctbGcnLFxuICAgICAgICBwcm9wcy5jbGFzcyxcbiAgICAgIClcbiAgICBcIlxuICA+XG4gICAgPHNsb3QgLz5cbiAgPC9Db250ZXh0TWVudVN1YkNvbnRlbnQ+XG48L3RlbXBsYXRlPlxuIl0sImZpbGUiOiIvc3JjL2NvbXBvbmVudHMvdWkvY29udGV4dC1tZW51L0NvbnRleHRNZW51U3ViQ29udGVudC52dWUifQ==

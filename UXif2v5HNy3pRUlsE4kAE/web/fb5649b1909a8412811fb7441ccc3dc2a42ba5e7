@@ -1,0 +1,57 @@
+Object.defineProperty(__vite_ssr_exports__, "default", { enumerable: true, configurable: true, get(){ try { return __vite_ssr_export_default__ } catch {} }});
+const __vite_ssr_import_0__ = await __vite_ssr_import__("/@fs/Users/blaisetiong/Developer/instrument/.worktrees/hooks-reliability/node_modules/.pnpm/vue@3.5.32_typescript@5.9.3/node_modules/vue/index.mjs", {"importedNames":["defineComponent"]});
+const __vite_ssr_import_1__ = await __vite_ssr_import__("/@fs/Users/blaisetiong/Developer/instrument/.worktrees/hooks-reliability/node_modules/.pnpm/@vueuse+core@14.2.1_vue@3.5.32/node_modules/@vueuse/core/dist/index.js", {"importedNames":["reactiveOmit"]});
+const __vite_ssr_import_2__ = await __vite_ssr_import__("/@fs/Users/blaisetiong/Developer/instrument/.worktrees/hooks-reliability/node_modules/.pnpm/lucide-vue-next@1.0.0_vue@3.5.32/node_modules/lucide-vue-next/dist/cjs/lucide-vue-next.js", {"importedNames":["ChevronRight"]});
+const __vite_ssr_import_3__ = await __vite_ssr_import__("/@fs/Users/blaisetiong/Developer/instrument/.worktrees/hooks-reliability/node_modules/.pnpm/reka-ui@2.9.5_vue@3.5.32/node_modules/reka-ui/dist/index.js", {"importedNames":["DropdownMenuSubTrigger","useForwardProps"]});
+
+
+
+const __vite_ssr_import_4__ = await __vite_ssr_import__("/src/lib/utils.ts", {"importedNames":["cn"]});const __vite_ssr_import_5__ = await __vite_ssr_import__("/@fs/Users/blaisetiong/Developer/instrument/.worktrees/hooks-reliability/node_modules/.pnpm/vue@3.5.32_typescript@5.9.3/node_modules/vue/index.mjs", {"importedNames":["renderSlot","createVNode","mergeProps","withCtx","openBlock","createBlock"]});const __vite_ssr_import_6__ = await __vite_ssr_import__("/@id/__x00__plugin-vue:export-helper", {"importedNames":["default"]});
+const _sfc_main = /* @__PURE__ */ (0,__vite_ssr_import_0__.defineComponent)({
+  __name: "DropdownMenuSubTrigger",
+  props: {
+    disabled: { type: Boolean, required: false },
+    textValue: { type: String, required: false },
+    asChild: { type: Boolean, required: false },
+    as: { type: null, required: false },
+    class: { type: [Boolean, null, String, Object, Array], required: false, skipCheck: true },
+    inset: { type: Boolean, required: false }
+  },
+  setup(__props, { expose: __expose }) {
+    __expose();
+    const props = __props;
+    const delegatedProps = (0,__vite_ssr_import_1__.reactiveOmit)(props, "class", "inset");
+    const forwardedProps = (0,__vite_ssr_import_3__.useForwardProps)(delegatedProps);
+    const __returned__ = { props, delegatedProps, forwardedProps, get ChevronRight() {
+      return __vite_ssr_import_2__.ChevronRight;
+    }, get DropdownMenuSubTrigger() {
+      return __vite_ssr_import_3__.DropdownMenuSubTrigger;
+    }, get cn() {
+      return __vite_ssr_import_4__.cn;
+    } };
+    Object.defineProperty(__returned__, "__isScriptSetup", { enumerable: false, value: true });
+    return __returned__;
+  }
+});
+
+function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
+  return (0,__vite_ssr_import_5__.openBlock)(), (0,__vite_ssr_import_5__.createBlock)($setup["DropdownMenuSubTrigger"], (0,__vite_ssr_import_5__.mergeProps)({ "data-slot": "dropdown-menu-sub-trigger" }, $setup.forwardedProps, {
+    "data-inset": $props.inset ? "" : void 0,
+    class: $setup.cn(
+      "focus:bg-accent focus:text-accent-foreground data-[state=open]:bg-accent data-[state=open]:text-accent-foreground relative flex cursor-default items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-hidden select-none data-[inset]:pl-8 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 data-[variant=destructive]:*:[svg]:!text-destructive [&_svg:not([class*='text-'])]:text-muted-foreground",
+      $setup.props.class
+    )
+  }), {
+    default: (0,__vite_ssr_import_5__.withCtx)(() => [
+      (0,__vite_ssr_import_5__.renderSlot)(_ctx.$slots, "default"),
+      (0,__vite_ssr_import_5__.createVNode)($setup["ChevronRight"], { class: "ml-auto size-4" })
+    ]),
+    _: 3
+    /* FORWARDED */
+  }, 16, ["data-inset", "class"]);
+}
+
+const __vite_ssr_export_default__ = /* @__PURE__ */ (0,__vite_ssr_import_6__.default)(_sfc_main, [["render", _sfc_render], ["__file", "/Users/blaisetiong/Developer/instrument/.worktrees/hooks-reliability/apps/desktop/src/components/ui/dropdown-menu/DropdownMenuSubTrigger.vue"]]);
+
+//# sourceMappingSource=vite-node
+//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJ2ZXJzaW9uIjozLCJtYXBwaW5ncyI6Ijs7QUFHQTtBQUNBO0FBQ0E7Ozs7QUFJQTs7Ozs7Ozs7Ozs7OztBQUVBLFVBQU0sUUFBUTtBQUVkLFVBQU0sb0JBQWlCLG9DQUFhLE9BQU8sU0FBUyxPQUFPO0FBQzNELFVBQU0sb0JBQWlCLHVDQUFnQixjQUFjOzs7Ozs7Ozs7Ozs7OzttREFJbkQsbUNBV3lCLHFDQVh6QixrQ0FXeUIsRUFWdkIsYUFBVSw0QkFBMkIsR0FDN0IsdUJBQWM7QUFBQSxJQUNyQixjQUFZLGVBQUssS0FBUTtBQUFBLElBQ3pCLE9BQU87QUFBQTtNQUFnYyxhQUFNO0FBQUE7OytDQUs5YyxNQUFRO0FBQUEsU0FBUixrQ0FBUTtBQUFBLFNBQ1IsbUNBQXVDLDBCQUF6QixPQUFNLGlCQUFnQjtBQUFBIiwibmFtZXMiOltdLCJpZ25vcmVMaXN0IjpbXSwic291cmNlcyI6WyJEcm9wZG93bk1lbnVTdWJUcmlnZ2VyLnZ1ZSJdLCJzb3VyY2VzQ29udGVudCI6WyI8c2NyaXB0IHNldHVwIGxhbmc9XCJ0c1wiPlxuaW1wb3J0IHR5cGUgeyBEcm9wZG93bk1lbnVTdWJUcmlnZ2VyUHJvcHMgfSBmcm9tIFwicmVrYS11aVwiXG5pbXBvcnQgdHlwZSB7IEhUTUxBdHRyaWJ1dGVzIH0gZnJvbSBcInZ1ZVwiXG5pbXBvcnQgeyByZWFjdGl2ZU9taXQgfSBmcm9tIFwiQHZ1ZXVzZS9jb3JlXCJcbmltcG9ydCB7IENoZXZyb25SaWdodCB9IGZyb20gXCJsdWNpZGUtdnVlLW5leHRcIlxuaW1wb3J0IHtcbiAgRHJvcGRvd25NZW51U3ViVHJpZ2dlcixcbiAgdXNlRm9yd2FyZFByb3BzLFxufSBmcm9tIFwicmVrYS11aVwiXG5pbXBvcnQgeyBjbiB9IGZyb20gXCJAL2xpYi91dGlsc1wiXG5cbmNvbnN0IHByb3BzID0gZGVmaW5lUHJvcHM8RHJvcGRvd25NZW51U3ViVHJpZ2dlclByb3BzICYgeyBjbGFzcz86IEhUTUxBdHRyaWJ1dGVzW1wiY2xhc3NcIl0sIGluc2V0PzogYm9vbGVhbiB9PigpXG5cbmNvbnN0IGRlbGVnYXRlZFByb3BzID0gcmVhY3RpdmVPbWl0KHByb3BzLCBcImNsYXNzXCIsIFwiaW5zZXRcIilcbmNvbnN0IGZvcndhcmRlZFByb3BzID0gdXNlRm9yd2FyZFByb3BzKGRlbGVnYXRlZFByb3BzKVxuPC9zY3JpcHQ+XG5cbjx0ZW1wbGF0ZT5cbiAgPERyb3Bkb3duTWVudVN1YlRyaWdnZXJcbiAgICBkYXRhLXNsb3Q9XCJkcm9wZG93bi1tZW51LXN1Yi10cmlnZ2VyXCJcbiAgICB2LWJpbmQ9XCJmb3J3YXJkZWRQcm9wc1wiXG4gICAgOmRhdGEtaW5zZXQ9XCJpbnNldCA/ICcnIDogdW5kZWZpbmVkXCJcbiAgICA6Y2xhc3M9XCJjbihcbiAgICAgICdmb2N1czpiZy1hY2NlbnQgZm9jdXM6dGV4dC1hY2NlbnQtZm9yZWdyb3VuZCBkYXRhLVtzdGF0ZT1vcGVuXTpiZy1hY2NlbnQgZGF0YS1bc3RhdGU9b3Blbl06dGV4dC1hY2NlbnQtZm9yZWdyb3VuZCByZWxhdGl2ZSBmbGV4IGN1cnNvci1kZWZhdWx0IGl0ZW1zLWNlbnRlciBnYXAtMiByb3VuZGVkLXNtIHB4LTIgcHktMS41IHRleHQtc20gb3V0bGluZS1oaWRkZW4gc2VsZWN0LW5vbmUgZGF0YS1baW5zZXRdOnBsLTggWyZfc3ZnXTpwb2ludGVyLWV2ZW50cy1ub25lIFsmX3N2Z106c2hyaW5rLTAgWyZfc3ZnOm5vdChbY2xhc3MqPVxcJ3NpemUtXFwnXSldOnNpemUtNCBkYXRhLVt2YXJpYW50PWRlc3RydWN0aXZlXToqOltzdmddOiF0ZXh0LWRlc3RydWN0aXZlIFsmX3N2Zzpub3QoW2NsYXNzKj1cXCd0ZXh0LVxcJ10pXTp0ZXh0LW11dGVkLWZvcmVncm91bmQnLFxuICAgICAgcHJvcHMuY2xhc3MsXG4gICAgKVwiXG4gID5cbiAgICA8c2xvdCAvPlxuICAgIDxDaGV2cm9uUmlnaHQgY2xhc3M9XCJtbC1hdXRvIHNpemUtNFwiIC8+XG4gIDwvRHJvcGRvd25NZW51U3ViVHJpZ2dlcj5cbjwvdGVtcGxhdGU+XG4iXSwiZmlsZSI6Ii9zcmMvY29tcG9uZW50cy91aS9kcm9wZG93bi1tZW51L0Ryb3Bkb3duTWVudVN1YlRyaWdnZXIudnVlIn0=

@@ -34,7 +34,6 @@ import {
 } from "@/keybindings/registry";
 import { useKeybindingsStore } from "@/stores/keybindingsStore";
 
-/** `v-model` visibility; avoid prop name `open` (Vue 3.5 boolean-attribute merge quirks). */
 const modelValue = defineModel<boolean>({ default: false });
 
 const props = defineProps<{

@@ -1,0 +1,72 @@
+Object.defineProperty(__vite_ssr_exports__, "default", { enumerable: true, configurable: true, get(){ try { return __vite_ssr_export_default__ } catch {} }});
+const __vite_ssr_import_0__ = await __vite_ssr_import__("/@fs/Users/blaisetiong/Developer/instrument/.worktrees/hooks-reliability/node_modules/.pnpm/vue@3.5.32_typescript@5.9.3/node_modules/vue/index.mjs", {"importedNames":["defineComponent"]});
+const __vite_ssr_import_1__ = await __vite_ssr_import__("/@fs/Users/blaisetiong/Developer/instrument/.worktrees/hooks-reliability/node_modules/.pnpm/@vueuse+core@14.2.1_vue@3.5.32/node_modules/@vueuse/core/dist/index.js", {"importedNames":["reactiveOmit"]});
+const __vite_ssr_import_2__ = await __vite_ssr_import__("/@fs/Users/blaisetiong/Developer/instrument/.worktrees/hooks-reliability/node_modules/.pnpm/lucide-vue-next@1.0.0_vue@3.5.32/node_modules/lucide-vue-next/dist/cjs/lucide-vue-next.js", {"importedNames":["Circle"]});
+const __vite_ssr_import_3__ = await __vite_ssr_import__("/@fs/Users/blaisetiong/Developer/instrument/.worktrees/hooks-reliability/node_modules/.pnpm/reka-ui@2.9.5_vue@3.5.32/node_modules/reka-ui/dist/index.js", {"importedNames":["DropdownMenuItemIndicator","DropdownMenuRadioItem","useForwardPropsEmits"]});
+
+
+
+
+const __vite_ssr_import_4__ = await __vite_ssr_import__("/src/lib/utils.ts", {"importedNames":["cn"]});const __vite_ssr_import_5__ = await __vite_ssr_import__("/@fs/Users/blaisetiong/Developer/instrument/.worktrees/hooks-reliability/node_modules/.pnpm/vue@3.5.32_typescript@5.9.3/node_modules/vue/index.mjs", {"importedNames":["renderSlot","createVNode","withCtx","createElementVNode","mergeProps","openBlock","createBlock"]});const __vite_ssr_import_6__ = await __vite_ssr_import__("/@id/__x00__plugin-vue:export-helper", {"importedNames":["default"]});
+const _sfc_main = /* @__PURE__ */ (0,__vite_ssr_import_0__.defineComponent)({
+  __name: "DropdownMenuRadioItem",
+  props: {
+    value: { type: null, required: true },
+    disabled: { type: Boolean, required: false },
+    textValue: { type: String, required: false },
+    asChild: { type: Boolean, required: false },
+    as: { type: null, required: false },
+    class: { type: [Boolean, null, String, Object, Array], required: false, skipCheck: true }
+  },
+  emits: ["select"],
+  setup(__props, { expose: __expose, emit: __emit }) {
+    __expose();
+    const props = __props;
+    const emits = __emit;
+    const delegatedProps = (0,__vite_ssr_import_1__.reactiveOmit)(props, "class");
+    const forwarded = (0,__vite_ssr_import_3__.useForwardPropsEmits)(delegatedProps, emits);
+    const __returned__ = { props, emits, delegatedProps, forwarded, get Circle() {
+      return __vite_ssr_import_2__.Circle;
+    }, get DropdownMenuItemIndicator() {
+      return __vite_ssr_import_3__.DropdownMenuItemIndicator;
+    }, get DropdownMenuRadioItem() {
+      return __vite_ssr_import_3__.DropdownMenuRadioItem;
+    }, get cn() {
+      return __vite_ssr_import_4__.cn;
+    } };
+    Object.defineProperty(__returned__, "__isScriptSetup", { enumerable: false, value: true });
+    return __returned__;
+  }
+});
+
+const _hoisted_1 = { class: "pointer-events-none absolute left-2 flex size-3.5 items-center justify-center" };
+function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
+  return (0,__vite_ssr_import_5__.openBlock)(), (0,__vite_ssr_import_5__.createBlock)($setup["DropdownMenuRadioItem"], (0,__vite_ssr_import_5__.mergeProps)({ "data-slot": "dropdown-menu-radio-item" }, $setup.forwarded, {
+    class: $setup.cn(
+      "focus:bg-accent focus:text-accent-foreground relative flex cursor-default items-center gap-2 rounded-sm py-1.5 pr-2 pl-8 text-sm outline-hidden select-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+      $setup.props.class
+    )
+  }), {
+    default: (0,__vite_ssr_import_5__.withCtx)(() => [
+      (0,__vite_ssr_import_5__.createElementVNode)("span", _hoisted_1, [
+        (0,__vite_ssr_import_5__.createVNode)($setup["DropdownMenuItemIndicator"], null, {
+          default: (0,__vite_ssr_import_5__.withCtx)(() => [
+            (0,__vite_ssr_import_5__.renderSlot)(_ctx.$slots, "indicator-icon", {}, () => [
+              (0,__vite_ssr_import_5__.createVNode)($setup["Circle"], { class: "size-2 fill-current" })
+            ])
+          ]),
+          _: 3
+          /* FORWARDED */
+        })
+      ]),
+      (0,__vite_ssr_import_5__.renderSlot)(_ctx.$slots, "default")
+    ]),
+    _: 3
+    /* FORWARDED */
+  }, 16, ["class"]);
+}
+
+const __vite_ssr_export_default__ = /* @__PURE__ */ (0,__vite_ssr_import_6__.default)(_sfc_main, [["render", _sfc_render], ["__file", "/Users/blaisetiong/Developer/instrument/.worktrees/hooks-reliability/apps/desktop/src/components/ui/dropdown-menu/DropdownMenuRadioItem.vue"]]);
+
+//# sourceMappingSource=vite-node
+//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJ2ZXJzaW9uIjozLCJtYXBwaW5ncyI6Ijs7QUFHQTtBQUNBO0FBQ0E7Ozs7O0FBS0E7Ozs7Ozs7Ozs7Ozs7O0FBRUEsVUFBTSxRQUFRO0FBRWQsVUFBTSxRQUFRO0FBRWQsVUFBTSxvQkFBaUIsb0NBQWEsT0FBTyxPQUFPO0FBRWxELFVBQU0sZUFBWSw0Q0FBcUIsZ0JBQWdCLEtBQUs7Ozs7Ozs7Ozs7Ozs7OztxQkFZbEQsT0FBTSxnRkFBK0U7O21EQVI3RixtQ0FnQndCLG9DQWhCeEIsa0NBZ0J3QixFQWZ0QixhQUFVLDJCQUEwQixHQUM1QixrQkFBUztBQUFBLElBQ2hCLE9BQU87QUFBQTtNQUFrVSxhQUFNO0FBQUE7OytDQUtoVixNQU1PO0FBQUEsU0FOUCwwQ0FNTyxRQU5QLFlBTU87QUFBQSxXQUxMLG1DQUk0QjtBQUFBLHFEQUgxQixNQUVPO0FBQUEsZUFGUCxrQ0FFTyxtQ0FGUCxNQUVPO0FBQUEsaUJBREwsbUNBQXNDLG9CQUE5QixPQUFNLHNCQUFxQjtBQUFBOzs7Ozs7U0FJekMsa0NBQVE7QUFBQSIsIm5hbWVzIjpbXSwiaWdub3JlTGlzdCI6W10sInNvdXJjZXMiOlsiRHJvcGRvd25NZW51UmFkaW9JdGVtLnZ1ZSJdLCJzb3VyY2VzQ29udGVudCI6WyI8c2NyaXB0IHNldHVwIGxhbmc9XCJ0c1wiPlxuaW1wb3J0IHR5cGUgeyBEcm9wZG93bk1lbnVSYWRpb0l0ZW1FbWl0cywgRHJvcGRvd25NZW51UmFkaW9JdGVtUHJvcHMgfSBmcm9tIFwicmVrYS11aVwiXG5pbXBvcnQgdHlwZSB7IEhUTUxBdHRyaWJ1dGVzIH0gZnJvbSBcInZ1ZVwiXG5pbXBvcnQgeyByZWFjdGl2ZU9taXQgfSBmcm9tIFwiQHZ1ZXVzZS9jb3JlXCJcbmltcG9ydCB7IENpcmNsZSB9IGZyb20gXCJsdWNpZGUtdnVlLW5leHRcIlxuaW1wb3J0IHtcbiAgRHJvcGRvd25NZW51SXRlbUluZGljYXRvcixcbiAgRHJvcGRvd25NZW51UmFkaW9JdGVtLFxuICB1c2VGb3J3YXJkUHJvcHNFbWl0cyxcbn0gZnJvbSBcInJla2EtdWlcIlxuaW1wb3J0IHsgY24gfSBmcm9tIFwiQC9saWIvdXRpbHNcIlxuXG5jb25zdCBwcm9wcyA9IGRlZmluZVByb3BzPERyb3Bkb3duTWVudVJhZGlvSXRlbVByb3BzICYgeyBjbGFzcz86IEhUTUxBdHRyaWJ1dGVzW1wiY2xhc3NcIl0gfT4oKVxuXG5jb25zdCBlbWl0cyA9IGRlZmluZUVtaXRzPERyb3Bkb3duTWVudVJhZGlvSXRlbUVtaXRzPigpXG5cbmNvbnN0IGRlbGVnYXRlZFByb3BzID0gcmVhY3RpdmVPbWl0KHByb3BzLCBcImNsYXNzXCIpXG5cbmNvbnN0IGZvcndhcmRlZCA9IHVzZUZvcndhcmRQcm9wc0VtaXRzKGRlbGVnYXRlZFByb3BzLCBlbWl0cylcbjwvc2NyaXB0PlxuXG48dGVtcGxhdGU+XG4gIDxEcm9wZG93bk1lbnVSYWRpb0l0ZW1cbiAgICBkYXRhLXNsb3Q9XCJkcm9wZG93bi1tZW51LXJhZGlvLWl0ZW1cIlxuICAgIHYtYmluZD1cImZvcndhcmRlZFwiXG4gICAgOmNsYXNzPVwiY24oXG4gICAgICAnZm9jdXM6YmctYWNjZW50IGZvY3VzOnRleHQtYWNjZW50LWZvcmVncm91bmQgcmVsYXRpdmUgZmxleCBjdXJzb3ItZGVmYXVsdCBpdGVtcy1jZW50ZXIgZ2FwLTIgcm91bmRlZC1zbSBweS0xLjUgcHItMiBwbC04IHRleHQtc20gb3V0bGluZS1oaWRkZW4gc2VsZWN0LW5vbmUgZGF0YS1bZGlzYWJsZWRdOnBvaW50ZXItZXZlbnRzLW5vbmUgZGF0YS1bZGlzYWJsZWRdOm9wYWNpdHktNTAgWyZfc3ZnXTpwb2ludGVyLWV2ZW50cy1ub25lIFsmX3N2Z106c2hyaW5rLTAgWyZfc3ZnOm5vdChbY2xhc3MqPVxcJ3NpemUtXFwnXSldOnNpemUtNCcsXG4gICAgICBwcm9wcy5jbGFzcyxcbiAgICApXCJcbiAgPlxuICAgIDxzcGFuIGNsYXNzPVwicG9pbnRlci1ldmVudHMtbm9uZSBhYnNvbHV0ZSBsZWZ0LTIgZmxleCBzaXplLTMuNSBpdGVtcy1jZW50ZXIganVzdGlmeS1jZW50ZXJcIj5cbiAgICAgIDxEcm9wZG93bk1lbnVJdGVtSW5kaWNhdG9yPlxuICAgICAgICA8c2xvdCBuYW1lPVwiaW5kaWNhdG9yLWljb25cIj5cbiAgICAgICAgICA8Q2lyY2xlIGNsYXNzPVwic2l6ZS0yIGZpbGwtY3VycmVudFwiIC8+XG4gICAgICAgIDwvc2xvdD5cbiAgICAgIDwvRHJvcGRvd25NZW51SXRlbUluZGljYXRvcj5cbiAgICA8L3NwYW4+XG4gICAgPHNsb3QgLz5cbiAgPC9Ecm9wZG93bk1lbnVSYWRpb0l0ZW0+XG48L3RlbXBsYXRlPlxuIl0sImZpbGUiOiIvc3JjL2NvbXBvbmVudHMvdWkvZHJvcGRvd24tbWVudS9Ecm9wZG93bk1lbnVSYWRpb0l0ZW0udnVlIn0=

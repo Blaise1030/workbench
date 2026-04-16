@@ -10,7 +10,7 @@ export const IPC_CHANNELS = {
   workspaceCreateThread: "workspace:createThread",
   workspaceSetActiveThread: "workspace:setActiveThread",
   workspaceDeleteThread: "workspace:deleteThread",
-  workspaceRenameThread: "workspace:renameThread",
+  workspaceUpdateThread: "workspace:updateThread",
   workspaceDidChange: "workspace:didChange",
   /** Repo working tree may have changed (save, patch, etc.); refresh diff / git state in renderer. */
   workingTreeFilesDidChange: "diff:workingTreeFilesDidChange",
@@ -65,13 +65,15 @@ export const IPC_CHANNELS = {
   /** Toggle embedded Chrome DevTools for the preview (device toolbar / responsive). */
   previewNativeToggleDevTools: "preview:nativeToggleDevTools",
   /** Main → renderer: embedded preview DevTools visibility (e.g. user closed DevTools from Chrome UI). */
-  previewEmbeddedDevtoolsState: "preview:embeddedDevtoolsState",
-  /** Navigate the preview `BrowserView` back one step in history. */
-  previewNativeGoBack: "preview:nativeGoBack",
-  /** Navigate the preview `BrowserView` forward one step in history. */
-  previewNativeGoForward: "preview:nativeGoForward",
-  /** Main → renderer: URL changed due to in-page navigation (SPA route change etc.). */
+  previewEmbeddedDevtoolsState: "preview:embeddedDevtoolsState",  
+  /** Navigate the preview `BrowserView` forward one step in history. */  
   previewNavigationUrl: "preview:navigationUrl",
+  /** Navigate the preview BrowserView back one step in history. */
+  previewNativeGoBack: "preview:nativeGoBack",
+  /** Navigate the preview BrowserView forward one step in history. */
+  previewNativeGoForward: "preview:nativeGoForward",
+  /** Main → renderer: current URL + back/forward availability after any navigation. */
+  previewNavigationStateChanged: "preview:navigationStateChanged",
   terminalPtyCreate: "terminal:ptyCreate",
   terminalPtyWrite: "terminal:ptyWrite",
   terminalPtyResize: "terminal:ptyResize",

@@ -1,0 +1,39 @@
+Object.defineProperty(__vite_ssr_exports__, "default", { enumerable: true, configurable: true, get(){ try { return __vite_ssr_export_default__ } catch {} }});
+const __vite_ssr_import_0__ = await __vite_ssr_import__("/@fs/Users/blaisetiong/Developer/instrument/.worktrees/hooks-reliability/node_modules/.pnpm/vue@3.5.32_typescript@5.9.3/node_modules/vue/index.mjs", {"importedNames":["defineComponent"]});
+const __vite_ssr_import_1__ = await __vite_ssr_import__("/src/assets/workbench-logo.png?import", {"importedNames":["default"]});const __vite_ssr_import_2__ = await __vite_ssr_import__("/@fs/Users/blaisetiong/Developer/instrument/.worktrees/hooks-reliability/node_modules/.pnpm/vue@3.5.32_typescript@5.9.3/node_modules/vue/index.mjs", {"importedNames":["normalizeClass","openBlock","createElementBlock"]});const __vite_ssr_import_3__ = await __vite_ssr_import__("/@id/__x00__plugin-vue:export-helper", {"importedNames":["default"]});
+const _sfc_main = /* @__PURE__ */ (0,__vite_ssr_import_0__.defineComponent)({
+  __name: "WorkbenchLogoMark",
+  props: {
+    variant: { type: String, required: false, default: "md" }
+  },
+  setup(__props, { expose: __expose }) {
+    __expose();
+    const __returned__ = { get logoUrl() {
+      return __vite_ssr_import_1__.default;
+    } };
+    Object.defineProperty(__returned__, "__isScriptSetup", { enumerable: false, value: true });
+    return __returned__;
+  }
+});
+
+const _hoisted_1 = ["src"];
+function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
+  return (0,__vite_ssr_import_2__.openBlock)(), (0,__vite_ssr_import_2__.createElementBlock)("img", {
+    src: $setup.logoUrl,
+    alt: "",
+    loading: "eager",
+    decoding: "async",
+    class: (0,__vite_ssr_import_2__.normalizeClass)([
+      "pointer-events-none shrink-0 select-none rounded-lg object-cover",
+      $props.variant === "sm" ? "size-6" : "size-8"
+    ]),
+    draggable: "false",
+    "aria-hidden": "true",
+    "data-testid": "thread-sidebar-logo"
+  }, null, 10, _hoisted_1);
+}
+
+const __vite_ssr_export_default__ = /* @__PURE__ */ (0,__vite_ssr_import_3__.default)(_sfc_main, [["render", _sfc_render], ["__file", "/Users/blaisetiong/Developer/instrument/.worktrees/hooks-reliability/apps/desktop/src/components/WorkbenchLogoMark.vue"]]);
+
+//# sourceMappingSource=vite-node
+//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJ2ZXJzaW9uIjozLCJtYXBwaW5ncyI6Ijs7QUFDQTs7Ozs7Ozs7Ozs7Ozs7Ozs7O21EQVlFLDBDQVlFO0FBQUEsSUFYQyxLQUFLO0FBQUEsSUFDTixLQUFJO0FBQUEsSUFDSixTQUFRO0FBQUEsSUFDUixVQUFTO0FBQUEsSUFDUixVQUFLO0FBQUE7TUFBb0YsbUJBQU87QUFBQTtJQUlqRyxXQUFVO0FBQUEsSUFDVixlQUFZO0FBQUEsSUFDWixlQUFZO0FBQUEiLCJuYW1lcyI6W10sImlnbm9yZUxpc3QiOltdLCJzb3VyY2VzIjpbIldvcmtiZW5jaExvZ29NYXJrLnZ1ZSJdLCJzb3VyY2VzQ29udGVudCI6WyI8c2NyaXB0IHNldHVwIGxhbmc9XCJ0c1wiPlxuaW1wb3J0IGxvZ29VcmwgZnJvbSBcIkAvYXNzZXRzL3dvcmtiZW5jaC1sb2dvLnBuZ1wiO1xuXG53aXRoRGVmYXVsdHMoXG4gIGRlZmluZVByb3BzPHtcbiAgICAvKiogQ29sbGFwc2VkIHJhaWwgdnMgZXhwYW5kZWQgaGVhZGVyICovXG4gICAgdmFyaWFudD86IFwic21cIiB8IFwibWRcIjtcbiAgfT4oKSxcbiAgeyB2YXJpYW50OiBcIm1kXCIgfVxuKTtcbjwvc2NyaXB0PlxuXG48dGVtcGxhdGU+XG4gIDxpbWdcbiAgICA6c3JjPVwibG9nb1VybFwiXG4gICAgYWx0PVwiXCJcbiAgICBsb2FkaW5nPVwiZWFnZXJcIlxuICAgIGRlY29kaW5nPVwiYXN5bmNcIlxuICAgIDpjbGFzcz1cIltcbiAgICAgICdwb2ludGVyLWV2ZW50cy1ub25lIHNocmluay0wIHNlbGVjdC1ub25lIHJvdW5kZWQtbGcgb2JqZWN0LWNvdmVyJyxcbiAgICAgIHZhcmlhbnQgPT09ICdzbScgPyAnc2l6ZS02JyA6ICdzaXplLTgnXG4gICAgXVwiXG4gICAgZHJhZ2dhYmxlPVwiZmFsc2VcIlxuICAgIGFyaWEtaGlkZGVuPVwidHJ1ZVwiXG4gICAgZGF0YS10ZXN0aWQ9XCJ0aHJlYWQtc2lkZWJhci1sb2dvXCJcbiAgLz5cbjwvdGVtcGxhdGU+XG4iXSwiZmlsZSI6Ii9zcmMvY29tcG9uZW50cy9Xb3JrYmVuY2hMb2dvTWFyay52dWUifQ==

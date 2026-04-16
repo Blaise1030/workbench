@@ -1,0 +1,42 @@
+Object.defineProperty(__vite_ssr_exports__, "default", { enumerable: true, configurable: true, get(){ try { return __vite_ssr_export_default__ } catch {} }});
+const __vite_ssr_import_0__ = await __vite_ssr_import__("/@fs/Users/blaisetiong/Developer/instrument/.worktrees/hooks-reliability/node_modules/.pnpm/vue@3.5.32_typescript@5.9.3/node_modules/vue/index.mjs", {"importedNames":["defineComponent"]});
+const __vite_ssr_import_1__ = await __vite_ssr_import__("/@fs/Users/blaisetiong/Developer/instrument/.worktrees/hooks-reliability/node_modules/.pnpm/reka-ui@2.9.5_vue@3.5.32/node_modules/reka-ui/dist/index.js", {"importedNames":["SelectLabel"]});
+const __vite_ssr_import_2__ = await __vite_ssr_import__("/src/lib/utils.ts", {"importedNames":["cn"]});const __vite_ssr_import_3__ = await __vite_ssr_import__("/@fs/Users/blaisetiong/Developer/instrument/.worktrees/hooks-reliability/node_modules/.pnpm/vue@3.5.32_typescript@5.9.3/node_modules/vue/index.mjs", {"importedNames":["renderSlot","normalizeClass","withCtx","openBlock","createBlock"]});const __vite_ssr_import_4__ = await __vite_ssr_import__("/@id/__x00__plugin-vue:export-helper", {"importedNames":["default"]});
+const _sfc_main = /* @__PURE__ */ (0,__vite_ssr_import_0__.defineComponent)({
+  __name: "SelectLabel",
+  props: {
+    for: { type: String, required: false },
+    asChild: { type: Boolean, required: false },
+    as: { type: null, required: false },
+    class: { type: [Boolean, null, String, Object, Array], required: false, skipCheck: true }
+  },
+  setup(__props, { expose: __expose }) {
+    __expose();
+    const props = __props;
+    const __returned__ = { props, get SelectLabel() {
+      return __vite_ssr_import_1__.SelectLabel;
+    }, get cn() {
+      return __vite_ssr_import_2__.cn;
+    } };
+    Object.defineProperty(__returned__, "__isScriptSetup", { enumerable: false, value: true });
+    return __returned__;
+  }
+});
+
+function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
+  return (0,__vite_ssr_import_3__.openBlock)(), (0,__vite_ssr_import_3__.createBlock)($setup["SelectLabel"], {
+    "data-slot": "select-label",
+    class: (0,__vite_ssr_import_3__.normalizeClass)($setup.cn("text-muted-foreground px-2 py-1.5 text-xs", $setup.props.class))
+  }, {
+    default: (0,__vite_ssr_import_3__.withCtx)(() => [
+      (0,__vite_ssr_import_3__.renderSlot)(_ctx.$slots, "default")
+    ]),
+    _: 3
+    /* FORWARDED */
+  }, 8, ["class"]);
+}
+
+const __vite_ssr_export_default__ = /* @__PURE__ */ (0,__vite_ssr_import_4__.default)(_sfc_main, [["render", _sfc_render], ["__file", "/Users/blaisetiong/Developer/instrument/.worktrees/hooks-reliability/apps/desktop/src/components/ui/select/SelectLabel.vue"]]);
+
+//# sourceMappingSource=vite-node
+//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJ2ZXJzaW9uIjozLCJtYXBwaW5ncyI6Ijs7QUFHQTtBQUNBOzs7Ozs7Ozs7OztBQUVBLFVBQU0sUUFBUTs7Ozs7Ozs7Ozs7O21EQUlaLG1DQUtjO0FBQUEsSUFKWixhQUFVO0FBQUEsSUFDVCxVQUFLLHNDQUFFLFVBQUUsNkNBQThDLGFBQU0sS0FBSztBQUFBOytDQUVuRSxNQUFRO0FBQUEsU0FBUixrQ0FBUTtBQUFBIiwibmFtZXMiOltdLCJpZ25vcmVMaXN0IjpbXSwic291cmNlcyI6WyJTZWxlY3RMYWJlbC52dWUiXSwic291cmNlc0NvbnRlbnQiOlsiPHNjcmlwdCBzZXR1cCBsYW5nPVwidHNcIj5cbmltcG9ydCB0eXBlIHsgU2VsZWN0TGFiZWxQcm9wcyB9IGZyb20gXCJyZWthLXVpXCJcbmltcG9ydCB0eXBlIHsgSFRNTEF0dHJpYnV0ZXMgfSBmcm9tIFwidnVlXCJcbmltcG9ydCB7IFNlbGVjdExhYmVsIH0gZnJvbSBcInJla2EtdWlcIlxuaW1wb3J0IHsgY24gfSBmcm9tIFwiQC9saWIvdXRpbHNcIlxuXG5jb25zdCBwcm9wcyA9IGRlZmluZVByb3BzPFNlbGVjdExhYmVsUHJvcHMgJiB7IGNsYXNzPzogSFRNTEF0dHJpYnV0ZXNbXCJjbGFzc1wiXSB9PigpXG48L3NjcmlwdD5cblxuPHRlbXBsYXRlPlxuICA8U2VsZWN0TGFiZWxcbiAgICBkYXRhLXNsb3Q9XCJzZWxlY3QtbGFiZWxcIlxuICAgIDpjbGFzcz1cImNuKCd0ZXh0LW11dGVkLWZvcmVncm91bmQgcHgtMiBweS0xLjUgdGV4dC14cycsIHByb3BzLmNsYXNzKVwiXG4gID5cbiAgICA8c2xvdCAvPlxuICA8L1NlbGVjdExhYmVsPlxuPC90ZW1wbGF0ZT5cbiJdLCJmaWxlIjoiL3NyYy9jb21wb25lbnRzL3VpL3NlbGVjdC9TZWxlY3RMYWJlbC52dWUifQ==

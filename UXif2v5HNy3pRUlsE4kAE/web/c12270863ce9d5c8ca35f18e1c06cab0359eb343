@@ -1,0 +1,43 @@
+Object.defineProperty(__vite_ssr_exports__, "default", { enumerable: true, configurable: true, get(){ try { return __vite_ssr_export_default__ } catch {} }});
+const __vite_ssr_import_0__ = await __vite_ssr_import__("/@fs/Users/blaisetiong/Developer/instrument/.worktrees/hooks-reliability/node_modules/.pnpm/vue@3.5.32_typescript@5.9.3/node_modules/vue/index.mjs", {"importedNames":["defineComponent"]});
+const __vite_ssr_import_1__ = await __vite_ssr_import__("/@fs/Users/blaisetiong/Developer/instrument/.worktrees/hooks-reliability/node_modules/.pnpm/@vueuse+core@14.2.1_vue@3.5.32/node_modules/@vueuse/core/dist/index.js", {"importedNames":["reactiveOmit"]});
+const __vite_ssr_import_2__ = await __vite_ssr_import__("/@fs/Users/blaisetiong/Developer/instrument/.worktrees/hooks-reliability/node_modules/.pnpm/reka-ui@2.9.5_vue@3.5.32/node_modules/reka-ui/dist/index.js", {"importedNames":["DialogDescription","useForwardProps"]});
+const __vite_ssr_import_3__ = await __vite_ssr_import__("/src/lib/utils.ts", {"importedNames":["cn"]});const __vite_ssr_import_4__ = await __vite_ssr_import__("/@fs/Users/blaisetiong/Developer/instrument/.worktrees/hooks-reliability/node_modules/.pnpm/vue@3.5.32_typescript@5.9.3/node_modules/vue/index.mjs", {"importedNames":["renderSlot","mergeProps","withCtx","openBlock","createBlock"]});const __vite_ssr_import_5__ = await __vite_ssr_import__("/@id/__x00__plugin-vue:export-helper", {"importedNames":["default"]});
+const _sfc_main = /* @__PURE__ */ (0,__vite_ssr_import_0__.defineComponent)({
+  __name: "DialogDescription",
+  props: {
+    asChild: { type: Boolean, required: false },
+    as: { type: null, required: false },
+    class: { type: [Boolean, null, String, Object, Array], required: false, skipCheck: true }
+  },
+  setup(__props, { expose: __expose }) {
+    __expose();
+    const props = __props;
+    const delegatedProps = (0,__vite_ssr_import_1__.reactiveOmit)(props, "class");
+    const forwardedProps = (0,__vite_ssr_import_2__.useForwardProps)(delegatedProps);
+    const __returned__ = { props, delegatedProps, forwardedProps, get DialogDescription() {
+      return __vite_ssr_import_2__.DialogDescription;
+    }, get cn() {
+      return __vite_ssr_import_3__.cn;
+    } };
+    Object.defineProperty(__returned__, "__isScriptSetup", { enumerable: false, value: true });
+    return __returned__;
+  }
+});
+
+function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
+  return (0,__vite_ssr_import_4__.openBlock)(), (0,__vite_ssr_import_4__.createBlock)($setup["DialogDescription"], (0,__vite_ssr_import_4__.mergeProps)({ "data-slot": "dialog-description" }, $setup.forwardedProps, {
+    class: $setup.cn("text-sm text-muted-foreground", $setup.props.class)
+  }), {
+    default: (0,__vite_ssr_import_4__.withCtx)(() => [
+      (0,__vite_ssr_import_4__.renderSlot)(_ctx.$slots, "default")
+    ]),
+    _: 3
+    /* FORWARDED */
+  }, 16, ["class"]);
+}
+
+const __vite_ssr_export_default__ = /* @__PURE__ */ (0,__vite_ssr_import_5__.default)(_sfc_main, [["render", _sfc_render], ["__file", "/Users/blaisetiong/Developer/instrument/.worktrees/hooks-reliability/apps/desktop/src/components/ui/dialog/DialogDescription.vue"]]);
+
+//# sourceMappingSource=vite-node
+//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJ2ZXJzaW9uIjozLCJtYXBwaW5ncyI6Ijs7QUFHQTtBQUNBO0FBQ0E7Ozs7Ozs7Ozs7QUFFQSxVQUFNLFFBQVE7QUFDZCxVQUFNLG9CQUFpQixvQ0FBYSxPQUFPLE9BQU87QUFDbEQsVUFBTSxvQkFBaUIsdUNBQWdCLGNBQWM7Ozs7Ozs7Ozs7OzttREFJbkQsbUNBTW9CLGdDQU5wQixrQ0FNb0IsRUFMbEIsYUFBVSxxQkFBb0IsR0FDdEIsdUJBQWM7QUFBQSxJQUNyQixPQUFPLFVBQUUsaUNBQWtDLGFBQU0sS0FBSztBQUFBOytDQUV2RCxNQUFRO0FBQUEsU0FBUixrQ0FBUTtBQUFBIiwibmFtZXMiOltdLCJpZ25vcmVMaXN0IjpbXSwic291cmNlcyI6WyJEaWFsb2dEZXNjcmlwdGlvbi52dWUiXSwic291cmNlc0NvbnRlbnQiOlsiPHNjcmlwdCBzZXR1cCBsYW5nPVwidHNcIj5cbmltcG9ydCB0eXBlIHsgRGlhbG9nRGVzY3JpcHRpb25Qcm9wcyB9IGZyb20gXCJyZWthLXVpXCI7XG5pbXBvcnQgdHlwZSB7IEhUTUxBdHRyaWJ1dGVzIH0gZnJvbSBcInZ1ZVwiO1xuaW1wb3J0IHsgcmVhY3RpdmVPbWl0IH0gZnJvbSBcIkB2dWV1c2UvY29yZVwiO1xuaW1wb3J0IHsgRGlhbG9nRGVzY3JpcHRpb24sIHVzZUZvcndhcmRQcm9wcyB9IGZyb20gXCJyZWthLXVpXCI7XG5pbXBvcnQgeyBjbiB9IGZyb20gXCJAL2xpYi91dGlsc1wiO1xuXG5jb25zdCBwcm9wcyA9IGRlZmluZVByb3BzPERpYWxvZ0Rlc2NyaXB0aW9uUHJvcHMgJiB7IGNsYXNzPzogSFRNTEF0dHJpYnV0ZXNbXCJjbGFzc1wiXSB9PigpO1xuY29uc3QgZGVsZWdhdGVkUHJvcHMgPSByZWFjdGl2ZU9taXQocHJvcHMsIFwiY2xhc3NcIik7XG5jb25zdCBmb3J3YXJkZWRQcm9wcyA9IHVzZUZvcndhcmRQcm9wcyhkZWxlZ2F0ZWRQcm9wcyk7XG48L3NjcmlwdD5cblxuPHRlbXBsYXRlPlxuICA8RGlhbG9nRGVzY3JpcHRpb25cbiAgICBkYXRhLXNsb3Q9XCJkaWFsb2ctZGVzY3JpcHRpb25cIlxuICAgIHYtYmluZD1cImZvcndhcmRlZFByb3BzXCJcbiAgICA6Y2xhc3M9XCJjbigndGV4dC1zbSB0ZXh0LW11dGVkLWZvcmVncm91bmQnLCBwcm9wcy5jbGFzcylcIlxuICA+XG4gICAgPHNsb3QgLz5cbiAgPC9EaWFsb2dEZXNjcmlwdGlvbj5cbjwvdGVtcGxhdGU+XG4iXSwiZmlsZSI6Ii9zcmMvY29tcG9uZW50cy91aS9kaWFsb2cvRGlhbG9nRGVzY3JpcHRpb24udnVlIn0=

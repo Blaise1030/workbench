@@ -1,0 +1,48 @@
+Object.defineProperty(__vite_ssr_exports__, "default", { enumerable: true, configurable: true, get(){ try { return __vite_ssr_export_default__ } catch {} }});
+const __vite_ssr_import_0__ = await __vite_ssr_import__("/@fs/Users/blaisetiong/Developer/instrument/.worktrees/hooks-reliability/node_modules/.pnpm/vue@3.5.32_typescript@5.9.3/node_modules/vue/index.mjs", {"importedNames":["defineComponent"]});
+const __vite_ssr_import_1__ = await __vite_ssr_import__("/@fs/Users/blaisetiong/Developer/instrument/.worktrees/hooks-reliability/node_modules/.pnpm/reka-ui@2.9.5_vue@3.5.32/node_modules/reka-ui/dist/index.js", {"importedNames":["TooltipRoot","useForwardPropsEmits"]});const __vite_ssr_import_2__ = await __vite_ssr_import__("/@fs/Users/blaisetiong/Developer/instrument/.worktrees/hooks-reliability/node_modules/.pnpm/vue@3.5.32_typescript@5.9.3/node_modules/vue/index.mjs", {"importedNames":["normalizeProps","guardReactiveProps","renderSlot","mergeProps","withCtx","openBlock","createBlock"]});const __vite_ssr_import_3__ = await __vite_ssr_import__("/@id/__x00__plugin-vue:export-helper", {"importedNames":["default"]});
+const _sfc_main = /* @__PURE__ */ (0,__vite_ssr_import_0__.defineComponent)({
+  __name: "Tooltip",
+  props: {
+    defaultOpen: { type: Boolean, required: false },
+    open: { type: Boolean, required: false },
+    delayDuration: { type: Number, required: false },
+    disableHoverableContent: { type: Boolean, required: false },
+    disableClosingTrigger: { type: Boolean, required: false },
+    disabled: { type: Boolean, required: false },
+    ignoreNonKeyboardFocus: { type: Boolean, required: false }
+  },
+  emits: ["update:open"],
+  setup(__props, { expose: __expose, emit: __emit }) {
+    __expose();
+    const props = __props;
+    const emits = __emit;
+    const forwarded = (0,__vite_ssr_import_1__.useForwardPropsEmits)(props, emits);
+    const __returned__ = { props, emits, forwarded, get TooltipRoot() {
+      return __vite_ssr_import_1__.TooltipRoot;
+    } };
+    Object.defineProperty(__returned__, "__isScriptSetup", { enumerable: false, value: true });
+    return __returned__;
+  }
+});
+
+function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
+  return (0,__vite_ssr_import_2__.openBlock)(), (0,__vite_ssr_import_2__.createBlock)(
+    $setup["TooltipRoot"],
+    (0,__vite_ssr_import_2__.mergeProps)({ "data-slot": "tooltip" }, $setup.forwarded),
+    {
+      default: (0,__vite_ssr_import_2__.withCtx)((slotProps) => [
+        (0,__vite_ssr_import_2__.renderSlot)(_ctx.$slots, "default", (0,__vite_ssr_import_2__.normalizeProps)((0,__vite_ssr_import_2__.guardReactiveProps)(slotProps)))
+      ]),
+      _: 3
+      /* FORWARDED */
+    },
+    16
+    /* FULL_PROPS */
+  );
+}
+
+const __vite_ssr_export_default__ = /* @__PURE__ */ (0,__vite_ssr_import_3__.default)(_sfc_main, [["render", _sfc_render], ["__file", "/Users/blaisetiong/Developer/instrument/.worktrees/hooks-reliability/apps/desktop/src/components/ui/tooltip/Tooltip.vue"]]);
+
+//# sourceMappingSource=vite-node
+//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJ2ZXJzaW9uIjozLCJtYXBwaW5ncyI6Ijs7QUFFQTs7Ozs7Ozs7Ozs7Ozs7O0FBRUEsVUFBTSxRQUFRO0FBQ2QsVUFBTSxRQUFRO0FBRWQsVUFBTSxlQUFZLDRDQUFxQixPQUFPLEtBQUs7Ozs7Ozs7Ozs7bURBSWpEO0FBQUEsSUFNYztBQUFBLE9BTmQsa0NBTWMsRUFKWixhQUFVLFVBQVMsR0FDWCxnQkFBUztBQUFBO0FBQUEsaURBRWpCLENBQTJCLGNBSlY7QUFBQSxXQUlqQixrQ0FBMkIsOEdBQWIsU0FBUztBQUFBIiwibmFtZXMiOltdLCJpZ25vcmVMaXN0IjpbXSwic291cmNlcyI6WyJUb29sdGlwLnZ1ZSJdLCJzb3VyY2VzQ29udGVudCI6WyI8c2NyaXB0IHNldHVwIGxhbmc9XCJ0c1wiPlxuaW1wb3J0IHR5cGUgeyBUb29sdGlwUm9vdEVtaXRzLCBUb29sdGlwUm9vdFByb3BzIH0gZnJvbSBcInJla2EtdWlcIlxuaW1wb3J0IHsgVG9vbHRpcFJvb3QsIHVzZUZvcndhcmRQcm9wc0VtaXRzIH0gZnJvbSBcInJla2EtdWlcIlxuXG5jb25zdCBwcm9wcyA9IGRlZmluZVByb3BzPFRvb2x0aXBSb290UHJvcHM+KClcbmNvbnN0IGVtaXRzID0gZGVmaW5lRW1pdHM8VG9vbHRpcFJvb3RFbWl0cz4oKVxuXG5jb25zdCBmb3J3YXJkZWQgPSB1c2VGb3J3YXJkUHJvcHNFbWl0cyhwcm9wcywgZW1pdHMpXG48L3NjcmlwdD5cblxuPHRlbXBsYXRlPlxuICA8VG9vbHRpcFJvb3RcbiAgICB2LXNsb3Q9XCJzbG90UHJvcHNcIlxuICAgIGRhdGEtc2xvdD1cInRvb2x0aXBcIlxuICAgIHYtYmluZD1cImZvcndhcmRlZFwiXG4gID5cbiAgICA8c2xvdCB2LWJpbmQ9XCJzbG90UHJvcHNcIiAvPlxuICA8L1Rvb2x0aXBSb290PlxuPC90ZW1wbGF0ZT5cbiJdLCJmaWxlIjoiL3NyYy9jb21wb25lbnRzL3VpL3Rvb2x0aXAvVG9vbHRpcC52dWUifQ==

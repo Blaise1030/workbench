@@ -1,0 +1,9 @@
+Object.defineProperty(__vite_ssr_exports__, "APP_DISPLAY_NAME", { enumerable: true, configurable: true, get(){ try { return APP_DISPLAY_NAME } catch {} }});
+Object.defineProperty(__vite_ssr_exports__, "APP_BRAND_BADGE", { enumerable: true, configurable: true, get(){ try { return APP_BRAND_BADGE } catch {} }});
+Object.defineProperty(__vite_ssr_exports__, "APP_PRERELEASE_BADGE", { enumerable: true, configurable: true, get(){ try { return APP_PRERELEASE_BADGE } catch {} }});
+const APP_DISPLAY_NAME = "workbench";
+const APP_BRAND_BADGE = "WORKBENCH";
+const APP_PRERELEASE_BADGE = "Alpha";
+
+//# sourceMappingSource=vite-node
+//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJ2ZXJzaW9uIjozLCJtYXBwaW5ncyI6Ijs7O0FBQ08sTUFBTSxtQkFBbUI7QUFHekIsTUFBTSxrQkFBa0I7QUFHeEIsTUFBTSx1QkFBdUIiLCJuYW1lcyI6W10sImlnbm9yZUxpc3QiOltdLCJzb3VyY2VzIjpbImFwcE1ldGEudHMiXSwic291cmNlc0NvbnRlbnQiOlsiLyoqIFByb2R1Y3QgbmFtZSBzaG93biBpbiB0aGUgdGhyZWFkcyBwYW5lbCBoZWFkZXIgKGtlZXAgaW4gc3luYyB3aXRoIGluZGV4Lmh0bWwgPHRpdGxlPiB3aGVuIHBvc3NpYmxlKS4gKi9cbmV4cG9ydCBjb25zdCBBUFBfRElTUExBWV9OQU1FID0gXCJ3b3JrYmVuY2hcIjtcblxuLyoqIEJyYW5kIHRleHQgaW4gdGhlIHRocmVhZHMgcGFuZWwgaGVhZGVyIGJhZGdlICh1cHBlcmNhc2UpLiAqL1xuZXhwb3J0IGNvbnN0IEFQUF9CUkFORF9CQURHRSA9IFwiV09SS0JFTkNIXCI7XG5cbi8qKiBQcmVyZWxlYXNlIC8gY2hhbm5lbCBsYWJlbCBuZXh0IHRvIHRoZSBicmFuZCBiYWRnZS4gKi9cbmV4cG9ydCBjb25zdCBBUFBfUFJFUkVMRUFTRV9CQURHRSA9IFwiQWxwaGFcIjtcbiJdLCJmaWxlIjoiL3NyYy9jb25zdGFudHMvYXBwTWV0YS50cyJ9

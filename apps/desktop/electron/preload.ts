@@ -5,7 +5,9 @@ import type {
   PreviewDevToolsToggleResult,
   PreviewNativeLoadResult,
   PreviewProbeResult,
-  StagedUnifiedDiffResult
+  StagedUnifiedDiffResult,
+  PreviewNavigationState,
+  PreviewProbeResult
 } from "../src/shared/ipc.js";
 
 /**
@@ -66,6 +68,9 @@ const IPC_CHANNELS = {
   previewNativeDetach: "preview:nativeDetach",
   previewNativeToggleDevTools: "preview:nativeToggleDevTools",
   previewEmbeddedDevtoolsState: "preview:embeddedDevtoolsState",
+  previewNativeGoBack: "preview:nativeGoBack",
+  previewNativeGoForward: "preview:nativeGoForward",
+  previewNavigationStateChanged: "preview:navigationStateChanged",
   terminalPtyCreate: "terminal:ptyCreate",
   terminalPtyWrite: "terminal:ptyWrite",
   terminalPtyResize: "terminal:ptyResize",
@@ -243,8 +248,6 @@ contextBridge.exposeInMainWorld("previewApi", {
   detachNative: () => ipcRenderer.invoke(IPC_CHANNELS.previewNativeDetach) as Promise<void>,
   toggleEmbeddedDevTools: () =>
     ipcRenderer.invoke(IPC_CHANNELS.previewNativeToggleDevTools) as Promise<PreviewDevToolsToggleResult>,
-  goBack: () => ipcRenderer.invoke(IPC_CHANNELS.previewNativeGoBack) as Promise<void>,
-  goForward: () => ipcRenderer.invoke(IPC_CHANNELS.previewNativeGoForward) as Promise<void>,
   onPreviewEmbeddedDevtoolsOpen: (callback: (open: boolean) => void) => {
     const handler = (_event: IpcRendererEvent, payload: { open?: boolean }) => {
       callback(!!payload?.open);
@@ -261,5 +264,13 @@ contextBridge.exposeInMainWorld("previewApi", {
     };
     ipcRenderer.on(IPC_CHANNELS.previewNavigationUrl, handler);
     return () => ipcRenderer.removeListener(IPC_CHANNELS.previewNavigationUrl, handler);
+  goBack: () => ipcRenderer.invoke(IPC_CHANNELS.previewNativeGoBack) as Promise<void>,
+  goForward: () => ipcRenderer.invoke(IPC_CHANNELS.previewNativeGoForward) as Promise<void>,
+  onNavigationStateChanged: (callback: (state: PreviewNavigationState) => void) => {
+    const handler = (_event: IpcRendererEvent, state: PreviewNavigationState) => {
+      callback(state);
+    };
+    ipcRenderer.on(IPC_CHANNELS.previewNavigationStateChanged, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.previewNavigationStateChanged, handler);
   }
 });

@@ -1,0 +1,23 @@
+Object.defineProperty(__vite_ssr_exports__, "badgeVariants", { enumerable: true, configurable: true, get(){ try { return badgeVariants } catch {} }});
+const __vite_ssr_import_0__ = await __vite_ssr_import__("/@fs/Users/blaisetiong/Developer/instrument/.worktrees/hooks-reliability/node_modules/.pnpm/class-variance-authority@0.7.1/node_modules/class-variance-authority/dist/index.mjs", {"importedNames":["cva"]});
+const badgeVariants = (0,__vite_ssr_import_0__.cva)(
+  "inline-flex w-fit shrink-0 items-center justify-center gap-1 overflow-hidden rounded-full border border-transparent px-2 py-0.5 text-xs font-medium whitespace-nowrap transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 [&>svg]:pointer-events-none [&>svg]:size-3",
+  {
+    variants: {
+      variant: {
+        default: "bg-primary text-primary-foreground [a&]:hover:bg-primary/90",
+        secondary: "bg-secondary text-secondary-foreground [a&]:hover:bg-secondary/90",
+        destructive: "bg-destructive text-white focus-visible:ring-destructive/20 dark:bg-destructive/60 dark:focus-visible:ring-destructive/40 [a&]:hover:bg-destructive/90",
+        outline: "border-border text-foreground [a&]:hover:bg-accent [a&]:hover:text-accent-foreground",
+        ghost: "[a&]:hover:bg-accent [a&]:hover:text-accent-foreground",
+        link: "text-primary underline-offset-4 [a&]:hover:underline"
+      }
+    },
+    defaultVariants: {
+      variant: "default"
+    }
+  }
+);
+
+//# sourceMappingSource=vite-node
+//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJ2ZXJzaW9uIjozLCJtYXBwaW5ncyI6IjtBQUFBO0FBRU8sTUFBTSxtQkFBZ0I7QUFBQSxFQUMzQjtBQUFBLEVBQ0E7QUFBQSxJQUNFLFVBQVU7QUFBQSxNQUNSLFNBQVM7QUFBQSxRQUNQLFNBQVM7QUFBQSxRQUNULFdBQ0U7QUFBQSxRQUNGLGFBQ0U7QUFBQSxRQUNGLFNBQ0U7QUFBQSxRQUNGLE9BQU87QUFBQSxRQUNQLE1BQU07QUFBQSxNQUNSO0FBQUEsSUFDRjtBQUFBLElBQ0EsaUJBQWlCO0FBQUEsTUFDZixTQUFTO0FBQUEsSUFDWDtBQUFBLEVBQ0Y7QUFDRiIsIm5hbWVzIjpbXSwiaWdub3JlTGlzdCI6W10sInNvdXJjZXMiOlsiYmFkZ2UudHMiXSwic291cmNlc0NvbnRlbnQiOlsiaW1wb3J0IHsgY3ZhLCB0eXBlIFZhcmlhbnRQcm9wcyB9IGZyb20gXCJjbGFzcy12YXJpYW5jZS1hdXRob3JpdHlcIjtcblxuZXhwb3J0IGNvbnN0IGJhZGdlVmFyaWFudHMgPSBjdmEoXG4gIFwiaW5saW5lLWZsZXggdy1maXQgc2hyaW5rLTAgaXRlbXMtY2VudGVyIGp1c3RpZnktY2VudGVyIGdhcC0xIG92ZXJmbG93LWhpZGRlbiByb3VuZGVkLWZ1bGwgYm9yZGVyIGJvcmRlci10cmFuc3BhcmVudCBweC0yIHB5LTAuNSB0ZXh0LXhzIGZvbnQtbWVkaXVtIHdoaXRlc3BhY2Utbm93cmFwIHRyYW5zaXRpb24tW2NvbG9yLGJveC1zaGFkb3ddIGZvY3VzLXZpc2libGU6Ym9yZGVyLXJpbmcgZm9jdXMtdmlzaWJsZTpyaW5nLVszcHhdIGZvY3VzLXZpc2libGU6cmluZy1yaW5nLzUwIGFyaWEtaW52YWxpZDpib3JkZXItZGVzdHJ1Y3RpdmUgYXJpYS1pbnZhbGlkOnJpbmctZGVzdHJ1Y3RpdmUvMjAgZGFyazphcmlhLWludmFsaWQ6cmluZy1kZXN0cnVjdGl2ZS80MCBbJj5zdmddOnBvaW50ZXItZXZlbnRzLW5vbmUgWyY+c3ZnXTpzaXplLTNcIixcbiAge1xuICAgIHZhcmlhbnRzOiB7XG4gICAgICB2YXJpYW50OiB7XG4gICAgICAgIGRlZmF1bHQ6IFwiYmctcHJpbWFyeSB0ZXh0LXByaW1hcnktZm9yZWdyb3VuZCBbYSZdOmhvdmVyOmJnLXByaW1hcnkvOTBcIixcbiAgICAgICAgc2Vjb25kYXJ5OlxuICAgICAgICAgIFwiYmctc2Vjb25kYXJ5IHRleHQtc2Vjb25kYXJ5LWZvcmVncm91bmQgW2EmXTpob3ZlcjpiZy1zZWNvbmRhcnkvOTBcIixcbiAgICAgICAgZGVzdHJ1Y3RpdmU6XG4gICAgICAgICAgXCJiZy1kZXN0cnVjdGl2ZSB0ZXh0LXdoaXRlIGZvY3VzLXZpc2libGU6cmluZy1kZXN0cnVjdGl2ZS8yMCBkYXJrOmJnLWRlc3RydWN0aXZlLzYwIGRhcms6Zm9jdXMtdmlzaWJsZTpyaW5nLWRlc3RydWN0aXZlLzQwIFthJl06aG92ZXI6YmctZGVzdHJ1Y3RpdmUvOTBcIixcbiAgICAgICAgb3V0bGluZTpcbiAgICAgICAgICBcImJvcmRlci1ib3JkZXIgdGV4dC1mb3JlZ3JvdW5kIFthJl06aG92ZXI6YmctYWNjZW50IFthJl06aG92ZXI6dGV4dC1hY2NlbnQtZm9yZWdyb3VuZFwiLFxuICAgICAgICBnaG9zdDogXCJbYSZdOmhvdmVyOmJnLWFjY2VudCBbYSZdOmhvdmVyOnRleHQtYWNjZW50LWZvcmVncm91bmRcIixcbiAgICAgICAgbGluazogXCJ0ZXh0LXByaW1hcnkgdW5kZXJsaW5lLW9mZnNldC00IFthJl06aG92ZXI6dW5kZXJsaW5lXCJcbiAgICAgIH1cbiAgICB9LFxuICAgIGRlZmF1bHRWYXJpYW50czoge1xuICAgICAgdmFyaWFudDogXCJkZWZhdWx0XCJcbiAgICB9XG4gIH1cbik7XG5cbmV4cG9ydCB0eXBlIEJhZGdlVmFyaWFudFByb3BzID0gVmFyaWFudFByb3BzPHR5cGVvZiBiYWRnZVZhcmlhbnRzPjtcbmV4cG9ydCB0eXBlIEJhZGdlVmFyaWFudCA9IE5vbk51bGxhYmxlPEJhZGdlVmFyaWFudFByb3BzW1widmFyaWFudFwiXT47XG4iXSwiZmlsZSI6Ii9zcmMvY29tcG9uZW50cy91aS9iYWRnZS50cyJ9

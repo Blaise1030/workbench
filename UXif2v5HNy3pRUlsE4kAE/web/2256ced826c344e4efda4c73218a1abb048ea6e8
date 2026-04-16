@@ -1,0 +1,99 @@
+Object.defineProperty(__vite_ssr_exports__, "default", { enumerable: true, configurable: true, get(){ try { return __vite_ssr_export_default__ } catch {} }});
+const __vite_ssr_import_0__ = await __vite_ssr_import__("/@fs/Users/blaisetiong/Developer/instrument/.worktrees/hooks-reliability/node_modules/.pnpm/vue@3.5.32_typescript@5.9.3/node_modules/vue/index.mjs", {"importedNames":["defineComponent"]});
+const __vite_ssr_import_1__ = await __vite_ssr_import__("/@fs/Users/blaisetiong/Developer/instrument/.worktrees/hooks-reliability/node_modules/.pnpm/vue@3.5.32_typescript@5.9.3/node_modules/vue/index.mjs", {"importedNames":["computed"]});
+const __vite_ssr_import_2__ = await __vite_ssr_import__("/@fs/Users/blaisetiong/Developer/instrument/.worktrees/hooks-reliability/node_modules/.pnpm/@vueuse+core@14.2.1_vue@3.5.32/node_modules/@vueuse/core/dist/index.js", {"importedNames":["reactiveOmit"]});
+const __vite_ssr_import_3__ = await __vite_ssr_import__("/@fs/Users/blaisetiong/Developer/instrument/.worktrees/hooks-reliability/node_modules/.pnpm/reka-ui@2.9.5_vue@3.5.32/node_modules/reka-ui/dist/index.js", {"importedNames":["PopoverContent","PopoverPortal","useForwardPropsEmits"]});
+
+
+
+
+const __vite_ssr_import_4__ = await __vite_ssr_import__("/src/composables/previewNativeViewportTop.ts", {"importedNames":["previewNativeCollisionEl"]});
+const __vite_ssr_import_5__ = await __vite_ssr_import__("/src/lib/utils.ts", {"importedNames":["cn"]});const __vite_ssr_import_6__ = await __vite_ssr_import__("/@fs/Users/blaisetiong/Developer/instrument/.worktrees/hooks-reliability/node_modules/.pnpm/vue@3.5.32_typescript@5.9.3/node_modules/vue/index.mjs", {"importedNames":["renderSlot","mergeProps","withCtx","createVNode","openBlock","createBlock"]});const __vite_ssr_import_7__ = await __vite_ssr_import__("/@id/__x00__plugin-vue:export-helper", {"importedNames":["default"]});
+const _sfc_main = /* @__PURE__ */ (0,__vite_ssr_import_0__.defineComponent)({
+  ...{
+    inheritAttrs: false
+  },
+  __name: "PopoverContent",
+  props: {
+    forceMount: { type: Boolean, required: false },
+    side: { type: null, required: false },
+    sideOffset: { type: Number, required: false, default: 4 },
+    sideFlip: { type: Boolean, required: false },
+    align: { type: null, required: false, default: "center" },
+    alignOffset: { type: Number, required: false },
+    alignFlip: { type: Boolean, required: false },
+    avoidCollisions: { type: Boolean, required: false },
+    collisionBoundary: { type: null, required: false },
+    collisionPadding: { type: [Number, Object], required: false },
+    arrowPadding: { type: Number, required: false },
+    hideShiftedArrow: { type: Boolean, required: false },
+    sticky: { type: String, required: false },
+    hideWhenDetached: { type: Boolean, required: false },
+    positionStrategy: { type: String, required: false },
+    updatePositionStrategy: { type: String, required: false },
+    disableUpdateOnLayoutShift: { type: Boolean, required: false },
+    prioritizePosition: { type: Boolean, required: false },
+    reference: { type: null, required: false },
+    asChild: { type: Boolean, required: false },
+    as: { type: null, required: false },
+    disableOutsidePointerEvents: { type: Boolean, required: false },
+    class: { type: [Boolean, null, String, Object, Array], required: false, skipCheck: true }
+  },
+  emits: ["escapeKeyDown", "pointerDownOutside", "focusOutside", "interactOutside", "openAutoFocus", "closeAutoFocus"],
+  setup(__props, { expose: __expose, emit: __emit }) {
+    __expose();
+    const props = __props;
+    const emits = __emit;
+    const delegatedProps = (0,__vite_ssr_import_2__.reactiveOmit)(props, "class", "collisionBoundary");
+    const forwarded = (0,__vite_ssr_import_3__.useForwardPropsEmits)(delegatedProps, emits);
+    const collisionBoundaryMerged = (0,__vite_ssr_import_1__.computed)(() => {
+      const p = props.collisionBoundary;
+      const list = [];
+      if (Array.isArray(p)) {
+        for (const x of p) {
+          if (x) list.push(x);
+        }
+      } else if (p) {
+        list.push(p);
+      };
+      const mirror = __vite_ssr_import_4__.previewNativeCollisionEl.value;
+      if (mirror) list.push(mirror);
+      return list.length > 0 ? list : void 0;
+    });
+    const __returned__ = { props, emits, delegatedProps, forwarded, collisionBoundaryMerged, get PopoverContent() {
+      return __vite_ssr_import_3__.PopoverContent;
+    }, get PopoverPortal() {
+      return __vite_ssr_import_3__.PopoverPortal;
+    }, get cn() {
+      return __vite_ssr_import_5__.cn;
+    } };
+    Object.defineProperty(__returned__, "__isScriptSetup", { enumerable: false, value: true });
+    return __returned__;
+  }
+});
+
+function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
+  return (0,__vite_ssr_import_6__.openBlock)(), (0,__vite_ssr_import_6__.createBlock)($setup["PopoverPortal"], null, {
+    default: (0,__vite_ssr_import_6__.withCtx)(() => [
+      (0,__vite_ssr_import_6__.createVNode)($setup["PopoverContent"], (0,__vite_ssr_import_6__.mergeProps)({ "data-slot": "popover-content" }, { ..._ctx.$attrs, ...$setup.forwarded, collisionBoundary: $setup.collisionBoundaryMerged }, {
+        class: $setup.cn(
+          "bg-popover text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 z-50 w-72 rounded-md border p-4 shadow-md origin-(--reka-popover-content-transform-origin) outline-hidden",
+          $setup.props.class
+        )
+      }), {
+        default: (0,__vite_ssr_import_6__.withCtx)(() => [
+          (0,__vite_ssr_import_6__.renderSlot)(_ctx.$slots, "default")
+        ]),
+        _: 3
+        /* FORWARDED */
+      }, 16, ["class"])
+    ]),
+    _: 3
+    /* FORWARDED */
+  });
+}
+
+const __vite_ssr_export_default__ = /* @__PURE__ */ (0,__vite_ssr_import_7__.default)(_sfc_main, [["render", _sfc_render], ["__file", "/Users/blaisetiong/Developer/instrument/.worktrees/hooks-reliability/apps/desktop/src/components/ui/popover/PopoverContent.vue"]]);
+
+//# sourceMappingSource=vite-node
+//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJ2ZXJzaW9uIjozLCJtYXBwaW5ncyI6Ijs7QUFHQTtBQUNBO0FBQ0E7Ozs7O0FBS0E7QUFDQTs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7OztBQU1BLFVBQU0sUUFBUTtBQU9kLFVBQU0sUUFBUTtBQUVkLFVBQU0sb0JBQWlCLG9DQUFhLE9BQU8sU0FBUyxtQkFBbUI7QUFFdkUsVUFBTSxlQUFZLDRDQUFxQixnQkFBZ0IsS0FBSztBQUc1RCxVQUFNLDZCQUEwQixnQ0FBUyxNQUE2QjtBQUNwRSxZQUFNLElBQUksTUFBTTtBQUNoQixZQUFNLE9BQWtCLENBQUM7QUFDekIsVUFBSSxNQUFNLFFBQVEsQ0FBQyxHQUFHO0FBQ3BCLG1CQUFXLEtBQUssR0FBRztBQUNqQixjQUFJLEVBQUcsTUFBSyxLQUFLLENBQUM7QUFBQSxRQUNwQjtBQUFBLE1BQ0YsV0FBVyxHQUFHO0FBQ1osYUFBSyxLQUFLLENBQUM7QUFBQSxNQUNiO0FBQ0EsWUFBTSxTQUFTLCtDQUF5QjtBQUN4QyxVQUFJLE9BQVEsTUFBSyxLQUFLLE1BQU07QUFDNUIsYUFBTyxLQUFLLFNBQVMsSUFBSSxPQUFPO0FBQUEsSUFDbEMsQ0FBQzs7Ozs7Ozs7Ozs7Ozs7bURBSUMsbUNBYWdCO0FBQUEsK0NBWmQsTUFXaUI7QUFBQSxTQVhqQixtQ0FXaUIsNkJBWGpCLGtDQVdpQixFQVZmLGFBQVUsa0JBQWlCLFFBQ2QsYUFBTSxHQUFLLGtCQUFTLG1CQUFxQiwrQkFBdUI7QUFBQSxRQUM1RSxPQUFnQjtBQUFBO1VBQXlmLGFBQU07QUFBQTs7bURBT2hoQixNQUFRO0FBQUEsYUFBUixrQ0FBUTtBQUFBIiwibmFtZXMiOltdLCJpZ25vcmVMaXN0IjpbXSwic291cmNlcyI6WyJQb3BvdmVyQ29udGVudC52dWUiXSwic291cmNlc0NvbnRlbnQiOlsiPHNjcmlwdCBzZXR1cCBsYW5nPVwidHNcIj5cbmltcG9ydCB0eXBlIHsgUG9wb3ZlckNvbnRlbnRFbWl0cywgUG9wb3ZlckNvbnRlbnRQcm9wcyB9IGZyb20gXCJyZWthLXVpXCJcbmltcG9ydCB0eXBlIHsgSFRNTEF0dHJpYnV0ZXMgfSBmcm9tIFwidnVlXCJcbmltcG9ydCB7IGNvbXB1dGVkIH0gZnJvbSBcInZ1ZVwiXG5pbXBvcnQgeyByZWFjdGl2ZU9taXQgfSBmcm9tIFwiQHZ1ZXVzZS9jb3JlXCJcbmltcG9ydCB7XG4gIFBvcG92ZXJDb250ZW50LFxuICBQb3BvdmVyUG9ydGFsLFxuICB1c2VGb3J3YXJkUHJvcHNFbWl0cyxcbn0gZnJvbSBcInJla2EtdWlcIlxuaW1wb3J0IHsgcHJldmlld05hdGl2ZUNvbGxpc2lvbkVsIH0gZnJvbSBcIkAvY29tcG9zYWJsZXMvcHJldmlld05hdGl2ZVZpZXdwb3J0VG9wXCJcbmltcG9ydCB7IGNuIH0gZnJvbSBcIkAvbGliL3V0aWxzXCJcblxuZGVmaW5lT3B0aW9ucyh7XG4gIGluaGVyaXRBdHRyczogZmFsc2UsXG59KVxuXG5jb25zdCBwcm9wcyA9IHdpdGhEZWZhdWx0cyhcbiAgZGVmaW5lUHJvcHM8UG9wb3ZlckNvbnRlbnRQcm9wcyAmIHsgY2xhc3M/OiBIVE1MQXR0cmlidXRlc1tcImNsYXNzXCJdIH0+KCksXG4gIHtcbiAgICBhbGlnbjogXCJjZW50ZXJcIixcbiAgICBzaWRlT2Zmc2V0OiA0LFxuICB9LFxuKVxuY29uc3QgZW1pdHMgPSBkZWZpbmVFbWl0czxQb3BvdmVyQ29udGVudEVtaXRzPigpXG5cbmNvbnN0IGRlbGVnYXRlZFByb3BzID0gcmVhY3RpdmVPbWl0KHByb3BzLCBcImNsYXNzXCIsIFwiY29sbGlzaW9uQm91bmRhcnlcIilcblxuY29uc3QgZm9yd2FyZGVkID0gdXNlRm9yd2FyZFByb3BzRW1pdHMoZGVsZWdhdGVkUHJvcHMsIGVtaXRzKVxuXG4vKiogQXZvaWQgb3ZlcmxhcHBpbmcgdGhlIG5hdGl2ZSBwcmV2aWV3IGBCcm93c2VyVmlld2AgKGludmlzaWJsZSBtaXJyb3IgaW4gYGJvZHlgKS4gKi9cbmNvbnN0IGNvbGxpc2lvbkJvdW5kYXJ5TWVyZ2VkID0gY29tcHV0ZWQoKCk6IEVsZW1lbnRbXSB8IHVuZGVmaW5lZCA9PiB7XG4gIGNvbnN0IHAgPSBwcm9wcy5jb2xsaXNpb25Cb3VuZGFyeVxuICBjb25zdCBsaXN0OiBFbGVtZW50W10gPSBbXVxuICBpZiAoQXJyYXkuaXNBcnJheShwKSkge1xuICAgIGZvciAoY29uc3QgeCBvZiBwKSB7XG4gICAgICBpZiAoeCkgbGlzdC5wdXNoKHgpXG4gICAgfVxuICB9IGVsc2UgaWYgKHApIHtcbiAgICBsaXN0LnB1c2gocClcbiAgfVxuICBjb25zdCBtaXJyb3IgPSBwcmV2aWV3TmF0aXZlQ29sbGlzaW9uRWwudmFsdWVcbiAgaWYgKG1pcnJvcikgbGlzdC5wdXNoKG1pcnJvcilcbiAgcmV0dXJuIGxpc3QubGVuZ3RoID4gMCA/IGxpc3QgOiB1bmRlZmluZWRcbn0pXG48L3NjcmlwdD5cblxuPHRlbXBsYXRlPlxuICA8UG9wb3ZlclBvcnRhbD5cbiAgICA8UG9wb3ZlckNvbnRlbnRcbiAgICAgIGRhdGEtc2xvdD1cInBvcG92ZXItY29udGVudFwiXG4gICAgICB2LWJpbmQ9XCJ7IC4uLiRhdHRycywgLi4uZm9yd2FyZGVkLCBjb2xsaXNpb25Cb3VuZGFyeTogY29sbGlzaW9uQm91bmRhcnlNZXJnZWQgfVwiXG4gICAgICA6Y2xhc3M9XCJcbiAgICAgICAgY24oXG4gICAgICAgICAgJ2JnLXBvcG92ZXIgdGV4dC1wb3BvdmVyLWZvcmVncm91bmQgZGF0YS1bc3RhdGU9b3Blbl06YW5pbWF0ZS1pbiBkYXRhLVtzdGF0ZT1jbG9zZWRdOmFuaW1hdGUtb3V0IGRhdGEtW3N0YXRlPWNsb3NlZF06ZmFkZS1vdXQtMCBkYXRhLVtzdGF0ZT1vcGVuXTpmYWRlLWluLTAgZGF0YS1bc3RhdGU9Y2xvc2VkXTp6b29tLW91dC05NSBkYXRhLVtzdGF0ZT1vcGVuXTp6b29tLWluLTk1IGRhdGEtW3NpZGU9Ym90dG9tXTpzbGlkZS1pbi1mcm9tLXRvcC0yIGRhdGEtW3NpZGU9bGVmdF06c2xpZGUtaW4tZnJvbS1yaWdodC0yIGRhdGEtW3NpZGU9cmlnaHRdOnNsaWRlLWluLWZyb20tbGVmdC0yIGRhdGEtW3NpZGU9dG9wXTpzbGlkZS1pbi1mcm9tLWJvdHRvbS0yIHotNTAgdy03MiByb3VuZGVkLW1kIGJvcmRlciBwLTQgc2hhZG93LW1kIG9yaWdpbi0oLS1yZWthLXBvcG92ZXItY29udGVudC10cmFuc2Zvcm0tb3JpZ2luKSBvdXRsaW5lLWhpZGRlbicsXG4gICAgICAgICAgcHJvcHMuY2xhc3MsXG4gICAgICAgIClcbiAgICAgIFwiXG4gICAgPlxuICAgICAgPHNsb3QgLz5cbiAgICA8L1BvcG92ZXJDb250ZW50PlxuICA8L1BvcG92ZXJQb3J0YWw+XG48L3RlbXBsYXRlPlxuIl0sImZpbGUiOiIvc3JjL2NvbXBvbmVudHMvdWkvcG9wb3Zlci9Qb3BvdmVyQ29udGVudC52dWUifQ==

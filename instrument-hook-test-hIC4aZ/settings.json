@@ -1,0 +1,54 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/blaisetiong/Developer/instrument/instrument-hook-test-hIC4aZ/claude-hook.sh"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/blaisetiong/Developer/instrument/instrument-hook-test-hIC4aZ/claude-hook.sh"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/blaisetiong/Developer/instrument/instrument-hook-test-hIC4aZ/claude-hook.sh"
+          }
+        ]
+      }
+    ],
+    "StopFailure": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/blaisetiong/Developer/instrument/instrument-hook-test-hIC4aZ/claude-hook.sh"
+          }
+        ]
+      }
+    ],
+    "Notification": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/blaisetiong/Developer/instrument/instrument-hook-test-hIC4aZ/claude-hook.sh"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,51 @@
+Object.defineProperty(__vite_ssr_exports__, "default", { enumerable: true, configurable: true, get(){ try { return __vite_ssr_export_default__ } catch {} }});
+const __vite_ssr_import_0__ = await __vite_ssr_import__("/@fs/Users/blaisetiong/Developer/instrument/.worktrees/hooks-reliability/node_modules/.pnpm/vue@3.5.32_typescript@5.9.3/node_modules/vue/index.mjs", {"importedNames":["defineComponent"]});
+const __vite_ssr_import_1__ = await __vite_ssr_import__("/@fs/Users/blaisetiong/Developer/instrument/.worktrees/hooks-reliability/node_modules/.pnpm/@vueuse+core@14.2.1_vue@3.5.32/node_modules/@vueuse/core/dist/index.js", {"importedNames":["reactiveOmit"]});
+const __vite_ssr_import_2__ = await __vite_ssr_import__("/@fs/Users/blaisetiong/Developer/instrument/.worktrees/hooks-reliability/node_modules/.pnpm/reka-ui@2.9.5_vue@3.5.32/node_modules/reka-ui/dist/index.js", {"importedNames":["DropdownMenuItem","useForwardProps"]});
+const __vite_ssr_import_3__ = await __vite_ssr_import__("/src/lib/utils.ts", {"importedNames":["cn"]});const __vite_ssr_import_4__ = await __vite_ssr_import__("/@fs/Users/blaisetiong/Developer/instrument/.worktrees/hooks-reliability/node_modules/.pnpm/vue@3.5.32_typescript@5.9.3/node_modules/vue/index.mjs", {"importedNames":["renderSlot","mergeProps","withCtx","openBlock","createBlock"]});const __vite_ssr_import_5__ = await __vite_ssr_import__("/@id/__x00__plugin-vue:export-helper", {"importedNames":["default"]});
+const _sfc_main = /* @__PURE__ */ (0,__vite_ssr_import_0__.defineComponent)({
+  __name: "DropdownMenuItem",
+  props: {
+    disabled: { type: Boolean, required: false },
+    textValue: { type: String, required: false },
+    asChild: { type: Boolean, required: false },
+    as: { type: null, required: false },
+    class: { type: [Boolean, null, String, Object, Array], required: false, skipCheck: true },
+    inset: { type: Boolean, required: false },
+    variant: { type: String, required: false, default: "default" }
+  },
+  setup(__props, { expose: __expose }) {
+    __expose();
+    const props = __props;
+    const delegatedProps = (0,__vite_ssr_import_1__.reactiveOmit)(props, "inset", "variant", "class");
+    const forwardedProps = (0,__vite_ssr_import_2__.useForwardProps)(delegatedProps);
+    const __returned__ = { props, delegatedProps, forwardedProps, get DropdownMenuItem() {
+      return __vite_ssr_import_2__.DropdownMenuItem;
+    }, get cn() {
+      return __vite_ssr_import_3__.cn;
+    } };
+    Object.defineProperty(__returned__, "__isScriptSetup", { enumerable: false, value: true });
+    return __returned__;
+  }
+});
+
+function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
+  return (0,__vite_ssr_import_4__.openBlock)(), (0,__vite_ssr_import_4__.createBlock)($setup["DropdownMenuItem"], (0,__vite_ssr_import_4__.mergeProps)({
+    "data-slot": "dropdown-menu-item",
+    "data-inset": $props.inset ? "" : void 0,
+    "data-variant": $props.variant
+  }, $setup.forwardedProps, {
+    class: $setup.cn("focus:bg-accent focus:text-accent-foreground data-[variant=destructive]:text-destructive data-[variant=destructive]:focus:bg-destructive/10 dark:data-[variant=destructive]:focus:bg-destructive/20 data-[variant=destructive]:focus:text-destructive data-[variant=destructive]:*:[svg]:!text-destructive [&_svg:not([class*='text-'])]:text-muted-foreground relative flex cursor-default items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-hidden select-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50 data-[inset]:pl-8 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4", $setup.props.class)
+  }), {
+    default: (0,__vite_ssr_import_4__.withCtx)(() => [
+      (0,__vite_ssr_import_4__.renderSlot)(_ctx.$slots, "default")
+    ]),
+    _: 3
+    /* FORWARDED */
+  }, 16, ["data-inset", "data-variant", "class"]);
+}
+
+const __vite_ssr_export_default__ = /* @__PURE__ */ (0,__vite_ssr_import_5__.default)(_sfc_main, [["render", _sfc_render], ["__file", "/Users/blaisetiong/Developer/instrument/.worktrees/hooks-reliability/apps/desktop/src/components/ui/dropdown-menu/DropdownMenuItem.vue"]]);
+
+//# sourceMappingSource=vite-node
+//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJ2ZXJzaW9uIjozLCJtYXBwaW5ncyI6Ijs7QUFHQTtBQUNBO0FBQ0E7Ozs7Ozs7Ozs7Ozs7O0FBRUEsVUFBTSxRQUFRO0FBUWQsVUFBTSxvQkFBaUIsb0NBQWEsT0FBTyxTQUFTLFdBQVcsT0FBTztBQUV0RSxVQUFNLG9CQUFpQix1Q0FBZ0IsY0FBYzs7Ozs7Ozs7Ozs7O21EQUluRCxtQ0FRbUIsK0JBUm5CLGtDQVFtQjtBQUFBLElBUGpCLGFBQVU7QUFBQSxJQUNULGNBQVksZUFBSyxLQUFRO0FBQUEsSUFDekIsZ0JBQWM7QUFBQSxLQUNQLHVCQUFjO0FBQUEsSUFDckIsT0FBTyxVQUFFLCttQkFBb25CLGFBQU0sS0FBSztBQUFBOytDQUV6b0IsTUFBUTtBQUFBLFNBQVIsa0NBQVE7QUFBQSIsIm5hbWVzIjpbXSwiaWdub3JlTGlzdCI6W10sInNvdXJjZXMiOlsiRHJvcGRvd25NZW51SXRlbS52dWUiXSwic291cmNlc0NvbnRlbnQiOlsiPHNjcmlwdCBzZXR1cCBsYW5nPVwidHNcIj5cbmltcG9ydCB0eXBlIHsgRHJvcGRvd25NZW51SXRlbVByb3BzIH0gZnJvbSBcInJla2EtdWlcIlxuaW1wb3J0IHR5cGUgeyBIVE1MQXR0cmlidXRlcyB9IGZyb20gXCJ2dWVcIlxuaW1wb3J0IHsgcmVhY3RpdmVPbWl0IH0gZnJvbSBcIkB2dWV1c2UvY29yZVwiXG5pbXBvcnQgeyBEcm9wZG93bk1lbnVJdGVtLCB1c2VGb3J3YXJkUHJvcHMgfSBmcm9tIFwicmVrYS11aVwiXG5pbXBvcnQgeyBjbiB9IGZyb20gXCJAL2xpYi91dGlsc1wiXG5cbmNvbnN0IHByb3BzID0gd2l0aERlZmF1bHRzKGRlZmluZVByb3BzPERyb3Bkb3duTWVudUl0ZW1Qcm9wcyAmIHtcbiAgY2xhc3M/OiBIVE1MQXR0cmlidXRlc1tcImNsYXNzXCJdXG4gIGluc2V0PzogYm9vbGVhblxuICB2YXJpYW50PzogXCJkZWZhdWx0XCIgfCBcImRlc3RydWN0aXZlXCJcbn0+KCksIHtcbiAgdmFyaWFudDogXCJkZWZhdWx0XCIsXG59KVxuXG5jb25zdCBkZWxlZ2F0ZWRQcm9wcyA9IHJlYWN0aXZlT21pdChwcm9wcywgXCJpbnNldFwiLCBcInZhcmlhbnRcIiwgXCJjbGFzc1wiKVxuXG5jb25zdCBmb3J3YXJkZWRQcm9wcyA9IHVzZUZvcndhcmRQcm9wcyhkZWxlZ2F0ZWRQcm9wcylcbjwvc2NyaXB0PlxuXG48dGVtcGxhdGU+XG4gIDxEcm9wZG93bk1lbnVJdGVtXG4gICAgZGF0YS1zbG90PVwiZHJvcGRvd24tbWVudS1pdGVtXCJcbiAgICA6ZGF0YS1pbnNldD1cImluc2V0ID8gJycgOiB1bmRlZmluZWRcIlxuICAgIDpkYXRhLXZhcmlhbnQ9XCJ2YXJpYW50XCJcbiAgICB2LWJpbmQ9XCJmb3J3YXJkZWRQcm9wc1wiXG4gICAgOmNsYXNzPVwiY24oJ2ZvY3VzOmJnLWFjY2VudCBmb2N1czp0ZXh0LWFjY2VudC1mb3JlZ3JvdW5kIGRhdGEtW3ZhcmlhbnQ9ZGVzdHJ1Y3RpdmVdOnRleHQtZGVzdHJ1Y3RpdmUgZGF0YS1bdmFyaWFudD1kZXN0cnVjdGl2ZV06Zm9jdXM6YmctZGVzdHJ1Y3RpdmUvMTAgZGFyazpkYXRhLVt2YXJpYW50PWRlc3RydWN0aXZlXTpmb2N1czpiZy1kZXN0cnVjdGl2ZS8yMCBkYXRhLVt2YXJpYW50PWRlc3RydWN0aXZlXTpmb2N1czp0ZXh0LWRlc3RydWN0aXZlIGRhdGEtW3ZhcmlhbnQ9ZGVzdHJ1Y3RpdmVdOio6W3N2Z106IXRleHQtZGVzdHJ1Y3RpdmUgWyZfc3ZnOm5vdChbY2xhc3MqPVxcJ3RleHQtXFwnXSldOnRleHQtbXV0ZWQtZm9yZWdyb3VuZCByZWxhdGl2ZSBmbGV4IGN1cnNvci1kZWZhdWx0IGl0ZW1zLWNlbnRlciBnYXAtMiByb3VuZGVkLXNtIHB4LTIgcHktMS41IHRleHQtc20gb3V0bGluZS1oaWRkZW4gc2VsZWN0LW5vbmUgZGF0YS1bZGlzYWJsZWRdOnBvaW50ZXItZXZlbnRzLW5vbmUgZGF0YS1bZGlzYWJsZWRdOm9wYWNpdHktNTAgZGF0YS1baW5zZXRdOnBsLTggWyZfc3ZnXTpwb2ludGVyLWV2ZW50cy1ub25lIFsmX3N2Z106c2hyaW5rLTAgWyZfc3ZnOm5vdChbY2xhc3MqPVxcJ3NpemUtXFwnXSldOnNpemUtNCcsIHByb3BzLmNsYXNzKVwiXG4gID5cbiAgICA8c2xvdCAvPlxuICA8L0Ryb3Bkb3duTWVudUl0ZW0+XG48L3RlbXBsYXRlPlxuIl0sImZpbGUiOiIvc3JjL2NvbXBvbmVudHMvdWkvZHJvcGRvd24tbWVudS9Ecm9wZG93bk1lbnVJdGVtLnZ1ZSJ9

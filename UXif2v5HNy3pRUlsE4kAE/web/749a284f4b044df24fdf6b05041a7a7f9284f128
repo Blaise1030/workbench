@@ -1,0 +1,79 @@
+Object.defineProperty(__vite_ssr_exports__, "default", { enumerable: true, configurable: true, get(){ try { return __vite_ssr_export_default__ } catch {} }});
+const __vite_ssr_import_0__ = await __vite_ssr_import__("/@fs/Users/blaisetiong/Developer/instrument/.worktrees/hooks-reliability/node_modules/.pnpm/vue@3.5.32_typescript@5.9.3/node_modules/vue/index.mjs", {"importedNames":["defineComponent"]});
+const __vite_ssr_import_1__ = await __vite_ssr_import__("/@fs/Users/blaisetiong/Developer/instrument/.worktrees/hooks-reliability/node_modules/.pnpm/@vueuse+core@14.2.1_vue@3.5.32/node_modules/@vueuse/core/dist/index.js", {"importedNames":["reactiveOmit"]});
+const __vite_ssr_import_2__ = await __vite_ssr_import__("/@fs/Users/blaisetiong/Developer/instrument/.worktrees/hooks-reliability/node_modules/.pnpm/lucide-vue-next@1.0.0_vue@3.5.32/node_modules/lucide-vue-next/dist/cjs/lucide-vue-next.js", {"importedNames":["Check"]});
+const __vite_ssr_import_3__ = await __vite_ssr_import__("/@fs/Users/blaisetiong/Developer/instrument/.worktrees/hooks-reliability/node_modules/.pnpm/reka-ui@2.9.5_vue@3.5.32/node_modules/reka-ui/dist/index.js", {"importedNames":["SelectItem","SelectItemIndicator","SelectItemText","useForwardProps"]});
+
+
+
+
+
+const __vite_ssr_import_4__ = await __vite_ssr_import__("/src/lib/utils.ts", {"importedNames":["cn"]});const __vite_ssr_import_5__ = await __vite_ssr_import__("/@fs/Users/blaisetiong/Developer/instrument/.worktrees/hooks-reliability/node_modules/.pnpm/vue@3.5.32_typescript@5.9.3/node_modules/vue/index.mjs", {"importedNames":["renderSlot","createVNode","withCtx","createElementVNode","mergeProps","openBlock","createBlock"]});const __vite_ssr_import_6__ = await __vite_ssr_import__("/@id/__x00__plugin-vue:export-helper", {"importedNames":["default"]});
+const _sfc_main = /* @__PURE__ */ (0,__vite_ssr_import_0__.defineComponent)({
+  __name: "SelectItem",
+  props: {
+    value: { type: null, required: true },
+    disabled: { type: Boolean, required: false },
+    textValue: { type: String, required: false },
+    asChild: { type: Boolean, required: false },
+    as: { type: null, required: false },
+    class: { type: [Boolean, null, String, Object, Array], required: false, skipCheck: true }
+  },
+  setup(__props, { expose: __expose }) {
+    __expose();
+    const props = __props;
+    const delegatedProps = (0,__vite_ssr_import_1__.reactiveOmit)(props, "class");
+    const forwardedProps = (0,__vite_ssr_import_3__.useForwardProps)(delegatedProps);
+    const __returned__ = { props, delegatedProps, forwardedProps, get Check() {
+      return __vite_ssr_import_2__.Check;
+    }, get SelectItem() {
+      return __vite_ssr_import_3__.SelectItem;
+    }, get SelectItemIndicator() {
+      return __vite_ssr_import_3__.SelectItemIndicator;
+    }, get SelectItemText() {
+      return __vite_ssr_import_3__.SelectItemText;
+    }, get cn() {
+      return __vite_ssr_import_4__.cn;
+    } };
+    Object.defineProperty(__returned__, "__isScriptSetup", { enumerable: false, value: true });
+    return __returned__;
+  }
+});
+
+const _hoisted_1 = { class: "absolute right-2 flex size-3.5 items-center justify-center" };
+function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
+  return (0,__vite_ssr_import_5__.openBlock)(), (0,__vite_ssr_import_5__.createBlock)($setup["SelectItem"], (0,__vite_ssr_import_5__.mergeProps)({ "data-slot": "select-item" }, $setup.forwardedProps, {
+    class: $setup.cn(
+      "focus:bg-accent focus:text-accent-foreground [&_svg:not([class*='text-'])]:text-muted-foreground relative flex w-full cursor-default items-center gap-2 rounded-sm py-1.5 pr-8 pl-2 text-sm outline-hidden select-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 *:[span]:last:flex *:[span]:last:items-center *:[span]:last:gap-2",
+      $setup.props.class
+    )
+  }), {
+    default: (0,__vite_ssr_import_5__.withCtx)(() => [
+      (0,__vite_ssr_import_5__.createElementVNode)("span", _hoisted_1, [
+        (0,__vite_ssr_import_5__.createVNode)($setup["SelectItemIndicator"], null, {
+          default: (0,__vite_ssr_import_5__.withCtx)(() => [
+            (0,__vite_ssr_import_5__.renderSlot)(_ctx.$slots, "indicator-icon", {}, () => [
+              (0,__vite_ssr_import_5__.createVNode)($setup["Check"], { class: "size-4" })
+            ])
+          ]),
+          _: 3
+          /* FORWARDED */
+        })
+      ]),
+      (0,__vite_ssr_import_5__.createVNode)($setup["SelectItemText"], null, {
+        default: (0,__vite_ssr_import_5__.withCtx)(() => [
+          (0,__vite_ssr_import_5__.renderSlot)(_ctx.$slots, "default")
+        ]),
+        _: 3
+        /* FORWARDED */
+      })
+    ]),
+    _: 3
+    /* FORWARDED */
+  }, 16, ["class"]);
+}
+
+const __vite_ssr_export_default__ = /* @__PURE__ */ (0,__vite_ssr_import_6__.default)(_sfc_main, [["render", _sfc_render], ["__file", "/Users/blaisetiong/Developer/instrument/.worktrees/hooks-reliability/apps/desktop/src/components/ui/select/SelectItem.vue"]]);
+
+//# sourceMappingSource=vite-node
+//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJ2ZXJzaW9uIjozLCJtYXBwaW5ncyI6Ijs7QUFHQTtBQUNBO0FBQ0E7Ozs7OztBQU1BOzs7Ozs7Ozs7Ozs7O0FBRUEsVUFBTSxRQUFRO0FBRWQsVUFBTSxvQkFBaUIsb0NBQWEsT0FBTyxPQUFPO0FBRWxELFVBQU0sb0JBQWlCLHVDQUFnQixjQUFjOzs7Ozs7Ozs7Ozs7Ozs7OztxQkFjM0MsT0FBTSw2REFBNEQ7O21EQVYxRSxtQ0FxQmEseUJBckJiLGtDQXFCYSxFQXBCWCxhQUFVLGNBQWEsR0FDZix1QkFBYztBQUFBLElBQ3JCLE9BQWM7QUFBQTtNQUFxYyxhQUFNO0FBQUE7OytDQU8xZCxNQU1PO0FBQUEsU0FOUCwwQ0FNTyxRQU5QLFlBTU87QUFBQSxXQUxMLG1DQUlzQjtBQUFBLHFEQUhwQixNQUVPO0FBQUEsZUFGUCxrQ0FFTyxtQ0FGUCxNQUVPO0FBQUEsaUJBREwsbUNBQXdCLG1CQUFqQixPQUFNLFNBQVE7QUFBQTs7Ozs7O1NBSzNCLG1DQUVpQjtBQUFBLG1EQURmLE1BQVE7QUFBQSxhQUFSLGtDQUFRO0FBQUEiLCJuYW1lcyI6W10sImlnbm9yZUxpc3QiOltdLCJzb3VyY2VzIjpbIlNlbGVjdEl0ZW0udnVlIl0sInNvdXJjZXNDb250ZW50IjpbIjxzY3JpcHQgc2V0dXAgbGFuZz1cInRzXCI+XG5pbXBvcnQgdHlwZSB7IFNlbGVjdEl0ZW1Qcm9wcyB9IGZyb20gXCJyZWthLXVpXCJcbmltcG9ydCB0eXBlIHsgSFRNTEF0dHJpYnV0ZXMgfSBmcm9tIFwidnVlXCJcbmltcG9ydCB7IHJlYWN0aXZlT21pdCB9IGZyb20gXCJAdnVldXNlL2NvcmVcIlxuaW1wb3J0IHsgQ2hlY2sgfSBmcm9tIFwibHVjaWRlLXZ1ZS1uZXh0XCJcbmltcG9ydCB7XG4gIFNlbGVjdEl0ZW0sXG4gIFNlbGVjdEl0ZW1JbmRpY2F0b3IsXG4gIFNlbGVjdEl0ZW1UZXh0LFxuICB1c2VGb3J3YXJkUHJvcHMsXG59IGZyb20gXCJyZWthLXVpXCJcbmltcG9ydCB7IGNuIH0gZnJvbSBcIkAvbGliL3V0aWxzXCJcblxuY29uc3QgcHJvcHMgPSBkZWZpbmVQcm9wczxTZWxlY3RJdGVtUHJvcHMgJiB7IGNsYXNzPzogSFRNTEF0dHJpYnV0ZXNbXCJjbGFzc1wiXSB9PigpXG5cbmNvbnN0IGRlbGVnYXRlZFByb3BzID0gcmVhY3RpdmVPbWl0KHByb3BzLCBcImNsYXNzXCIpXG5cbmNvbnN0IGZvcndhcmRlZFByb3BzID0gdXNlRm9yd2FyZFByb3BzKGRlbGVnYXRlZFByb3BzKVxuPC9zY3JpcHQ+XG5cbjx0ZW1wbGF0ZT5cbiAgPFNlbGVjdEl0ZW1cbiAgICBkYXRhLXNsb3Q9XCJzZWxlY3QtaXRlbVwiXG4gICAgdi1iaW5kPVwiZm9yd2FyZGVkUHJvcHNcIlxuICAgIDpjbGFzcz1cIlxuICAgICAgY24oXG4gICAgICAgICdmb2N1czpiZy1hY2NlbnQgZm9jdXM6dGV4dC1hY2NlbnQtZm9yZWdyb3VuZCBbJl9zdmc6bm90KFtjbGFzcyo9XFwndGV4dC1cXCddKV06dGV4dC1tdXRlZC1mb3JlZ3JvdW5kIHJlbGF0aXZlIGZsZXggdy1mdWxsIGN1cnNvci1kZWZhdWx0IGl0ZW1zLWNlbnRlciBnYXAtMiByb3VuZGVkLXNtIHB5LTEuNSBwci04IHBsLTIgdGV4dC1zbSBvdXRsaW5lLWhpZGRlbiBzZWxlY3Qtbm9uZSBkYXRhLVtkaXNhYmxlZF06cG9pbnRlci1ldmVudHMtbm9uZSBkYXRhLVtkaXNhYmxlZF06b3BhY2l0eS01MCBbJl9zdmddOnBvaW50ZXItZXZlbnRzLW5vbmUgWyZfc3ZnXTpzaHJpbmstMCBbJl9zdmc6bm90KFtjbGFzcyo9XFwnc2l6ZS1cXCddKV06c2l6ZS00ICo6W3NwYW5dOmxhc3Q6ZmxleCAqOltzcGFuXTpsYXN0Oml0ZW1zLWNlbnRlciAqOltzcGFuXTpsYXN0OmdhcC0yJyxcbiAgICAgICAgcHJvcHMuY2xhc3MsXG4gICAgICApXG4gICAgXCJcbiAgPlxuICAgIDxzcGFuIGNsYXNzPVwiYWJzb2x1dGUgcmlnaHQtMiBmbGV4IHNpemUtMy41IGl0ZW1zLWNlbnRlciBqdXN0aWZ5LWNlbnRlclwiPlxuICAgICAgPFNlbGVjdEl0ZW1JbmRpY2F0b3I+XG4gICAgICAgIDxzbG90IG5hbWU9XCJpbmRpY2F0b3ItaWNvblwiPlxuICAgICAgICAgIDxDaGVjayBjbGFzcz1cInNpemUtNFwiIC8+XG4gICAgICAgIDwvc2xvdD5cbiAgICAgIDwvU2VsZWN0SXRlbUluZGljYXRvcj5cbiAgICA8L3NwYW4+XG5cbiAgICA8U2VsZWN0SXRlbVRleHQ+XG4gICAgICA8c2xvdCAvPlxuICAgIDwvU2VsZWN0SXRlbVRleHQ+XG4gIDwvU2VsZWN0SXRlbT5cbjwvdGVtcGxhdGU+XG4iXSwiZmlsZSI6Ii9zcmMvY29tcG9uZW50cy91aS9zZWxlY3QvU2VsZWN0SXRlbS52dWUifQ==

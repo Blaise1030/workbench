@@ -1,0 +1,21 @@
+Object.defineProperty(__vite_ssr_exports__, "default", { enumerable: true, configurable: true, get(){ try { return __vite_ssr_export_default__ } catch {} }});
+const __vite_ssr_import_0__ = await __vite_ssr_import__("/@fs/Users/blaisetiong/Developer/instrument/.worktrees/hooks-reliability/node_modules/.pnpm/vue@3.5.32_typescript@5.9.3/node_modules/vue/index.mjs", {"importedNames":["renderSlot","openBlock","createElementBlock"]});const __vite_ssr_import_1__ = await __vite_ssr_import__("/@id/__x00__plugin-vue:export-helper", {"importedNames":["default"]});const _sfc_main = {  };
+
+
+const _hoisted_1 = {
+  "data-slot": "dialog-footer",
+  class: "flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"
+};
+
+function _sfc_render(_ctx, _cache) {
+  return ((0,__vite_ssr_import_0__.openBlock)(), (0,__vite_ssr_import_0__.createElementBlock)("div", _hoisted_1, [
+    (0,__vite_ssr_import_0__.renderSlot)(_ctx.$slots, "default")
+  ]))
+}
+
+
+
+const __vite_ssr_export_default__ = /*#__PURE__*/(0,__vite_ssr_import_1__.default)(_sfc_main, [['render',_sfc_render],['__file',"/Users/blaisetiong/Developer/instrument/.worktrees/hooks-reliability/apps/desktop/src/components/ui/dialog/DialogFooter.vue"]])
+
+//# sourceMappingSource=vite-node
+//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJ2ZXJzaW9uIjozLCJtYXBwaW5ncyI6Ijs7Ozs7RUFDTyxXQUFTLEVBQUMsZUFBZTtFQUFDLEtBQUssRUFBQzs7OztvREFBckMsMENBRU0sT0FGTixVQUVNO09BREosa0NBQVEiLCJuYW1lcyI6W10sImlnbm9yZUxpc3QiOltdLCJzb3VyY2VzIjpbIkRpYWxvZ0Zvb3Rlci52dWUiXSwic291cmNlc0NvbnRlbnQiOlsiPHRlbXBsYXRlPlxuICA8ZGl2IGRhdGEtc2xvdD1cImRpYWxvZy1mb290ZXJcIiBjbGFzcz1cImZsZXggZmxleC1jb2wtcmV2ZXJzZSBnYXAtMiBzbTpmbGV4LXJvdyBzbTpqdXN0aWZ5LWVuZFwiPlxuICAgIDxzbG90IC8+XG4gIDwvZGl2PlxuPC90ZW1wbGF0ZT5cbiJdLCJmaWxlIjoiL3NyYy9jb21wb25lbnRzL3VpL2RpYWxvZy9EaWFsb2dGb290ZXIudnVlIn0=

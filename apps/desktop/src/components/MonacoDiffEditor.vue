@@ -138,10 +138,14 @@ onMounted(() => {
 onBeforeUnmount(() => {
   colorObserver?.disconnect();
   colorObserver = null;
-  diffEditor?.getOriginalEditor().getModel()?.dispose();
-  diffEditor?.getModifiedEditor().getModel()?.dispose();
-  diffEditor?.dispose();
-  diffEditor = null;
+  if (diffEditor) {
+    const model = diffEditor.getModel();
+    diffEditor.setModel(null);
+    model?.original?.dispose();
+    model?.modified?.dispose();
+    diffEditor.dispose();
+    diffEditor = null;
+  }
 });
 
 watch(

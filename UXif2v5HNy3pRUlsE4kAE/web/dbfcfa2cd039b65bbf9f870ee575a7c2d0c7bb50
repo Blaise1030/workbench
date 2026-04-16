@@ -1,0 +1,38 @@
+Object.defineProperty(__vite_ssr_exports__, "default", { enumerable: true, configurable: true, get(){ try { return __vite_ssr_export_default__ } catch {} }});
+const __vite_ssr_import_0__ = await __vite_ssr_import__("/@fs/Users/blaisetiong/Developer/instrument/.worktrees/hooks-reliability/node_modules/.pnpm/vue@3.5.32_typescript@5.9.3/node_modules/vue/index.mjs", {"importedNames":["defineComponent"]});
+const __vite_ssr_import_1__ = await __vite_ssr_import__("/@fs/Users/blaisetiong/Developer/instrument/.worktrees/hooks-reliability/node_modules/.pnpm/@vueuse+core@14.2.1_vue@3.5.32/node_modules/@vueuse/core/dist/index.js", {"importedNames":["reactiveOmit"]});
+const __vite_ssr_import_2__ = await __vite_ssr_import__("/@fs/Users/blaisetiong/Developer/instrument/.worktrees/hooks-reliability/node_modules/.pnpm/reka-ui@2.9.5_vue@3.5.32/node_modules/reka-ui/dist/index.js", {"importedNames":["DropdownMenuSeparator"]});
+
+
+const __vite_ssr_import_3__ = await __vite_ssr_import__("/src/lib/utils.ts", {"importedNames":["cn"]});const __vite_ssr_import_4__ = await __vite_ssr_import__("/@fs/Users/blaisetiong/Developer/instrument/.worktrees/hooks-reliability/node_modules/.pnpm/vue@3.5.32_typescript@5.9.3/node_modules/vue/index.mjs", {"importedNames":["mergeProps","openBlock","createBlock"]});const __vite_ssr_import_5__ = await __vite_ssr_import__("/@id/__x00__plugin-vue:export-helper", {"importedNames":["default"]});
+const _sfc_main = /* @__PURE__ */ (0,__vite_ssr_import_0__.defineComponent)({
+  __name: "DropdownMenuSeparator",
+  props: {
+    asChild: { type: Boolean, required: false },
+    as: { type: null, required: false },
+    class: { type: [Boolean, null, String, Object, Array], required: false, skipCheck: true }
+  },
+  setup(__props, { expose: __expose }) {
+    __expose();
+    const props = __props;
+    const delegatedProps = (0,__vite_ssr_import_1__.reactiveOmit)(props, "class");
+    const __returned__ = { props, delegatedProps, get DropdownMenuSeparator() {
+      return __vite_ssr_import_2__.DropdownMenuSeparator;
+    }, get cn() {
+      return __vite_ssr_import_3__.cn;
+    } };
+    Object.defineProperty(__returned__, "__isScriptSetup", { enumerable: false, value: true });
+    return __returned__;
+  }
+});
+
+function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
+  return (0,__vite_ssr_import_4__.openBlock)(), (0,__vite_ssr_import_4__.createBlock)($setup["DropdownMenuSeparator"], (0,__vite_ssr_import_4__.mergeProps)({ "data-slot": "dropdown-menu-separator" }, $setup.delegatedProps, {
+    class: $setup.cn("bg-border -mx-1 my-1 h-px", $setup.props.class)
+  }), null, 16, ["class"]);
+}
+
+const __vite_ssr_export_default__ = /* @__PURE__ */ (0,__vite_ssr_import_5__.default)(_sfc_main, [["render", _sfc_render], ["__file", "/Users/blaisetiong/Developer/instrument/.worktrees/hooks-reliability/apps/desktop/src/components/ui/dropdown-menu/DropdownMenuSeparator.vue"]]);
+
+//# sourceMappingSource=vite-node
+//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJ2ZXJzaW9uIjozLCJtYXBwaW5ncyI6Ijs7QUFHQTtBQUNBOzs7QUFHQTs7Ozs7Ozs7OztBQUVBLFVBQU0sUUFBUTtBQUlkLFVBQU0sb0JBQWlCLG9DQUFhLE9BQU8sT0FBTzs7Ozs7Ozs7Ozs7O21EQUloRCxtQ0FJRSxvQ0FKRixrQ0FJRSxFQUhBLGFBQVUsMEJBQXlCLEdBQzNCLHVCQUFjO0FBQUEsSUFDckIsT0FBTyxVQUFFLDZCQUE4QixhQUFNLEtBQUs7QUFBQSIsIm5hbWVzIjpbXSwiaWdub3JlTGlzdCI6W10sInNvdXJjZXMiOlsiRHJvcGRvd25NZW51U2VwYXJhdG9yLnZ1ZSJdLCJzb3VyY2VzQ29udGVudCI6WyI8c2NyaXB0IHNldHVwIGxhbmc9XCJ0c1wiPlxuaW1wb3J0IHR5cGUgeyBEcm9wZG93bk1lbnVTZXBhcmF0b3JQcm9wcyB9IGZyb20gXCJyZWthLXVpXCJcbmltcG9ydCB0eXBlIHsgSFRNTEF0dHJpYnV0ZXMgfSBmcm9tIFwidnVlXCJcbmltcG9ydCB7IHJlYWN0aXZlT21pdCB9IGZyb20gXCJAdnVldXNlL2NvcmVcIlxuaW1wb3J0IHtcbiAgRHJvcGRvd25NZW51U2VwYXJhdG9yLFxufSBmcm9tIFwicmVrYS11aVwiXG5pbXBvcnQgeyBjbiB9IGZyb20gXCJAL2xpYi91dGlsc1wiXG5cbmNvbnN0IHByb3BzID0gZGVmaW5lUHJvcHM8RHJvcGRvd25NZW51U2VwYXJhdG9yUHJvcHMgJiB7XG4gIGNsYXNzPzogSFRNTEF0dHJpYnV0ZXNbXCJjbGFzc1wiXVxufT4oKVxuXG5jb25zdCBkZWxlZ2F0ZWRQcm9wcyA9IHJlYWN0aXZlT21pdChwcm9wcywgXCJjbGFzc1wiKVxuPC9zY3JpcHQ+XG5cbjx0ZW1wbGF0ZT5cbiAgPERyb3Bkb3duTWVudVNlcGFyYXRvclxuICAgIGRhdGEtc2xvdD1cImRyb3Bkb3duLW1lbnUtc2VwYXJhdG9yXCJcbiAgICB2LWJpbmQ9XCJkZWxlZ2F0ZWRQcm9wc1wiXG4gICAgOmNsYXNzPVwiY24oJ2JnLWJvcmRlciAtbXgtMSBteS0xIGgtcHgnLCBwcm9wcy5jbGFzcylcIlxuICAvPlxuPC90ZW1wbGF0ZT5cbiJdLCJmaWxlIjoiL3NyYy9jb21wb25lbnRzL3VpL2Ryb3Bkb3duLW1lbnUvRHJvcGRvd25NZW51U2VwYXJhdG9yLnZ1ZSJ9

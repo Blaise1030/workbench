@@ -1,0 +1,40 @@
+Object.defineProperty(__vite_ssr_exports__, "default", { enumerable: true, configurable: true, get(){ try { return __vite_ssr_export_default__ } catch {} }});
+const __vite_ssr_import_0__ = await __vite_ssr_import__("/@fs/Users/blaisetiong/Developer/instrument/.worktrees/hooks-reliability/node_modules/.pnpm/vue@3.5.32_typescript@5.9.3/node_modules/vue/index.mjs", {"importedNames":["defineComponent"]});
+const __vite_ssr_import_1__ = await __vite_ssr_import__("/@fs/Users/blaisetiong/Developer/instrument/.worktrees/hooks-reliability/node_modules/.pnpm/reka-ui@2.9.5_vue@3.5.32/node_modules/reka-ui/dist/index.js", {"importedNames":["DropdownMenuGroup"]});const __vite_ssr_import_2__ = await __vite_ssr_import__("/@fs/Users/blaisetiong/Developer/instrument/.worktrees/hooks-reliability/node_modules/.pnpm/vue@3.5.32_typescript@5.9.3/node_modules/vue/index.mjs", {"importedNames":["renderSlot","mergeProps","withCtx","openBlock","createBlock"]});const __vite_ssr_import_3__ = await __vite_ssr_import__("/@id/__x00__plugin-vue:export-helper", {"importedNames":["default"]});
+const _sfc_main = /* @__PURE__ */ (0,__vite_ssr_import_0__.defineComponent)({
+  __name: "DropdownMenuGroup",
+  props: {
+    asChild: { type: Boolean, required: false },
+    as: { type: null, required: false }
+  },
+  setup(__props, { expose: __expose }) {
+    __expose();
+    const props = __props;
+    const __returned__ = { props, get DropdownMenuGroup() {
+      return __vite_ssr_import_1__.DropdownMenuGroup;
+    } };
+    Object.defineProperty(__returned__, "__isScriptSetup", { enumerable: false, value: true });
+    return __returned__;
+  }
+});
+
+function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
+  return (0,__vite_ssr_import_2__.openBlock)(), (0,__vite_ssr_import_2__.createBlock)(
+    $setup["DropdownMenuGroup"],
+    (0,__vite_ssr_import_2__.mergeProps)({ "data-slot": "dropdown-menu-group" }, $setup.props),
+    {
+      default: (0,__vite_ssr_import_2__.withCtx)(() => [
+        (0,__vite_ssr_import_2__.renderSlot)(_ctx.$slots, "default")
+      ]),
+      _: 3
+      /* FORWARDED */
+    },
+    16
+    /* FULL_PROPS */
+  );
+}
+
+const __vite_ssr_export_default__ = /* @__PURE__ */ (0,__vite_ssr_import_3__.default)(_sfc_main, [["render", _sfc_render], ["__file", "/Users/blaisetiong/Developer/instrument/.worktrees/hooks-reliability/apps/desktop/src/components/ui/dropdown-menu/DropdownMenuGroup.vue"]]);
+
+//# sourceMappingSource=vite-node
+//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJ2ZXJzaW9uIjozLCJtYXBwaW5ncyI6Ijs7QUFFQTs7Ozs7Ozs7O0FBRUEsVUFBTSxRQUFROzs7Ozs7Ozs7O21EQUlaO0FBQUEsSUFLb0I7QUFBQSxPQUxwQixrQ0FLb0IsRUFKbEIsYUFBVSxzQkFBcUIsR0FDdkIsWUFBSztBQUFBO0FBQUEsaURBRWIsTUFBUTtBQUFBLFdBQVIsa0NBQVE7QUFBQSIsIm5hbWVzIjpbXSwiaWdub3JlTGlzdCI6W10sInNvdXJjZXMiOlsiRHJvcGRvd25NZW51R3JvdXAudnVlIl0sInNvdXJjZXNDb250ZW50IjpbIjxzY3JpcHQgc2V0dXAgbGFuZz1cInRzXCI+XG5pbXBvcnQgdHlwZSB7IERyb3Bkb3duTWVudUdyb3VwUHJvcHMgfSBmcm9tIFwicmVrYS11aVwiXG5pbXBvcnQgeyBEcm9wZG93bk1lbnVHcm91cCB9IGZyb20gXCJyZWthLXVpXCJcblxuY29uc3QgcHJvcHMgPSBkZWZpbmVQcm9wczxEcm9wZG93bk1lbnVHcm91cFByb3BzPigpXG48L3NjcmlwdD5cblxuPHRlbXBsYXRlPlxuICA8RHJvcGRvd25NZW51R3JvdXBcbiAgICBkYXRhLXNsb3Q9XCJkcm9wZG93bi1tZW51LWdyb3VwXCJcbiAgICB2LWJpbmQ9XCJwcm9wc1wiXG4gID5cbiAgICA8c2xvdCAvPlxuICA8L0Ryb3Bkb3duTWVudUdyb3VwPlxuPC90ZW1wbGF0ZT5cbiJdLCJmaWxlIjoiL3NyYy9jb21wb25lbnRzL3VpL2Ryb3Bkb3duLW1lbnUvRHJvcGRvd25NZW51R3JvdXAudnVlIn0=

@@ -1,0 +1,82 @@
+Object.defineProperty(__vite_ssr_exports__, "default", { enumerable: true, configurable: true, get(){ try { return __vite_ssr_export_default__ } catch {} }});
+const __vite_ssr_import_0__ = await __vite_ssr_import__("/@fs/Users/blaisetiong/Developer/instrument/.worktrees/hooks-reliability/node_modules/.pnpm/vue@3.5.32_typescript@5.9.3/node_modules/vue/index.mjs", {"importedNames":["defineComponent"]});
+const __vite_ssr_import_1__ = await __vite_ssr_import__("/@fs/Users/blaisetiong/Developer/instrument/.worktrees/hooks-reliability/node_modules/.pnpm/lucide-vue-next@1.0.0_vue@3.5.32/node_modules/lucide-vue-next/dist/cjs/lucide-vue-next.js", {"importedNames":["AlertTriangle"]});
+const __vite_ssr_import_2__ = await __vite_ssr_import__("/src/components/ui/Button.vue", {"importedNames":["default"]});const __vite_ssr_import_3__ = await __vite_ssr_import__("/@fs/Users/blaisetiong/Developer/instrument/.worktrees/hooks-reliability/node_modules/.pnpm/vue@3.5.32_typescript@5.9.3/node_modules/vue/index.mjs", {"importedNames":["createVNode","toDisplayString","createElementVNode","createTextVNode","withCtx","openBlock","createElementBlock"]});const __vite_ssr_import_4__ = await __vite_ssr_import__("/@id/__x00__plugin-vue:export-helper", {"importedNames":["default"]});
+const _sfc_main = /* @__PURE__ */ (0,__vite_ssr_import_0__.defineComponent)({
+  __name: "WorktreeStaleCallout",
+  props: {
+    branch: { type: String, required: true }
+  },
+  emits: ["delete"],
+  setup(__props, { expose: __expose, emit: __emit }) {
+    __expose();
+    const emit = __emit;
+    const __returned__ = { emit, get AlertTriangle() {
+      return __vite_ssr_import_1__.AlertTriangle;
+    }, Button: __vite_ssr_import_2__.default };
+    Object.defineProperty(__returned__, "__isScriptSetup", { enumerable: false, value: true });
+    return __returned__;
+  }
+});
+
+const _hoisted_1 = { class: "mx-2 my-1.5 rounded-md border border-amber-500/30 bg-amber-500/10 p-2.5" };
+const _hoisted_2 = { class: "flex items-start gap-2" };
+const _hoisted_3 = { class: "min-w-0 flex-1 space-y-1.5" };
+const _hoisted_4 = {
+  "data-testid": "worktree-stale-message",
+  class: "text-[11px] leading-4 text-foreground/90"
+};
+const _hoisted_5 = { class: "font-medium text-emerald-500" };
+const _hoisted_6 = { class: "flex" };
+function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
+  return (0,__vite_ssr_import_3__.openBlock)(), (0,__vite_ssr_import_3__.createElementBlock)("div", _hoisted_1, [
+    (0,__vite_ssr_import_3__.createElementVNode)("div", _hoisted_2, [
+      (0,__vite_ssr_import_3__.createVNode)($setup["AlertTriangle"], { class: "mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500" }),
+      (0,__vite_ssr_import_3__.createElementVNode)("div", _hoisted_3, [
+        (0,__vite_ssr_import_3__.createElementVNode)("p", _hoisted_4, [
+          _cache[1] || (_cache[1] = (0,__vite_ssr_import_3__.createTextVNode)(
+            " The worktree for ",
+            -1
+            /* CACHED */
+          )),
+          (0,__vite_ssr_import_3__.createElementVNode)(
+            "span",
+            _hoisted_5,
+            (0,__vite_ssr_import_3__.toDisplayString)($props.branch),
+            1
+            /* TEXT */
+          ),
+          _cache[2] || (_cache[2] = (0,__vite_ssr_import_3__.createTextVNode)(
+            " was removed outside the app. ",
+            -1
+            /* CACHED */
+          ))
+        ]),
+        (0,__vite_ssr_import_3__.createElementVNode)("div", _hoisted_6, [
+          (0,__vite_ssr_import_3__.createVNode)($setup["Button"], {
+            "data-testid": "worktree-stale-delete",
+            type: "button",
+            variant: "destructive",
+            size: "xs",
+            onClick: _cache[0] || (_cache[0] = ($event) => $setup.emit("delete"))
+          }, {
+            default: (0,__vite_ssr_import_3__.withCtx)(() => [..._cache[3] || (_cache[3] = [
+              (0,__vite_ssr_import_3__.createTextVNode)(
+                " Delete group & threads ",
+                -1
+                /* CACHED */
+              )
+            ])]),
+            _: 1
+            /* STABLE */
+          })
+        ])
+      ])
+    ])
+  ]);
+}
+
+const __vite_ssr_export_default__ = /* @__PURE__ */ (0,__vite_ssr_import_4__.default)(_sfc_main, [["render", _sfc_render], ["__file", "/Users/blaisetiong/Developer/instrument/.worktrees/hooks-reliability/apps/desktop/src/components/WorktreeStaleCallout.vue"]]);
+
+//# sourceMappingSource=vite-node
+//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJ2ZXJzaW9uIjozLCJtYXBwaW5ncyI6Ijs7QUFDQTtBQUNBOzs7Ozs7Ozs7QUFNQSxVQUFNLE9BQU87Ozs7Ozs7OztxQkFNTixPQUFNLDBFQUF5RTtxQkFDN0UsT0FBTSx5QkFBd0I7cUJBRTVCLE9BQU0sNkJBQTRCOztFQUVuQyxlQUFZO0FBQUEsRUFDWixPQUFNOztxQkFFaUIsT0FBTSwrQkFBOEI7cUJBR3hELE9BQU0sT0FBTTs7bURBWHZCLDBDQXdCTSxPQXhCTixZQXdCTTtBQUFBLE9BdkJKLDBDQXNCTSxPQXRCTixZQXNCTTtBQUFBLFNBckJKLG1DQUFvRSwyQkFBckQsT0FBTSw2Q0FBNEM7QUFBQSxTQUNqRSwwQ0FtQk0sT0FuQk4sWUFtQk07QUFBQSxXQWxCSiwwQ0FNSSxLQU5KLFlBTUk7QUFBQTtZQUhIO0FBQUEsWUFDa0I7QUFBQTtBQUFBO0FBQUE7QUFBQSxZQUE4RDtBQUFBLFlBQTlEO0FBQUEsZUFBOEQsdUNBQWhCLGFBQU07QUFBQTtBQUFBO0FBQUE7QUFBQTtZQUFVO0FBQUEsWUFFakY7QUFBQTtBQUFBO0FBQUE7V0FDQSwwQ0FVTSxPQVZOLFlBVU07QUFBQSxhQVRKLG1DQVFTO0FBQUEsWUFQUCxlQUFZO0FBQUEsWUFDWixNQUFLO0FBQUEsWUFDTCxTQUFRO0FBQUEsWUFDUixNQUFLO0FBQUEsWUFDSixTQUFLLHNDQUFFLFlBQUk7QUFBQTt1REFDYixNQUVEO0FBQUE7Z0JBRkM7QUFBQSxnQkFFRDtBQUFBO0FBQUE7QUFBQSIsIm5hbWVzIjpbXSwiaWdub3JlTGlzdCI6W10sInNvdXJjZXMiOlsiV29ya3RyZWVTdGFsZUNhbGxvdXQudnVlIl0sInNvdXJjZXNDb250ZW50IjpbIjxzY3JpcHQgc2V0dXAgbGFuZz1cInRzXCI+XG5pbXBvcnQgeyBBbGVydFRyaWFuZ2xlIH0gZnJvbSBcImx1Y2lkZS12dWUtbmV4dFwiO1xuaW1wb3J0IEJ1dHRvbiBmcm9tIFwiQC9jb21wb25lbnRzL3VpL0J1dHRvbi52dWVcIjtcblxuZGVmaW5lUHJvcHM8e1xuICBicmFuY2g6IHN0cmluZztcbn0+KCk7XG5cbmNvbnN0IGVtaXQgPSBkZWZpbmVFbWl0czx7XG4gIGRlbGV0ZTogW107XG59PigpO1xuPC9zY3JpcHQ+XG5cbjx0ZW1wbGF0ZT5cbiAgPGRpdiBjbGFzcz1cIm14LTIgbXktMS41IHJvdW5kZWQtbWQgYm9yZGVyIGJvcmRlci1hbWJlci01MDAvMzAgYmctYW1iZXItNTAwLzEwIHAtMi41XCI+XG4gICAgPGRpdiBjbGFzcz1cImZsZXggaXRlbXMtc3RhcnQgZ2FwLTJcIj5cbiAgICAgIDxBbGVydFRyaWFuZ2xlIGNsYXNzPVwibXQtMC41IGgtMy41IHctMy41IHNocmluay0wIHRleHQtYW1iZXItNTAwXCIgLz5cbiAgICAgIDxkaXYgY2xhc3M9XCJtaW4tdy0wIGZsZXgtMSBzcGFjZS15LTEuNVwiPlxuICAgICAgICA8cFxuICAgICAgICAgIGRhdGEtdGVzdGlkPVwid29ya3RyZWUtc3RhbGUtbWVzc2FnZVwiXG4gICAgICAgICAgY2xhc3M9XCJ0ZXh0LVsxMXB4XSBsZWFkaW5nLTQgdGV4dC1mb3JlZ3JvdW5kLzkwXCJcbiAgICAgICAgPlxuICAgICAgICAgIFRoZSB3b3JrdHJlZSBmb3IgPHNwYW4gY2xhc3M9XCJmb250LW1lZGl1bSB0ZXh0LWVtZXJhbGQtNTAwXCI+e3sgYnJhbmNoIH19PC9zcGFuPlxuICAgICAgICAgIHdhcyByZW1vdmVkIG91dHNpZGUgdGhlIGFwcC5cbiAgICAgICAgPC9wPlxuICAgICAgICA8ZGl2IGNsYXNzPVwiZmxleFwiPlxuICAgICAgICAgIDxCdXR0b25cbiAgICAgICAgICAgIGRhdGEtdGVzdGlkPVwid29ya3RyZWUtc3RhbGUtZGVsZXRlXCJcbiAgICAgICAgICAgIHR5cGU9XCJidXR0b25cIlxuICAgICAgICAgICAgdmFyaWFudD1cImRlc3RydWN0aXZlXCJcbiAgICAgICAgICAgIHNpemU9XCJ4c1wiXG4gICAgICAgICAgICBAY2xpY2s9XCJlbWl0KCdkZWxldGUnKVwiXG4gICAgICAgICAgPlxuICAgICAgICAgICAgRGVsZXRlIGdyb3VwICZhbXA7IHRocmVhZHNcbiAgICAgICAgICA8L0J1dHRvbj5cbiAgICAgICAgPC9kaXY+XG4gICAgICA8L2Rpdj5cbiAgICA8L2Rpdj5cbiAgPC9kaXY+XG48L3RlbXBsYXRlPlxuIl0sImZpbGUiOiIvc3JjL2NvbXBvbmVudHMvV29ya3RyZWVTdGFsZUNhbGxvdXQudnVlIn0=
