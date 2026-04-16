@@ -525,7 +525,7 @@ let diffRefreshSeq = 0;
 let selectedDiffSeq = 0;
 
 const layoutColumns = computed(() => {
-  const threadsWidth = threadsSidebarCollapsed.value ? "3.5rem" : "260px";
+  const threadsWidth = threadsSidebarCollapsed.value ? "0" : "260px";
   return `${threadsWidth} minmax(0, 1fr)`;
 });
 
@@ -973,6 +973,20 @@ async function onInlinePromptSubmit(payload: ThreadCreateWithAgentPayload): Prom
   if (draftWt) clearInlineThreadDraft(draftWt);
   const { agent, prompt } = payload;
   const api = getApi();
+  // Inline prompt creates a draft thread before the user picks an agent.
+  // Update the thread's `agent` field immediately so the sidebar icon reflects the user's selection.
+  const localDraft = workspace.threads.find((t) => t.id === threadId);
+  if (localDraft && localDraft.agent !== agent) {
+    // Optimistic UI update: refreshSnapshot shortly re-syncs server state.
+    localDraft.agent = agent;
+  }
+  if (api?.updateThread) {
+    try {
+      await api.updateThread({ threadId, agent });
+    } catch {
+      /* non-fatal: PTY bootstrap still uses the chosen agent */
+    }
+  }
   // Rename the thread from placeholder to the derived title.
   const title = resolveNewThreadTitle(payload, agent);
   if (api && title !== "New thread") {
@@ -1677,7 +1691,7 @@ watch(
       tabindex="-1"
       webkitdirectory
       @change="onRepoDirectoryInputChange"
-    />
+    />   
     <ProjectTabs
       v-if="workspace.projects.length > 0 && !hasActiveWorkspace"
       :projects="workspace.projects"
@@ -1720,7 +1734,7 @@ watch(
     </section>
 
     <section v-else class="grid min-h-0 flex-1" :style="{ gridTemplateColumns: layoutColumns }">
-      <section class="flex min-h-0 min-w-0 flex-col overflow-hidden border-r border-border">
+      <section class="flex min-h-0 min-w-0 flex-col overflow-hidden border-r border-border">        
         <ThreadSidebar
           ref="threadSidebarRef"
           class="min-h-0 min-w-0 flex-1"
@@ -1749,7 +1763,7 @@ watch(
           @add-thread-inline="openInlineThreadPrompt"
         />
       </section>
-      <section class="flex min-h-0 min-w-0 flex-col border-r border-border">
+      <section class="flex min-h-0 min-w-0 flex-col border-r border-border">                                 
         <ProjectTabs
           v-if="workspace.projects.length > 0"
           :projects="workspace.projects"
@@ -1758,6 +1772,8 @@ watch(
           :idle-attention-by-thread-id="ptyIdleAttentionByThreadId"
           :run-status-by-thread-id="ptyRunStatusByThreadId"
           :active-project-id="workspace.activeProjectId"
+          :collapsed="threadsSidebarCollapsed"
+          @expand="threadsSidebarCollapsed = false"
           @select="handleSelectProject"
           @remove="handleRemoveProject"
           @reorder="handleReorderProjects"

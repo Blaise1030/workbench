@@ -31,7 +31,7 @@ describe("notification service", () => {
     const service = new NotificationService();
     service.trigger("done", "MyProject", "Build the login page");
     expect(Notification).toHaveBeenCalledWith(
-      expect.objectContaining({ title: "MyProject", body: "MyProject, Build the login page is done" })
+      expect.objectContaining({ title: "MyProject", body: "MyProject, Build the login page needs attention" })
     );
     expect(showMock).toHaveBeenCalled();
   });

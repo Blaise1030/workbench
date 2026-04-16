@@ -336,6 +336,10 @@ function registerIpc(workspaceService: WorkspaceService): void {
     workspaceService.renameThread(payload.threadId, payload.title);
     emitWorkspaceDidChange();
   });
+  ipcMain.handle(IPC_CHANNELS.workspaceUpdateThread, (_, payload: { threadId: string; title?: string; agent?: ThreadAgent }) => {
+    workspaceService.updateThread(payload.threadId, payload);
+    emitWorkspaceDidChange();
+  });
   ipcMain.handle(IPC_CHANNELS.workspaceCreateWorktreeGroup, async (_, payload: CreateWorktreeGroupInput) => {
     const worktree = await workspaceService.createWorktreeGroup(payload);
     emitWorkspaceDidChange();

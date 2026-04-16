@@ -1731,6 +1731,7 @@ describe("WorkspaceLayout", () => {
       updatedAt: "2026-04-14T00:00:00.000Z"
     });
     const renameThread = vi.fn<WorkspaceApi["renameThread"]>().mockResolvedValue(undefined);
+    const updateThread = vi.fn<NonNullable<WorkspaceApi["updateThread"]>>().mockResolvedValue(undefined);
 
     window.workspaceApi = {
       getSnapshot,
@@ -1743,6 +1744,7 @@ describe("WorkspaceLayout", () => {
       setActiveThread: vi.fn(),
       deleteThread: vi.fn(),
       renameThread,
+      updateThread,
       startRun: vi.fn(),
       sendRunInput: vi.fn(),
       interruptRun: vi.fn(),
@@ -1797,6 +1799,10 @@ describe("WorkspaceLayout", () => {
     expect(renameThread).toHaveBeenNthCalledWith(1, {
       threadId: "thread-new",
       title: "Heuristic line"
+    });
+    expect(updateThread).toHaveBeenCalledWith({
+      threadId: "thread-new",
+      agent: "claude"
     });
     expect(llmMocks.generateThreadTitle).toHaveBeenCalledWith(
       "Heuristic line\nmore body",

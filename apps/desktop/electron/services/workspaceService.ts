@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import path from "node:path";
-import type { Project, Thread, Worktree } from "../../src/shared/domain.js";
+import type { Project, Thread, ThreadAgent, Worktree } from "../../src/shared/domain.js";
 import { isValidResumeSessionId } from "../../src/shared/resumeSessionId.js";
 import type { CreateThreadInput, CreateWorktreeGroupInput, WorkspaceSnapshot } from "../../src/shared/ipc.js";
 import { WorkspaceStore } from "../storage/store.js";
@@ -132,6 +132,19 @@ export class WorkspaceService {
 
   renameThread(threadId: string, title: string): void {
     this.store.renameThread(threadId, title);
+  }
+
+  updateThread(threadId: string, updates: { title?: string; agent?: ThreadAgent }): void {
+    const thread = this.store.getThread(threadId);
+    if (!thread) return;
+
+    const now = new Date().toISOString();
+    this.store.upsertThread({
+      ...thread,
+      title: updates.title ?? thread.title,
+      agent: updates.agent ?? thread.agent,
+      updatedAt: now
+    });
   }
 
   captureInitialPrompt(threadId: string, input: string): { renamed: boolean; captured: boolean; initialPrompt: string | null } {

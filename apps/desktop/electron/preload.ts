@@ -132,6 +132,7 @@ contextBridge.exposeInMainWorld("workspaceApi", {
   setActiveThread: (threadId: string) => ipcRenderer.invoke(IPC_CHANNELS.workspaceSetActiveThread, threadId),
   deleteThread: (payload: unknown) => ipcRenderer.invoke(IPC_CHANNELS.workspaceDeleteThread, payload),
   renameThread: (payload: unknown) => ipcRenderer.invoke(IPC_CHANNELS.workspaceRenameThread, payload),
+  updateThread: (payload: unknown) => ipcRenderer.invoke(IPC_CHANNELS.workspaceUpdateThread, payload),
   createWorktreeGroup: (payload: unknown) => ipcRenderer.invoke(IPC_CHANNELS.workspaceCreateWorktreeGroup, payload),
   deleteWorktreeGroup: (payload: unknown) => ipcRenderer.invoke(IPC_CHANNELS.workspaceDeleteWorktreeGroup, payload),
   listBranches: (projectId: string) => ipcRenderer.invoke(IPC_CHANNELS.workspaceListBranches, { projectId }),

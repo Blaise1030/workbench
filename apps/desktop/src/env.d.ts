@@ -27,6 +27,7 @@ interface WorkspaceApi {
   setActiveThread: (threadId: string) => Promise<unknown>;
   deleteThread: (payload: { threadId: string }) => Promise<void>;
   renameThread: (payload: { threadId: string; title: string }) => Promise<void>;
+  updateThread?: (payload: { threadId: string; title?: string; agent?: import("@shared/domain").ThreadAgent }) => Promise<void>;
   startRun: (payload: unknown) => Promise<string>;
   sendRunInput: (runId: string, input: string) => Promise<void>;
   interruptRun: (runId: string) => Promise<void>;

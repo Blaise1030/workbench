@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { Project, RunStatus, Thread, Worktree } from "@shared/domain";
 import type { AppUpdateAvailability } from "@shared/ipc";
-import { Download, FileText, Plus, Settings, X } from "lucide-vue-next";
+import { Download, FileText, Plus, Settings, X, PanelRightClose } from "lucide-vue-next";
 import type { CSSProperties } from "vue";
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { previewNativeViewportTopPx } from "@/composables/previewNativeViewportTop";
@@ -79,6 +79,7 @@ async function openAppUpdateUrl(url: string): Promise<void> {
 
 const props = withDefaults(
   defineProps<{
+    collapsed: boolean;
     projects: Project[];
     worktrees: Worktree[];
     activeProjectId: string | null;
@@ -103,6 +104,7 @@ const emit = defineEmits<{
   reorder: [orderedProjectIds: string[]];
   create: [];
   configureCommands: [];
+  expand: []
 }>();
 
 /** Browser-style tab strip: inactive = text on chrome; active = muted surface. */
@@ -449,6 +451,18 @@ onBeforeUnmount(() => {
 
 <template>
   <nav :class="tabChrome" aria-label="Projects">
+    <Button
+      v-if="collapsed"
+      type="button"
+      size="icon-sm"
+      variant="outline"
+      class="ms-1"
+      aria-label="Expand threads sidebar"          
+      @click="emit('expand')"
+    >
+      <PanelRightClose class="h-3.5 w-3.5" />
+    </Button>
+    <div class="h-5 border-r mx-1" />
     <div
       role="tablist"
       :class="tabListClass"

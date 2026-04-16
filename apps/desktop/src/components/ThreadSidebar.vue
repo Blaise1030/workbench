@@ -510,6 +510,7 @@ async function openAppUpdateUrl(url: string): Promise<void> {
 <template>
   <aside
     class="flex h-full min-h-0 min-w-0 flex-col overflow-hidden"
+    :class="collapsed ? 'hidden':''"
     :data-thread-sidebar-collapsed="collapsed ? 'true' : undefined"
   >
     <ThreadTopBar
@@ -522,197 +523,26 @@ async function openAppUpdateUrl(url: string): Promise<void> {
       v-if="threads.length === 0"
       class="flex min-h-0 flex-1 flex-col pt-6 pb-3"
       :class="collapsed ? 'px-1' : 'px-3'"
-    >
-      <template v-if="!collapsed">
-        <div class="flex flex-col items-center gap-3 text-center">
-          <h3 class="text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">No threads</h3>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            class="w-full max-w-[12rem]"
-            aria-label="Add thread"
-            :title="titleWithShortcut('Add thread', 'newThreadMenu')"
-            data-testid="thread-sidebar-empty-add-thread"
-            @click="openNewThreadInActiveWorkspace"
-          >
-            <Plus class="h-4 w-4" />
-            <span>Add thread</span>
-          </Button>
-        </div>
-      </template>
-    </section>
-    <div v-else class="flex min-h-0 flex-1 flex-col">
-      <div v-if="collapsed" class="min-h-0 flex-1 overflow-y-auto pb-3 pt-3">
-        <div
-          v-for="(group, groupIndex) in branchFilteredContextGroups"
-          :key="group.uiKey"
-          :data-testid="`thread-group-section-${group.uiKey}`"
-          :class="groupIndex > 0 ? 'mt-2' : ''"
+    >      
+      <div class="flex flex-col items-center gap-3 text-center">
+        <h3 class="text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">No threads</h3>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          class="w-full max-w-[12rem]"
+          aria-label="Add thread"
+          :title="titleWithShortcut('Add thread', 'newThreadMenu')"
+          data-testid="thread-sidebar-empty-add-thread"
+          @click="openNewThreadInActiveWorkspace"
         >
-          <div class="px-2">
-            <Popover
-              :open="openCollapsedGroupId === group.uiKey"
-              @update:open="setCollapsedGroupPopoverOpen(group.uiKey, $event)"
-            >
-              <PopoverTrigger as-child>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  data-testid="thread-group-collapsed-trigger"
-                  class="flex h-7 w-full items-center justify-center rounded-sm text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background"
-                  :class="[
-                    group.threads.some((t) => t.id === activeThreadId)
-                      ? 'bg-accent text-foreground'
-                      : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground',
-                    group.isStale ? 'text-destructive/80' : ''
-                  ]"
-                  :aria-label="group.isPrimary ? `Context ${group.title}` : `Worktree ${group.title}`"
-                  :aria-expanded="openCollapsedGroupId === group.uiKey"
-                  @pointerenter="onCollapsedGroupTriggerPointerEnter(group.uiKey)"
-                  @pointerleave="onCollapsedGroupTriggerPointerLeave"
-                >
-                  <span aria-hidden="true">{{ group.isPrimary ? '⭐️' : '🌳' }}</span>
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent
-                data-testid="thread-group-collapsed-popover"
-                side="right"
-                align="start"
-                :side-offset="4"
-                class="flex max-h-[min(28rem,calc(100vh-4rem))] w-[min(18rem,calc(100vw-1.5rem))] flex-col overflow-hidden p-0"
-                @pointerenter="onCollapsedPopoverPointerEnter"
-                @pointerleave="onCollapsedPopoverPointerLeave"
-              >
-                <div class="flex shrink-0 flex-col gap-1 border-b border-border px-2 py-2 text-xs">
-                  <div class="flex items-center gap-2 font-medium">
-                    <span aria-hidden="true">{{ group.isPrimary ? '⭐️' : '🌳' }}</span>
-                    <span class="min-w-0 truncate">{{ group.title }}</span>
-                  </div>
-                  <div
-                    v-if="group.path"
-                    class="break-all pl-7 text-[11px] font-normal leading-snug text-muted-foreground"
-                  >
-                    {{ group.path }}
-                  </div>
-                  <div
-                    v-if="group.branch || group.baseBranch"
-                    class="flex flex-col gap-0.5 pl-7 text-[11px] text-muted-foreground"
-                  >
-                    <div>
-                      Branch:
-                      <span class="text-foreground">{{ group.branch }}</span>
-                    </div>
-                    <div>
-                      Source branch:
-                      <span class="text-foreground">{{ group.baseBranch?.trim() ? group.baseBranch : '—' }}</span>
-                    </div>
-                  </div>
-                </div>
-                <div class="min-h-0 flex-1 overflow-y-auto px-1.5">
-                  <div
-                    v-if="group.isStale"
-                    class="px-2 pt-2 pb-1.5 text-xs text-destructive"
-                  >
-                    Worktree missing
-                  </div>
-                  <div
-                    v-else-if="group.threads.length === 0"
-                    class="px-2 pt-2 pb-1.5 text-xs text-muted-foreground"
-                  >
-                    No threads in this context
-                  </div>
-                  <ul v-else class="min-w-0 space-y-0.5 pt-2">
-                    <template
-                      v-for="(subgroup, sgIdx) in groupThreadsByRelativeDate(displayThreadsForGroup(group))"
-                      :key="`${group.uiKey}-date-${sgIdx}`"
-                    >
-                      <li
-                        role="presentation"
-                        class="list-none px-2 pb-0.5 pt-2 first:pt-0"
-                        :data-testid="`thread-date-subgroup-${group.uiKey}-${sgIdx}`"
-                      >
-                        <span
-                          class="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground"
-                        >
-                          {{ subgroup.label }}
-                        </span>
-                      </li>
-                      <li
-                        v-for="thread in subgroup.threads"
-                        :key="thread.id"
-                        class="min-w-0"
-                        :data-testid="`thread-list-item-${thread.id}`"
-                      >
-                        <ThreadRow
-                          data-testid="thread-row"
-                          :thread="thread"
-                          :is-active="thread.id === activeThreadId"
-                          :hide-agent-icon="thread.id === inlinePromptThreadId"
-                          :needs-idle-attention="Boolean(idleAttentionByThreadId?.[thread.id])"
-                          :run-status="runStatusByThreadId?.[thread.id] ?? null"
-                          @select="handleCollapsedGroupSelect(thread.id)"
-                          @remove="emit('remove', thread.id)"
-                          @rename="(title) => emit('rename', thread.id, title)"
-                        />
-                      </li>
-                    </template>
-                  </ul>
-                  <div
-                    v-if="showThreadListShowMore(group)"
-                    class="flex justify-center px-2 pt-1 pb-0.5"
-                  >
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="xs"
-                      class="w-auto shrink-0"
-                      :data-testid="`thread-group-show-more-${group.uiKey}`"
-                      @click="expandThreadListForGroup(group.uiKey)"
-                    >
-                      Show more threads
-                    </Button>
-                  </div>
-                  <div
-                    v-if="showThreadListShowLess(group)"
-                    class="flex justify-center px-2 pt-1 pb-0.5"
-                  >
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="xs"
-                      class="w-auto shrink-0"
-                      :data-testid="`thread-group-show-less-${group.uiKey}`"
-                      @click="collapseThreadListForGroup(group.uiKey)"
-                    >
-                      Show less
-                    </Button>
-                  </div>
-                </div>
-                <div
-                  v-if="worktreeIdForGroupAdd(group) !== null && !group.isStale"
-                  class="shrink-0 border-t border-border px-2 py-2 mt-2"
-                >
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    class="w-full"
-                    aria-label="Add thread to group"
-                    :title="titleWithShortcut('Add thread to group', 'newThreadMenu')"
-                    @click="openNewThreadInCollapsedGroup(group)"
-                  >
-                    <Plus class="h-4 w-4" />
-                    <span>Add thread</span>
-                  </Button>
-                </div>
-              </PopoverContent>
-            </Popover>
-          </div>
-        </div>
-      </div>
-      <div v-else class="min-h-0 flex-1 flex flex-col overflow-y-auto pb-3 pt-3">
+          <Plus class="h-4 w-4" />
+          <span>Add thread</span>
+        </Button>
+      </div>      
+    </section>
+    <div v-else class="flex min-h-0 flex-1 flex-col">      
+      <div class="min-h-0 flex-1 flex flex-col overflow-y-auto pb-3 pt-3">
         <div
           v-if="branchFilterAvailable"
           class="flex items-center gap-2 px-4 py-2"
@@ -769,8 +599,8 @@ async function openAppUpdateUrl(url: string): Promise<void> {
       <Button
         type="button"
         variant="outline"
-        :size="collapsed ? 'icon-xs' : 'sm'"
-        :class="collapsed ? 'w-full shrink-0' : 'self-center'"
+        :size="collapsed ? 'icon-xs' : 'xs'"
+        :class="collapsed ? 'w-full shrink-0' : 'self-center rounded-md'"
         :aria-label="showBranchPicker ? 'Cancel add worktree' : 'Add worktree'"
         :title="showBranchPicker ? 'Close worktree form' : 'Add a linked worktree'"
         :disabled="!projectId && !showBranchPicker"
@@ -789,106 +619,3 @@ async function openAppUpdateUrl(url: string): Promise<void> {
     </footer>
   </aside>
 </template>
-
-<style scoped>
-.ticket-rise-enter-active {
-  transition:
-    opacity 0.42s cubic-bezier(0.22, 1, 0.36, 1),
-    transform 0.52s cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.ticket-rise-enter-from {
-  opacity: 0;
-  transform: translate3d(0, 1.1rem, 0);
-}
-
-.ticket-rise-enter-to {
-  opacity: 1;
-  transform: translate3d(0, 0, 0);
-}
-
-.ticket-collapsed-enter-active {
-  transition:
-    opacity 0.32s cubic-bezier(0.22, 1, 0.36, 1),
-    transform 0.38s cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.ticket-collapsed-enter-from {
-  opacity: 0;
-  transform: translate3d(0, 0.45rem, 0);
-}
-
-.ticket-collapsed-enter-to {
-  opacity: 1;
-  transform: translate3d(0, 0, 0);
-}
-
-.update-ticket {
-  transform: rotate(1deg);
-  transform-origin: 50% 92%;
-  background: linear-gradient(
-    168deg,
-    hsl(43 42% 97%) 0%,
-    hsl(40 35% 94%) 42%,
-    hsl(38 38% 91%) 100%
-  );
-  box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.55),
-    0 1px 2px rgb(28 22 12 / 0.035),
-    0 4px 10px rgb(28 22 12 / 0.055),
-    0 0 0 1px rgb(55 48 40 / 0.09);
-}
-
-.dark .update-ticket {
-  background: linear-gradient(168deg, hsl(28 14% 14%) 0%, hsl(26 12% 11%) 100%);
-  box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.04),
-    0 1px 3px rgb(0 0 0 / 0.2),
-    0 6px 14px rgb(0 0 0 / 0.22),
-    0 0 0 1px rgb(255 255 255 / 0.06);
-}
-
-.ticket-perf {
-  border-top: 1px dashed rgb(62 53 42 / 0.28);
-}
-
-.dark .ticket-perf {
-  border-top-color: rgb(255 255 255 / 0.14);
-}
-
-.ticket-barcode {
-  height: 18px;
-  border-radius: 0;
-  background: repeating-linear-gradient(
-    90deg,
-    rgb(40 36 31 / 0.32) 0px,
-    rgb(40 36 31 / 0.32) 1px,
-    transparent 1px,
-    transparent 3px
-  );
-}
-
-.dark .ticket-barcode {
-  background: repeating-linear-gradient(
-    90deg,
-    rgb(255 255 255 / 0.16) 0px,
-    rgb(255 255 255 / 0.16) 1px,
-    transparent 1px,
-    transparent 3px
-  );
-}
-
-.ticket-route-line {
-  width: 2px;
-  flex: 1;
-  min-height: 5px;
-  max-height: 11px;
-  border-radius: 1px;
-  background: linear-gradient(
-    180deg,
-    transparent,
-    color-mix(in oklch, var(--primary) 48%, transparent),
-    transparent
-  );
-}
-</style>
