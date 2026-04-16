@@ -24,7 +24,12 @@ export function handleHookEvent(
 
   switch (name) {
     case "SessionStart": {
-      const sessionId = event.session_id;
+      const sessionId =
+        typeof event.session_id === "string" ? event.session_id :
+        typeof event.sessionId === "string" ? event.sessionId :
+        typeof event.conversation_id === "string" ? event.conversation_id :
+        typeof event.conversationId === "string" ? event.conversationId :
+        null;
       if (typeof sessionId !== "string" || !sessionId) return;
       if (deps.workspaceService.captureResumeId(threadId, sessionId)) {
         deps.onChanged();

@@ -90,12 +90,48 @@ export function registerAgentHooks(
   fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2));
 }
 
+/**
+ * Cursor CLI reads hook configuration from `~/.cursor/hooks.json` with
+ * lower-case event keys (e.g. `beforeSubmitPrompt`, `stop`), not the
+ * Claude/Codex/Gemini `settings.json` schema.
+ */
+export function registerCursorHooks(hooksPath: string, scriptPath: string): void {
+  let settings: Record<string, unknown> = {};
+  if (fs.existsSync(hooksPath)) {
+    try {
+      settings = JSON.parse(fs.readFileSync(hooksPath, "utf8")) as Record<string, unknown>;
+    } catch {
+      settings = {};
+    }
+  }
+
+  if (typeof settings.version !== "number") settings.version = 1;
+  if (typeof settings.hooks !== "object" || settings.hooks === null) {
+    settings.hooks = {};
+  }
+  const hooks = settings.hooks as Record<string, unknown[]>;
+  const cursorEvents = ["beforeSubmitPrompt", "stop"] as const;
+  const quotedScriptPath = `"${scriptPath}"`;
+  for (const event of cursorEvents) {
+    if (!Array.isArray(hooks[event])) hooks[event] = [];
+    const entries = hooks[event] as Array<{ command?: string }>;
+    const alreadyRegistered = entries.some((entry) =>
+      entry.command === scriptPath || entry.command === quotedScriptPath
+    );
+    if (alreadyRegistered) continue;
+    entries.push({ command: quotedScriptPath });
+  }
+
+  fs.mkdirSync(path.dirname(hooksPath), { recursive: true });
+  fs.writeFileSync(hooksPath, JSON.stringify(settings, null, 2));
+}
+
 const AGENT_SETTINGS_PATHS: Record<Agent, string> = {
   claude: path.join(os.homedir(), ".claude", "settings.json"),
   gemini: path.join(os.homedir(), ".gemini", "settings.json"),
   // NOTE: Verify these paths against current Codex and Cursor docs before release
   codex:  path.join(os.homedir(), ".codex", "config.json"),
-  cursor: path.join(os.homedir(), ".cursor", "settings.json"),
+  cursor: path.join(os.homedir(), ".cursor", "hooks.json"),
 };
 
 /** Run at app startup. Writes scripts and registers hooks for all four agents. */
@@ -105,7 +141,11 @@ export function registerAllAgentHooks(scriptsDir: string): void {
     const scriptPath = path.join(scriptsDir, `${agent}-hook.sh`);
     const settingsPath = AGENT_SETTINGS_PATHS[agent];
     try {
-      registerAgentHooks(settingsPath, scriptPath, HOOK_EVENTS[agent]);
+      if (agent === "cursor") {
+        registerCursorHooks(settingsPath, scriptPath);
+      } else {
+        registerAgentHooks(settingsPath, scriptPath, HOOK_EVENTS[agent]);
+      }
     } catch (err) {
       console.warn(`[instrument] hook registration for ${agent} failed:`, err);
     }

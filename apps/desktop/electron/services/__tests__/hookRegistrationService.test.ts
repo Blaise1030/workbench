@@ -6,6 +6,7 @@ import path from "node:path";
 import {
   ensureScriptsInstalled,
   registerAgentHooks,
+  registerCursorHooks,
   HOOK_EVENTS,
 } from "../hookRegistrationService";
 
@@ -56,7 +57,7 @@ describe("registerAgentHooks", () => {
     registerAgentHooks(settingsPath, scriptPath, HOOK_EVENTS.claude);
     const settings = JSON.parse(fs.readFileSync(settingsPath, "utf8"));
     expect(settings.hooks.Stop).toHaveLength(1);
-    expect(settings.hooks.Stop[0].hooks[0].command).toBe(scriptPath);
+    expect(settings.hooks.Stop[0].hooks[0].command).toBe(`"${scriptPath}"`);
   });
 
   it("appends to existing hooks without overwriting them", () => {
@@ -75,7 +76,7 @@ describe("registerAgentHooks", () => {
     const settings = JSON.parse(fs.readFileSync(settingsPath, "utf8"));
     expect(settings.hooks.Stop).toHaveLength(2);
     expect(settings.hooks.Stop[0].hooks[0].command).toBe("/existing/hook.sh");
-    expect(settings.hooks.Stop[1].hooks[0].command).toBe(scriptPath);
+    expect(settings.hooks.Stop[1].hooks[0].command).toBe(`"${scriptPath}"`);
   });
 
   it("does not duplicate entries when called twice", () => {
@@ -86,5 +87,30 @@ describe("registerAgentHooks", () => {
     registerAgentHooks(settingsPath, scriptPath, HOOK_EVENTS.claude);
     const settings = JSON.parse(fs.readFileSync(settingsPath, "utf8"));
     expect(settings.hooks.Stop).toHaveLength(1);
+  });
+});
+
+describe("registerCursorHooks", () => {
+  it("writes Cursor hooks to hooks.json using cursor event keys", () => {
+    const dir = tmpDir();
+    const hooksPath = path.join(dir, "hooks.json");
+    const scriptPath = path.join(dir, "cursor-hook.sh");
+    registerCursorHooks(hooksPath, scriptPath);
+    const settings = JSON.parse(fs.readFileSync(hooksPath, "utf8"));
+    expect(settings.version).toBe(1);
+    expect(settings.hooks.beforeSubmitPrompt).toHaveLength(1);
+    expect(settings.hooks.stop).toHaveLength(1);
+    expect(settings.hooks.beforeSubmitPrompt[0].command).toBe(`"${scriptPath}"`);
+  });
+
+  it("does not duplicate Cursor hooks when called twice", () => {
+    const dir = tmpDir();
+    const hooksPath = path.join(dir, "hooks.json");
+    const scriptPath = path.join(dir, "cursor-hook.sh");
+    registerCursorHooks(hooksPath, scriptPath);
+    registerCursorHooks(hooksPath, scriptPath);
+    const settings = JSON.parse(fs.readFileSync(hooksPath, "utf8"));
+    expect(settings.hooks.beforeSubmitPrompt).toHaveLength(1);
+    expect(settings.hooks.stop).toHaveLength(1);
   });
 });

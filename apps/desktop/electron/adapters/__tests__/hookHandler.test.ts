@@ -13,22 +13,30 @@ function makeDeps(overrides: Partial<HookHandlerDeps> = {}): HookHandlerDeps {
     } as unknown as HookHandlerDeps["workspaceService"],
     onChanged: vi.fn(),
     onNotification: vi.fn(),
+    onRunStateChanged: vi.fn(),
     ...overrides,
   };
 }
 
 describe("handleHookEvent", () => {
-  it("SessionStart → captureResumeId", () => {
+  it("SessionStart → captureResumeId + onRunStateChanged running", () => {
     const deps = makeDeps();
     handleHookEvent({ hook_event_name: "SessionStart", session_id: "sid-abc" }, "thread-1", deps);
     expect(deps.workspaceService.captureResumeId).toHaveBeenCalledWith("thread-1", "sid-abc");
     expect(deps.onChanged).toHaveBeenCalled();
+    expect(deps.onRunStateChanged).toHaveBeenCalledWith("running", "thread-1");
   });
 
   it("SessionStart with no session_id does nothing", () => {
     const deps = makeDeps();
     handleHookEvent({ hook_event_name: "SessionStart" }, "thread-1", deps);
     expect(deps.workspaceService.captureResumeId).not.toHaveBeenCalled();
+  });
+
+  it("SessionStart accepts camelCase sessionId", () => {
+    const deps = makeDeps();
+    handleHookEvent({ hook_event_name: "SessionStart", sessionId: "sid-cursor" }, "thread-1", deps);
+    expect(deps.workspaceService.captureResumeId).toHaveBeenCalledWith("thread-1", "sid-cursor");
   });
 
   it("UserPromptSubmit → maybeRenameThreadFromPrompt with prompt text", () => {
@@ -58,10 +66,11 @@ describe("handleHookEvent", () => {
     );
   });
 
-  it("Stop → onNotification done", () => {
+  it("Stop → onNotification done + onRunStateChanged done", () => {
     const deps = makeDeps();
     handleHookEvent({ hook_event_name: "Stop" }, "thread-1", deps);
     expect(deps.onNotification).toHaveBeenCalledWith("done", "thread-1");
+    expect(deps.onRunStateChanged).toHaveBeenCalledWith("done", "thread-1");
   });
 
   it("Stop with conversation_title → renameThread Phase 2", () => {
