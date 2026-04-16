@@ -3,6 +3,8 @@ import path from "node:path";
 import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
 import {
   previewNativeDetach,
+  previewNativeGoBack,
+  previewNativeGoForward,
   previewNativeLoadUrl,
   previewNativeReload,
   previewNativeSetBounds,
@@ -374,6 +376,10 @@ function registerIpc(workspaceService: WorkspaceService): void {
     }
   );
   ipcMain.handle(IPC_CHANNELS.diffWorkingTree, (_, cwd: string) => { assertCwdIsRegistered(cwd); return diffService.workingTreeDiff(cwd); });
+  ipcMain.handle(IPC_CHANNELS.diffStagedUnified, (_, cwd: string) => {
+    assertCwdIsRegistered(cwd);
+    return diffService.stagedUnifiedDiff(cwd);
+  });
   ipcMain.handle(IPC_CHANNELS.diffStageAll, (_, cwd: string) => { assertCwdIsRegistered(cwd); return diffService.stageAll(cwd); });
   ipcMain.handle(IPC_CHANNELS.diffUnstageAll, (_, cwd: string) => { assertCwdIsRegistered(cwd); return diffService.unstageAll(cwd); });
   ipcMain.handle(IPC_CHANNELS.diffDiscardAll, (_, cwd: string) => { assertCwdIsRegistered(cwd); return diffService.discardAll(cwd); });
@@ -531,6 +537,8 @@ function registerIpc(workspaceService: WorkspaceService): void {
   ipcMain.handle(IPC_CHANNELS.previewNativeLoadUrl, (event, url: unknown) => previewNativeLoadUrl(event, url));
   ipcMain.handle(IPC_CHANNELS.previewNativeReload, (event) => previewNativeReload(event));
   ipcMain.handle(IPC_CHANNELS.previewNativeToggleDevTools, (event) => previewNativeToggleEmbeddedDevTools(event));
+  ipcMain.handle(IPC_CHANNELS.previewNativeGoBack, (event) => previewNativeGoBack(event));
+  ipcMain.handle(IPC_CHANNELS.previewNativeGoForward, (event) => previewNativeGoForward(event));
 }
 
 const dataDir = app.getPath("userData");

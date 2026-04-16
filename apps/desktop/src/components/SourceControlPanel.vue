@@ -31,6 +31,8 @@ import MonacoDiffEditor from "@/components/MonacoDiffEditor.vue";
 
 const SCM_DIFF_LAYOUT_KEY = "instrument.scmDiffLayout";
 type ScmDiffLayout = "split" | "unified";
+/** Temporary product toggle: hide only local-LLM commit suggestion control. */
+const SHOW_SUGGEST_COMMIT_BUTTON = false;
 
 function readScmDiffLayout(): ScmDiffLayout {
   try {
@@ -92,6 +94,14 @@ const props = withDefaults(
     scmFetchBusy?: boolean;
     scmPushBusy?: boolean;
     scmCommitBusy?: boolean;
+    /** When true, show local LLM “Suggest” control (parent gates on IPC + staged changes). */
+    suggestCommitAvailable?: boolean;
+    /** Tooltip / `title` when suggest is disabled (e.g. WebGPU unavailable). */
+    suggestCommitDisabledReason?: string | null;
+    suggestCommitBusy?: boolean;
+    /** `null` = WebGPU not probed yet; `false` = suggest disabled with explanation. */
+    suggestCommitGpuOk?: boolean | null;
+    suggestCommitTruncated?: boolean;
     selectedPath: string | null;
     selectedScope: EntryScope | null;
     mergeResult: FileMergeSidesResult | null;
@@ -113,6 +123,11 @@ const props = withDefaults(
     scmFetchBusy: false,
     scmPushBusy: false,
     scmCommitBusy: false,
+    suggestCommitAvailable: false,
+    suggestCommitDisabledReason: null,
+    suggestCommitBusy: false,
+    suggestCommitGpuOk: null,
+    suggestCommitTruncated: false,
     activeThreadId: null
   }
 );
@@ -128,6 +143,7 @@ const emit = defineEmits<{
   fetch: [];
   push: [];
   commit: [];
+  suggestCommit: [];
   openFileInEditor: [path: string];
   branchChanged: [];
 }>();
@@ -228,6 +244,24 @@ const canCommit = computed(
     hasStagedChanges.value &&
     Boolean(commitMessage.value.trim())
 );
+
+const suggestCommitDisabled = computed(() => {
+  if (!props.suggestCommitAvailable) return true;
+  if (props.suggestCommitGpuOk === false) return true;
+  if (!hasStagedChanges.value) return true;
+  return false;
+});
+
+const suggestCommitTitle = computed(() => {
+  if (!props.suggestCommitAvailable) return undefined;
+  if (props.suggestCommitGpuOk === false) {
+    return props.suggestCommitDisabledReason ?? "WebGPU is not available. Commit suggestions require WebGPU.";
+  }
+  if (!hasStagedChanges.value) {
+    return "Stage changes to generate a commit message.";
+  }
+  return "Suggest commit message from staged changes";
+});
 
 const commitExpanded = ref(false);
 const actionsOpen = ref(false);
@@ -800,13 +834,13 @@ onBeforeUnmount(() => {
           </div>
         </div>
 
-        <div class="relative">
+        <div class="relative border-t border-border">
           <textarea
             v-model="commitMessage"
             rows="4"
             placeholder="Enter commit message"
             aria-label="Commit message draft"
-            class="w-full resize-none rounded-none border-0 border-t border-border bg-background py-1.5 pb-10 pl-2 pr-7 font-mono text-[10px] leading-snug text-foreground placeholder:text-muted-foreground focus:outline-none"
+            class="w-full resize-none rounded-none border-0 bg-background py-1.5 pl-2 pr-7 font-mono text-[10px] leading-snug text-foreground placeholder:text-muted-foreground focus:outline-none"
             :class="commitExpanded ? 'min-h-[11rem]' : 'min-h-[4.5rem]'"
           />
           <Button
@@ -821,11 +855,40 @@ onBeforeUnmount(() => {
             <Minimize2 v-if="commitExpanded" class="h-3 w-3" aria-hidden="true" />
             <Maximize2 v-else class="h-3 w-3" aria-hidden="true" />
           </Button>
+        </div>
+        <div class="flex items-center justify-between px-2 py-1.5 border-t">
+          <div class="flex items-center gap-1">            
+            <Button
+              v-if="SHOW_SUGGEST_COMMIT_BUTTON && suggestCommitAvailable"
+              data-testid="scm-suggest-commit"
+              type="button"
+              variant="outline"
+              size="icon-sm"
+              class="rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+              :disabled="suggestCommitDisabled || suggestCommitBusy"
+              :title="suggestCommitTitle"
+              aria-label="Suggest commit message from staged changes"
+              @click="emit('suggestCommit')"
+            >
+              <Loader2
+                v-if="suggestCommitBusy"
+                class="h-3 w-3 animate-spin"
+                aria-hidden="true"
+              />
+              <span v-else class="text-xs">✨</span>
+            </Button>
+            <p
+              v-if="suggestCommitTruncated"
+              class="truncate text-[9px] leading-tight text-muted-foreground"
+            >
+              Staged diff was truncated for speed.
+            </p>
+          </div>
           <Button
             type="button"
             size="xs"
             variant="default"
-            class="absolute bottom-2 right-2 h-7 shrink-0 px-3 text-[10px]"
+            class="h-7 shrink-0 px-3 text-[10px]"
             :disabled="!canCommit"
             aria-label="Commit staged changes"
             @click="emit('commit')"
@@ -866,7 +929,7 @@ onBeforeUnmount(() => {
         </div>
         <div
           v-if="selectedEntry && mergeResult?.kind === 'ok'"
-          class="flex shrink-0 items-center gap-px rounded-md border border-border bg-muted/25 p-px"
+          class="flex shrink-0 items-center gap-px rounded-md border border-border p-px"
           role="group"
           aria-label="Diff layout"
         >

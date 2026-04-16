@@ -268,7 +268,7 @@ defineExpose({ submit });
 <template>
   <section
     data-testid="inline-prompt-editor"
-    class="flex min-h-0 flex-1 flex-col overflow-hidden bg-background text-foreground"
+    class="flex min-h-0 flex-1 flex-col overflow-hidden bg-muted text-foreground"
     aria-labelledby="inline-prompt-heading"
     aria-describedby="inline-prompt-summary"
     @dragover="onInlineEditorDragOver"
@@ -283,7 +283,7 @@ defineExpose({ submit });
       class="flex min-h-0 flex-1 flex-col items-center justify-center overflow-y-auto px-4 py-8"
       role="presentation"
     >
-      <div class="flex w-full max-w-3xl flex-col gap-0">
+      <div class="flex w-full max-w-2xl flex-col gap-0">
         <h2
           id="inline-prompt-heading"
           class="mb-4 w-full text-center text-2xl font-medium tracking-tight text-foreground md:mb-6 md:text-[1.65rem]"
@@ -302,7 +302,7 @@ defineExpose({ submit });
             <editor-content
               v-if="threadPromptEditor"
               :editor="threadPromptEditor"
-              class="w-full border-0 bg-muted"
+              class="w-full border-0"
             />
           </div>
 
@@ -435,7 +435,7 @@ defineExpose({ submit });
                 @click="submit"
               >
                 <MessageSquarePlus class="size-3.5 shrink-0" aria-hidden="true" />
-                Start thread
+                Sumbit
               </Button>
             </div>
           </div>

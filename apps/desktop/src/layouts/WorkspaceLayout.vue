@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeMount, onBeforeUnmount, onMounted, provide, ref, watch } from "vue";
+import { computed, nextTick, onBeforeMount, onBeforeUnmount, onMounted, provide, reactive, ref, watch } from "vue";
 import { ChevronDown, ChevronUp, Plus, Settings } from "lucide-vue-next";
 import Button from "@/components/ui/Button.vue";
 import Badge from "@/components/ui/Badge.vue";
@@ -40,6 +40,9 @@ import {
 import { useTerminalAttentionSounds } from "@/composables/useTerminalAttentionSounds";
 import { useTerminalSoundSettings } from "@/composables/useTerminalSoundSettings";
 import { useToast } from "@/composables/useToast";
+import { useLocalLlm } from "@/composables/useLocalLlm";
+import { isWebGpuUsable } from "@/features/localLlm/webgpuSupport";
+import { generateThreadTitle } from "@/features/localLlm/client";
 import { usePreviewModalOcclusion } from "@/composables/usePreviewModalOcclusion";
 import { useWorkspaceKeybindings } from "@/composables/useWorkspaceKeybindings";
 import { readPreferredThreadAgent } from "@/composables/usePreferredThreadAgent";
@@ -77,6 +80,7 @@ const terminalBackgroundOutputSound = ref(false);
 const { commands, applySaved, bootstrapCommandLineWithPrompt } = useAgentBootstrapCommands();
 const agentCommandsSettingsOpen = ref(false);
 const toast = useToast();
+const localLlm = reactive(useLocalLlm());
 /** `null` while checking the active worktree; `false` when the folder is not a Git repository. */
 const hasGitRepository = ref<boolean | null>(null);
 const repoStatus = ref<RepoStatusEntry[]>([]);
@@ -255,6 +259,13 @@ function setShellTerminalPaneRef(slotId: string, el: unknown): void {
 }
 
 const threadSidebarRef = ref<InstanceType<typeof ThreadSidebar> | null>(null);
+/** Per-thread generation counter: user renames bump this so in-flight WebLLM title refinements abort. */
+const threadTitleEpoch = new Map<string, number>();
+
+function bumpThreadTitleEpoch(threadId: string): void {
+  threadTitleEpoch.set(threadId, (threadTitleEpoch.get(threadId) ?? 0) + 1);
+}
+
 /** Thread currently in "compose prompt" mode — shows inline editor instead of xterm. */
 const inlinePromptThreadId = ref<string | null>(null);
 const inlinePromptEditorRef = ref<{ submit: () => void } | null>(null);
@@ -543,6 +554,27 @@ function getApi(): WorkspaceApi | null {
 const scmFetchAvailable = computed(() => Boolean(getApi()?.gitFetch));
 const scmPushAvailable = computed(() => Boolean(getApi()?.gitPush));
 const scmCommitAvailable = computed(() => Boolean(getApi()?.commitStaged));
+
+const scmHasStagedFiles = computed(() =>
+  repoStatus.value.some((e) => Boolean(e.stagedKind) && !e.isUntracked)
+);
+
+const scmSuggestCommitAvailable = computed(
+  () =>
+    Boolean(getApi()?.stagedUnifiedDiff) &&
+    hasGitRepository.value === true
+);
+
+const scmSuggestCommitBusy = computed(
+  () => localLlm.commitSuggestState === "generating" || localLlm.commitSuggestState === "loading"
+);
+
+const scmSuggestCommitDisabledReason = computed(() => {
+  if (localLlm.webGpuOk === false) {
+    return "WebGPU is not available. Commit suggestions require WebGPU.";
+  }
+  return null;
+});
 
 async function refreshSnapshot(snapshot?: WorkspaceSnapshot): Promise<void> {
   const api = getApi();
@@ -957,7 +989,29 @@ async function onInlinePromptSubmit(payload: ThreadCreateWithAgentPayload): Prom
     mode: "prompt"
   };
   inlinePromptThreadId.value = null;
+  /** Snapshot before refresh / LLM so user renames during `refreshSnapshot` still invalidate the model title. */
+  const titleEpochBaseline = threadTitleEpoch.get(threadId) ?? 0;
+  const heuristicTitle = title;
   await refreshSnapshot();
+  void (async () => {
+    try {
+      try {
+        if (!(await isWebGpuUsable())) return;
+      } catch {
+        return;
+      }
+      const modelTitle = await generateThreadTitle(prompt, THREAD_AGENT_LABELS[agent]);
+      if ((threadTitleEpoch.get(threadId) ?? 0) !== titleEpochBaseline) return;
+      const t = workspace.threads.find((th) => th.id === threadId);
+      if (!t || t.title.trim() !== heuristicTitle.trim()) return;
+      const apiForTitle = getApi();
+      if (!apiForTitle) return;
+      await apiForTitle.renameThread({ threadId, title: modelTitle });
+      await refreshSnapshot();
+    } catch {
+      /* keep heuristic title */
+    }
+  })();
 }
 
 async function onInlinePromptCancel(): Promise<void> {
@@ -1004,6 +1058,7 @@ async function handleRemoveThread(threadId: string): Promise<void> {
 }
 
 async function handleRenameThread(threadId: string, newTitle: string): Promise<void> {
+  bumpThreadTitleEpoch(threadId);
   const api = getApi();
   if (!api) return;
   const payload: RenameThreadInput = { threadId, title: newTitle };
@@ -1239,6 +1294,16 @@ async function handleScmCommit(): Promise<void> {
     toast.error("Commit failed", e instanceof Error ? e.message : "Something went wrong.");
   } finally {
     scmCommitBusy.value = false;
+  }
+}
+
+async function handleScmSuggestCommit(): Promise<void> {
+  await localLlm.suggestFromStaged(workspace.activeWorktree?.path ?? null);
+  if (localLlm.commitSuggestState === "ready" && localLlm.commitCandidates.length > 0) {
+    scmCommitMessage.value = localLlm.commitCandidates[0];
+  }
+  if (localLlm.commitSuggestState === "error" && localLlm.commitSuggestError) {
+    toast.error("Could not suggest commit", localLlm.commitSuggestError);
   }
 }
 
@@ -1794,6 +1859,12 @@ watch(
                       :scm-fetch-busy="scmFetchBusy"
                       :scm-push-busy="scmPushBusy"
                       :scm-commit-busy="scmCommitBusy"
+                      :suggest-commit-available="scmSuggestCommitAvailable"
+                      :suggest-commit-disabled-reason="scmSuggestCommitDisabledReason"
+                      :suggest-commit-busy="scmSuggestCommitBusy"
+                      :suggest-commit-gpu-ok="localLlm.webGpuOk"
+                      :suggest-commit-truncated="localLlm.lastStagedTruncated"
+                      :commit-candidates="localLlm.commitCandidates"
                       :selected-path="selectedScmPath"
                       :selected-scope="selectedScmScope"
                       :merge-result="selectedMergeResult"
@@ -1809,6 +1880,7 @@ watch(
                       @fetch="handleScmFetch"
                       @push="handleScmPush"
                       @commit="handleScmCommit"
+                      @suggest-commit="handleScmSuggestCommit"
                       @open-file-in-editor="handleScmOpenFileInEditor"
                       @branch-changed="void refreshRepoStatus()"
                     />

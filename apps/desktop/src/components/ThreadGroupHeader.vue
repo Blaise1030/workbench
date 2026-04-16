@@ -1,7 +1,7 @@
 <script setup lang="ts">
 defineOptions({ inheritAttrs: false });
 
-import { ChevronDown, ChevronRight, EllipsisVertical, Plus, Trash2 } from "lucide-vue-next";
+import { ChevronDown, Archive, ChevronRight, EllipsisVertical, Plus, Trash2 } from "lucide-vue-next";
 import { computed, ref } from "vue";
 import Badge from "@/components/ui/Badge.vue";
 import Button from "@/components/ui/Button.vue";
@@ -83,11 +83,11 @@ function openAddThreadDialog(): void {
 </script>
 
 <template>
-  <div class="px-2">
-    <div
+  <div class="px-2 group">
+  <div
     v-bind="$attrs"
     data-testid="thread-group-header"
-    class="flex h-[30px] cursor-pointer select-none items-center gap-2 px-2.5 hover:bg-accent/80 rounded-sm"
+    class="flex h-[30px] cursor-pointer select-none items-center gap-2 px-2.5 bg-accent rounded-sm"
     :class="isStale ? 'opacity-60' : ''"
     role="button"
     :aria-expanded="!collapsed"
@@ -114,48 +114,39 @@ function openAddThreadDialog(): void {
        {{ primaryLabelBadgeText }}
       <span v-if="!isPrimary || !primaryLabelBadgeText" class="min-w-0 truncate">{{ title }}</span>
     </span>
-      <span class="ml-auto flex shrink-0 items-center gap-1.5">
-      <span
-        class="flex h-6 min-w-[1.25rem] items-center justify-end tabular-nums text-[10px] leading-none text-muted-foreground"
-      >
-        {{ threadCount }}
-      </span>
-      <span class="inline-flex h-6 items-center gap-px">
+      <span class="ml-auto flex shrink-0 items-center gap-1.5">      
+      <div class="gap-1 h-6 items-center flex">
+        <span
+          class="flex h-6 pr-2 items-center justify-end tabular-nums text-[10px] leading-none text-muted-foreground"
+        >
+          {{ threadCount }}
+        </span>
         <span v-if="worktreeIdForCreate" class="inline-flex h-6 items-center" @click.stop>
           <Button
             type="button"
             variant="ghost"
-            size="icon-xs"
-            class="h-7 w-7 shrink-0 rounded-md"
+            size="icon-xs"            
             aria-label="Add thread to group"
             :title="titleWithShortcut('Add thread to group', 'newThreadMenu')"
             @click="openAddThreadDialog"
+            class="cursor-pointer"
           >
             <Plus class="size-4" />
           </Button>
         </span>
-        <DropdownMenu v-if="showActions" v-model:open="menuOpen">
-          <DropdownMenuTrigger as-child @click.stop>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-xs"
-              class="shrink-0 text-muted-foreground"
-              :aria-expanded="menuOpen"
-              aria-label="Thread group actions"
-              title="Group actions"
-            >
-              <EllipsisVertical class="h-3.5 w-3.5" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" class="w-max">
-            <DropdownMenuItem variant="destructive" @select="emit('delete')">
-              <Trash2 class="h-3.5 w-3.5" />
-              Delete group
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </span>
+         <Button
+            v-if="showActions"
+            type="button"
+            variant="ghost"
+            size="icon-xs"            
+            aria-label="Add thread to group"
+            title="Remove thread group"
+            @click="emit('delete')"
+            class="cursor-pointer"
+          >
+            <Archive class="size-3.5"/>
+          </Button>                
+      </div>
     </span>
   </div>
   </div>

@@ -6,7 +6,8 @@ import type {
   FileSummary,
   PreviewProbeResult,
   RepoScmSnapshot,
-  RepoStatusEntry
+  RepoStatusEntry,
+  StagedUnifiedDiffResult
 } from "@shared/ipc";
 
 declare module "*.vue" {
@@ -44,6 +45,8 @@ interface WorkspaceApi {
   fileMergeSides?: (cwd: string, file: string, scope: "staged" | "unstaged") => Promise<FileMergeSidesResult>;
   /** Full unstaged unified diff; omit on older preload builds (layout falls back per-file). */
   workingTreeDiff?: (cwd: string) => Promise<string>;
+  /** Bounded staged (`git diff --cached`) unified diff for local LLM commit suggestions. */
+  stagedUnifiedDiff?: (cwd: string) => Promise<StagedUnifiedDiffResult>;
   stageAll: (cwd: string) => Promise<void>;
   unstageAll?: (cwd: string) => Promise<void>;
   discardAll: (cwd: string) => Promise<void>;

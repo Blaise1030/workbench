@@ -8,7 +8,8 @@ import type {
   FileMergeSidesResult,
   RepoChangeKind,
   RepoScmSnapshot,
-  RepoStatusEntry
+  RepoStatusEntry,
+  StagedUnifiedDiffResult
 } from "../../src/shared/ipc.js";
 import { pathsFromUnifiedDiffSet } from "../../src/shared/diffPaths.js";
 import { truncateMergeDoc, truncateUnifiedDiff } from "../../src/shared/diffTruncate.js";
@@ -323,6 +324,14 @@ export class DiffService {
     const missing = changed.filter((p) => !already.has(p));
     const extras = await Promise.all(missing.map((p) => this.diffNewPathOnDisk(cwd, p)));
     return truncateUnifiedDiff([base, ...extras].filter((c) => c.trim()).join("\n"));
+  }
+
+  async stagedUnifiedDiff(cwd: string): Promise<StagedUnifiedDiffResult> {
+    const git = simpleGit(cwd);
+    const raw = await git.diff(["--cached", "-U3", "--no-ext-diff"]);
+    const unifiedDiff = truncateUnifiedDiff(raw);
+    const truncated = unifiedDiff.includes("# Diff truncated (");
+    return { unifiedDiff, truncated };
   }
 
   async stageAll(cwd: string): Promise<void> {

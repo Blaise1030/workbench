@@ -67,16 +67,6 @@ describe("ThreadRow", () => {
     expect(rowEmitted(wrapper, "select")).toHaveLength(1);
   });
 
-  it("collapsed mode uses icon button with thread title as accessible name", async () => {
-    wrapper = mountThreadRow({ thread, isActive: false, collapsed: true });
-    const btn = wrapper.get('[data-testid="thread-select"]');
-    expect(btn.classes()).toContain("cursor-pointer");
-    expect(btn.attributes("aria-label")).toBe(thread.title);
-    expect(wrapper.find('[data-testid="thread-archive"]').exists()).toBe(false);
-    await btn.trigger("click");
-    expect(rowEmitted(wrapper, "select")).toHaveLength(1);
-  });
-
   it("uses the thread title as the collapsed row accessible label", async () => {
     wrapper = mountThreadRow({ thread, isActive: false, collapsed: true }, { attachTo: document.body });
 
@@ -155,14 +145,15 @@ describe("ThreadRow", () => {
     wrapper = mountThreadRow({ thread, isActive: false });
     await wrapper.get('[data-testid="thread-select"]').trigger("dblclick");
     expect(wrapper.find('[data-testid="thread-rename-input"]').exists()).toBe(true);
-    expect((wrapper.get('[data-testid="thread-rename-input"]').element as HTMLInputElement).value).toBe(thread.title);
+    expect(wrapper.get('[data-testid="thread-rename-input"]').text()).toBe(thread.title);
   });
 
   it("emits rename with new title on Enter after double-click edit", async () => {
     wrapper = mountThreadRow({ thread, isActive: false });
     await wrapper.get('[data-testid="thread-select"]').trigger("dblclick");
     const input = wrapper.get('[data-testid="thread-rename-input"]');
-    await input.setValue("New Title");
+    (input.element as HTMLElement).textContent = "New Title";
+    await input.trigger("input");
     await input.trigger("keydown", { key: "Enter" });
     expect(rowEmitted(wrapper, "rename")).toEqual([["New Title"]]);
     expect(wrapper.find('[data-testid="thread-rename-input"]').exists()).toBe(false);
@@ -180,7 +171,8 @@ describe("ThreadRow", () => {
     const w = mountThreadRow({ thread, isActive: false });
     await w.get('[data-testid="thread-select"]').trigger("dblclick");
     const input = w.get('[data-testid="thread-rename-input"]');
-    await input.setValue("   ");
+    (input.element as HTMLElement).textContent = "   ";
+    await input.trigger("input");
     await input.trigger("keydown", { key: "Enter" });
     expect(rowEmitted(w, "rename")).toBeUndefined();
     w.unmount();

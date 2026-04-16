@@ -117,6 +117,13 @@ export interface RepoScmSnapshot {
   lastCommitSubject: string | null;
 }
 
+/** Bounded `git diff --cached` text for local LLM commit suggestions. */
+export interface StagedUnifiedDiffResult {
+  unifiedDiff: string;
+  /** True when output was shortened by `truncateUnifiedDiff`. */
+  truncated: boolean;
+}
+
 export type FileDiffScope = "staged" | "unstaged" | "combined";
 
 /** Two full texts for CodeMirror `MergeView` (per-file source control). */

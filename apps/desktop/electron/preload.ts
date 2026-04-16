@@ -4,7 +4,8 @@ import type {
   PreviewBounds,
   PreviewDevToolsToggleResult,
   PreviewNativeLoadResult,
-  PreviewProbeResult
+  PreviewProbeResult,
+  StagedUnifiedDiffResult
 } from "../src/shared/ipc.js";
 
 /**
@@ -32,6 +33,7 @@ const IPC_CHANNELS = {
   diffFileDiff: "diff:fileDiff",
   diffFileMergeSides: "diff:fileMergeSides",
   diffWorkingTree: "diff:workingTree",
+  diffStagedUnified: "diff:stagedUnified",
   diffStageAll: "diff:stageAll",
   diffUnstageAll: "diff:unstageAll",
   diffDiscardAll: "diff:discardAll",
@@ -81,7 +83,10 @@ const IPC_CHANNELS = {
   appGetVersion: "app:getVersion",
   appGetReleaseTag: "app:getReleaseTag",
   appGetUpdateAvailability: "app:getUpdateAvailability",
-  appOpenExternalUrl: "app:openExternalUrl"
+  appOpenExternalUrl: "app:openExternalUrl",
+  previewNativeGoBack: "preview:nativeGoBack",
+  previewNativeGoForward: "preview:nativeGoForward",
+  previewNavigationUrl: "preview:navigationUrl"
 } as const;
 
 /** Absolute repo root from the first file in a webkitdirectory pick (Electron only). */
@@ -140,6 +145,8 @@ contextBridge.exposeInMainWorld("workspaceApi", {
   fileMergeSides: (cwd: string, file: string, scope: "staged" | "unstaged") =>
     ipcRenderer.invoke(IPC_CHANNELS.diffFileMergeSides, { cwd, file, scope }),
   workingTreeDiff: (cwd: string) => ipcRenderer.invoke(IPC_CHANNELS.diffWorkingTree, cwd),
+  stagedUnifiedDiff: (cwd: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.diffStagedUnified, cwd) as Promise<StagedUnifiedDiffResult>,
   stageAll: (cwd: string) => ipcRenderer.invoke(IPC_CHANNELS.diffStageAll, cwd),
   unstageAll: (cwd: string) => ipcRenderer.invoke(IPC_CHANNELS.diffUnstageAll, cwd),
   discardAll: (cwd: string) => ipcRenderer.invoke(IPC_CHANNELS.diffDiscardAll, cwd),
@@ -236,11 +243,23 @@ contextBridge.exposeInMainWorld("previewApi", {
   detachNative: () => ipcRenderer.invoke(IPC_CHANNELS.previewNativeDetach) as Promise<void>,
   toggleEmbeddedDevTools: () =>
     ipcRenderer.invoke(IPC_CHANNELS.previewNativeToggleDevTools) as Promise<PreviewDevToolsToggleResult>,
+  goBack: () => ipcRenderer.invoke(IPC_CHANNELS.previewNativeGoBack) as Promise<void>,
+  goForward: () => ipcRenderer.invoke(IPC_CHANNELS.previewNativeGoForward) as Promise<void>,
   onPreviewEmbeddedDevtoolsOpen: (callback: (open: boolean) => void) => {
     const handler = (_event: IpcRendererEvent, payload: { open?: boolean }) => {
       callback(!!payload?.open);
     };
     ipcRenderer.on(IPC_CHANNELS.previewEmbeddedDevtoolsState, handler);
     return () => ipcRenderer.removeListener(IPC_CHANNELS.previewEmbeddedDevtoolsState, handler);
+  },
+  onNavigationUrl: (callback: (url: string, canGoBack: boolean, canGoForward: boolean) => void) => {
+    const handler = (
+      _event: IpcRendererEvent,
+      payload: { url?: string; canGoBack?: boolean; canGoForward?: boolean }
+    ) => {
+      callback(payload?.url ?? "", !!payload?.canGoBack, !!payload?.canGoForward);
+    };
+    ipcRenderer.on(IPC_CHANNELS.previewNavigationUrl, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.previewNavigationUrl, handler);
   }
 });

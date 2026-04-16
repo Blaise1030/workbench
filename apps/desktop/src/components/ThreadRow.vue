@@ -4,7 +4,6 @@ import { computed, nextTick, ref } from "vue";
 import { Archive } from "lucide-vue-next";
 import AgentIcon from "@/components/ui/AgentIcon.vue";
 import Button from "@/components/ui/Button.vue";
-import Input from "@/components/ui/Input.vue";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 const props = withDefaults(
@@ -30,7 +29,7 @@ const emit = defineEmits<{
 const rowHovered = ref(false);
 const isEditing = ref(false);
 const editValue = ref("");
-const editInputRef = ref<InstanceType<typeof Input> | null>(null);
+const editContentRef = ref<HTMLElement | null>(null);
 
 const showThreadMenu = computed(
   () => !props.collapsed && !isEditing.value && rowHovered.value
@@ -81,8 +80,15 @@ function startRename(): void {
   editValue.value = props.thread.title;
   isEditing.value = true;
   void nextTick(() => {
-    editInputRef.value?.focus();
-    editInputRef.value?.select();
+    const el = editContentRef.value;
+    if (!el) return;
+    el.textContent = editValue.value;
+    el.focus();
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
   });
 }
 
@@ -117,8 +123,18 @@ function onRenameBlur(e: FocusEvent): void {
 }
 
 function handleRenameKeydown(event: KeyboardEvent): void {
-  if (event.key === "Enter") confirmRename();
-  else if (event.key === "Escape") cancelRename();
+  if (event.key === "Enter") {
+    event.preventDefault();
+    confirmRename();
+  } else if (event.key === "Escape") {
+    event.preventDefault();
+    cancelRename();
+  }
+}
+
+function onRenameInput(event: Event): void {
+  const el = event.currentTarget as HTMLElement | null;
+  editValue.value = el?.textContent ?? "";
 }
 
 function handleArchiveClick(): void {
@@ -132,17 +148,18 @@ function handleArchiveClick(): void {
 <template>
   <div
     data-testid="thread-row"
-    class="relative flex h-7 min-h-7 max-h-7 min-w-0 items-center gap-1.5 overflow-hidden rounded-sm"
+    class="relative flex h-7 active:translate-y-px min-w-0 items-center gap-1.5 overflow-hidden rounded-sm"
     :class="[
       props.collapsed ? 'justify-center px-1.5' : 'pl-3 pr-2',
       props.needsIdleAttention
         ? 'bg-blue-500/12 ring-1 ring-blue-500/45 dark:bg-blue-400/14 dark:ring-blue-400/50'
         : isActive
           ? 'bg-accent'
-          : 'hover:bg-accent/50'
+          : 'active:bg-accent/90'
     ]"
     @mouseenter="rowHovered = true"
     @mouseleave="rowHovered = false"
+    @click="emit('select')"
   >
     <template v-if="collapsed && !isEditing">
       <Tooltip :delay-duration="0">
@@ -198,8 +215,7 @@ function handleArchiveClick(): void {
                 tabindex="0"
                 role="button"
                 :aria-current="isActive ? 'true' : undefined"
-                :aria-label="rowAriaLabel"
-                @click="emit('select')"
+                :aria-label="rowAriaLabel"                
                 @dblclick.stop.prevent="startRename"
                 @keydown.enter.prevent="emit('select')"
                 @keydown.space.prevent="emit('select')"
@@ -247,13 +263,15 @@ function handleArchiveClick(): void {
           :size="12"
           class="shrink-0"
           :class="iconClass"
-        />
-        <Input
-          ref="editInputRef"
-          v-model="editValue"
+        />        
+        <div
+          ref="editContentRef"
           data-testid="thread-rename-input"
-          type="text"
-          class="min-w-0 flex-1 rounded border border-border bg-background px-1 text-start text-xs leading-none"
+          contenteditable="true"
+          role="textbox"
+          aria-label="Rename thread"
+          class="min-w-0 flex-1 bg-background px-1 py-0 text-xs whitespace-nowrap text-start leading-none"
+          @input="onRenameInput"
           @keydown="handleRenameKeydown"
           @blur="onRenameBlur"
         />

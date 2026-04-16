@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import Button from "@/components/ui/Button.vue";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 /** Tab trigger height / typography; matches `Button` size tokens used for each pill. */
 export type PillTabSize = "xs" | "sm" | "default" | "lg";
@@ -105,42 +106,41 @@ function onTabKeydown(event: KeyboardEvent, index: number) {
   >
     <template v-for="(tab, index) in tabs" :key="tab.value">
       <div class="inline-flex max-w-full shrink-0 items-center gap-0.5">
-        <Button
-          type="button"
-          variant="ghost"
-          role="tab"
-          :aria-selected="modelValue === tab.value"
-          :tabindex="modelValue === tab.value ? 0 : -1"
-          class="max-w-full transition-colors focus-visible:ring-offset-1"
-          :class="[
-            tabTriggerSizeClass,
-            modelValue === tab.value
-              ? 'bg-muted font-medium text-foreground'
-              : 'text-muted-foreground hover:bg-muted/50',
-            modelValue === tab.value ? tab.activeClass : undefined
-          ]"
-          :title="tab.shortcutHint ? `${tab.label} (${tab.shortcutHint})` : tab.label"
-          @click="select(tab.value)"
-          @keydown="onTabKeydown($event, index)"
-        >
-          <span class="flex min-w-0 max-w-full items-center gap-1">
-            <span
-              v-if="tab.tag"
-              class="rounded border border-border bg-background px-1 py-0 text-[10px] font-semibold leading-none text-muted-foreground"
-              data-testid="pill-tab-tag"
+        <Tooltip :delay-duration="400">
+          <TooltipTrigger as-child>
+            <Button
+              type="button"
+              variant="ghost"
+              role="tab"
+              :aria-selected="modelValue === tab.value"
+              :tabindex="modelValue === tab.value ? 0 : -1"
+              class="max-w-full transition-colors focus-visible:ring-offset-1"
+              :class="[
+                tabTriggerSizeClass,
+                modelValue === tab.value
+                  ? 'bg-muted font-medium text-foreground'
+                  : 'text-muted-foreground hover:bg-muted/50',
+                modelValue === tab.value ? tab.activeClass : undefined
+              ]"
+              @click="select(tab.value)"
+              @keydown="onTabKeydown($event, index)"
             >
-              {{ tab.tag }}
-            </span>
-            <span class="min-w-0 truncate">{{ tab.label }}</span>
-            <kbd
-              v-if="tab.shortcutHint"
-              class="pointer-events-none shrink-0 rounded border border-border/80 bg-muted/40 px-1 py-px font-mono text-[10px] font-normal leading-none text-muted-foreground tabular-nums"
-              data-testid="pill-tab-shortcut"
-            >
-              {{ tab.shortcutHint }}
-            </kbd>
-          </span>
-        </Button>
+              <span class="flex min-w-0 max-w-full items-center gap-1">
+                <span
+                  v-if="tab.tag"
+                  class="rounded border border-border bg-background px-1 py-0 text-[10px] font-semibold leading-none text-muted-foreground"
+                  data-testid="pill-tab-tag"
+                >
+                  {{ tab.tag }}
+                </span>
+                <span class="min-w-0 truncate">{{ tab.label }}</span>
+              </span>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent v-if="tab.shortcutHint" side="bottom">
+           {{ tab.shortcutHint }}
+          </TooltipContent>
+        </Tooltip>
         <Button
           v-if="tab.closable"
           type="button"

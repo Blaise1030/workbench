@@ -2,8 +2,30 @@ import { mount, flushPromises } from "@vue/test-utils";
 import { createPinia } from "pinia";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { WorkspaceSnapshot } from "@shared/ipc";
+import type { ThreadCreateWithAgentPayload } from "@shared/domain";
 
 const mockFileSearchConfirmContextSwitch = vi.fn(() => Promise.resolve(true));
+
+const llmMocks = vi.hoisted(() => ({
+  generateThreadTitle: vi.fn(),
+  isWebGpuUsable: vi.fn()
+}));
+
+const inlinePromptHarness = vi.hoisted(() => ({
+  emitSubmit: null as null | ((payload: ThreadCreateWithAgentPayload) => void)
+}));
+
+vi.mock("@/features/localLlm/engine", async (importOriginal) => {
+  const mod = await importOriginal<typeof import("@/features/localLlm/engine")>();
+  return { ...mod, generateThreadTitle: (...args: Parameters<typeof mod.generateThreadTitle>) =>
+    llmMocks.generateThreadTitle(...args) };
+});
+
+vi.mock("@/features/localLlm/webgpuSupport", async (importOriginal) => {
+  const mod = await importOriginal<typeof import("@/features/localLlm/webgpuSupport")>();
+  return { ...mod, isWebGpuUsable: (...args: Parameters<typeof mod.isWebGpuUsable>) =>
+    llmMocks.isWebGpuUsable(...args) };
+});
 
 vi.mock("@/components/ProjectTabs.vue", () => ({
   default: {
@@ -93,12 +115,22 @@ vi.mock("@/components/FileSearchEditor.vue", () => ({
   }
 }));
 vi.mock("@/components/ThreadInlinePromptEditor.vue", () => ({
-  default: { template: '<section data-testid="inline-prompt-editor" />' }
+  default: {
+    name: "ThreadInlinePromptEditorStub",
+    emits: ["submit", "cancel"],
+    mounted(this: { $emit: (e: string, p: ThreadCreateWithAgentPayload) => void }) {
+      inlinePromptHarness.emitSubmit = (p) => this.$emit("submit", p);
+    },
+    unmounted() {
+      inlinePromptHarness.emitSubmit = null;
+    },
+    template: '<section data-testid="inline-prompt-editor" />'
+  }
 }));
 vi.mock("@/components/ThreadSidebar.vue", () => ({
   default: {
     props: ["threads"],
-    emits: ["select", "reorder"],
+    emits: ["select", "reorder", "rename"],
     computed: {
       titles(): string {
         return this.threads.map((t: { title: string }) => t.title).join("|");
@@ -113,6 +145,14 @@ vi.mock("@/components/ThreadSidebar.vue", () => ({
           @click="$emit('reorder', { worktreeId: 'worktree-1', orderedThreadIds: ['thread-2', 'thread-1'] })"
         >
           reorder
+        </button>
+        <button
+          v-if="threads.length"
+          type="button"
+          data-testid="thread-sidebar-simulate-user-rename"
+          @click="$emit('rename', threads[0].id, 'User override title')"
+        >
+          simulate user rename
         </button>
         <button
           v-for="thread in threads"
@@ -282,6 +322,8 @@ describe("WorkspaceLayout", () => {
   beforeEach(() => {
     mockFileSearchConfirmContextSwitch.mockReset();
     mockFileSearchConfirmContextSwitch.mockResolvedValue(true);
+    llmMocks.generateThreadTitle.mockReset();
+    llmMocks.isWebGpuUsable.mockReset();
   });
 
   afterEach(() => {
@@ -1627,6 +1669,292 @@ describe("WorkspaceLayout", () => {
     expect(wrapper.get('[data-testid="thread-sidebar"]').text()).toContain("Other workspace");
 
     confirmSpy.mockRestore();
+  });
+
+  it("renames with heuristic first then WebLLM title when GPU is available and epoch is unchanged", async () => {
+    const { default: WorkspaceLayout } = await import("../WorkspaceLayout.vue");
+    llmMocks.isWebGpuUsable.mockResolvedValue(true);
+    llmMocks.generateThreadTitle.mockResolvedValue("Model refined title");
+
+    const empty = makeSnapshot([]);
+    const snapshotWithNewThread: WorkspaceSnapshot = {
+      ...empty,
+      threads: [
+        {
+          id: "thread-new",
+          projectId: "project-1",
+          worktreeId: "worktree-1",
+          title: "New thread",
+          agent: "claude",
+          createdBranch: null,
+          createdAt: "2026-04-14T00:00:00.000Z",
+          updatedAt: "2026-04-14T00:00:00.000Z"
+        }
+      ],
+      activeThreadId: "thread-new",
+      threadSessions: []
+    };
+    const snapshotAfterHeuristic: WorkspaceSnapshot = {
+      ...snapshotWithNewThread,
+      threads: [
+        {
+          ...snapshotWithNewThread.threads[0]!,
+          title: "Heuristic line"
+        }
+      ]
+    };
+    const snapshotAfterModel: WorkspaceSnapshot = {
+      ...snapshotAfterHeuristic,
+      threads: [
+        {
+          ...snapshotAfterHeuristic.threads[0]!,
+          title: "Model refined title"
+        }
+      ]
+    };
+
+    const getSnapshot = vi
+      .fn<WorkspaceApi["getSnapshot"]>()
+      .mockResolvedValueOnce(empty)
+      .mockResolvedValueOnce(snapshotWithNewThread)
+      .mockResolvedValueOnce(snapshotAfterHeuristic)
+      .mockResolvedValueOnce(snapshotAfterModel);
+    const changedFiles = vi.fn<WorkspaceApi["changedFiles"]>().mockResolvedValue([]);
+    const createThread = vi.fn<WorkspaceApi["createThread"]>().mockResolvedValue({
+      id: "thread-new",
+      projectId: "project-1",
+      worktreeId: "worktree-1",
+      title: "New thread",
+      agent: "claude",
+      createdBranch: null,
+      createdAt: "2026-04-14T00:00:00.000Z",
+      updatedAt: "2026-04-14T00:00:00.000Z"
+    });
+    const renameThread = vi.fn<WorkspaceApi["renameThread"]>().mockResolvedValue(undefined);
+
+    window.workspaceApi = {
+      getSnapshot,
+      changedFiles,
+      isGitRepository: vi.fn().mockResolvedValue(true),
+      addProject: vi.fn(),
+      addWorktree: vi.fn(),
+      setActive: vi.fn(),
+      createThread,
+      setActiveThread: vi.fn(),
+      deleteThread: vi.fn(),
+      renameThread,
+      startRun: vi.fn(),
+      sendRunInput: vi.fn(),
+      interruptRun: vi.fn(),
+      fileDiff: vi.fn(),
+      fileMergeSides: vi.fn().mockResolvedValue({
+        kind: "ok" as const,
+        original: "",
+        modified: "",
+        originalLabel: "HEAD",
+        modifiedLabel: "Staged"
+      }),
+      stageAll: vi.fn(),
+      discardAll: vi.fn(),
+      listFiles: vi.fn(),
+      searchFiles: vi.fn(),
+      readFile: vi.fn(),
+      writeFile: vi.fn(),
+      createFile: vi.fn(),
+      deleteFile: vi.fn(),
+      createFolder: vi.fn(),
+      deleteFolder: vi.fn(),
+      applyPatch: vi.fn(),
+      ptyCreate: vi.fn().mockResolvedValue({ buffer: "" }),
+      ptyWrite: vi.fn(),
+      ptyResize: vi.fn(),
+      ptyKill: vi.fn(),
+      onPtyData: vi.fn(() => () => {}),
+      pickRepoDirectory: vi.fn(),
+      onWorkspaceChanged: vi.fn(() => () => {}),
+      onWorkingTreeFilesChanged: vi.fn(() => () => {})
+    };
+
+    const wrapper = mount(WorkspaceLayout, {
+      global: {
+        plugins: [createPinia()]
+      }
+    });
+
+    await flushPromises();
+    await wrapper.get('[data-testid="workspace-create-thread-empty-state"]').trigger("click");
+    await flushPromises();
+
+    expect(inlinePromptHarness.emitSubmit).toBeTypeOf("function");
+    inlinePromptHarness.emitSubmit!({
+      agent: "claude",
+      prompt: "Heuristic line\nmore body",
+      threadTitle: undefined
+    });
+    await flushPromises();
+    await flushPromises();
+
+    expect(renameThread).toHaveBeenNthCalledWith(1, {
+      threadId: "thread-new",
+      title: "Heuristic line"
+    });
+    expect(llmMocks.generateThreadTitle).toHaveBeenCalledWith(
+      "Heuristic line\nmore body",
+      "Claude Code"
+    );
+    expect(renameThread).toHaveBeenNthCalledWith(2, {
+      threadId: "thread-new",
+      title: "Model refined title"
+    });
+  });
+
+  it("does not apply WebLLM rename when thread title epoch bumps before the model returns", async () => {
+    const { default: WorkspaceLayout } = await import("../WorkspaceLayout.vue");
+    llmMocks.isWebGpuUsable.mockResolvedValue(true);
+    let resolveTitle!: (value: string) => void;
+    llmMocks.generateThreadTitle.mockImplementation(
+      () =>
+        new Promise<string>((resolve) => {
+          resolveTitle = resolve;
+        })
+    );
+
+    const empty = makeSnapshot([]);
+    const snapshotWithNewThread: WorkspaceSnapshot = {
+      ...empty,
+      threads: [
+        {
+          id: "thread-new",
+          projectId: "project-1",
+          worktreeId: "worktree-1",
+          title: "New thread",
+          agent: "claude",
+          createdBranch: null,
+          createdAt: "2026-04-14T00:00:00.000Z",
+          updatedAt: "2026-04-14T00:00:00.000Z"
+        }
+      ],
+      activeThreadId: "thread-new",
+      threadSessions: []
+    };
+    const snapshotAfterHeuristic: WorkspaceSnapshot = {
+      ...snapshotWithNewThread,
+      threads: [
+        {
+          ...snapshotWithNewThread.threads[0]!,
+          title: "Heuristic line"
+        }
+      ]
+    };
+    const snapshotAfterUserRename: WorkspaceSnapshot = {
+      ...snapshotAfterHeuristic,
+      threads: [
+        {
+          ...snapshotAfterHeuristic.threads[0]!,
+          title: "User override title"
+        }
+      ]
+    };
+
+    const getSnapshot = vi
+      .fn<WorkspaceApi["getSnapshot"]>()
+      .mockResolvedValueOnce(empty)
+      .mockResolvedValueOnce(snapshotWithNewThread)
+      .mockResolvedValueOnce(snapshotAfterHeuristic)
+      .mockResolvedValueOnce(snapshotAfterUserRename);
+    const changedFiles = vi.fn<WorkspaceApi["changedFiles"]>().mockResolvedValue([]);
+    const createThread = vi.fn<WorkspaceApi["createThread"]>().mockResolvedValue({
+      id: "thread-new",
+      projectId: "project-1",
+      worktreeId: "worktree-1",
+      title: "New thread",
+      agent: "claude",
+      createdBranch: null,
+      createdAt: "2026-04-14T00:00:00.000Z",
+      updatedAt: "2026-04-14T00:00:00.000Z"
+    });
+    const renameThread = vi.fn<WorkspaceApi["renameThread"]>().mockResolvedValue(undefined);
+
+    window.workspaceApi = {
+      getSnapshot,
+      changedFiles,
+      isGitRepository: vi.fn().mockResolvedValue(true),
+      addProject: vi.fn(),
+      addWorktree: vi.fn(),
+      setActive: vi.fn(),
+      createThread,
+      setActiveThread: vi.fn(),
+      deleteThread: vi.fn(),
+      renameThread,
+      startRun: vi.fn(),
+      sendRunInput: vi.fn(),
+      interruptRun: vi.fn(),
+      fileDiff: vi.fn(),
+      fileMergeSides: vi.fn().mockResolvedValue({
+        kind: "ok" as const,
+        original: "",
+        modified: "",
+        originalLabel: "HEAD",
+        modifiedLabel: "Staged"
+      }),
+      stageAll: vi.fn(),
+      discardAll: vi.fn(),
+      listFiles: vi.fn(),
+      searchFiles: vi.fn(),
+      readFile: vi.fn(),
+      writeFile: vi.fn(),
+      createFile: vi.fn(),
+      deleteFile: vi.fn(),
+      createFolder: vi.fn(),
+      deleteFolder: vi.fn(),
+      applyPatch: vi.fn(),
+      ptyCreate: vi.fn().mockResolvedValue({ buffer: "" }),
+      ptyWrite: vi.fn(),
+      ptyResize: vi.fn(),
+      ptyKill: vi.fn(),
+      onPtyData: vi.fn(() => () => {}),
+      pickRepoDirectory: vi.fn(),
+      onWorkspaceChanged: vi.fn(() => () => {}),
+      onWorkingTreeFilesChanged: vi.fn(() => () => {})
+    };
+
+    const wrapper = mount(WorkspaceLayout, {
+      global: {
+        plugins: [createPinia()]
+      }
+    });
+
+    await flushPromises();
+    await wrapper.get('[data-testid="workspace-create-thread-empty-state"]').trigger("click");
+    await flushPromises();
+
+    inlinePromptHarness.emitSubmit!({
+      agent: "claude",
+      prompt: "Heuristic line\nmore body",
+      threadTitle: undefined
+    });
+    await flushPromises();
+
+    expect(renameThread).toHaveBeenCalledTimes(1);
+    expect(renameThread).toHaveBeenCalledWith({
+      threadId: "thread-new",
+      title: "Heuristic line"
+    });
+
+    await wrapper.get('[data-testid="thread-sidebar-simulate-user-rename"]').trigger("click");
+    await flushPromises();
+
+    expect(renameThread).toHaveBeenCalledTimes(2);
+    expect(renameThread).toHaveBeenLastCalledWith({
+      threadId: "thread-new",
+      title: "User override title"
+    });
+
+    resolveTitle!("Model refined title");
+    await flushPromises();
+    await flushPromises();
+
+    expect(renameThread).toHaveBeenCalledTimes(2);
   });
 
 });

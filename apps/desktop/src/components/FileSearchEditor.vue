@@ -171,9 +171,9 @@ const isSaving = ref(false);
 const error = ref<string | null>(null);
 
 const SIDEBAR_COLLAPSED_KEY = "instrument.fileSearchSidebarCollapsed";
-const EDITOR_COLLAPSED_KEY = "instrument.fileSearchEditorCollapsed";
 const LINE_NUMBERS_VISIBLE_KEY = "instrument.fileSearchLineNumbersVisible";
 const SEARCH_MODE_KEY = "instrument.fileSearchSearchMode";
+const SELECTED_PATH_KEY_PREFIX = "instrument.fileSearchSelectedPath:";
 
 function readLocalStorageFlag(key: string, fallback = false): boolean {
   try {
@@ -182,6 +182,24 @@ function readLocalStorageFlag(key: string, fallback = false): boolean {
     return value === null ? fallback : value === "1";
   } catch {
     return fallback;
+  }
+}
+
+function readSavedSelectedPath(cwd: string): string | null {
+  try {
+    return localStorage.getItem(`${SELECTED_PATH_KEY_PREFIX}${cwd}`);
+  } catch {
+    return null;
+  }
+}
+
+function writeSavedSelectedPath(cwd: string, relativePath: string | null): void {
+  try {
+    const key = `${SELECTED_PATH_KEY_PREFIX}${cwd}`;
+    if (relativePath) localStorage.setItem(key, relativePath);
+    else localStorage.removeItem(key);
+  } catch {
+    /* ignore quota / private mode */
   }
 }
 
@@ -197,21 +215,12 @@ function readSearchMode(): "path" | "contents" {
 }
 
 const sidebarCollapsed = ref(readLocalStorageFlag(SIDEBAR_COLLAPSED_KEY));
-const editorCollapsed = ref(readLocalStorageFlag(EDITOR_COLLAPSED_KEY));
 const showLineNumbers = ref(readLocalStorageFlag(LINE_NUMBERS_VISIBLE_KEY, true));
 const searchMode = ref<"path" | "contents">(readSearchMode());
 
 watch(sidebarCollapsed, (collapsed) => {
   try {
     localStorage.setItem(SIDEBAR_COLLAPSED_KEY, collapsed ? "1" : "0");
-  } catch {
-    /* ignore quota / private mode */
-  }
-});
-
-watch(editorCollapsed, (collapsed) => {
-  try {
-    localStorage.setItem(EDITOR_COLLAPSED_KEY, collapsed ? "1" : "0");
   } catch {
     /* ignore quota / private mode */
   }
@@ -388,8 +397,7 @@ const findInFileShortcutHint = computed(() =>
 
 const canFindInFile = computed(
   () =>
-    Boolean(selectedPath.value) &&
-    !editorCollapsed.value &&
+    Boolean(selectedPath.value) &&    
     !isLoadingFile.value &&
     !(isImagePreviewFile.value && imageFileViewMode.value === "preview")
 );
@@ -397,8 +405,7 @@ const canFindInFile = computed(
 /** Show "Add to Chat" on text selection whenever the source editor is open (thread optional until send). */
 const queueSelectionHintsEnabled = computed(
   () =>
-    Boolean(selectedPath.value) &&
-    !editorCollapsed.value &&
+    Boolean(selectedPath.value) &&    
     !isLoadingFile.value &&
     !(isImagePreviewFile.value && imageFileViewMode.value === "preview")
 );
@@ -1276,8 +1283,11 @@ function handleRevert(): void {
   error.value = null;
 }
 
-function toggleEditorCollapsed(): void {
-  editorCollapsed.value = !editorCollapsed.value;
+async function handleRefreshFile(): Promise<void> {
+  const path = selectedPath.value;
+  if (!path) return;
+  if (dirty.value && !(await confirmDiscardIfDirty())) return;
+  await openFile(path);
 }
 
 function toggleLineNumbers(): void {
@@ -1296,17 +1306,24 @@ async function confirmContextSwitch(nextWorktreePath: string | null): Promise<bo
   return confirmDiscardIfDirty();
 }
 
-watch(selectedPath, () => {
+watch(selectedPath, (path) => {
   externalDropPreview.value = null;
+  const cwd = props.worktreePath;
+  if (cwd) writeSavedSelectedPath(cwd, path);
 });
 
 watch(
   () => props.worktreePath,
   async (next, previous) => {
     if (next === previous) return;
+    // Read before resetState() — clearSelection sets selectedPath=null which would wipe the key.
+    const savedPath = next ? readSavedSelectedPath(next) : null;
     invalidatePendingFileRequests();
     resetState();
     await loadFileSummaries();
+    if (next && savedPath && allFiles.value.some((f) => f.relativePath === savedPath && f.kind === "file")) {
+      await openFile(savedPath);
+    }
     void focusSearchInput();
   },
   { immediate: true }
@@ -1628,19 +1645,15 @@ defineExpose({
             Find
           </Button>
           <Button
-            data-testid="toggle-file-editor-body"
+            data-testid="refresh-file"
             variant="outline"
-            size="icon-xs"
-            class="size-7 shrink-0"
-            :disabled="!selectedPath"
-            :aria-pressed="editorCollapsed"
-            :title="editorCollapsed ? 'Expand editor' : 'Collapse editor'"
-            :aria-label="editorCollapsed ? 'Expand editor body' : 'Collapse editor body'"
-            @click="toggleEditorCollapsed"
+            size="xs"
+            :disabled="!selectedPath || isLoadingFile"
+            title="Reload file from disk"
+            @click="handleRefreshFile"
           >
-            <Minimize2 v-if="!editorCollapsed" class="h-3.5 w-3.5" aria-hidden="true" />
-            <Maximize2 v-else class="h-3.5 w-3.5" aria-hidden="true" />
-            <span class="sr-only">{{ editorCollapsed ? "Expand editor" : "Collapse editor" }}</span>
+            <RefreshCw class="h-3.5 w-3.5" aria-hidden="true" />
+            <span class="sr-only">Reload file from disk</span>
           </Button>
           <Button
             data-testid="revert-file"
@@ -1679,97 +1692,88 @@ defineExpose({
         id="file-editor-body"
         data-testid="file-editor-body"
         class="relative flex min-h-0 min-w-0 flex-1 flex-col"
-      >
+      >        
         <div
-          v-if="selectedPath && editorCollapsed"
-          data-testid="file-editor-collapsed-state"
-          class="flex min-h-[6rem] flex-1 items-center justify-center rounded-md bg-background px-4 py-6 text-xs font-normal text-muted-foreground"
+          v-if="isImagePreviewFile && selectedPath"
+          class="absolute top-2 right-3 z-20 rounded-lg border border-border/60 bg-background/95 p-0.5 shadow-sm backdrop-blur-sm supports-[backdrop-filter]:bg-background/80"
         >
-          Editor collapsed.
-        </div>
-        <template v-else>
-          <div
-            v-if="isImagePreviewFile && selectedPath"
-            class="absolute top-2 right-3 z-20 rounded-lg border border-border/60 bg-background/95 p-0.5 shadow-sm backdrop-blur-sm supports-[backdrop-filter]:bg-background/80"
-          >
-            <PillTabs
-              :model-value="imageFileViewMode"
-              class="min-w-0 shrink-0 [&_[role=tablist]]:px-0 [&_[role=tablist]]:py-0 [&_[role=tab][aria-selected='true']]:bg-foreground [&_[role=tab][aria-selected='true']]:text-background [&_[role=tab][aria-selected='true']]:shadow-sm [&_[role=tab][aria-selected='false']]:hover:bg-transparent"
-              aria-label="Image view"
-              :tabs="imageViewTabs"
-              @update:model-value="onImageViewModeRequest"
-            />
-          </div>
-          <p
-            v-if="error && selectedPath"
-            class="mb-2 px-4 pt-2 text-xs text-destructive"
-          >
-            {{ error }}
-          </p>
-          <div
-            v-else-if="!selectedPath"
-            data-testid="file-editor-empty-state"
-            class="flex min-h-[18rem] flex-1 flex-col items-center justify-center gap-3 rounded-md bg-background px-4 py-8 text-center"
-            role="status"
-            aria-live="polite"
-          >
-            <span class="select-none text-4xl leading-none" aria-hidden="true">📄</span>
-            <p class="max-w-xs text-xs text-muted-foreground">
-              Pick a file from the search results to view or edit it.
-            </p>
-          </div>
-          <p
-            v-else-if="isLoadingFile"
-            class="px-4 pt-2 text-xs text-muted-foreground"
-          >
-            Loading file…
-          </p>
-          <div
-            v-else-if="isImagePreviewFile && imageFileViewMode === 'preview' && imagePreviewSrc"
-            data-testid="image-file-preview"
-            class="flex min-h-[18rem] flex-1 flex-col items-center justify-center overflow-auto rounded-md bg-background px-4 py-6"
-          >
-            <img
-              :src="imagePreviewSrc"
-              :alt="`Preview of ${selectedPath}`"
-              class="max-h-[min(70vh,48rem)] max-w-full rounded-md border border-border/60 object-contain shadow-sm"
-              draggable="false"
-            />
-          </div>
-          <div
-            v-else-if="isImagePreviewFile && imageFileViewMode === 'preview' && !imagePreviewSrc"
-            data-testid="image-file-preview-unavailable"
-            class="flex min-h-[18rem] flex-1 flex-col items-center justify-center gap-2 rounded-md bg-background px-4 py-6 text-center text-xs font-normal text-muted-foreground"
-            role="status"
-          >
-            <p class="max-w-sm">
-              Could not build a preview (missing binary, Git LFS pointer not smudged, wrong file type, or over 32 MB).
-            </p>
-            <p>
-              Use <span class="font-normal text-foreground">Source</span> to inspect the file, or run
-              <span class="font-mono">git lfs pull</span> if this is an LFS asset.
-            </p>
-            <p class="text-[11px] text-muted-foreground/90">
-              For screenshots in macOS TemporaryItems: drag the file onto this pane (temp folder is allowed), or copy
-              the image into the repo.
-            </p>
-          </div>
-          <MonacoEditor
-            v-else
-            ref="monacoEditorRef"
-            v-model="draftContent"
-            :language="editorLanguage"
-            :show-line-numbers="showLineNumbers"
-            :queue-selection-hints="queueSelectionHintsEnabled"
-            :aria-label="
-              selectedPath
-                ? `Source code, ${editorLanguage ?? 'plain text'}, ${selectedPath}`
-                : undefined
-            "
-            @queueable-text-selection="onEditorQueueableSelection"
-            @save="handleSave"
+          <PillTabs
+            :model-value="imageFileViewMode"
+            class="min-w-0 shrink-0 [&_[role=tablist]]:px-0 [&_[role=tablist]]:py-0 [&_[role=tab][aria-selected='true']]:bg-foreground [&_[role=tab][aria-selected='true']]:text-background [&_[role=tab][aria-selected='true']]:shadow-sm [&_[role=tab][aria-selected='false']]:hover:bg-transparent"
+            aria-label="Image view"
+            :tabs="imageViewTabs"
+            @update:model-value="onImageViewModeRequest"
           />
-        </template>
+        </div>
+        <p
+          v-if="error && selectedPath"
+          class="mb-2 px-4 pt-2 text-xs text-destructive"
+        >
+          {{ error }}
+        </p>
+        <div
+          v-else-if="!selectedPath"
+          data-testid="file-editor-empty-state"
+          class="flex min-h-[18rem] flex-1 flex-col items-center justify-center gap-3 rounded-md bg-background px-4 py-8 text-center"
+          role="status"
+          aria-live="polite"
+        >
+          <span class="select-none text-4xl leading-none" aria-hidden="true">📄</span>
+          <p class="max-w-xs text-xs text-muted-foreground">
+            Pick a file from the search results to view or edit it.
+          </p>
+        </div>
+        <p
+          v-else-if="isLoadingFile"
+          class="px-4 pt-2 text-xs text-muted-foreground"
+        >
+          Loading file…
+        </p>
+        <div
+          v-else-if="isImagePreviewFile && imageFileViewMode === 'preview' && imagePreviewSrc"
+          data-testid="image-file-preview"
+          class="flex min-h-[18rem] flex-1 flex-col items-center justify-center overflow-auto rounded-md bg-background px-4 py-6"
+        >
+          <img
+            :src="imagePreviewSrc"
+            :alt="`Preview of ${selectedPath}`"
+            class="max-h-[min(70vh,48rem)] max-w-full rounded-md border border-border/60 object-contain shadow-sm"
+            draggable="false"
+          />
+        </div>
+        <div
+          v-else-if="isImagePreviewFile && imageFileViewMode === 'preview' && !imagePreviewSrc"
+          data-testid="image-file-preview-unavailable"
+          class="flex min-h-[18rem] flex-1 flex-col items-center justify-center gap-2 rounded-md bg-background px-4 py-6 text-center text-xs font-normal text-muted-foreground"
+          role="status"
+        >
+          <p class="max-w-sm">
+            Could not build a preview (missing binary, Git LFS pointer not smudged, wrong file type, or over 32 MB).
+          </p>
+          <p>
+            Use <span class="font-normal text-foreground">Source</span> to inspect the file, or run
+            <span class="font-mono">git lfs pull</span> if this is an LFS asset.
+          </p>
+          <p class="text-[11px] text-muted-foreground/90">
+            For screenshots in macOS TemporaryItems: drag the file onto this pane (temp folder is allowed), or copy
+            the image into the repo.
+          </p>
+        </div>
+        <MonacoEditor
+          v-else
+          ref="monacoEditorRef"
+          v-model="draftContent"
+          :language="editorLanguage"
+          :show-line-numbers="showLineNumbers"
+          :queue-selection-hints="queueSelectionHintsEnabled"
+          :aria-label="
+            selectedPath
+              ? `Source code, ${editorLanguage ?? 'plain text'}, ${selectedPath}`
+              : undefined
+          "
+          @queueable-text-selection="onEditorQueueableSelection"
+          @save="handleSave"
+        />        
       </div>
       <div
         v-if="externalDropPreview"

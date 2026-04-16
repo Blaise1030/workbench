@@ -12,6 +12,15 @@ function notifyEmbeddedDevtoolsState(win: BrowserWindow | null, open: boolean): 
   win?.webContents.send(IPC_CHANNELS.previewEmbeddedDevtoolsState, { open });
 }
 
+function notifyNavigationUrl(win: BrowserWindow | null, url: string): void {
+  const wc = previewPageView?.webContents;
+  win?.webContents.send(IPC_CHANNELS.previewNavigationUrl, {
+    url,
+    canGoBack: wc?.navigationHistory.canGoBack() ?? false,
+    canGoForward: wc?.navigationHistory.canGoForward() ?? false
+  });
+}
+
 function getOrCreatePreviewPageView(): BrowserView {
   if (!previewPageView) {
     previewPageView = new BrowserView({
@@ -23,6 +32,12 @@ function getOrCreatePreviewPageView(): BrowserView {
     });
     previewPageView.webContents.on("devtools-closed", () => {
       syncEmbeddedDevtoolsClosedFromChrome();
+    });
+    previewPageView.webContents.on("did-navigate", (_event, url) => {
+      notifyNavigationUrl(lastWin, url);
+    });
+    previewPageView.webContents.on("did-navigate-in-page", (_event, url) => {
+      notifyNavigationUrl(lastWin, url);
     });
   }
   return previewPageView;
@@ -218,4 +233,16 @@ export function previewNativeToggleEmbeddedDevTools(event: IpcMainInvokeEvent): 
   // otherwise Chromium can show device mode / dock UI twice (looked like “2 webviews”).
   page.webContents.openDevTools({ mode: "bottom", activate: true });
   return { ok: true, open: true };
+}
+
+export function previewNativeGoBack(_event: IpcMainInvokeEvent): void {
+  const wc = previewPageView?.webContents;
+  if (!wc?.navigationHistory.canGoBack()) return;
+  wc.navigationHistory.goBack();
+}
+
+export function previewNativeGoForward(_event: IpcMainInvokeEvent): void {
+  const wc = previewPageView?.webContents;
+  if (!wc?.navigationHistory.canGoForward()) return;
+  wc.navigationHistory.goForward();
 }
