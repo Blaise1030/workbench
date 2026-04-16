@@ -1,6 +1,5 @@
 import { onBeforeUnmount, onMounted, watch, type Ref } from "vue";
 import { decideTerminalAttentionChunk } from "@/terminal/attentionRules";
-import { playTerminalChirp } from "@/terminal/playTerminalChirp";
 import type { TerminalActivitySensitivity } from "@/terminal/activitySensitivity";
 
 /**
@@ -70,11 +69,7 @@ export function useTerminalAttentionSounds(opts: {
       });
 
       if (decision.playSound && opts.notificationsEnabled.value) {
-        const chimeArmed = chimeArmedBySession.get(sessionId) !== false;
-        if (chimeArmed) {
-          playTerminalChirp();
-          chimeArmedBySession.set(sessionId, false);
-        }
+        chimeArmedBySession.set(sessionId, false);
       }
       if (decision.consumedBackgroundOneShot) {
         backgroundArmedBySession.set(sessionId, false);

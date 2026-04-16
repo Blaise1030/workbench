@@ -17,9 +17,11 @@ export class NotificationService {
     return `${projectName}, ${threadTitle} preview is ready`;
   }
 
-  trigger(kind: NotificationKind, projectName: string, threadTitle: string): void {
+  trigger(kind: NotificationKind, projectName: string, threadTitle: string, onClick?: () => void): void {
     if (!Notification.isSupported()) return;
     const body = this.getSummary(projectName, threadTitle, kind);
-    new Notification({ title: projectName, body }).show();
+    const n = new Notification({ title: projectName, body });
+    if (onClick) n.on("click", onClick);
+    n.show();
   }
 }

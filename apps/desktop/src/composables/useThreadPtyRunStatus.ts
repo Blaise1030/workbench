@@ -1,29 +1,20 @@
 import { onBeforeUnmount, onMounted, ref, watch, type ComputedRef, type Ref } from "vue";
-import type { RunStatus, Thread, ThreadAgent } from "@shared/domain";
-import { detectRunStateFromChunk } from "@shared/agentRunStateFromChunk";
+import type { RunStatus, Thread } from "@shared/domain";
 import { playTerminalChirp } from "@/terminal/playTerminalChirp";
-import { hasMeaningfulPtyOutput } from "@/terminal/ptyChunkMeaningful";
-import type { TerminalActivitySensitivity } from "@/terminal/activitySensitivity";
-
-const IDLE_MS = 5000;
 
 export type UseThreadPtyRunStatusOpts = {
-  /** Thread the user is focused on; idle attention and chirps use this, not which terminal tab is visible. */
+  /** Thread the user is focused on; idle attention and chirps use this. */
   activeThreadId: Ref<string | null>;
-  /** When false, idle completion does not play the attention chirp (row may still highlight). */
+  /** When false, completion does not play the attention chirp (row may still highlight). */
   notificationsEnabled: Ref<boolean>;
-  /** Shared activity sensitivity used for both idle detection and terminal sounds. */
-  activitySensitivity: Ref<TerminalActivitySensitivity>;
 };
 
 /**
- * Derives per-thread agent run status from integrated-terminal PTY output (same heuristics as Electron adapters).
- * Sticky for needsReview / failed / done until new activity; running while output streams; idle after quiet period.
+ * Derives per-thread run status from hook events (via main-process IPC).
+ * Replaces PTY-output heuristics — state is now authoritative from agent lifecycle hooks.
  *
- * When a thread was **running** and goes **idle** while it is **not** the active thread (`activeThreadId`),
- * marks `idleAttentionByThreadId` and plays one chirp (if notifications are on). Cleared when the user selects
- * that thread or when new output arrives. PTY chunks within 300ms of `markUserInput` for that thread are ignored
- * so typed echo does not count as program activity.
+ * When a thread transitions to done/needsReview/failed while not the active thread,
+ * marks `idleAttentionByThreadId` (blue highlight) and plays one chirp.
  */
 export function useThreadPtyRunStatus(
   threads: Ref<readonly Thread[]> | ComputedRef<readonly Thread[]>,
@@ -36,12 +27,6 @@ export function useThreadPtyRunStatus(
 } {
   const runStatusByThreadId = ref<Record<string, RunStatus>>({});
   const idleAttentionByThreadId = ref<Record<string, boolean>>({});
-  const idleTimers = new Map<string, ReturnType<typeof setTimeout>>();
-  const lastUserInputMs = new Map<string, number>();
-
-  function markUserInput(sessionId: string): void {
-    lastUserInputMs.set(sessionId, Date.now());
-  }
 
   function clearIdleAttention(threadId: string): void {
     if (!idleAttentionByThreadId.value[threadId]) return;
@@ -50,94 +35,61 @@ export function useThreadPtyRunStatus(
     idleAttentionByThreadId.value = next;
   }
 
-  function clearIdleTimer(threadId: string): void {
-    const t = idleTimers.get(threadId);
-    if (t != null) {
-      clearTimeout(t);
-      idleTimers.delete(threadId);
-    }
-  }
+  // markUserInput kept for API compatibility — no-op now that PTY scraping is removed.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  function markUserInput(_sessionId: string): void {}
 
-  function scheduleIdle(threadId: string): void {
-    clearIdleTimer(threadId);
-    idleTimers.set(
-      threadId,
-      setTimeout(() => {
-        idleTimers.delete(threadId);
-        const cur = runStatusByThreadId.value[threadId];
-        if (cur === "needsReview" || cur === "failed" || cur === "done") return;
+  function applyHookState(threadId: string, state: string): void {
+    const valid = state === "running" || state === "done" || state === "needsReview" || state === "failed";
+    if (!valid) return;
 
-        const inFocus = opts.activeThreadId.value === threadId;
+    const status = state as RunStatus;
+    const inFocus = opts.activeThreadId.value === threadId;
 
-        if (cur === "running" && !inFocus) {
-          idleAttentionByThreadId.value = { ...idleAttentionByThreadId.value, [threadId]: true };
-          if (opts.notificationsEnabled.value) {
-            playTerminalChirp();
-          }
+    if (status === "running") {
+      clearIdleAttention(threadId);
+    } else {
+      // done / needsReview / failed — highlight + chirp when not in focus
+      if (!inFocus) {
+        idleAttentionByThreadId.value = { ...idleAttentionByThreadId.value, [threadId]: true };
+        if (opts.notificationsEnabled.value) {
+          playTerminalChirp();
         }
-
-        const next = { ...runStatusByThreadId.value };
-        delete next[threadId];
-        runStatusByThreadId.value = next;
-      }, IDLE_MS)
-    );
-  }
-
-  function applyChunk(threadId: string, agent: ThreadAgent, data: string): void {
-    if (Date.now() - (lastUserInputMs.get(threadId) ?? 0) < 300) return;
-    if (!hasMeaningfulPtyOutput(data, opts.activitySensitivity.value)) return;
-
-    clearIdleAttention(threadId);
-
-    const parsed = detectRunStateFromChunk(agent, data);
-    const next = { ...runStatusByThreadId.value };
-
-    if (parsed != null) {
-      next[threadId] = parsed;
-      runStatusByThreadId.value = next;
-      clearIdleTimer(threadId);
-      return;
+      }
     }
 
-    next[threadId] = "running";
-    runStatusByThreadId.value = next;
-    scheduleIdle(threadId);
+    runStatusByThreadId.value = { ...runStatusByThreadId.value, [threadId]: status };
   }
 
-  let disposePty: (() => void) | null = null;
+  let disposeHook: (() => void) | null = null;
 
   onMounted(() => {
     const api = typeof window !== "undefined" ? window.workspaceApi : undefined;
-    if (!api?.onPtyData) return;
-
-    disposePty = api.onPtyData((sessionId, data) => {
-      if (sessionId.startsWith("__")) return;
-      const thread = threads.value.find((t) => t.id === sessionId);
-      if (!thread) return;
-      applyChunk(sessionId, thread.agent, data);
+    if (!api?.onThreadRunStateChanged) return;
+    disposeHook = api.onThreadRunStateChanged((threadId, state) => {
+      applyHookState(threadId, state);
     });
   });
 
+  // Clean up stale entries when threads are removed.
   watch(
     () => threads.value.map((t) => t.id).join("\0"),
     () => {
       const allow = new Set(threads.value.map((t) => t.id));
       for (const id of Object.keys(runStatusByThreadId.value)) {
         if (!allow.has(id)) {
-          clearIdleTimer(id);
           const next = { ...runStatusByThreadId.value };
           delete next[id];
           runStatusByThreadId.value = next;
         }
       }
       for (const id of Object.keys(idleAttentionByThreadId.value)) {
-        if (!allow.has(id)) {
-          clearIdleAttention(id);
-        }
+        if (!allow.has(id)) clearIdleAttention(id);
       }
     }
   );
 
+  // Clear highlight when user navigates to that thread.
   watch(
     () => opts.activeThreadId.value,
     (id) => {
@@ -147,10 +99,8 @@ export function useThreadPtyRunStatus(
   );
 
   onBeforeUnmount(() => {
-    disposePty?.();
-    disposePty = null;
-    for (const t of idleTimers.values()) clearTimeout(t);
-    idleTimers.clear();
+    disposeHook?.();
+    disposeHook = null;
   });
 
   return { runStatusByThreadId, idleAttentionByThreadId, clearIdleAttention, markUserInput };

@@ -70,8 +70,13 @@ export function registerAgentHooks(
   }
   const hooks = settings.hooks as Record<string, unknown[]>;
 
+  const hookScriptName = path.basename(scriptPath);
   for (const event of events) {
     if (!Array.isArray(hooks[event])) hooks[event] = [];
+    // Remove any stale Instrument hook entries (e.g. old path with spaces like "Application Support")
+    hooks[event] = (hooks[event] as Array<{ hooks: Array<{ type?: string; command?: string }> }>).filter(
+      (e) => !e.hooks?.some((h) => typeof h.command === "string" && h.command.includes(hookScriptName))
+    );
     const entries = hooks[event] as Array<{ hooks: Array<{ type?: string; command?: string }> }>;
     const alreadyRegistered = entries.some((e) =>
       e.hooks?.some((h) => h.command === scriptPath || h.command === `"${scriptPath}"`)

@@ -97,6 +97,8 @@ interface WorkspaceApi {
   getAppUpdateAvailability?: () => Promise<AppUpdateAvailability | null>;
   /** Open a validated https `github.com` URL in the default browser. */
   openAppExternalUrl?: (url: string) => Promise<void>;
+  /** Main → renderer: hook-derived run state for a thread. */
+  onThreadRunStateChanged?: (callback: (threadId: string, state: string) => void) => () => void;
 }
 
 /** Preview tab: main-process `BrowserView` + HTTP probe + opening the URL externally. */

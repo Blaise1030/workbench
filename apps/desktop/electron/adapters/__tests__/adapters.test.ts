@@ -5,23 +5,31 @@ import { CursorCliAdapter } from "../cursorCliAdapter";
 import { GeminiCliAdapter } from "../geminiCliAdapter";
 
 describe("agent adapters", () => {
-  it("detects codex review state", () => {
-    const adapter = new CodexCliAdapter();
-    expect(adapter.detectState("waiting for review")).toBe("needsReview");
-  });
-
-  it("detects claude completion state", () => {
+  it("claude adapter returns correct command", () => {
     const adapter = new ClaudeCodeCliAdapter();
-    expect(adapter.detectState("completed successfully")).toBe("done");
+    const cmd = adapter.command({ cwd: "/repo", prompt: "fix bug", threadId: "t1" });
+    expect(cmd.file).toBe("claude");
+    expect(cmd.args).toContain("fix bug");
   });
 
-  it("detects gemini approval state", () => {
+  it("codex adapter returns correct command", () => {
+    const adapter = new CodexCliAdapter();
+    const cmd = adapter.command({ cwd: "/repo", prompt: "fix bug", threadId: "t1" });
+    expect(cmd.file).toBe("codex");
+    expect(cmd.args).toContain("fix bug");
+  });
+
+  it("gemini adapter returns correct command", () => {
     const adapter = new GeminiCliAdapter();
-    expect(adapter.detectState("Waiting for approval")).toBe("needsReview");
+    const cmd = adapter.command({ cwd: "/repo", prompt: "fix bug", threadId: "t1" });
+    expect(cmd.file).toBe("gemini");
+    expect(cmd.args).toContain("fix bug");
   });
 
-  it("detects cursor approval state", () => {
+  it("cursor adapter returns correct command", () => {
     const adapter = new CursorCliAdapter();
-    expect(adapter.detectState("Waiting for approval...")).toBe("needsReview");
+    const cmd = adapter.command({ cwd: "/repo", prompt: "fix bug", threadId: "t1" });
+    expect(cmd.file).toBe("cursor");
+    expect(cmd.args).toContain("fix bug");
   });
 });

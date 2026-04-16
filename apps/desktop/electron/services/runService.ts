@@ -7,7 +7,6 @@ import type { AgentAdapter, AgentKind } from "../adapters/types.js";
 import { PtyManager } from "../runtime/ptyManager.js";
 
 type OutputListener = (runId: string, chunk: string) => void;
-type StateListener = (runId: string, status: "running" | "needsReview" | "failed" | "done") => void;
 
 export class RunService {
   private pty = new PtyManager();
@@ -33,17 +32,14 @@ export class RunService {
     }
   }
 
-  start(agent: AgentKind, cwd: string, prompt: string, onOutput: OutputListener, onState: StateListener): string {
+  start(agent: AgentKind, cwd: string, prompt: string, onOutput: OutputListener): string {
     const runId = randomUUID();
     const adapter = this.adapterFor(agent);
     const command = adapter.command({ cwd, prompt, threadId: runId });
 
     this.pty.start(runId, command.file, command.args, cwd, (chunk) => {
       onOutput(runId, chunk);
-      const state = adapter.detectState(chunk);
-      if (state) onState(runId, state);
     });
-    onState(runId, "running");
     return runId;
   }
 

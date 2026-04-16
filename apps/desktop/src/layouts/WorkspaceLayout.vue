@@ -396,8 +396,7 @@ const {
   markUserInput: markPtyUserInput
 } = useThreadPtyRunStatus(computed(() => workspace.threads), {
   activeThreadId: computed(() => workspace.activeThreadId),
-  notificationsEnabled: terminalNotificationsEnabled,
-  activitySensitivity: terminalActivitySensitivity
+  notificationsEnabled: terminalNotificationsEnabled
 });
 
 function addShellTerminal(): void {

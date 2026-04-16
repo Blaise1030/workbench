@@ -25,6 +25,7 @@ const IPC_CHANNELS = {
   workspaceSetActiveThread: "workspace:setActiveThread",
   workspaceDeleteThread: "workspace:deleteThread",
   workspaceRenameThread: "workspace:renameThread",
+  workspaceUpdateThread: "workspace:updateThread",
   workspaceDidChange: "workspace:didChange",
   workingTreeFilesDidChange: "diff:workingTreeFilesDidChange",
   runStart: "run:start",
@@ -89,9 +90,8 @@ const IPC_CHANNELS = {
   appGetReleaseTag: "app:getReleaseTag",
   appGetUpdateAvailability: "app:getUpdateAvailability",
   appOpenExternalUrl: "app:openExternalUrl",
-  previewNativeGoBack: "preview:nativeGoBack",
-  previewNativeGoForward: "preview:nativeGoForward",
   previewNavigationUrl: "preview:navigationUrl"
+  threadRunStateChanged: "thread:runStateChanged"
 } as const;
 
 /** Absolute repo root from the first file in a webkitdirectory pick (Electron only). */
@@ -234,7 +234,14 @@ contextBridge.exposeInMainWorld("workspaceApi", {
   getAppReleaseTag: () => ipcRenderer.invoke(IPC_CHANNELS.appGetReleaseTag) as Promise<string>,
   getAppUpdateAvailability: () =>
     ipcRenderer.invoke(IPC_CHANNELS.appGetUpdateAvailability) as Promise<AppUpdateAvailability | null>,
-  openAppExternalUrl: (url: string) => ipcRenderer.invoke(IPC_CHANNELS.appOpenExternalUrl, url)
+  openAppExternalUrl: (url: string) => ipcRenderer.invoke(IPC_CHANNELS.appOpenExternalUrl, url),
+  onThreadRunStateChanged: (callback: (threadId: string, state: string) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, payload: { threadId: string; state: string }) => {
+      callback(payload.threadId, payload.state);
+    };
+    ipcRenderer.on(IPC_CHANNELS.threadRunStateChanged, handler);
+    return () => ipcRenderer.off(IPC_CHANNELS.threadRunStateChanged, handler);
+  }
 });
 
 contextBridge.exposeInMainWorld("previewApi", {

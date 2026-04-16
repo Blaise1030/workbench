@@ -97,5 +97,7 @@ export const IPC_CHANNELS = {
   /** Packaged app only: GitHub latest release vs bundled app semver (same source as release tag). */
   appGetUpdateAvailability: "app:getUpdateAvailability",
   /** Open a validated https URL in the system browser (GitHub only). */
-  appOpenExternalUrl: "app:openExternalUrl"
+  appOpenExternalUrl: "app:openExternalUrl",
+  /** Main → renderer: hook-derived run state for a thread (replaces PTY heuristics). */
+  threadRunStateChanged: "thread:runStateChanged"
 } as const;

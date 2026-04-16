@@ -359,7 +359,7 @@ function registerIpc(workspaceService: WorkspaceService): void {
 
   ipcMain.handle(IPC_CHANNELS.runStart, (_, payload: { agent: ThreadAgent; cwd: string; prompt: string }) => {
     assertCwdIsRegistered(payload.cwd);
-    return runService.start(payload.agent, payload.cwd, payload.prompt, () => {}, () => {});
+    return runService.start(payload.agent, payload.cwd, payload.prompt, () => {});
   });
   ipcMain.handle(IPC_CHANNELS.runSendInput, (_, payload: { runId: string; input: string }) => runService.sendInput(payload.runId, payload.input));
   ipcMain.handle(IPC_CHANNELS.runInterrupt, (_, runId: string) => runService.interrupt(runId));
@@ -576,7 +576,18 @@ void hookServer.start().then(() => {
         const thread = snapshot.threads.find((t) => t.id === tid);
         if (!thread) return;
         const project = snapshot.projects.find((p) => p.id === thread.projectId);
-        notificationService.trigger(kind, project?.name ?? "", thread.title);
+        notificationService.trigger(kind, project?.name ?? "", thread.title, () => {
+          // Bring app to front and navigate to the thread
+          const win = BrowserWindow.getAllWindows()[0];
+          if (win) { win.show(); win.focus(); }
+          workspaceService.setActive(thread.projectId, thread.worktreeId, thread.id);
+          emitWorkspaceDidChange();
+        });
+      },
+      onRunStateChanged: (state, tid) => {
+        for (const win of BrowserWindow.getAllWindows()) {
+          win.webContents.send(IPC_CHANNELS.threadRunStateChanged, { threadId: tid, state });
+        }
       },
     });
   });
