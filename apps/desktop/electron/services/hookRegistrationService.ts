@@ -72,7 +72,7 @@ export function registerAgentHooks(
 
   for (const event of events) {
     if (!Array.isArray(hooks[event])) hooks[event] = [];
-    const entries = hooks[event] as Array<{ hooks: Array<{ command?: string }> }>;
+    const entries = hooks[event] as Array<{ hooks: Array<{ type?: string; command?: string }> }>;
     const alreadyRegistered = entries.some((e) =>
       e.hooks?.some((h) => h.command === scriptPath)
     );
