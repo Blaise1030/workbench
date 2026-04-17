@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeMount, onBeforeUnmount, onMounted, provide, reactive, ref, watch } from "vue";
-import { ChevronDown, ChevronUp, Plus, Settings } from "lucide-vue-next";
+import { ChevronDown, ChevronUp, Plus, Settings, Terminal } from "lucide-vue-next";
 import Button from "@/components/ui/Button.vue";
 import Badge from "@/components/ui/Badge.vue";
 import SourceControlPanel from "@/components/SourceControlPanel.vue";
@@ -2238,21 +2238,24 @@ watch(
                       </div>
                     </div>
                   </div>
-                <button
-                  v-if="!terminalPanelOpen && !suppressStackedTerminalChrome"
-                  type="button"
-                  class="pointer-events-auto flex w-full shrink-0 items-center justify-center gap-2 border-t border-border bg-card py-1 text-xs font-medium text-muted-foreground hover:bg-muted/50"
-:title="keybindings.titleWithShortcut('Show lower terminals', 'toggleTerminalPanel')"
-                  :aria-label="keybindings.titleWithShortcut('Show lower terminals', 'toggleTerminalPanel')"
-                  @click="openTerminalOverlayPanel"
-                >
-                  <ChevronUp class="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-                  <span>Terminals</span>
-                  <kbd
-                    class="pointer-events-none rounded border border-border/80 bg-muted/40 px-1 py-px font-mono text-[10px] font-normal text-muted-foreground tabular-nums"
-                    >{{ keybindings.shortcutLabelForId("toggleTerminalPanel") }}</kbd
-                  >
-                </button>
+                <Tooltip v-if="!terminalPanelOpen && !suppressStackedTerminalChrome">
+                  <TooltipTrigger as-child>
+                    <Button 
+                      size="sm"
+                      class="bottom-4 right-4 z-20 absolute"
+                      :aria-label="keybindings.titleWithShortcut('Show lower terminals', 'toggleTerminalPanel')"
+                      @click="openTerminalOverlayPanel"                      
+                    >
+                      <Terminal class="h-5 w-5 shrink-0" aria-hidden="true" />
+                      Terminal
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="left">
+                    <span class="inline-flex items-center gap-2">
+                      <span>{{ keybindings.titleWithShortcut("Show lower terminals", "toggleTerminalPanel") }}</span>                      
+                    </span>
+                  </TooltipContent>
+                </Tooltip>
               </div>
         </div>
       </section>
