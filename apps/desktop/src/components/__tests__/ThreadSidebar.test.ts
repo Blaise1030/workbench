@@ -178,7 +178,6 @@ describe("ThreadSidebar", () => {
       }
     });
 
-    expect(wrapper.find('[data-testid="thread-sidebar-brand"]').exists()).toBe(true);
     expect(wrapper.find('[data-testid="thread-sidebar-toggle"]').exists()).toBe(true);
   });
 
@@ -208,7 +207,8 @@ describe("ThreadSidebar", () => {
 
     expect(wrapper.text()).toContain("No threads");
     expect(wrapper.text()).not.toContain("No threads yet");
-    expect(wrapper.find('[aria-label="Add worktree"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="thread-sidebar-empty-add-thread"]').exists()).toBe(true);
+    expect(wrapper.find('[aria-label="Add worktree"]').exists()).toBe(false);
   });
 
   it("emits addThreadInline from empty-state CTA when primary context exists without defaultWorktreeId", async () => {

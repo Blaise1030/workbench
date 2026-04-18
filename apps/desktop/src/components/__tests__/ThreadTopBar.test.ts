@@ -17,13 +17,12 @@ describe("ThreadTopBar", () => {
     window.workspaceApi = prevWorkspaceApi;
   });
 
-  it("shows WORKBENCH and Alpha badges in the expanded header", () => {
+  it("renders only the collapse control in the header (no brand strip)", () => {
     wrapper = mount(ThreadTopBar, { props: { contextLabel: "Primary" } });
-    const brand = wrapper.get('[data-testid="thread-sidebar-brand"]');
-    expect(brand.text()).toContain("WORKBENCH");
-    expect(brand.text()).toContain("Alpha");
-    expect(wrapper.get('[data-testid="thread-topbar-brand-badge"]').text()).toBe("WORKBENCH");
-    expect(wrapper.get('[data-testid="thread-sidebar-alpha-badge"]').text()).toBe("Alpha");
+    expect(wrapper.find('[data-testid="thread-sidebar-toggle"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="thread-sidebar-brand"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="thread-topbar-brand-badge"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="thread-sidebar-alpha-badge"]').exists()).toBe(false);
   });
 
   it("renders the collapse toggle beside the title when expanded", async () => {
@@ -34,24 +33,26 @@ describe("ThreadTopBar", () => {
     expect(wrapper.emitted("collapse")).toEqual([[]]);
   });
 
-  it("renders the expand toggle below the title when collapsed", async () => {
+  it("uses the collapse control when collapsed prop is true (no expand-only control)", async () => {
     wrapper = mount(ThreadTopBar, { props: { collapsed: true } });
 
-    await wrapper.get('[aria-label="Expand threads sidebar"]').trigger("click");
+    expect(wrapper.find('[aria-label="Expand threads sidebar"]').exists()).toBe(false);
+    await wrapper.get('[aria-label="Collapse threads sidebar"]').trigger("click");
 
-    expect(wrapper.emitted("expand")).toEqual([[]]);
+    expect(wrapper.emitted("collapse")).toEqual([[]]);
+    expect(wrapper.emitted("expand")).toBeUndefined();
   });
 
-  it("renders a slightly larger logo when collapsed", () => {
+  it("does not render a sidebar logo mark", () => {
     wrapper = mount(ThreadTopBar, { props: { collapsed: true } });
-    expect(wrapper.get('[data-testid="thread-sidebar-logo"]').classes()).toContain("size-8");
+    expect(wrapper.find('[data-testid="thread-sidebar-logo"]').exists()).toBe(false);
   });
 
-  it("keeps the active context label in sr-only when collapsed (no visible tag)", () => {
+  it("does not surface context label in the top bar DOM", () => {
     wrapper = mount(ThreadTopBar, { props: { collapsed: true, contextLabel: "feature-a" } });
 
     expect(wrapper.find('[data-testid="thread-topbar-context-label"]').exists()).toBe(false);
-    expect(wrapper.get(".sr-only").text()).toContain("feature-a");
+    expect(wrapper.find(".sr-only").exists()).toBe(false);
   });
 
   it("does not render the add-thread control in the top bar", () => {
