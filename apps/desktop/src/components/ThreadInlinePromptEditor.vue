@@ -13,6 +13,8 @@ import {
 import AgentIcon from "@/components/ui/AgentIcon.vue";
 import { readPreferredThreadAgent } from "@/composables/usePreferredThreadAgent";
 import type { LocalFileAttachment } from "@/lib/localFileAttachment";
+import ditherDarkImage from "@/assets/thread-inline-prompt-dither-dark.png";
+import ditherLightImage from "@/assets/thread-inline-prompt-dither-light.png";
 
 const AGENT_OPTIONS: { agent: ThreadAgent; label: string }[] = [
   { agent: "claude", label: "Claude Code" },
@@ -50,8 +52,12 @@ const selectedAgentLabel = computed(
 const prompt = ref("");
 const attachments = ref<LocalFileAttachment[]>([]);
 const skillPaths = ref<string[]>([]);
+const isDarkTheme = ref(false);
 
 const promptEditorRef = ref<{ flushToModels: () => void } | null>(null);
+let themeObserver: MutationObserver | null = null;
+
+const ditherImageSrc = computed(() => (isDarkTheme.value ? ditherDarkImage : ditherLightImage));
 
 function dedupe(values: string[]): string[] {
   const out: string[] = [];
@@ -101,10 +107,21 @@ function onKeyDown(e: KeyboardEvent): void {
 }
 
 onMounted(() => {
+  isDarkTheme.value = document.documentElement.classList.contains("dark");
+  themeObserver = new MutationObserver(() => {
+    isDarkTheme.value = document.documentElement.classList.contains("dark");
+  });
+  themeObserver.observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ["class"]
+  });
+
   window.addEventListener("keydown", onKeyDown, { capture: true });
 });
 
 onBeforeUnmount(() => {
+  themeObserver?.disconnect();
+  themeObserver = null;
   window.removeEventListener("keydown", onKeyDown, { capture: true });
 });
 
@@ -114,15 +131,31 @@ defineExpose({ submit });
 <template>
   <section
     data-testid="inline-prompt-editor"
-    class="flex min-h-0 flex-1 flex-col overflow-hidden bg-background text-foreground"
+    class="relative flex min-h-0 flex-1 flex-col overflow-hidden bg-background text-foreground"
   >
-    <div class="flex flex-1 items-center justify-center p-6">
+    <div
+      aria-hidden="true"
+      class="thread-inline-prompt-editor__shader pointer-events-none fixed inset-0 overflow-hidden"
+    >
+      <img
+        :src="ditherImageSrc"
+        alt=""
+        :class="[
+          'h-full w-full object-cover',
+          isDarkTheme ? 'invert' : undefined
+        ]"
+      />
+    </div>
+
+    <div class="relative z-10 flex flex-1 items-center justify-center p-6">
       <div class="w-full max-w-5xl">
         <h2 class="mb-6 w-full text-center text-3xl text-foreground">
           Building something great ? <span aria-hidden="true">🛠️</span>
         </h2>
 
-        <div class="overflow-hidden rounded-xl border max-w-xl px-2 pt-2 mx-auto border-input bg-muted/50">
+        <div
+          class="relative mx-auto max-w-xl overflow-hidden rounded-xl border border-input bg-muted/50 px-2 pt-2"
+        >
           <PromptWithFileAttachments
             ref="promptEditorRef"
             v-model:prompt="prompt"
@@ -181,3 +214,20 @@ defineExpose({ submit });
     </div>
   </section>
 </template>
+
+<style scoped>
+.thread-inline-prompt-editor__shader {
+  opacity: 1;
+  animation: thread-inline-prompt-editor-fade-in 1000ms ease-out both;
+}
+
+@keyframes thread-inline-prompt-editor-fade-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+</style>

@@ -837,39 +837,6 @@ async function openAppUpdateUrl(url: string): Promise<void> {
       class="flex min-h-0 flex-1 flex-col pt-6 pb-3"
       :class="collapsed ? 'px-1' : 'px-3'"
     >
-      <div v-if="projectId && !collapsed" class="mb-4 flex justify-center">
-        <Popover :open="showBranchPicker" @update:open="handleBranchPickerOpenChange">
-          <PopoverTrigger as-child>
-            <Button
-              type="button"
-              variant="outline"
-              size="xs"
-              class="rounded-md"
-              aria-label="Add worktree"
-              title="Add a linked worktree"
-              :disabled="!projectId"
-              data-testid="thread-sidebar-footer-worktree-toggle"
-            >
-              <Plus class="h-5 w-5 shrink-0" />
-              <span class="whitespace-nowrap">Add worktree</span>
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent
-            align="start"
-            side="bottom"
-            class="p-2"
-            data-testid="thread-sidebar-worktree-popover"
-          >
-            <BranchPicker
-              v-if="projectId"
-              variant="popover"
-              :project-id="projectId"
-              @create="(branch, baseBranch) => emit('createWorktreeGroup', branch, baseBranch)"
-              @cancel="emit('cancelBranchPicker')"
-            />
-          </PopoverContent>
-        </Popover>
-      </div>
       <div class="flex flex-col items-center gap-3 text-center">
         <h3 class="text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">No threads</h3>
         <Button
@@ -929,9 +896,9 @@ async function openAppUpdateUrl(url: string): Promise<void> {
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent
-                  align="start"
+                  align="center"
                   side="bottom"
-                  class="p-2"
+                  class="p-2 max-w-[240px]"
                   data-testid="thread-sidebar-worktree-popover"
                 >
                   <BranchPicker
