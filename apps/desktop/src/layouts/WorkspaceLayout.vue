@@ -1908,7 +1908,7 @@ watch(
 
     <section v-else class="relative flex min-h-0 flex-1 overflow-hidden">      
       <section
-        class="absolute inset-y-0 left-0 z-20 flex w-[260px] min-h-0 min-w-0 flex-col overflow-hidden py-2 ps-2 transition-all duration-300 ease-out"
+        class="absolute inset-y-0 left-0 z-20 flex w-[270px] min-h-0 min-w-0 flex-col overflow-hidden py-2 ps-2 transition-all duration-300 ease-out"
         :class="
           threadsSidebarCollapsed
             ? 'pointer-events-none -translate-x-full opacity-0'
@@ -1966,7 +1966,7 @@ watch(
       </section>
       <section
         class="flex min-h-0 min-w-0 flex-1 flex-col border-r border-border bg-muted transition-[margin] duration-300 ease-out"
-        :class="threadsSidebarCollapsed ? 'ml-0' : 'ml-[260px]'"
+        :class="threadsSidebarCollapsed ? 'ml-0' : 'ml-[270px]'"
       >
         <div
           v-if="activeWorktreeHasThreads && hasGitRepository === false"
