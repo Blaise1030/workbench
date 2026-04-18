@@ -59,6 +59,12 @@ const props = defineProps<{
   worktreePath: string | null;
   /** When set, file editor / tree can enqueue context for this thread. */
   activeThreadId?: string | null;
+  showThreadSidebarExpand?: boolean;
+}>();
+const SIDEBAR_COLLAPSED_KEY = "instrument.fileSearchSidebarCollapsed";
+const sidebarCollapsed = defineModel<boolean | undefined>("sidebarCollapsed");
+const emit = defineEmits<{
+  expandThreadSidebar: [];
 }>();
 
 const threadQueue = inject(threadContextQueueKey, undefined);
@@ -181,7 +187,6 @@ const isLoadingFile = ref(false);
 const isSaving = ref(false);
 const error = ref<string | null>(null);
 
-const SIDEBAR_COLLAPSED_KEY = "instrument.fileSearchSidebarCollapsed";
 const LINE_NUMBERS_VISIBLE_KEY = "instrument.fileSearchLineNumbersVisible";
 const SEARCH_MODE_KEY = "instrument.fileSearchSearchMode";
 const SELECTED_PATH_KEY_PREFIX = "instrument.fileSearchSelectedPath:";
@@ -267,9 +272,14 @@ function readSearchMode(): "path" | "contents" {
   }
 }
 
-const sidebarCollapsed = ref(readLocalStorageFlag(SIDEBAR_COLLAPSED_KEY));
 const showLineNumbers = ref(readLocalStorageFlag(LINE_NUMBERS_VISIBLE_KEY, true));
 const searchMode = ref<"path" | "contents">(readSearchMode());
+
+onMounted(() => {
+  if (sidebarCollapsed.value === undefined) {
+    sidebarCollapsed.value = readLocalStorageFlag(SIDEBAR_COLLAPSED_KEY);
+  }
+});
 
 watch(sidebarCollapsed, (collapsed) => {
   try {
@@ -1541,6 +1551,7 @@ defineExpose({
   focusSearch: (): void => {
     void focusSearchAfterReveal();
   },
+  expandSidebar,
   /** Same as the sidebar refresh control: reload the file list from disk. */
   refreshFileExplorer: (): void => {
     void loadFileSummaries();
@@ -1567,6 +1578,19 @@ defineExpose({
         <div
           class="flex min-w-0 flex-1 flex-nowrap items-center gap-1 border-r py-0.5 overflow-x-auto overflow-y-hidden [scrollbar-width:thin]"
         >
+          <Button
+            v-if="showThreadSidebarExpand"
+            data-testid="file-editor-thread-sidebar-expand"
+            variant="outline"
+            size="icon-sm"
+            class="ml-20 shrink-0"
+            title="Show thread sidebar"
+            aria-label="Show thread sidebar"
+            @click="emit('expandThreadSidebar')"
+          >
+            <PanelLeftOpen class="h-4 w-4" aria-hidden="true" />
+            <span class="sr-only">Show thread sidebar</span>
+          </Button>
           <template v-if="selectedPath">
             <span
               class="sr-only"

@@ -12,7 +12,20 @@
     <!-- URL bar -->
     <div
       class="flex shrink-0 flex-wrap items-center gap-x-1.5 gap-y-1 border-b border-border bg-background px-2 py-1"
-    >     
+    >
+      <Button
+        v-if="showThreadSidebarExpand"
+        data-testid="preview-thread-sidebar-expand"
+        variant="outline"
+        size="icon-sm"
+        class="ml-20"
+        title="Show thread sidebar"
+        aria-label="Show thread sidebar"
+        @click="emit('expandThreadSidebar')"
+      >
+        <PanelLeftOpen class="h-4 w-4" aria-hidden="true" />
+        <span class="sr-only">Show thread sidebar</span>
+      </Button>
       <Badge
         v-if="loadBadge"
         data-testid="preview-load-badge"
@@ -87,9 +100,10 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import { setPreviewNativeCollisionEl, setPreviewNativeViewportTopPx } from "@/composables/previewNativeViewportTop";
+import Button from "@/components/ui/Button.vue";
 import Badge from "@/components/ui/Badge.vue";
 import type { BadgeVariant } from "@/components/ui/badge";
-import { Bug, ChevronLeft, ChevronRight, RotateCw } from "lucide-vue-next";
+import { Bug, ChevronLeft, ChevronRight, PanelLeftOpen, RotateCw } from "lucide-vue-next";
 import type { PreviewLoadStatePayload } from "@shared/ipc";
 import {
   loadPreviewPanelDevtoolsOpen,
@@ -103,11 +117,16 @@ const workspace = useWorkspaceStore();
 const props = withDefaults(
   defineProps<{
     isVisible?: boolean;
+    showThreadSidebarExpand?: boolean;
   }>(),
   {
-    isVisible: true
+    isVisible: true,
+    showThreadSidebarExpand: false
   }
 );
+const emit = defineEmits<{
+  expandThreadSidebar: [];
+}>();
 const urlInput = ref("");
 const collisionMirrorRef = ref<HTMLDivElement | null>(null);
 const panelRootRef = ref<HTMLDivElement | null>(null);

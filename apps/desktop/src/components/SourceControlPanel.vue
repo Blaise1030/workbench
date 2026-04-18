@@ -11,6 +11,7 @@ import {
   Maximize2,
   Minimize2,
   Minus,
+  PanelLeftOpen,
   Plus,
   RotateCcw,
   Trash2,
@@ -106,6 +107,7 @@ const props = withDefaults(
     selectedScope: EntryScope | null;
     mergeResult: FileMergeSidesResult | null;
     mergeLoading: boolean;
+    showThreadSidebarExpand?: boolean;
     /** Thread id for context-queue capture in the diff viewer. */
     activeThreadId?: string | null;
   }>(),
@@ -128,6 +130,7 @@ const props = withDefaults(
     suggestCommitBusy: false,
     suggestCommitGpuOk: null,
     suggestCommitTruncated: false,
+    showThreadSidebarExpand: false,
     activeThreadId: null
   }
 );
@@ -145,6 +148,7 @@ const emit = defineEmits<{
   commit: [];
   suggestCommit: [];
   openFileInEditor: [path: string];
+  expandThreadSidebar: [];
   branchChanged: [];
 }>();
 
@@ -605,6 +609,19 @@ onBeforeUnmount(() => {
   <section class="flex h-full min-h-0 bg-background text-[11px] text-foreground">    
     <div class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
       <header class="flex h-9 min-w-0 items-center gap-2 overflow-x-auto border-b border-border px-2 whitespace-nowrap">
+        <Button
+          v-if="showThreadSidebarExpand"
+          data-testid="scm-thread-sidebar-expand"
+          variant="outline"
+          size="icon-sm"
+          class="ml-20 shrink-0"
+          title="Show thread sidebar"
+          aria-label="Show thread sidebar"
+          @click="emit('expandThreadSidebar')"
+        >
+          <PanelLeftOpen class="h-4 w-4" aria-hidden="true" />
+          <span class="sr-only">Show thread sidebar</span>
+        </Button>
         <div
           class="min-w-0 flex-1 font-mono text-[10px] leading-tight"
           :title="scmPathHeader.full || undefined"

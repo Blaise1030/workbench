@@ -103,7 +103,6 @@ const DIFF_MERGE_CACHE_MAX = 24;
 const diffCache = new LruMap<string, FileMergeSidesResult>(DIFF_MERGE_CACHE_MAX);
 
 const THREADS_SIDEBAR_COLLAPSED_KEY = "instrument.threadsSidebarCollapsed";
-
 function readThreadsSidebarCollapsed(): boolean {
   try {
     return (
@@ -1510,6 +1509,10 @@ function toggleThreadsSidebar(): void {
   threadsSidebarCollapsed.value = !threadsSidebarCollapsed.value;
 }
 
+function expandThreadsSidebar(): void {
+  threadsSidebarCollapsed.value = false;
+}
+
 function resolvePrimaryWorktreeId(): string | null {
   const defaultId = workspace.defaultWorktree?.id ?? null;
   if (defaultId) return defaultId;
@@ -1896,20 +1899,7 @@ watch(
       </Button>
     </section>
 
-    <section v-else class="relative flex min-h-0 flex-1 overflow-hidden">
-      <Button
-        v-if="threadsSidebarCollapsed"
-        data-testid="thread-sidebar-expand-fixed"
-        type="button"
-        variant="outline"
-        size="icon-sm"
-        class="fixed top-8 left-4 z-40 rounded-full shadow-sm"
-        aria-label="Show thread sidebar"
-        title="Show thread sidebar"
-        @click="threadsSidebarCollapsed = false"
-      >
-        <PanelLeftOpen class="h-4 w-4" aria-hidden="true" />
-      </Button>
+    <section v-else class="relative flex min-h-0 flex-1 overflow-hidden">      
       <section
         class="absolute inset-y-0 left-0 z-20 flex w-[260px] min-h-0 min-w-0 flex-col overflow-hidden py-2 ps-2 transition-all duration-300 ease-out"
         :class="
@@ -2029,6 +2019,7 @@ watch(
                       :selected-scope="selectedScmScope"
                       :merge-result="selectedMergeResult"
                       :merge-loading="selectedDiffLoading"
+                      :show-thread-sidebar-expand="threadsSidebarCollapsed"
                       :active-thread-id="workspace.activeThreadId"
                       @select-entry="handleSelectScmEntry"
                       @stage-all="handleStageAll"
@@ -2037,6 +2028,7 @@ watch(
                       @stage-paths="handleStageSelected"
                       @unstage-paths="handleUnstageSelected"
                       @discard-paths="handleDiscardSelected"
+                      @expand-thread-sidebar="expandThreadsSidebar"
                       @fetch="handleScmFetch"
                       @push="handleScmPush"
                       @commit="handleScmCommit"
@@ -2055,12 +2047,31 @@ watch(
                       :worktree-id="fileExplorerWorktree?.id ?? null"
                       :worktree-path="fileExplorerWorktree?.path ?? null"
                       :active-thread-id="workspace.activeThreadId"
+                      :show-thread-sidebar-expand="threadsSidebarCollapsed"
+                      @expand-thread-sidebar="expandThreadsSidebar"
                     />
                   </div>
                   <div v-show="mainCenterTab === 'preview'" class="flex min-h-0 flex-1 flex-col overflow-hidden">
-                    <PreviewPanel :is-visible="mainCenterTab === 'preview'" />
+                    <PreviewPanel
+                      :is-visible="mainCenterTab === 'preview'"
+                      :show-thread-sidebar-expand="threadsSidebarCollapsed"
+                      @expand-thread-sidebar="expandThreadsSidebar"
+                    />
                   </div>
                   <div v-show="mainCenterTab === 'agent'" class="flex min-h-0 flex-1 flex-col overflow-hidden">
+                    <Button
+                      v-if="threadsSidebarCollapsed"
+                      data-testid="thread-sidebar-expand-fixed"
+                      type="button"
+                      variant="outline"
+                      size="icon-sm"
+                      class="fixed top-12 bg-muted left-4 z-40 rounded-full shadow-sm"
+                      aria-label="Show thread sidebar"
+                      title="Show thread sidebar"
+                      @click="threadsSidebarCollapsed = false"
+                    >
+                      <PanelLeftOpen class="h-4 w-4" aria-hidden="true" />
+                    </Button>
                     <section
                       v-if="!activeWorktreeHasThreads && !inlinePromptThreadId"
                       class="flex min-h-0 flex-1 flex-col items-center justify-center gap-4 px-6 py-12 text-center"

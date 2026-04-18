@@ -302,6 +302,21 @@ describe("FileSearchEditor", () => {
     expect(wrapper.find('[data-testid="file-search-input"]').exists()).toBe(true);
   });
 
+  it("renders and emits the thread sidebar expand control when requested", async () => {
+    listFiles.mockResolvedValue([]);
+
+    const wrapper = mount(FileSearchEditor, {
+      props: { worktreePath: "/tmp/project", showThreadSidebarExpand: true }
+    });
+
+    await flushPromises();
+
+    const button = wrapper.find('[data-testid="file-editor-thread-sidebar-expand"]');
+    expect(button.exists()).toBe(true);
+    await button.trigger("click");
+    expect(wrapper.emitted("expandThreadSidebar")).toEqual([[]]);
+  });
+
   it("keeps the file editor body visible without a collapse toggle", async () => {
     listFiles.mockResolvedValue([{ relativePath: "src/App.vue", size: 11, modifiedAt: 1 }]);
     readFile.mockResolvedValue("const value = 1;\n");

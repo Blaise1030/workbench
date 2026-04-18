@@ -72,6 +72,19 @@ describe("PreviewPanel", () => {
     wrapper.unmount();
   });
 
+  it("renders and emits the thread sidebar expand control when requested", async () => {
+    const wrapper = mount(PreviewPanel, {
+      attachTo: document.body,
+      props: { showThreadSidebarExpand: true }
+    });
+    await flushPreviewNavigation(wrapper);
+    const button = wrapper.find('[data-testid="preview-thread-sidebar-expand"]');
+    expect(button.exists()).toBe(true);
+    await button.trigger("click");
+    expect(wrapper.emitted("expandThreadSidebar")).toEqual([[]]);
+    wrapper.unmount();
+  });
+
   it("uses the native preview layer (bounds IPC; detach on unmount)", async () => {
     const wrapper = mount(PreviewPanel, { attachTo: document.body });
     await flushPreviewNavigation(wrapper);
