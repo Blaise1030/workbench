@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.11.0](https://github.com/Blaise1030/workbench/compare/v0.10.0...v0.11.0) (2026-04-18)
+
+
+### Features
+
+* added sidebar toggle ([b9fcc78](https://github.com/Blaise1030/workbench/commit/b9fcc784ba373930828cbb043c6e4d60add0c428))
+* UI improvement and simplification ([175851a](https://github.com/Blaise1030/workbench/commit/175851a0cf9dc572ad86cb0808eb1ea8dde6d85a))
+
 ## [0.10.0](https://github.com/Blaise1030/workbench/compare/v0.9.0...v0.10.0) (2026-04-16)
 
 
