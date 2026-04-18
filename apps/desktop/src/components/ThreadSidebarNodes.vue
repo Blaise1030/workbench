@@ -3,7 +3,7 @@ defineOptions({ name: "ThreadSidebarNodes" });
 
 import type { RunStatus, Thread } from "@shared/domain";
 import { computed } from "vue";
-import { Plus, Archive} from "lucide-vue-next";
+import { Plus, Archive, ChevronDown, ChevronUp} from "lucide-vue-next";
 import ThreadRow from "@/components/ThreadRow.vue";
 import WorktreeStaleCallout from "@/components/WorktreeStaleCallout.vue";
 import Button from "@/components/ui/Button.vue";
@@ -94,6 +94,13 @@ const contextBadge = computed(() => {
   if (props.node.isWorktree) return "🌳";
   return "";
 });
+
+/** Mirror ThreadRow idle highlight when any thread under this context needs attention. */
+const contextNeedsIdleAttention = computed(
+  () =>
+    props.node.kind === "context" &&
+    props.node.threads.some((t) => t.needsIdleAttention)
+);
 </script>
 
 <template>
@@ -102,8 +109,14 @@ const contextBadge = computed(() => {
     <ContextMenu v-if="hasContextMenuActions">
       <ContextMenuTrigger as-child>
         <div
-          class="flex w-full active:translate-y-[1px] min-w-0 max-w-none cursor-pointer items-center gap-1.5 rounded-md px-1 py-1 text-left text-xs transition-colors hover:bg-muted"
-          :class="node.isStale ? 'text-destructive' : 'text-foreground'"
+          class="flex w-full active:translate-y-[1px] min-w-0 max-w-none cursor-pointer items-center gap-1.5 rounded-md px-1 py-1 text-left text-xs transition-colors"
+          :class="[
+            node.isStale
+              ? 'text-destructive hover:bg-muted'
+              : contextNeedsIdleAttention
+                ? 'bg-blue-500/12 ring-1 ring-blue-500/45 text-foreground dark:bg-blue-400/14 dark:ring-blue-400/50'
+                : 'text-foreground hover:bg-muted',
+          ]"
         >
           <button
             type="button"
@@ -151,8 +164,14 @@ const contextBadge = computed(() => {
     </ContextMenu>
     <div
       v-else
-      class="flex active:translate-y-px  w-full min-w-0 max-w-none items-center gap-1.5 rounded-md px-1 py-0.5 cursor-pointer text-left text-xs transition-colors hover:bg-muted"
-      :class="node.isStale ? 'text-destructive' : 'text-foreground'"
+      class="flex active:translate-y-px  w-full min-w-0 max-w-none items-center gap-1.5 rounded-md px-1 py-0.5 cursor-pointer text-left text-xs transition-colors"
+      :class="[
+        node.isStale
+          ? 'text-destructive hover:bg-muted'
+          : contextNeedsIdleAttention
+            ? 'bg-blue-500/12 ring-1 ring-blue-500/45 text-foreground dark:bg-blue-400/14 dark:ring-blue-400/50'
+            : 'text-foreground hover:bg-muted',
+      ]"
     >
       <button
         type="button"
@@ -227,27 +246,29 @@ const contextBadge = computed(() => {
             />
           </li>
         </template>
-        <li v-if="node.showMore" class="flex justify-center px-2 pt-1">
+        <li v-if="node.showMore" class="flex pt-1">
           <Button
             type="button"
-            variant="outline"
+            variant="link"
             size="xs"
-            class="w-auto shrink-0"
+            class="w-auto shrink-0 underline"
             :data-testid="'thread-group-show-more-' + node.id"
             @click="emit('expandThreadList', node.id)"
           >
-            Show more threads
+            <ChevronDown />
+            Show more
           </Button>
         </li>
-        <li v-if="node.showLess" class="flex justify-center px-2 pt-1">
+        <li v-if="node.showLess" class="flex pt-1">
           <Button
             type="button"
-            variant="outline"
+            variant="link"
             size="xs"
-            class="w-auto shrink-0"
+            class="w-auto shrink-0 underline"
             :data-testid="'thread-group-show-less-' + node.id"
             @click="emit('collapseThreadList', node.id)"
           >
+            <ChevronUp/>
             Show less
           </Button>
         </li>

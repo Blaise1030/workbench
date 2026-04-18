@@ -76,16 +76,15 @@ describe("FileSearchEditor", () => {
   const deleteFile = vi.fn<WorkspaceApi["deleteFile"]>();
   const createFolder = vi.fn<WorkspaceApi["createFolder"]>();
   const deleteFolder = vi.fn<WorkspaceApi["deleteFolder"]>();
+  const getWorktreeEditorState = vi.fn<NonNullable<WorkspaceApi["getWorktreeEditorState"]>>();
+  const setWorktreeEditorState = vi.fn<NonNullable<WorkspaceApi["setWorktreeEditorState"]>>();
   let onWorkspaceChangedCb: (() => void) | null = null;
   let onWorkingTreeFilesChangedCb: (() => void) | null = null;
 
   beforeEach(() => {
     setActivePinia(createPinia());
     vi.useFakeTimers();
-    localStorage.removeItem("instrument.fileSearchSidebarCollapsed");
-    localStorage.removeItem("instrument.fileSearchEditorCollapsed");
-    localStorage.removeItem("instrument.fileSearchLineNumbersVisible");
-    localStorage.removeItem("instrument.fileSearchSearchMode");
+    localStorage.clear();
     listFiles.mockReset();
     searchFileContents.mockReset();
     readFile.mockReset();
@@ -94,6 +93,10 @@ describe("FileSearchEditor", () => {
     deleteFile.mockReset();
     createFolder.mockReset();
     deleteFolder.mockReset();
+    getWorktreeEditorState.mockReset();
+    setWorktreeEditorState.mockReset();
+    getWorktreeEditorState.mockResolvedValue(null);
+    setWorktreeEditorState.mockResolvedValue();
     onWorkspaceChangedCb = null;
     onWorkingTreeFilesChangedCb = null;
 
@@ -102,6 +105,8 @@ describe("FileSearchEditor", () => {
       addProject: vi.fn(),
       addWorktree: vi.fn(),
       setActive: vi.fn(),
+      getWorktreeEditorState,
+      setWorktreeEditorState,
       createThread: vi.fn(),
       setActiveThread: vi.fn(),
       deleteThread: vi.fn(),
@@ -287,12 +292,13 @@ describe("FileSearchEditor", () => {
     await wrapper.get('[data-testid="file-search-sidebar-collapse"]').trigger("click");
     await flushPromises();
 
-    expect(wrapper.find('[data-testid="file-search-input"]').exists()).toBe(false);
+    expect(wrapper.get("#file-search-sidebar").classes()).toContain("translate-x-full");
     expect(wrapper.find('[data-testid="file-search-sidebar-expand"]').exists()).toBe(true);
 
     await wrapper.get('[data-testid="file-search-sidebar-expand"]').trigger("click");
     await flushPromises();
 
+    expect(wrapper.get("#file-search-sidebar").classes()).toContain("translate-x-0");
     expect(wrapper.find('[data-testid="file-search-input"]').exists()).toBe(true);
   });
 
@@ -493,6 +499,50 @@ describe("FileSearchEditor", () => {
     );
   });
 
+  it("restores the persisted open file path from database state for the active worktree", async () => {
+    listFiles.mockResolvedValue([
+      { relativePath: "src/features/FileSearchEditor.vue", size: 11, modifiedAt: 2 }
+    ]);
+    getWorktreeEditorState.mockResolvedValue({
+      worktreeId: "worktree-1",
+      selectedFilePath: "src/features/FileSearchEditor.vue",
+      openFilePaths: ["src/features/FileSearchEditor.vue"],
+      updatedAt: "2026-04-18T00:00:00.000Z"
+    });
+    readFile.mockResolvedValue("<template />");
+
+    const wrapper = mount(FileSearchEditor, {
+      props: { worktreeId: "worktree-1", worktreePath: "/tmp/project" }
+    });
+
+    await flushPromises();
+
+    expect(getWorktreeEditorState).toHaveBeenCalledWith("worktree-1");
+    expect(readFile).toHaveBeenCalledWith("/tmp/project", "src/features/FileSearchEditor.vue");
+    expect((wrapper.get('[data-testid="file-editor"]').element as HTMLTextAreaElement).value).toBe(
+      "<template />"
+    );
+  });
+
+  it("migrates legacy localStorage selection into database-backed worktree state", async () => {
+    localStorage.setItem("instrument.fileSearchSelectedPath:/tmp/project", "src/App.vue");
+    listFiles.mockResolvedValue([{ relativePath: "src/App.vue", size: 11, modifiedAt: 1 }]);
+    readFile.mockResolvedValue("const value = 1;\n");
+
+    mount(FileSearchEditor, {
+      props: { worktreeId: "worktree-1", worktreePath: "/tmp/project" }
+    });
+
+    await flushPromises();
+
+    expect(readFile).toHaveBeenCalledWith("/tmp/project", "src/App.vue");
+    expect(setWorktreeEditorState).toHaveBeenCalledWith({
+      worktreeId: "worktree-1",
+      selectedFilePath: "src/App.vue",
+      openFilePaths: ["src/App.vue"]
+    });
+  });
+
   it("marks the file dirty, saves it, and clears dirty state", async () => {
     listFiles.mockResolvedValue([
       { relativePath: "src/features/FileSearchEditor.vue", size: 11, modifiedAt: 2 }
@@ -609,13 +659,16 @@ describe("FileSearchEditor", () => {
     );
   });
 
-  it("opens a discard dialog before switching files when the current draft is dirty", async () => {
+  it("keeps a dirty file open when opening another file in a new tab", async () => {
     listFiles.mockResolvedValue([
       { relativePath: "src/one.ts", size: 7, modifiedAt: 1 },
       { relativePath: "src/two.ts", size: 7, modifiedAt: 2 },
       { relativePath: "src/nested/three.ts", size: 9, modifiedAt: 3 }
     ]);
-    readFile.mockResolvedValue("content");
+    readFile
+      .mockResolvedValueOnce("one")
+      .mockResolvedValueOnce("two")
+      .mockResolvedValueOnce("one");
 
     const wrapper = mount(FileSearchEditor, {
       props: { worktreePath: "/tmp/project" },
@@ -631,20 +684,53 @@ describe("FileSearchEditor", () => {
       await wrapper.get('[data-testid="file-node-src/two.ts"]').trigger("click");
       await flushPromises();
 
-      const dialog = document.querySelector('[data-testid="confirm-action-dialog"]');
-      expect(dialog).toBeTruthy();
-      expect(dialog?.textContent).toContain("Discard unsaved changes?");
+      expect(document.querySelector('[data-testid="confirm-action-dialog"]')).toBeNull();
+      expect(wrapper.get('[data-testid="file-editor-active-path"]').text()).toContain("src/two.ts");
+      expect(wrapper.get('[data-testid="file-editor-tab-src/one.ts"]').text()).toContain("one.ts");
+      expect(wrapper.get('[data-testid="file-editor-tab-src/two.ts"]').text()).toContain("two.ts");
 
-      const cancel = document.querySelector('[data-testid="confirm-action-cancel"]') as HTMLButtonElement;
-      expect(cancel).toBeTruthy();
-      cancel.click();
+      await wrapper.get('[data-testid="file-editor-tab-src/one.ts"] button').trigger("click");
       await flushPromises();
 
-      expect(readFile).toHaveBeenCalledTimes(1);
       expect(wrapper.get('[data-testid="file-editor-active-path"]').text()).toContain("src/one.ts");
+      expect((wrapper.get('[data-testid="file-editor"]').element as HTMLTextAreaElement).value).toBe(
+        "changed"
+      );
     } finally {
       wrapper.unmount();
     }
+  });
+
+  it("caps open tabs at five and evicts the oldest tab when opening a sixth file", async () => {
+    listFiles.mockResolvedValue([
+      { relativePath: "src/one.ts", size: 1, modifiedAt: 1 },
+      { relativePath: "src/two.ts", size: 1, modifiedAt: 2 },
+      { relativePath: "src/three.ts", size: 1, modifiedAt: 3 },
+      { relativePath: "src/four.ts", size: 1, modifiedAt: 4 },
+      { relativePath: "src/five.ts", size: 1, modifiedAt: 5 },
+      { relativePath: "src/six.ts", size: 1, modifiedAt: 6 }
+    ]);
+    readFile.mockImplementation(async (_cwd, relativePath) => relativePath);
+
+    const wrapper = mount(FileSearchEditor, {
+      props: { worktreePath: "/tmp/project", worktreeId: "worktree-1" }
+    });
+
+    await flushPromises();
+
+    for (const file of ["one", "two", "three", "four", "five", "six"]) {
+      await wrapper.get(`[data-testid="file-node-src/${file}.ts"]`).trigger("click");
+      await flushPromises();
+    }
+
+    expect(wrapper.find('[data-testid="file-editor-tab-src/one.ts"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="file-editor-tab-src/two.ts"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="file-editor-tab-src/six.ts"]').exists()).toBe(true);
+    expect(setWorktreeEditorState).toHaveBeenLastCalledWith({
+      worktreeId: "worktree-1",
+      selectedFilePath: "src/six.ts",
+      openFilePaths: ["src/two.ts", "src/three.ts", "src/four.ts", "src/five.ts", "src/six.ts"]
+    });
   });
 
   it("keeps the original save target when a dirty worktree switch is canceled", async () => {

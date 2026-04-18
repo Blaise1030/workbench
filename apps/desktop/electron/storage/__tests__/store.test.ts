@@ -250,6 +250,42 @@ describe("WorkspaceStore", () => {
     expect(snapshot.activeThreadId).toBe("thread-1");
   });
 
+  it("persists selected file path per worktree in the database", () => {
+    const baseDir = makeTempDir();
+    const store = new WorkspaceStore(baseDir);
+    store.migrate(NEW_SCHEMA);
+    seedBasicWorkspace(store);
+    store.upsertWorktree(makeWorktree({ id: "worktree-2", branch: "feature", name: "feature" }));
+
+    store.setWorktreeEditorState("worktree-1", "src/App.vue", ["src/App.vue", "src/main.ts"]);
+    store.setWorktreeEditorState("worktree-2", "README.md", ["README.md"]);
+
+    expect(store.getWorktreeEditorState("worktree-1")).toMatchObject({
+      worktreeId: "worktree-1",
+      selectedFilePath: "src/App.vue",
+      openFilePaths: ["src/App.vue", "src/main.ts"]
+    });
+    expect(store.getWorktreeEditorState("worktree-2")).toMatchObject({
+      worktreeId: "worktree-2",
+      selectedFilePath: "README.md",
+      openFilePaths: ["README.md"]
+    });
+  });
+
+  it("removes persisted editor state when a worktree group is deleted", () => {
+    const baseDir = makeTempDir();
+    const store = new WorkspaceStore(baseDir);
+    store.migrate(NEW_SCHEMA);
+    seedBasicWorkspace(store);
+    store.setWorktreeEditorState("worktree-1", "src/App.vue", ["src/App.vue"]);
+
+    expect(store.getWorktreeEditorState("worktree-1")?.selectedFilePath).toBe("src/App.vue");
+
+    store.deleteWorktreeGroup("worktree-1");
+
+    expect(store.getWorktreeEditorState("worktree-1")).toBeNull();
+  });
+
   it("restores the last selected worktree and thread when switching back to a project", () => {
     const baseDir = makeTempDir();
     const store = new WorkspaceStore(baseDir);

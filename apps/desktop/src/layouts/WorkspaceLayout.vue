@@ -1,11 +1,10 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeMount, onBeforeUnmount, onMounted, provide, reactive, ref, watch } from "vue";
-import { ChevronDown, ChevronUp, Plus, Settings, Terminal } from "lucide-vue-next";
+import { ChevronDown, ChevronUp, PanelLeftOpen, Plus, Settings } from "lucide-vue-next";
 import Button from "@/components/ui/Button.vue";
-import Badge from "@/components/ui/Badge.vue";
 import SourceControlPanel from "@/components/SourceControlPanel.vue";
 import PreviewPanel from "@/components/PreviewPanel.vue";
-import ScmBranchCombobox from "@/components/ScmBranchCombobox.vue";
+import ContextQueueReviewDropdown from "@/components/contextQueue/ContextQueueReviewDropdown.vue";
 import PillTabs, { type PillTabItem } from "@/components/ui/PillTabs.vue";
 import ProjectTabs from "@/components/ProjectTabs.vue";
 import TerminalPane from "@/components/TerminalPane.vue";
@@ -15,7 +14,6 @@ import FileSearchEditor from "@/components/FileSearchEditor.vue";
 import WorkspaceLauncherModal from "@/components/WorkspaceLauncherModal.vue";
 import ThreadInlinePromptEditor from "@/components/ThreadInlinePromptEditor.vue";
 import BranchPicker from "@/components/BranchPicker.vue";
-import ContextQueueReviewDropdown from "@/components/contextQueue/ContextQueueReviewDropdown.vue";
 import { injectContextQueue } from "@/contextQueue/injectContextQueue";
 import { injectContextToAgentKey, threadContextQueueKey } from "@/contextQueue/injectionKeys";
 import type { QueueItem } from "@/contextQueue/types";
@@ -128,23 +126,14 @@ watch(threadsSidebarCollapsed, (collapsed) => {
   }
 });
 
-const contextQueueReviewRef = ref<InstanceType<typeof ContextQueueReviewDropdown> | null>(null);
-
-watch(
-  () => threadContextQueue.lastEnqueueEvent.value,
-  (evt) => {
-    if (!evt) return;
-    if (evt.threadId !== workspace.activeThreadId) return;
-    void nextTick(() => {
-      contextQueueReviewRef.value?.openReview();
-    });
-  }
-);
-
 /** Top pills: Agent / Git / Files (never `shell:*`). */
 const mainCenterTab = ref<"agent" | "diff" | "files" | "preview">("agent");
 /** Preview tab is browser-like; hide the stacked terminal strip so it is not confused with the webview. */
 const suppressStackedTerminalChrome = computed(() => mainCenterTab.value === "preview");
+/** Sidebar footer control mirrors the former floating “open terminals” affordance. */
+const showThreadSidebarTerminalButton = computed(
+  () => !terminalPanelOpen.value && !suppressStackedTerminalChrome.value
+);
 /** Lower overlay: thread agent vs extra shell tab. */
 const shellOverlayTab = ref<"agent" | `shell:${string}`>("agent");
 /** One UUID per integrated terminal tab (after Agent + Git). */
@@ -262,6 +251,24 @@ function setShellTerminalPaneRef(slotId: string, el: unknown): void {
 }
 
 const threadSidebarRef = ref<InstanceType<typeof ThreadSidebar> | null>(null);
+/** When the thread sidebar is collapsed, center tabs live here so they stay reachable. */
+const contextQueueCollapsedRef = ref<InstanceType<typeof ContextQueueReviewDropdown> | null>(null);
+
+watch(
+  () => threadContextQueue.lastEnqueueEvent.value,
+  (evt) => {
+    if (!evt) return;
+    if (evt.threadId !== workspace.activeThreadId) return;
+    void nextTick(() => {
+      if (threadsSidebarCollapsed.value) {
+        contextQueueCollapsedRef.value?.openReview();
+      } else {
+        threadSidebarRef.value?.openContextQueueReview?.();
+      }
+    });
+  }
+);
+
 /** Per-thread generation counter: user renames bump this so in-flight WebLLM title refinements abort. */
 const threadTitleEpoch = new Map<string, number>();
 
@@ -327,12 +334,12 @@ const topCenterPanelTabs = computed<PillTabItem[]>(() => {
   }
   tabs.push({
     value: "files",
-    label: "📄 Files",
+    label: "📁 Files",
     shortcutHint: keybindings.shortcutLabelForId("focusFilesPanel")
   });
   tabs.push({
     value: "preview",
-    label: "🌐 Preview",
+    label: "🌐 Browser",
     shortcutHint: keybindings.shortcutLabelForId("focusPreviewPanel")
   });
   return tabs;
@@ -527,11 +534,6 @@ let disposeOpenWorkspaceSettings: (() => void) | null = null;
 /** Incremented per diff refresh; stale async results are ignored (rapid worktree switch / overlap). */
 let diffRefreshSeq = 0;
 let selectedDiffSeq = 0;
-
-const layoutColumns = computed(() => {
-  const threadsWidth = threadsSidebarCollapsed.value ? "0" : "260px";
-  return `${threadsWidth} minmax(0, 1fr)`;
-});
 
 const scmBranchLine = computed(() => {
   const { shortLabel, branch } = scmMeta.value;
@@ -942,13 +944,6 @@ async function handleRemoveProject(projectId: string): Promise<void> {
   await api.removeProject(payload);
   await refreshSnapshot();
   await refreshRepoStatus();
-}
-
-async function handleReorderProjects(orderedProjectIds: string[]): Promise<void> {
-  const api = getApi();
-  if (!api?.reorderProjects) return;
-  await api.reorderProjects({ orderedProjectIds });
-  await refreshSnapshot();
 }
 
 async function handleSelectWorktree(worktreeId: string): Promise<boolean> {
@@ -1871,7 +1866,6 @@ watch(
       :active-project-id="workspace.activeProjectId"
       @select="handleSelectProject"
       @remove="handleRemoveProject"
-      @reorder="handleReorderProjects"
       @create="handleCreateProject"
       @configure-commands="handleConfigureCommands"
     />
@@ -1902,11 +1896,32 @@ watch(
       </Button>
     </section>
 
-    <section v-else class="grid min-h-0 flex-1" :style="{ gridTemplateColumns: layoutColumns }">
-      <section class="flex min-h-0 min-w-0 flex-col overflow-hidden border-r border-border">        
+    <section v-else class="relative flex min-h-0 flex-1 overflow-hidden">
+      <Button
+        v-if="threadsSidebarCollapsed"
+        data-testid="thread-sidebar-expand-fixed"
+        type="button"
+        variant="outline"
+        size="icon-sm"
+        class="fixed top-8 left-4 z-40 rounded-full shadow-sm"
+        aria-label="Show thread sidebar"
+        title="Show thread sidebar"
+        @click="threadsSidebarCollapsed = false"
+      >
+        <PanelLeftOpen class="h-4 w-4" aria-hidden="true" />
+      </Button>
+      <section
+        class="absolute inset-y-0 left-0 z-20 flex w-[260px] min-h-0 min-w-0 flex-col overflow-hidden py-2 ps-2 transition-all duration-300 ease-out"
+        :class="
+          threadsSidebarCollapsed
+            ? 'pointer-events-none -translate-x-full opacity-0'
+            : 'pointer-events-auto translate-x-0 opacity-100'
+        "
+      >
         <ThreadSidebar
           ref="threadSidebarRef"
-          class="min-h-0 min-w-0 flex-1"
+          v-model:center-panel-tab="topCenterTabModel"
+          class="min-h-0 min-w-0 flex-1 border rounded-lg bg-sidebar border-border"
           :collapsed="threadsSidebarCollapsed"
           :context-label="activeContextLabel"
           :threads="workspace.activeProjectThreads"
@@ -1920,6 +1935,18 @@ watch(
           :show-branch-picker="showBranchPicker"
           :project-id="workspace.activeProjectId"
           :inline-prompt-thread-id="inlinePromptThreadId"
+          :show-toolbar-branch-switcher="showTopBarBranchSwitcher"
+          :scm-branch-line="scmBranchLine"
+          :scm-current-branch="scmMeta.branch"
+          :scm-cwd="workspace.activeWorktree?.path ?? ''"
+          :show-terminal-sidebar-button="showThreadSidebarTerminalButton"
+          :center-panel-tabs="topCenterPanelTabs"
+          :context-queue-items="contextQueueItems"
+          :context-queue-worktree-path="activeWorktreePath"
+          :projects="workspace.projects"
+          :project-tab-worktrees="workspace.worktrees"
+          :project-tab-threads="workspace.threads"
+          :active-project-id="workspace.activeProjectId"
           @show-branch-picker="showBranchPicker = true"
           @cancel-branch-picker="showBranchPicker = false"
           @create-worktree-group="handleCreateWorktreeGroup"
@@ -1930,71 +1957,20 @@ watch(
           @collapse="threadsSidebarCollapsed = true"
           @expand="threadsSidebarCollapsed = false"
           @add-thread-inline="openInlineThreadPrompt"
+          @branch-changed="void refreshRepoStatus()"
+          @context-queue-confirm="onContextQueueConfirmed"
+          @context-queue-persist-draft="onContextQueuePersistDraft"
+          @select-project="handleSelectProject"
+          @remove-project="handleRemoveProject"
+          @create-project="handleCreateProject"
+          @configure-commands="handleConfigureCommands"
+          @open-terminal-panel="openTerminalOverlayPanel"
         />
       </section>
-      <section class="flex min-h-0 min-w-0 flex-col border-r border-border">                                 
-        <ProjectTabs
-          v-if="workspace.projects.length > 0"
-          :projects="workspace.projects"
-          :worktrees="workspace.worktrees"
-          :threads="workspace.threads"
-          :idle-attention-by-thread-id="ptyIdleAttentionByThreadId"
-          :run-status-by-thread-id="ptyRunStatusByThreadId"
-          :active-project-id="workspace.activeProjectId"
-          :collapsed="threadsSidebarCollapsed"
-          @expand="threadsSidebarCollapsed = false"
-          @select="handleSelectProject"
-          @remove="handleRemoveProject"
-          @reorder="handleReorderProjects"
-          @create="handleCreateProject"
-          @configure-commands="handleConfigureCommands"
-        />
-        <div
-          class="flex min-h-0 min-w-0 shrink-0 items-center gap-1 overflow-hidden border-b border-border bg-muted/25 py-px pr-1 pl-0.5"
-        >
-          <ScmBranchCombobox
-            v-if="showTopBarBranchSwitcher"
-            variant="toolbar"
-            :branch-line="scmBranchLine"
-            :current-branch="scmMeta.branch"
-            :project-id="workspace.activeProjectId ?? ''"
-            :cwd="workspace.activeWorktree?.path ?? ''"
-            switcher-enabled
-            @branch-changed="void refreshRepoStatus()"
-          />
-          <Badge v-else variant="outline" class="ms-2 shrink-0 text-[10px] text-muted-foreground">
-            {{ activeContextLabel }}
-          </Badge>
-          <div
-            class="ms-1 flex min-h-7 min-w-0 flex-1 items-center border-s border-border ps-2"
-            data-testid="workspace-toolbar-thread-title"
-          >
-            <span
-              v-if="toolbarActiveThread"
-              class="min-w-0 truncate text-xs font-medium text-foreground"
-              :title="toolbarActiveThread.title"
-            >
-              {{ toolbarActiveThread.title }}
-            </span>
-          </div>
-          <div class="flex shrink-0 items-center gap-1 border-s border-border ps-1">
-            <PillTabs
-              v-model="topCenterTabModel"
-              class="min-w-0 shrink"
-              :tabs="topCenterPanelTabs"
-              aria-label="Center panel"
-            />
-            <ContextQueueReviewDropdown
-              v-if="workspace.activeThreadId && contextQueueItems.length > 0"
-              ref="contextQueueReviewRef"
-              :thread-id="workspace.activeThreadId"
-              :items="contextQueueItems"
-              :worktree-path="activeWorktreePath"
-              @confirm="onContextQueueConfirmed"
-              @persist-draft="onContextQueuePersistDraft"
-            />
-          </div>
-        </div>
+      <section
+        class="flex min-h-0 min-w-0 flex-1 flex-col border-r border-border bg-muted transition-[margin] duration-300 ease-out"
+        :class="threadsSidebarCollapsed ? 'ml-0' : 'ml-[260px]'"
+      >
         <div
           v-if="activeWorktreeHasThreads && hasGitRepository === false"
           data-testid="workspace-no-git-empty-state"
@@ -2076,6 +2052,7 @@ watch(
                   >
                     <FileSearchEditor
                       ref="fileSearchRef"
+                      :worktree-id="fileExplorerWorktree?.id ?? null"
                       :worktree-path="fileExplorerWorktree?.path ?? null"
                       :active-thread-id="workspace.activeThreadId"
                     />
@@ -2238,24 +2215,6 @@ watch(
                       </div>
                     </div>
                   </div>
-                <Tooltip v-if="!terminalPanelOpen && !suppressStackedTerminalChrome">
-                  <TooltipTrigger as-child>
-                    <Button 
-                      size="sm"
-                      class="bottom-4 right-4 z-20 absolute"
-                      :aria-label="keybindings.titleWithShortcut('Show lower terminals', 'toggleTerminalPanel')"
-                      @click="openTerminalOverlayPanel"                      
-                    >
-                      <Terminal class="h-5 w-5 shrink-0" aria-hidden="true" />
-                      Terminal
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side="left">
-                    <span class="inline-flex items-center gap-2">
-                      <span>{{ keybindings.titleWithShortcut("Show lower terminals", "toggleTerminalPanel") }}</span>                      
-                    </span>
-                  </TooltipContent>
-                </Tooltip>
               </div>
         </div>
       </section>

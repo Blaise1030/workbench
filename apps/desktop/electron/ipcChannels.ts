@@ -7,6 +7,8 @@ export const IPC_CHANNELS = {
   workspaceReorderProjects: "workspace:reorderProjects",
   workspaceAddWorktree: "workspace:addWorktree",
   workspaceSetActive: "workspace:setActive",
+  workspaceGetWorktreeEditorState: "workspace:getWorktreeEditorState",
+  workspaceSetWorktreeEditorState: "workspace:setWorktreeEditorState",
   workspaceCreateThread: "workspace:createThread",
   workspaceSetActiveThread: "workspace:setActiveThread",
   workspaceDeleteThread: "workspace:deleteThread",

@@ -198,12 +198,12 @@ async function onModelUpdate(branch: string | undefined): Promise<void> {
       :model-value="currentBranch || undefined"
       :open="open"
       :disabled="checkoutBusy"
-      open-on-click
+      open-on-click      
       @update:open="open = $event"
       @update:model-value="onModelUpdate"
     >
       <ComboboxAnchor :class="comboboxAnchorClass">
-        <ComboboxTrigger
+        <ComboboxTrigger          
           :disabled="checkoutBusy"
           :title="variant === 'toolbar' && !isPickMode ? toolbarTriggerTitle : undefined"
           :aria-label="

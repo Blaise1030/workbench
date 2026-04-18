@@ -12,6 +12,13 @@ export interface WorkspaceSnapshot {
   activeThreadId: string | null;
 }
 
+export interface WorktreeEditorState {
+  worktreeId: string;
+  selectedFilePath: string | null;
+  openFilePaths: string[];
+  updatedAt: string;
+}
+
 export interface CreateThreadInput {
   projectId: string;
   worktreeId: string;

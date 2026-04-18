@@ -3,12 +3,44 @@ import * as pty from "node-pty";
 import { IPC_CHANNELS } from "../../src/shared/ipc.js";
 
 const MAX_BUFFER_BYTES = 100 * 1024; // 100 KB
+const MACOS_DEFAULT_PATH_SEGMENTS = ["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin", "/usr/sbin", "/sbin"];
 
 interface PtySession {
   pty: pty.IPty;
   buffer: string;
   /** Owning worktree (for UI: “terminal open on this worktree”). */
   worktreeId: string;
+}
+
+function normalizePathValue(pathValue: string | undefined, platform: NodeJS.Platform): string | undefined {
+  if (platform !== "darwin") return pathValue;
+
+  const segments = (pathValue ?? "")
+    .split(":")
+    .map((segment) => segment.trim())
+    .filter(Boolean);
+
+  const deduped = new Set<string>();
+  for (const segment of [...segments, ...MACOS_DEFAULT_PATH_SEGMENTS]) {
+    deduped.add(segment);
+  }
+
+  return [...deduped].join(":");
+}
+
+export function buildPtyEnv(
+  baseEnv: Record<string, string | undefined>,
+  extraEnv?: Record<string, string>,
+  platform: NodeJS.Platform = process.platform
+): Record<string, string> {
+  const env = { ...baseEnv, ...extraEnv };
+  const normalizedPath = normalizePathValue(env.PATH, platform);
+
+  if (normalizedPath) {
+    env.PATH = normalizedPath;
+  }
+
+  return Object.fromEntries(Object.entries(env).filter((entry): entry is [string, string] => entry[1] !== undefined));
 }
 
 export class PtyService {
@@ -38,7 +70,7 @@ export class PtyService {
     const instance = pty.spawn(shell, [], {
       name: "xterm-256color",
       cwd,
-      env: { ...(process.env as Record<string, string>), ...extraEnv },
+      env: buildPtyEnv(process.env as Record<string, string | undefined>, extraEnv),
       cols: 80,
       rows: 24
     });

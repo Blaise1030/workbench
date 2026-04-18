@@ -9,7 +9,7 @@ const props = withDefaults(
   defineProps<{
     projectId: string;
     /** Tighter layout when embedded in the thread sidebar footer. */
-    variant?: "default" | "footer";
+    variant?: "default" | "footer" | "popover";
   }>(),
   { variant: "default" }
 );
@@ -67,7 +67,11 @@ function handleCreate(): void {
     :class="
       cn(
         'rounded-md border border-border bg-card p-2.5 shadow-sm',
-        props.variant === 'footer' ? 'mx-0 my-0 w-full' : 'mx-2 my-1.5'
+        props.variant === 'footer'
+          ? 'mx-0 my-0 w-full'
+          : props.variant === 'popover'
+            ? 'mx-0 my-0 w-full border-0 bg-transparent p-0 shadow-none'
+            : 'mx-2 my-1.5'
       )
     "
   >
@@ -110,7 +114,7 @@ function handleCreate(): void {
 
     <!-- Actions: primary Create is full-width and large; optional Cancel sits above when not footer. -->
     <div class="flex w-full flex-col gap-2">
-      <div v-if="props.variant !== 'footer'" class="flex justify-end">
+      <div v-if="props.variant === 'default'" class="flex justify-end">
         <Button type="button" variant="outline" size="sm" @click="emit('cancel')">
           Cancel
         </Button>

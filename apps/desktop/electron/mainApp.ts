@@ -206,6 +206,9 @@ function createMainWindow(): BrowserWindow {
     width: 1600,
     height: 980,
     icon: devAppIconPath(),
+    titleBarStyle: 'hidden',
+    titleBarOverlay: true,    
+    trafficLightPosition: { x: 14, y: 14 }, // only relevant with native traffic lights
     webPreferences: {
       preload: preloadPath,
       contextIsolation: true,
@@ -345,6 +348,19 @@ function registerIpc(workspaceService: WorkspaceService): void {
     workspaceService.setActive(payload.projectId, payload.worktreeId, payload.threadId);
     emitWorkspaceDidChange();
   });
+  ipcMain.handle(IPC_CHANNELS.workspaceGetWorktreeEditorState, (_, payload: { worktreeId: string }) => {
+    return workspaceService.getWorktreeEditorState(payload.worktreeId);
+  });
+  ipcMain.handle(
+    IPC_CHANNELS.workspaceSetWorktreeEditorState,
+    (_, payload: { worktreeId: string; selectedFilePath: string | null; openFilePaths: string[] }) => {
+      workspaceService.setWorktreeEditorState(
+        payload.worktreeId,
+        payload.selectedFilePath,
+        payload.openFilePaths
+      );
+    }
+  );
   ipcMain.handle(IPC_CHANNELS.workspaceCreateThread, async (_, payload: CreateThreadInput) => {
     const snapshot = workspaceService.getSnapshot();
     const wt = snapshot.worktrees.find((w) => w.id === payload.worktreeId);

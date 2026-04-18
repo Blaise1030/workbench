@@ -29,7 +29,7 @@ const draftModel = computed({
 </script>
 
 <template>
-  <section class="flex min-h-0 flex-1 flex-col overflow-hidden bg-card text-card-foreground">
+  <section class="flex min-h-0 flex-1 flex-col overflow-hidden text-card-foreground">
     <header class="border-b border-border px-3 py-2">
       <div class="flex items-center justify-between gap-2">
         <h2 class="text-sm font-semibold">Agent</h2>

@@ -77,6 +77,14 @@ CREATE TABLE IF NOT EXISTS app_state (
   active_thread_id TEXT
 );
 
+CREATE TABLE IF NOT EXISTS worktree_editor_state (
+  worktree_id TEXT PRIMARY KEY,
+  selected_file_path TEXT,
+  open_file_paths_json TEXT NOT NULL DEFAULT '[]',
+  updated_at TEXT NOT NULL,
+  FOREIGN KEY(worktree_id) REFERENCES worktrees(id) ON DELETE CASCADE
+);
+
 CREATE INDEX IF NOT EXISTS idx_worktrees_project_id ON worktrees(project_id);
 CREATE INDEX IF NOT EXISTS idx_threads_worktree_id ON threads(worktree_id);
 CREATE INDEX IF NOT EXISTS idx_runs_thread_id ON runs(thread_id);

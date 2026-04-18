@@ -602,8 +602,135 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <section class="flex h-full min-h-0 bg-background text-[11px] text-foreground">
-    <aside class="flex min-h-0 w-[272px] shrink-0 flex-col border-r border-border bg-muted/20">
+  <section class="flex h-full min-h-0 bg-background text-[11px] text-foreground">    
+    <div class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+      <header class="flex h-9 min-w-0 items-center gap-2 overflow-x-auto border-b border-border px-2 whitespace-nowrap">
+        <div
+          class="min-w-0 flex-1 font-mono text-[10px] leading-tight"
+          :title="scmPathHeader.full || undefined"
+        >
+          <template v-if="scmPathHeader.full">
+            <p class="flex min-w-0 items-baseline justify-start gap-0">
+              <span
+                v-if="scmPathHeader.hasDir"
+                class="min-w-0 shrink truncate text-muted-foreground"
+              >{{ scmPathHeader.dirLine }}/</span>
+              <span class="shrink-0 font-medium text-foreground">{{ scmPathHeader.base }}</span>
+            </p>
+          </template>
+          <p v-else class="text-muted-foreground">No file selected</p>
+          <p class="sr-only">
+            File path: {{ scmPathHeader.full || "none" }}.
+            {{
+              selectedEntry?.scope === "staged"
+                ? "Staged changes."
+                : selectedEntry?.scope === "unstaged"
+                  ? "Working tree changes."
+                  : "Diff."
+            }}
+          </p>
+        </div>
+        <div
+          v-if="selectedEntry && mergeResult?.kind === 'ok'"
+          class="flex shrink-0 items-center gap-px rounded-md border border-border p-px"
+          role="group"
+          aria-label="Diff layout"
+        >
+          <Button
+            type="button"
+            size="xs"
+            :variant="scmDiffLayout === 'split' ? 'default' : 'ghost'"
+            class="h-6 rounded-sm px-2 text-[10px]"
+            title="Two columns: original on the left, working copy on the right"
+            :aria-pressed="scmDiffLayout === 'split'"
+            @click="scmDiffLayout = 'split'"
+          >
+            Split
+          </Button>
+          <Button
+            type="button"
+            size="xs"
+            :variant="scmDiffLayout === 'unified' ? 'default' : 'ghost'"
+            class="h-6 rounded-sm px-2 text-[10px]"
+            title="Single column: removed lines appear above the current file"
+            :aria-pressed="scmDiffLayout === 'unified'"
+            @click="scmDiffLayout = 'unified'"
+          >
+            Unified
+          </Button>
+        </div>
+        <Button
+          v-if="selectedEntry"
+          type="button"
+          size="xs"
+          variant="outline"
+          class="h-6 shrink-0 gap-1 px-2 text-[10px]"
+          title="Open this file in the Files tab (current worktree)"
+          aria-label="Go to file in editor"
+          @click="emit('openFileInEditor', selectedEntry.path)"
+        >
+          <FileText class="h-3 w-3 shrink-0" aria-hidden="true" />
+          Go to file
+        </Button>
+      </header>
+
+      <div class="flex min-h-0 flex-1 flex-col overflow-hidden">
+        <div v-if="mergeLoading" class="flex h-full items-center justify-center text-[11px] text-muted-foreground">
+          Loading diff…
+        </div>
+        <div
+          v-else-if="emptyMessage"
+          class="flex h-full flex-col items-center justify-center gap-3 px-6 text-center"
+          role="status"
+          aria-live="polite"
+        >
+          <span class="select-none text-4xl leading-none" aria-hidden="true">✨</span>
+          <p class="max-w-xs text-xs text-muted-foreground">{{ emptyMessage.replace('✨ ', '') }}</p>
+        </div>
+        <div
+          v-else-if="mergeResult?.kind === 'error'"
+          class="flex h-full items-center justify-center px-4 text-center text-[11px] text-destructive"
+          role="alert"
+        >
+          {{ mergeResult.message }}
+        </div>
+        <div
+          v-else-if="mergeResult?.kind === 'binary'"
+          class="flex h-full items-center justify-center px-4 text-center text-[11px] text-muted-foreground"
+          role="status"
+        >
+          Binary file — side-by-side text diff is not shown.
+        </div>
+        <div v-else-if="mergeResult?.kind === 'ok'" class="flex min-h-0 flex-1 flex-col overflow-hidden">
+          <p
+            class="shrink-0 border-b border-border bg-muted/15 px-2 py-1 font-mono text-[10px] leading-tight text-muted-foreground"
+          >
+            <template v-if="scmDiffLayout === 'split'">
+              <span class="font-medium text-foreground">{{ mergeResult.originalLabel }}</span>
+              · left —
+              <span class="font-medium text-foreground">{{ mergeResult.modifiedLabel }}</span>
+              · right
+            </template>
+            <template v-else>
+              Unified —
+              <span class="font-medium text-foreground">{{ mergeResult.originalLabel }}</span>
+              vs
+              <span class="font-medium text-foreground">{{ mergeResult.modifiedLabel }}</span>
+            </template>
+          </p>
+          <MonacoDiffEditor
+            class="min-h-0 flex-1"
+            :layout="scmDiffLayout"
+            :original="mergeResult.original"
+            :modified="mergeResult.modified"
+            :file-path="selectedEntry?.path ?? ''"
+            :active-thread-id="props.activeThreadId"
+          />
+        </div>
+      </div>
+    </div>
+    <div class="p-2 h-full">
+      <aside class="flex h-full min-h-0 w-[270px] rounded overflow-hidden shrink-0 flex-col border rounded-lg border-border bg-sidebar">
       <header
         class="flex h-9 items-center border-b border-border px-2"
         aria-label="Source control"
@@ -834,7 +961,7 @@ onBeforeUnmount(() => {
           </div>
         </div>
 
-        <div class="relative border-t border-border">
+        <div class="relative border-t border-border bg-background">
           <textarea
             v-model="commitMessage"
             rows="4"
@@ -856,8 +983,8 @@ onBeforeUnmount(() => {
             <Maximize2 v-else class="h-3 w-3" aria-hidden="true" />
           </Button>
         </div>
-        <div class="flex items-center justify-between px-2 py-1.5 border-t">
-          <div class="flex items-center gap-1">            
+        <div class="flex items-center justify-between px-2 py-1.5 bg-background">
+          <div class="flex items-center overflow-hidden">            
             <Button
               v-if="SHOW_SUGGEST_COMMIT_BUTTON && suggestCommitAvailable"
               data-testid="scm-suggest-commit"
@@ -899,133 +1026,7 @@ onBeforeUnmount(() => {
         </div>
       </footer>
     </aside>
-
-    <div class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-      <header class="flex h-9 min-w-0 items-center gap-2 overflow-x-auto border-b border-border px-2 whitespace-nowrap">
-        <div
-          class="min-w-0 flex-1 font-mono text-[10px] leading-tight"
-          :title="scmPathHeader.full || undefined"
-        >
-          <template v-if="scmPathHeader.full">
-            <p class="flex min-w-0 items-baseline justify-start gap-0">
-              <span
-                v-if="scmPathHeader.hasDir"
-                class="min-w-0 shrink truncate text-muted-foreground"
-              >{{ scmPathHeader.dirLine }}/</span>
-              <span class="shrink-0 font-medium text-foreground">{{ scmPathHeader.base }}</span>
-            </p>
-          </template>
-          <p v-else class="text-muted-foreground">No file selected</p>
-          <p class="sr-only">
-            File path: {{ scmPathHeader.full || "none" }}.
-            {{
-              selectedEntry?.scope === "staged"
-                ? "Staged changes."
-                : selectedEntry?.scope === "unstaged"
-                  ? "Working tree changes."
-                  : "Diff."
-            }}
-          </p>
-        </div>
-        <div
-          v-if="selectedEntry && mergeResult?.kind === 'ok'"
-          class="flex shrink-0 items-center gap-px rounded-md border border-border p-px"
-          role="group"
-          aria-label="Diff layout"
-        >
-          <Button
-            type="button"
-            size="xs"
-            :variant="scmDiffLayout === 'split' ? 'default' : 'ghost'"
-            class="h-6 rounded-sm px-2 text-[10px]"
-            title="Two columns: original on the left, working copy on the right"
-            :aria-pressed="scmDiffLayout === 'split'"
-            @click="scmDiffLayout = 'split'"
-          >
-            Split
-          </Button>
-          <Button
-            type="button"
-            size="xs"
-            :variant="scmDiffLayout === 'unified' ? 'default' : 'ghost'"
-            class="h-6 rounded-sm px-2 text-[10px]"
-            title="Single column: removed lines appear above the current file"
-            :aria-pressed="scmDiffLayout === 'unified'"
-            @click="scmDiffLayout = 'unified'"
-          >
-            Unified
-          </Button>
-        </div>
-        <Button
-          v-if="selectedEntry"
-          type="button"
-          size="xs"
-          variant="outline"
-          class="h-6 shrink-0 gap-1 px-2 text-[10px]"
-          title="Open this file in the Files tab (current worktree)"
-          aria-label="Go to file in editor"
-          @click="emit('openFileInEditor', selectedEntry.path)"
-        >
-          <FileText class="h-3 w-3 shrink-0" aria-hidden="true" />
-          Go to file
-        </Button>
-      </header>
-
-      <div class="flex min-h-0 flex-1 flex-col overflow-hidden">
-        <div v-if="mergeLoading" class="flex h-full items-center justify-center text-[11px] text-muted-foreground">
-          Loading diff…
-        </div>
-        <div
-          v-else-if="emptyMessage"
-          class="flex h-full flex-col items-center justify-center gap-3 px-6 text-center"
-          role="status"
-          aria-live="polite"
-        >
-          <span class="select-none text-4xl leading-none" aria-hidden="true">✨</span>
-          <p class="max-w-xs text-xs text-muted-foreground">{{ emptyMessage.replace('✨ ', '') }}</p>
-        </div>
-        <div
-          v-else-if="mergeResult?.kind === 'error'"
-          class="flex h-full items-center justify-center px-4 text-center text-[11px] text-destructive"
-          role="alert"
-        >
-          {{ mergeResult.message }}
-        </div>
-        <div
-          v-else-if="mergeResult?.kind === 'binary'"
-          class="flex h-full items-center justify-center px-4 text-center text-[11px] text-muted-foreground"
-          role="status"
-        >
-          Binary file — side-by-side text diff is not shown.
-        </div>
-        <div v-else-if="mergeResult?.kind === 'ok'" class="flex min-h-0 flex-1 flex-col overflow-hidden">
-          <p
-            class="shrink-0 border-b border-border bg-muted/15 px-2 py-1 font-mono text-[10px] leading-tight text-muted-foreground"
-          >
-            <template v-if="scmDiffLayout === 'split'">
-              <span class="font-medium text-foreground">{{ mergeResult.originalLabel }}</span>
-              · left —
-              <span class="font-medium text-foreground">{{ mergeResult.modifiedLabel }}</span>
-              · right
-            </template>
-            <template v-else>
-              Unified —
-              <span class="font-medium text-foreground">{{ mergeResult.originalLabel }}</span>
-              vs
-              <span class="font-medium text-foreground">{{ mergeResult.modifiedLabel }}</span>
-            </template>
-          </p>
-          <MonacoDiffEditor
-            class="min-h-0 flex-1"
-            :layout="scmDiffLayout"
-            :original="mergeResult.original"
-            :modified="mergeResult.modified"
-            :file-path="selectedEntry?.path ?? ''"
-            :active-thread-id="props.activeThreadId"
-          />
-        </div>
-      </div>
-    </div>
+    </div>    
   </section>
 </template>
 

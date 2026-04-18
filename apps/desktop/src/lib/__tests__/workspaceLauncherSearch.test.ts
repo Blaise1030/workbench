@@ -78,7 +78,7 @@ describe("searchLauncherRows", () => {
     expect(rows.find((r) => r.kind === "file")).toMatchObject({ section: "files" });
   });
 
-  it("worktree mode returns only other worktree files", () => {
+  it("worktree mode returns only files from the current worktree", () => {
     const threads = [baseThread({ id: "t1", title: "parser", agent: "claude" })];
     const rows = searchLauncherRows(
       { mode: "worktree", query: "config" },
@@ -94,11 +94,11 @@ describe("searchLauncherRows", () => {
     );
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({
-      section: "linkedWorktrees",
+      section: "files",
       kind: "file",
-      relativePath: "config/app.json",
-      worktreeId: "wt2",
-      worktreeLabel: "feature"
+      relativePath: "config/root.json",
+      worktreeId: null,
+      worktreeLabel: null
     });
   });
 
@@ -106,15 +106,15 @@ describe("searchLauncherRows", () => {
     const rows = searchLauncherRows(
       { mode: "worktree", query: "" },
       [],
-      [],
+      [{ relativePath: "a.ts" }],
       [{ worktreeId: "w", worktreeName: "x", files: [{ relativePath: "a.ts" }] }]
     );
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({
-      section: "linkedWorktrees",
+      section: "files",
       relativePath: "a.ts",
-      worktreeId: "w",
-      worktreeLabel: "x"
+      worktreeId: null,
+      worktreeLabel: null
     });
   });
 });

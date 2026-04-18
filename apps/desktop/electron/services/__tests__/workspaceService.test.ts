@@ -367,6 +367,51 @@ describe("WorkspaceService.captureInitialPrompt", () => {
   });
 });
 
+describe("WorkspaceService worktree editor state", () => {
+  it("proxies get/set worktree editor state to the store", () => {
+    const getWorktreeEditorState = vi.fn(() => ({
+      worktreeId: "worktree-1",
+      selectedFilePath: "src/App.vue",
+      openFilePaths: ["src/App.vue", "README.md"],
+      updatedAt: "2026-04-18T00:00:00.000Z"
+    }));
+    const setWorktreeEditorState = vi.fn();
+    const store = {
+      getSnapshot: vi.fn(),
+      upsertProject: vi.fn(),
+      setActiveState: vi.fn(),
+      upsertWorktree: vi.fn(),
+      upsertThread: vi.fn(),
+      upsertThreadSession: vi.fn(),
+      deleteThread: vi.fn(),
+      renameThread: vi.fn(),
+      getThread: vi.fn(),
+      getThreadSession: vi.fn(),
+      getWorktreeEditorState,
+      setWorktreeEditorState
+    };
+    const service = new WorkspaceService(store as never);
+
+    expect(service.getWorktreeEditorState("worktree-1")).toEqual({
+      worktreeId: "worktree-1",
+      selectedFilePath: "src/App.vue",
+      openFilePaths: ["src/App.vue", "README.md"],
+      updatedAt: "2026-04-18T00:00:00.000Z"
+    });
+
+    service.setWorktreeEditorState("worktree-1", "src/Other.vue", [
+      "src/Other.vue",
+      "README.md"
+    ]);
+
+    expect(getWorktreeEditorState).toHaveBeenCalledWith("worktree-1");
+    expect(setWorktreeEditorState).toHaveBeenCalledWith("worktree-1", "src/Other.vue", [
+      "src/Other.vue",
+      "README.md"
+    ]);
+  });
+});
+
 describe("WorkspaceService.captureResumeId", () => {
   it("persists resumeId and returns true on first call", () => {
     const upsertThreadSession = vi.fn();

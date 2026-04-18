@@ -31,14 +31,13 @@ export function parseLauncherQuery(raw: string): ParsedLauncherQuery {
   return { mode: "default", query: raw };
 }
 
-/** Result grouping for the launcher UI (Agents = threads, Files = active worktree, Linked worktrees = @wt files). */
+/** Result grouping for the launcher UI (Agents = threads, Files = active worktree). */
 export type LauncherSectionId =
   | "commands"
   | "workspace"
   | "worktrees"
   | "agents"
-  | "files"
-  | "linkedWorktrees";
+  | "files";
 
 export const LAUNCHER_COMMAND_IDS = ["toggle-thread-sidebar"] as const;
 export type LauncherCommandId = (typeof LAUNCHER_COMMAND_IDS)[number];
@@ -96,14 +95,6 @@ export type LauncherRow =
       worktreeId: null;
       worktreeLabel: null;
       score: number;
-    }
-  | {
-      section: "linkedWorktrees";
-      kind: "file";
-      relativePath: string;
-      worktreeId: string;
-      worktreeLabel: string;
-      score: number;
     };
 
 const THREAD_FUSE: Fuse.IFuseOptions<{ id: string; title: string; agent: ThreadAgent }> = {
@@ -123,22 +114,8 @@ const FILE_FUSE: Fuse.IFuseOptions<{ relativePath: string }> = {
   ignoreLocation: true
 };
 
-const WT_FILE_FUSE: Fuse.IFuseOptions<{
-  relativePath: string;
-  worktreeName: string;
-}> = {
-  keys: [
-    { name: "relativePath", weight: 0.75 },
-    { name: "worktreeName", weight: 0.25 }
-  ],
-  threshold: 0.38,
-  includeScore: true,
-  ignoreLocation: true
-};
-
 const MAX_THREAD_RESULTS = 10;
 const MAX_BRANCH_FILE_RESULTS = 15;
-const MAX_WORKTREE_FILE_RESULTS = 25;
 const MAX_PROJECT_RESULTS = 12;
 const MAX_WORKTREE_SWITCH_RESULTS = 12;
 
@@ -312,31 +289,24 @@ export function searchLauncherRows(
   const q = parsed.query.trim();
 
   if (parsed.mode === "worktree") {
-    const flat = otherWorktreeFiles.flatMap((wt) =>
-      wt.files.map((f) => ({
-        relativePath: f.relativePath,
-        worktreeName: wt.worktreeName,
-        worktreeId: wt.worktreeId
-      }))
-    );
-    if (flat.length === 0) return [];
+    void otherWorktreeFiles;
     if (!q) {
-      return flat.slice(0, MAX_WORKTREE_FILE_RESULTS).map((f) => ({
-        section: "linkedWorktrees" as const,
+      return branchFiles.slice(0, MAX_BRANCH_FILE_RESULTS).map((f) => ({
+        section: "files" as const,
         kind: "file" as const,
         relativePath: f.relativePath,
-        worktreeId: f.worktreeId,
-        worktreeLabel: f.worktreeName,
+        worktreeId: null,
+        worktreeLabel: null,
         score: 0
       }));
     }
-    const fuse = new Fuse(flat, WT_FILE_FUSE);
-    return fuse.search(q, { limit: MAX_WORKTREE_FILE_RESULTS }).map((hit) => ({
-      section: "linkedWorktrees" as const,
+    const fuse = new Fuse(branchFiles, FILE_FUSE);
+    return fuse.search(q, { limit: MAX_BRANCH_FILE_RESULTS }).map((hit) => ({
+      section: "files" as const,
       kind: "file" as const,
       relativePath: hit.item.relativePath,
-      worktreeId: hit.item.worktreeId,
-      worktreeLabel: hit.item.worktreeName,
+      worktreeId: null,
+      worktreeLabel: null,
       score: fuseScore(hit)
     }));
   }

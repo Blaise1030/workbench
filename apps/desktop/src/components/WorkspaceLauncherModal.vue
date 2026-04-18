@@ -44,9 +44,6 @@ const loading = ref(false);
 const loadError = ref<string | null>(null);
 
 const branchFiles = ref<{ relativePath: string }[]>([]);
-const otherWorktreeFiles = ref<
-  { worktreeId: string; worktreeName: string; files: { relativePath: string }[] }[]
->([]);
 
 function getApi(): WorkspaceApi | null {
   return typeof window !== "undefined" && window.workspaceApi ? window.workspaceApi : null;
@@ -81,7 +78,7 @@ const rows = computed<LauncherRow[]>(() => {
     parsed.value,
     workspace.activeThreads,
     branchFiles.value,
-    otherWorktreeFiles.value
+    []
   );
   return [...cmds, ...switchRows, ...rest];
 });
@@ -92,13 +89,13 @@ const emptyHint = computed(() => {
   if (parsed.value.mode === "worktree") {
     if (!query.value.startsWith("@wt")) return "";
     if (!parsed.value.query.trim()) {
-      return otherWorktreeFiles.value.length === 0
-        ? "No other worktrees in this project."
-        : "Type to search files across linked worktrees.";
+      return branchFiles.value.length === 0
+        ? "No files available in this worktree."
+        : "Type to search files in this worktree.";
     }
   }
   if (!query.value.trim()) {
-    return "Search commands, other workspaces and worktrees, threads, and files. Use @wt for files in linked worktrees.";
+    return "Search commands, workspaces, worktrees, threads, and files in the active worktree.";
   }
   return "No results.";
 });
@@ -106,12 +103,10 @@ const emptyHint = computed(() => {
 async function loadIndexes(): Promise<void> {
   const api = getApi();
   const active = workspace.activeWorktree;
-  const projectId = workspace.activeProjectId;
   loadError.value = null;
   branchFiles.value = [];
-  otherWorktreeFiles.value = [];
 
-  if (!api || !active || !projectId) {
+  if (!api || !active) {
     return;
   }
 
@@ -119,25 +114,6 @@ async function loadIndexes(): Promise<void> {
   try {
     const listed = await api.listFiles(active.path);
     branchFiles.value = listed.map((f: FileSummary) => ({ relativePath: f.relativePath }));
-
-    const others = workspace.worktrees.filter(
-      (w) => w.projectId === projectId && w.id !== active.id
-    );
-    const blocks = await Promise.all(
-      others.map(async (wt) => {
-        try {
-          const files = await api.listFiles(wt.path);
-          return {
-            worktreeId: wt.id,
-            worktreeName: wt.name,
-            files: files.map((f: FileSummary) => ({ relativePath: f.relativePath }))
-          };
-        } catch {
-          return { worktreeId: wt.id, worktreeName: wt.name, files: [] as { relativePath: string }[] };
-        }
-      })
-    );
-    otherWorktreeFiles.value = blocks;
   } catch (e) {
     loadError.value = e instanceof Error ? e.message : "Could not load files.";
   } finally {
@@ -243,8 +219,7 @@ const SECTION_LABELS: Record<LauncherSectionId, string> = {
   workspace: "Workspace",
   worktrees: "Worktrees",
   agents: "Agents",
-  files: "Files",
-  linkedWorktrees: "Linked worktrees"
+  files: "Files"
 };
 
 const SECTION_HINTS: Partial<Record<LauncherSectionId, string>> = {
@@ -252,9 +227,13 @@ const SECTION_HINTS: Partial<Record<LauncherSectionId, string>> = {
   workspace: "Switch to another open workspace",
   worktrees: "Switch branch checkout in this project",
   agents: "Threads in this worktree",
-  files: "Paths in the active worktree",
-  linkedWorktrees: "Files in linked worktrees (@wt)"
+  files: "Files in the active worktree"
 };
+
+function fileDisplayName(relativePath: string): string {
+  const parts = relativePath.split(/[/\\]/).filter(Boolean);
+  return parts[parts.length - 1] ?? relativePath;
+}
 
 function showSectionHeaderAt(i: number): boolean {
   const r = rows.value;
@@ -295,7 +274,7 @@ function showSectionDividerAbove(i: number): boolean {
         </div>
         <p class="border-b border-border px-3 py-1.5 text-[11px] text-muted-foreground">
           <span class="font-mono">@wt</span>
-          — search files in other worktrees (same project). Press
+          — search files in the active worktree. Press
           <span class="font-mono">{{ launcherToggleShortcutLabel }}</span>
           to toggle.
         </p>
@@ -404,9 +383,9 @@ function showSectionDividerAbove(i: number): boolean {
                 <template v-else>
                   <span class="shrink-0 text-muted-foreground" aria-hidden="true">📄</span>
                   <div class="min-w-0 flex-1">
-                    <div class="truncate font-mono text-xs">{{ row.relativePath }}</div>
-                    <div v-if="row.worktreeLabel" class="truncate text-xs text-muted-foreground">
-                      {{ row.worktreeLabel }}
+                    <div class="truncate font-medium">{{ fileDisplayName(row.relativePath) }}</div>
+                    <div class="truncate font-mono text-xs text-muted-foreground">
+                      {{ row.relativePath }}
                     </div>
                   </div>
                 </template>

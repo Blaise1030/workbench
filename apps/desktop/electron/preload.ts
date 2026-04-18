@@ -20,6 +20,8 @@ const IPC_CHANNELS = {
   workspaceReorderProjects: "workspace:reorderProjects",
   workspaceAddWorktree: "workspace:addWorktree",
   workspaceSetActive: "workspace:setActive",
+  workspaceGetWorktreeEditorState: "workspace:getWorktreeEditorState",
+  workspaceSetWorktreeEditorState: "workspace:setWorktreeEditorState",
   workspaceCreateThread: "workspace:createThread",
   workspaceSetActiveThread: "workspace:setActiveThread",
   workspaceDeleteThread: "workspace:deleteThread",
@@ -130,6 +132,10 @@ contextBridge.exposeInMainWorld("workspaceApi", {
   reorderProjects: (payload: unknown) => ipcRenderer.invoke(IPC_CHANNELS.workspaceReorderProjects, payload),
   addWorktree: (payload: unknown) => ipcRenderer.invoke(IPC_CHANNELS.workspaceAddWorktree, payload),
   setActive: (payload: unknown) => ipcRenderer.invoke(IPC_CHANNELS.workspaceSetActive, payload),
+  getWorktreeEditorState: (worktreeId: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.workspaceGetWorktreeEditorState, { worktreeId }),
+  setWorktreeEditorState: (payload: unknown) =>
+    ipcRenderer.invoke(IPC_CHANNELS.workspaceSetWorktreeEditorState, payload),
   createThread: (payload: unknown) => ipcRenderer.invoke(IPC_CHANNELS.workspaceCreateThread, payload),
   setActiveThread: (threadId: string) => ipcRenderer.invoke(IPC_CHANNELS.workspaceSetActiveThread, threadId),
   deleteThread: (payload: unknown) => ipcRenderer.invoke(IPC_CHANNELS.workspaceDeleteThread, payload),

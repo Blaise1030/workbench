@@ -55,6 +55,7 @@ import {
 import { monacoLanguageIdFromPath } from "@/lib/monacoLanguage";
 
 const props = defineProps<{
+  worktreeId?: string | null;
   worktreePath: string | null;
   /** When set, file editor / tree can enqueue context for this thread. */
   activeThreadId?: string | null;
@@ -163,8 +164,18 @@ const isContentSearching = ref(false);
 let contentSearchSeq = 0;
 const expandedFolders = ref<Set<string>>(new Set());
 const selectedPath = ref<string | null>(null);
-const loadedContent = ref("");
-const draftContent = ref("");
+const MAX_OPEN_FILE_TABS = 5;
+
+type OpenFileTab = {
+  path: string;
+  loadedContent: string;
+  draftContent: string;
+  imageFileViewMode: "preview" | "text";
+  imagePreviewSrc: string | null;
+  textLoaded: boolean;
+};
+
+const openTabs = ref<OpenFileTab[]>([]);
 const isSearching = ref(false);
 const isLoadingFile = ref(false);
 const isSaving = ref(false);
@@ -187,20 +198,62 @@ function readLocalStorageFlag(key: string, fallback = false): boolean {
 
 function readSavedSelectedPath(cwd: string): string | null {
   try {
+    if (typeof localStorage === "undefined") return null;
     return localStorage.getItem(`${SELECTED_PATH_KEY_PREFIX}${cwd}`);
   } catch {
     return null;
   }
 }
 
+function readSavedOpenFilePaths(cwd: string): string[] {
+  const saved = readSavedSelectedPath(cwd);
+  return saved ? [saved] : [];
+}
+
 function writeSavedSelectedPath(cwd: string, relativePath: string | null): void {
   try {
+    if (typeof localStorage === "undefined") return;
     const key = `${SELECTED_PATH_KEY_PREFIX}${cwd}`;
     if (relativePath) localStorage.setItem(key, relativePath);
     else localStorage.removeItem(key);
   } catch {
     /* ignore quota / private mode */
   }
+}
+
+async function loadPersistedEditorState(
+  worktreeId: string | null | undefined,
+  cwd: string | null
+): Promise<{ selectedFilePath: string | null; openFilePaths: string[] }> {
+  const api = getApi();
+  if (worktreeId && api?.getWorktreeEditorState) {
+    const persisted = await api.getWorktreeEditorState(worktreeId);
+    if (persisted) {
+      return {
+        selectedFilePath: persisted.selectedFilePath ?? persisted.openFilePaths[0] ?? null,
+        openFilePaths: persisted.openFilePaths
+      };
+    }
+  }
+  const openFilePaths = cwd ? readSavedOpenFilePaths(cwd) : [];
+  return {
+    selectedFilePath: openFilePaths[0] ?? null,
+    openFilePaths
+  };
+}
+
+async function persistEditorState(relativePath: string | null, openFilePaths: string[]): Promise<void> {
+  const api = getApi();
+  const worktreeId = props.worktreeId ?? null;
+  const cwd = props.worktreePath;
+  if (worktreeId && api?.setWorktreeEditorState) {
+    await api.setWorktreeEditorState({
+      worktreeId,
+      selectedFilePath: relativePath,
+      openFilePaths
+    });
+  }
+  if (cwd) writeSavedSelectedPath(cwd, relativePath);
 }
 
 /** `path` = match relative paths only (fast). `contents` = also run full-text search over files. */
@@ -274,8 +327,21 @@ const newEntryPathInputId = computed(() =>
 );
 
 const hasWorkspace = computed(() => Boolean(props.worktreePath));
+const activeTab = computed(() => openTabs.value.find((tab) => tab.path === selectedPath.value) ?? null);
+const loadedContent = computed({
+  get: () => activeTab.value?.loadedContent ?? "",
+  set: (value: string) => {
+    if (activeTab.value) activeTab.value.loadedContent = value;
+  }
+});
+const draftContent = computed({
+  get: () => activeTab.value?.draftContent ?? "",
+  set: (value: string) => {
+    if (activeTab.value) activeTab.value.draftContent = value;
+  }
+});
 const dirty = computed(
-  () => selectedPath.value !== null && draftContent.value !== loadedContent.value
+  () => activeTab.value !== null && draftContent.value !== loadedContent.value
 );
 
 const isImagePreviewFile = computed(() => {
@@ -291,7 +357,12 @@ const isRasterImageFile = computed(() => {
 /** Raster images edited as text cannot be saved safely as UTF-8. */
 const rasterImageSaveBlocked = computed(() => isRasterImageFile.value && dirty.value);
 
-const imageFileViewMode = ref<"preview" | "text">("preview");
+const imageFileViewMode = computed<"preview" | "text">({
+  get: () => activeTab.value?.imageFileViewMode ?? "preview",
+  set: (value) => {
+    if (activeTab.value) activeTab.value.imageFileViewMode = value;
+  }
+});
 
 const imageViewTabs = computed<PillTabItem[]>(() => [
   { value: "preview", label: "Preview" },
@@ -299,7 +370,12 @@ const imageViewTabs = computed<PillTabItem[]>(() => [
 ]);
 
 /** `data:` URL for `<img src>` when the open file is an image in the worktree. */
-const imagePreviewSrc = ref<string | null>(null);
+const imagePreviewSrc = computed<string | null>({
+  get: () => activeTab.value?.imagePreviewSrc ?? null,
+  set: (value) => {
+    if (activeTab.value) activeTab.value.imagePreviewSrc = value;
+  }
+});
 
 /** Dropped OS file (e.g. screencapture in temp) — not a worktree-relative selection. */
 const externalDropPreview = ref<{ src: string; title: string } | null>(null);
@@ -314,6 +390,25 @@ function dismissFileEditorQueuePopup(): void {
   fileEditorQueueVisible.value = false;
   fileEditorQueueAnchor.value = null;
   pendingFileEditorSelection.value = null;
+}
+
+function makeOpenFileTab(path: string): OpenFileTab {
+  return {
+    path,
+    loadedContent: "",
+    draftContent: "",
+    imageFileViewMode: "preview",
+    imagePreviewSrc: null,
+    textLoaded: false
+  };
+}
+
+function findTab(path: string): OpenFileTab | undefined {
+  return openTabs.value.find((tab) => tab.path === path);
+}
+
+function openTabPaths(): string[] {
+  return openTabs.value.map((tab) => tab.path);
 }
 
 function onEditorQueueableSelection(payload: QueueableEditorSelection | null): void {
@@ -908,12 +1003,69 @@ function onGlobalKeydown(e: KeyboardEvent): void {
   }
 }
 
+async function confirmDiscardForTab(path: string): Promise<boolean> {
+  const tab = findTab(path);
+  if (!tab || tab.draftContent === tab.loadedContent) return true;
+  return requestConfirmation({
+    title: "Discard unsaved changes?",
+    description: `Unsaved changes in ${basenameFromPath(path)} will be lost.`,
+    confirmLabel: "Discard changes",
+    variant: "destructive"
+  });
+}
+
+async function ensureTabCapacity(nextPath: string): Promise<boolean> {
+  if (findTab(nextPath) || openTabs.value.length < MAX_OPEN_FILE_TABS) return true;
+  const evicted = openTabs.value[0];
+  if (!evicted) return true;
+  if (!(await confirmDiscardForTab(evicted.path))) return false;
+  openTabs.value = openTabs.value.slice(1);
+  if (selectedPath.value === evicted.path) {
+    selectedPath.value = openTabs.value[openTabs.value.length - 1]?.path ?? null;
+  }
+  return true;
+}
+
+async function selectTab(path: string): Promise<void> {
+  if (selectedPath.value === path) return;
+  selectedPath.value = path;
+  const tab = findTab(path);
+  if (tab && !tab.textLoaded) {
+    await openFile(path, true);
+  }
+}
+
+function closeTabWithoutConfirmation(path: string): void {
+  const currentIndex = openTabs.value.findIndex((tab) => tab.path === path);
+  if (currentIndex < 0) return;
+  const nextTabs = openTabs.value.filter((tab) => tab.path !== path);
+  const wasSelected = selectedPath.value === path;
+  openTabs.value = nextTabs;
+  if (wasSelected) {
+    const fallback = nextTabs[currentIndex] ?? nextTabs[currentIndex - 1] ?? null;
+    selectedPath.value = fallback?.path ?? null;
+  }
+  if (!selectedPath.value) {
+    externalDropPreview.value = null;
+  }
+}
+
+function removeTabsMatching(predicate: (tab: OpenFileTab) => boolean): void {
+  const removedSelected = selectedPath.value
+    ? openTabs.value.some((tab) => tab.path === selectedPath.value && predicate(tab))
+    : false;
+  openTabs.value = openTabs.value.filter((tab) => !predicate(tab));
+  if (removedSelected) {
+    selectedPath.value = openTabs.value[openTabs.value.length - 1]?.path ?? null;
+  }
+  if (!selectedPath.value) {
+    externalDropPreview.value = null;
+  }
+}
+
 function clearSelection(): void {
   selectedPath.value = null;
-  loadedContent.value = "";
-  draftContent.value = "";
-  imagePreviewSrc.value = null;
-  imageFileViewMode.value = "preview";
+  openTabs.value = [];
   externalDropPreview.value = null;
 }
 
@@ -958,14 +1110,16 @@ async function loadImageFileAsText(): Promise<void> {
   const path = selectedPath.value;
   const cwd = props.worktreePath;
   const api = getApi();
-  if (!path || !cwd || !api) return;
+  const tab = path ? findTab(path) : undefined;
+  if (!path || !cwd || !api || !tab) return;
 
   isLoadingFile.value = true;
   error.value = null;
   try {
     const content = await api.readFile(cwd, path);
-    loadedContent.value = content;
-    draftContent.value = content;
+    tab.loadedContent = content;
+    tab.draftContent = content;
+    tab.textLoaded = true;
   } catch (readError) {
     error.value =
       readError instanceof Error ? readError.message : "Could not read the image file as text.";
@@ -985,6 +1139,7 @@ async function onImageViewModeRequest(next: string): Promise<void> {
     imageFileViewMode.value = "preview";
     loadedContent.value = "";
     draftContent.value = "";
+    if (activeTab.value) activeTab.value.textLoaded = false;
     await refreshImagePreviewUrl();
     return;
   }
@@ -995,8 +1150,13 @@ async function onImageViewModeRequest(next: string): Promise<void> {
 
 async function handleCloseFileTab(): Promise<void> {
   if (!selectedPath.value) return;
-  if (!(await confirmDiscardIfDirty())) return;
-  clearSelection();
+  if (!(await confirmDiscardForTab(selectedPath.value))) return;
+  closeTabWithoutConfirmation(selectedPath.value);
+}
+
+async function handleCloseSpecificTab(path: string): Promise<void> {
+  if (!(await confirmDiscardForTab(path))) return;
+  closeTabWithoutConfirmation(path);
 }
 
 function invalidatePendingFileRequests(): void {
@@ -1102,23 +1262,33 @@ async function loadFileSummaries(): Promise<void> {
   }
 }
 
-async function openFile(relativePath: string): Promise<void> {
+async function openFile(relativePath: string, forceReload = false): Promise<void> {
   const api = getApi();
   const cwd = props.worktreePath;
   if (!api || !cwd) return;
+  if (!(await ensureTabCapacity(relativePath))) return;
+
+  let tab = findTab(relativePath);
+  if (!tab) {
+    openTabs.value = [...openTabs.value, makeOpenFileTab(relativePath)];
+    tab = findTab(relativePath);
+  }
+  if (!tab) return;
+  selectedPath.value = relativePath;
+  if (tab.textLoaded && !forceReload) return;
 
   const seq = ++openFileSeq;
   isLoadingFile.value = true;
   error.value = null;
 
   try {
-    imagePreviewSrc.value = null;
+    tab.imagePreviewSrc = null;
     const ext = fileExtensionLower(relativePath);
     if (IMAGE_PREVIEW_EXTENSIONS.has(ext)) {
-      selectedPath.value = relativePath;
-      imageFileViewMode.value = "preview";
-      loadedContent.value = "";
-      draftContent.value = "";
+      tab.imageFileViewMode = "preview";
+      tab.loadedContent = "";
+      tab.draftContent = "";
+      tab.textLoaded = false;
       await refreshImagePreviewUrl();
       if (seq !== openFileSeq || props.worktreePath !== cwd) return;
       return;
@@ -1126,9 +1296,10 @@ async function openFile(relativePath: string): Promise<void> {
 
     const content = await api.readFile(cwd, relativePath);
     if (seq !== openFileSeq || props.worktreePath !== cwd) return;
-    selectedPath.value = relativePath;
-    loadedContent.value = content;
-    draftContent.value = content;
+    tab.loadedContent = content;
+    tab.draftContent = content;
+    tab.textLoaded = true;
+    tab.imageFileViewMode = "preview";
   } catch (readError) {
     if (seq !== openFileSeq || props.worktreePath !== cwd) return;
     error.value =
@@ -1142,7 +1313,10 @@ async function openFile(relativePath: string): Promise<void> {
 
 async function handleSelectFile(relativePath: string): Promise<void> {
   if (selectedPath.value === relativePath) return;
-  if (!(await confirmDiscardIfDirty())) return;
+  if (findTab(relativePath)) {
+    await selectTab(relativePath);
+    return;
+  }
   await openFile(relativePath);
 }
 
@@ -1188,9 +1362,7 @@ async function deleteFolderAtPath(relativePath: string): Promise<void> {
 
   try {
     await api.deleteFolder(cwd, relativePath);
-    if (sel && pathIsUnderOrEqualFolder(relativePath, sel)) {
-      clearSelection();
-    }
+    removeTabsMatching((tab) => pathIsUnderOrEqualFolder(relativePath, tab.path));
     await loadFileSummaries();
   } catch (deleteError) {
     error.value =
@@ -1222,7 +1394,7 @@ async function deleteFileAtPath(relativePath: string): Promise<void> {
 
   try {
     await api.deleteFile(cwd, relativePath);
-    if (isSelected) clearSelection();
+    closeTabWithoutConfirmation(relativePath);
     await loadFileSummaries();
   } catch (deleteError) {
     error.value =
@@ -1306,23 +1478,35 @@ async function confirmContextSwitch(nextWorktreePath: string | null): Promise<bo
   return confirmDiscardIfDirty();
 }
 
-watch(selectedPath, (path) => {
+watch([selectedPath, () => openTabPaths()], ([path, openPaths]) => {
   externalDropPreview.value = null;
-  const cwd = props.worktreePath;
-  if (cwd) writeSavedSelectedPath(cwd, path);
+  void persistEditorState(path, openPaths);
 });
 
 watch(
-  () => props.worktreePath,
-  async (next, previous) => {
-    if (next === previous) return;
+  () => [props.worktreeId ?? null, props.worktreePath] as const,
+  async ([nextWorktreeId, nextPath], previousValue) => {
+    const [previousWorktreeId, previousPath] = previousValue ?? [null, null];
+    if (nextWorktreeId === previousWorktreeId && nextPath === previousPath) return;
     // Read before resetState() — clearSelection sets selectedPath=null which would wipe the key.
-    const savedPath = next ? readSavedSelectedPath(next) : null;
+    const savedState = await loadPersistedEditorState(nextWorktreeId, nextPath);
     invalidatePendingFileRequests();
     resetState();
     await loadFileSummaries();
-    if (next && savedPath && allFiles.value.some((f) => f.relativePath === savedPath && f.kind === "file")) {
-      await openFile(savedPath);
+    const existingSavedPaths = savedState.openFilePaths
+      .filter((path, index, arr) => arr.indexOf(path) === index)
+      .filter((path) =>
+        allFiles.value.some((f) => f.relativePath === path && (f.kind === undefined || f.kind === "file"))
+      )
+      .slice(-MAX_OPEN_FILE_TABS);
+    openTabs.value = existingSavedPaths.map((path) => makeOpenFileTab(path));
+    const selectedSavedPath =
+      savedState.selectedFilePath && existingSavedPaths.includes(savedState.selectedFilePath)
+        ? savedState.selectedFilePath
+        : existingSavedPaths[existingSavedPaths.length - 1] ?? null;
+    selectedPath.value = selectedSavedPath;
+    if (selectedSavedPath && nextPath) {
+      await openFile(selectedSavedPath);
     }
     void focusSearchInput();
   },
@@ -1369,200 +1553,19 @@ defineExpose({
 </script>
 
 <template>
-  <section class="flex h-full min-h-0 bg-background text-foreground">
+  <section class="relative flex h-full min-h-0 overflow-hidden bg-background text-foreground">
     <div
-      id="file-search-sidebar"
-      class="flex shrink-0 flex-col overflow-hidden border-r border-border bg-background transition-[width] duration-200 ease-out"
-      :class="sidebarCollapsed ? 'w-11' : 'w-[270px]'"
-    >
-      <div
-        v-if="sidebarCollapsed"
-        class="flex flex-col items-center gap-1 border-b border-border bg-background p-1"
-      >
-        <Button
-          data-testid="file-search-sidebar-expand"
-          variant="outline"
-          size="icon-xs"
-          class="size-8 shrink-0 p-0"
-          title="Show file explorer"
-          aria-label="Show file explorer"
-          :aria-expanded="false"
-          aria-controls="file-search-sidebar"
-          @click="expandSidebar()"
-        >
-          <PanelLeftOpen class="h-3.5 w-3.5" aria-hidden="true" />
-          <span class="sr-only">Show file explorer</span>
-        </Button>
-      </div>
-      <template v-else>
-        <div
-          data-testid="file-search-header"
-          class="flex flex-col gap-1 border-b border-border bg-background p-1"
-        >
-          <div class="relative min-w-0 text-muted-foreground">
-            <Search
-              class="pointer-events-none absolute top-1/2 left-2.5 h-3.5 w-3.5 -translate-y-1/2"
-            />
-            <Input
-              id="file-search"
-              ref="searchInput"
-              v-model="query"
-              data-testid="file-search-input"
-              type="text"
-              :placeholder="searchPlaceholder"
-              class="h-8 min-w-0 w-full rounded-md border border-input bg-background py-1 pr-2 pl-8 text-xs font-normal focus-visible:ring-2"
-              :disabled="!hasWorkspace"
-            />
-          </div>
-          <div
-            class="flex flex-nowrap items-center gap-0.5 overflow-x-auto rounded-md border border-border/70 bg-background [scrollbar-width:thin]"
-            role="group"
-            aria-label="Search scope and file explorer actions"
-          >
-            <PillTabs
-              data-testid="file-search-scope"
-              :model-value="searchMode"
-              size="xs"
-              aria-label="Search scope"
-              :tabs="searchModeTabs"
-              @update:model-value="onSearchModeRequest"
-            />
-            <span
-              class="mx-0.5 h-4 w-px shrink-0 self-center bg-border/70"
-              aria-hidden="true"
-            />
-            <div
-              class="ml-auto flex shrink-0 items-center gap-0.5 pl-0.5"
-              role="toolbar"
-              aria-label="File explorer actions"
-            >
-              <Button
-                data-testid="refresh-file-explorer"
-                variant="ghost"
-                size="icon-xs"
-                class="size-7 shrink-0"
-                :disabled="!hasWorkspace || isSearching"
-                :title="'Refresh file explorer'"
-                @click="loadFileSummaries"
-              >
-                <RefreshCw class="h-3.5 w-3.5" aria-hidden="true" />
-                <span class="sr-only">Refresh file explorer</span>
-              </Button>
-              <Button
-                data-testid="add-file"
-                variant="ghost"
-                size="icon-xs"
-                class="size-7 shrink-0"
-                :disabled="!hasWorkspace"
-                :title="'Add file'"
-                @click="handleAddFile()"
-              >
-                <FilePlus class="h-3.5 w-3.5" aria-hidden="true" />
-                <span class="sr-only">Add file</span>
-              </Button>
-              <Button
-                data-testid="add-folder"
-                variant="ghost"
-                size="icon-xs"
-                class="size-7 shrink-0"
-                :disabled="!hasWorkspace"
-                :title="'Add folder'"
-                @click="handleAddFolder()"
-              >
-                <FolderPlus class="h-3.5 w-3.5" aria-hidden="true" />
-                <span class="sr-only">Add folder</span>
-              </Button>
-              <Button
-                data-testid="file-search-sidebar-collapse"
-                variant="ghost"
-                size="icon-xs"
-                class="size-7 shrink-0"
-                :title="'Hide file explorer'"
-                @click="collapseSidebar()"
-              >
-                <PanelLeftClose class="h-3.5 w-3.5" aria-hidden="true" />
-                <span class="sr-only">Hide file explorer</span>
-              </Button>
-            </div>
-          </div>
-        </div>
-
-        <ContextMenu>
-          <ContextMenuTrigger as-child>
-            <div
-              data-testid="file-tree-scroll"
-              class="min-h-0 min-w-0 flex-1 overflow-x-auto overflow-y-auto px-2 py-2 [scrollbar-width:thin]"
-            >
-              <p v-if="!hasWorkspace" class="px-1.5 py-2 text-xs text-muted-foreground">
-                Open a workspace to search and edit files.
-              </p>
-              <p v-else-if="isSearching" class="px-1.5 py-2 text-xs text-muted-foreground">
-                Loading files…
-              </p>
-              <p v-else-if="error" class="px-1.5 py-2 text-xs text-destructive">
-                {{ error }}
-              </p>
-              <p
-                v-else-if="debouncedQuery.trim() && contentSearchError"
-                class="px-1.5 py-2 text-xs text-destructive"
-              >
-                {{ contentSearchError }}
-              </p>
-              <p
-                v-else-if="
-                  debouncedQuery.trim() && isContentSearching && visibleTree.length === 0
-                "
-                class="px-1.5 py-2 text-xs text-muted-foreground"
-              >
-                Searching file contents…
-              </p>
-              <p
-                v-else-if="visibleTree.length === 0"
-                class="px-1.5 py-2 text-xs text-muted-foreground"
-              >
-                No matching files.
-              </p>
-              <ul v-else class="space-y-0.5 text-xs">
-                <FileTreeNode
-                  v-for="node in visibleTree"
-                  :key="node.path"
-                  :node="node"
-                  :selected-path="selectedPath"
-                  :expanded-folders="expandedFolders"
-                  @toggle-folder="handleToggleFolder"
-                  @select-file="handleSelectFile"
-                  @add-file="onCtxAddFile"
-                  @add-folder="onCtxAddFolder"
-                  @delete-folder="onCtxDeleteFolder"
-                  @delete-file="onCtxDeleteFile"
-                  @queue-for-agent="onQueueTreeItemForAgent"
-                />
-              </ul>
-            </div>
-          </ContextMenuTrigger>
-          <ContextMenuContent data-testid="file-tree-context-menu" class="min-w-[11rem]">
-            <ContextMenuItem data-testid="ctx-add-file" class="text-xs" @select="onCtxAddFile()">
-              Add file…
-            </ContextMenuItem>
-            <ContextMenuItem data-testid="ctx-add-folder" class="text-xs" @select="onCtxAddFolder()">
-              Add folder…
-            </ContextMenuItem>
-          </ContextMenuContent>
-        </ContextMenu>
-      </template>
-    </div>
-
-    <div
-      class="flex min-h-0 min-w-0 flex-1 flex-col"
+      class="flex min-h-0 min-w-0 flex-1 flex-col transition-[margin] duration-300 ease-out"
+      :class="sidebarCollapsed ? 'mr-0' : 'mr-[286px]'"
       @dragover.prevent
       @drop="onImageDropFromOs"
     >
       <header
         data-testid="file-editor-header"
-        class="flex items-center justify-between gap-3 border-b border-border px-4 py-1.5"
+        class="flex items-center justify-between gap-3 px-4 py-1.5"
       >
         <div
-          class="flex min-w-0 flex-1 flex-nowrap items-center gap-2 overflow-x-auto overflow-y-hidden [scrollbar-width:thin]"
+          class="flex min-w-0 flex-1 flex-nowrap items-center gap-1 border-r py-0.5 overflow-x-auto overflow-y-hidden [scrollbar-width:thin]"
         >
           <template v-if="selectedPath">
             <span
@@ -1570,41 +1573,50 @@ defineExpose({
               data-testid="file-editor-active-path"
             >{{ selectedPath }}</span>
             <div
+              v-for="tab in openTabs"
+              :key="tab.path"
               :class="
                 cn(
-                  badgeVariants({ variant: 'outline' }),
-                  'inline-flex h-7 min-w-0 max-w-[16rem] shrink-0 items-stretch gap-0.5 rounded-full border-border/60 bg-background py-0 pr-0.5 pl-1.5 font-normal shadow-none'
+                  badgeVariants({ variant: selectedPath === tab.path ? 'secondary' : 'outline' }),
+                  'inline-flex h-6 rounded-sm min-w-0 cursor-pointer! max-w-[16rem] shrink-0 border-0 items-stretch gap-0.5 items-center text-sm font-normal shadow-none'
                 )
               "
-              :title="selectedPath"
+              :title="tab.path"
+              :data-testid="`file-editor-tab-${tab.path}`"
             >
-              <span class="flex min-w-0 flex-1 items-center gap-1.5">
+              <button
+                type="button"
+                class="flex min-w-0 flex-1 items-center gap-1.5 text-left"
+                @click="void selectTab(tab.path)"
+              >
                 <span
                   class="shrink-0 text-[13px] leading-none"
                   aria-hidden="true"
-                >{{ fileEmojiForPath(selectedPath) }}</span>
-                <span class="min-w-0 truncate text-xs font-normal">{{
-                  basenameFromPath(selectedPath)
-                }}</span>
+                >{{ fileEmojiForPath(tab.path) }}</span>
+                <span class="flex min-w-0 flex-col">
+                  <span class="truncate text-xs font-normal">{{
+                    basenameFromPath(tab.path)
+                  }}</span>
+                </span>
                 <span
-                  v-if="dirty"
+                  v-if="tab.draftContent !== tab.loadedContent"
                   class="sr-only"
                 >Unsaved changes</span>
                 <span
-                  v-if="dirty"
+                  v-if="tab.draftContent !== tab.loadedContent"
                   class="shrink-0 rounded-full size-1.5 bg-amber-600"
                   aria-hidden="true"
                   title="Unsaved changes"
                 />
-              </span>
+              </button>
               <Button
-                data-testid="file-editor-tab-close"
+                :data-testid="selectedPath === tab.path ? 'file-editor-tab-close' : undefined"
                 type="button"
                 variant="ghost"
                 size="icon-xs"
-                class="size-6 shrink-0 rounded-full text-muted-foreground hover:bg-background/80 hover:text-foreground"
-                :aria-label="`Close ${basenameFromPath(selectedPath)}`"
-                @click="handleCloseFileTab"
+                class="size-6 shrink-0 rounded-full text-muted-foreground hover:/80 hover:text-foreground"
+                :aria-label="`Close ${basenameFromPath(tab.path)}`"
+                @click="void handleCloseSpecificTab(tab.path)"
               >
                 <X class="size-3" aria-hidden="true" />
                 <span class="sr-only">Close file tab</span>
@@ -1647,7 +1659,7 @@ defineExpose({
           <Button
             data-testid="refresh-file"
             variant="outline"
-            size="xs"
+            size="icon-xs"
             :disabled="!selectedPath || isLoadingFile"
             title="Reload file from disk"
             @click="handleRefreshFile"
@@ -1676,7 +1688,7 @@ defineExpose({
           <Button
             data-testid="delete-file"
             variant="outline"
-            size="xs"
+            size="icon-xs"
             class="text-destructive hover:bg-destructive/10 hover:text-destructive"
             :disabled="!selectedPath"
             :title="'Delete file'"
@@ -1684,6 +1696,20 @@ defineExpose({
           >
             <Trash2 class="h-3.5 w-3.5" aria-hidden="true" />
             <span class="sr-only">Delete file</span>
+          </Button>
+          <Button
+            v-if="sidebarCollapsed"
+            data-testid="file-search-sidebar-expand"
+            variant="outline"
+            size="icon-xs"
+            title="Show file explorer"
+            aria-label="Show file explorer"
+            :aria-expanded="false"
+            aria-controls="file-search-sidebar"
+            @click="expandSidebar()"
+          >
+            <PanelLeftClose class="h-3.5 w-3.5" aria-hidden="true" />
+            <span class="sr-only">Show file explorer</span>
           </Button>
         </div>
       </header>
@@ -1695,7 +1721,7 @@ defineExpose({
       >        
         <div
           v-if="isImagePreviewFile && selectedPath"
-          class="absolute top-2 right-3 z-20 rounded-lg border border-border/60 bg-background/95 p-0.5 shadow-sm backdrop-blur-sm supports-[backdrop-filter]:bg-background/80"
+          class="absolute top-2 right-3 z-20 rounded-lg border border-border/60 /95 p-0.5 shadow-sm backdrop-blur-sm supports-[backdrop-filter]:/80"
         >
           <PillTabs
             :model-value="imageFileViewMode"
@@ -1714,7 +1740,7 @@ defineExpose({
         <div
           v-else-if="!selectedPath"
           data-testid="file-editor-empty-state"
-          class="flex min-h-[18rem] flex-1 flex-col items-center justify-center gap-3 rounded-md bg-background px-4 py-8 text-center"
+          class="flex min-h-[18rem] flex-1 flex-col items-center justify-center gap-3 rounded-md  px-4 py-8 text-center"
           role="status"
           aria-live="polite"
         >
@@ -1732,7 +1758,7 @@ defineExpose({
         <div
           v-else-if="isImagePreviewFile && imageFileViewMode === 'preview' && imagePreviewSrc"
           data-testid="image-file-preview"
-          class="flex min-h-[18rem] flex-1 flex-col items-center justify-center overflow-auto rounded-md bg-background px-4 py-6"
+          class="flex min-h-[18rem] flex-1 flex-col items-center justify-center overflow-auto rounded-md  px-4 py-6"
         >
           <img
             :src="imagePreviewSrc"
@@ -1744,7 +1770,7 @@ defineExpose({
         <div
           v-else-if="isImagePreviewFile && imageFileViewMode === 'preview' && !imagePreviewSrc"
           data-testid="image-file-preview-unavailable"
-          class="flex min-h-[18rem] flex-1 flex-col items-center justify-center gap-2 rounded-md bg-background px-4 py-6 text-center text-xs font-normal text-muted-foreground"
+          class="flex min-h-[18rem] flex-1 flex-col items-center justify-center gap-2 rounded-md  px-4 py-6 text-center text-xs font-normal text-muted-foreground"
           role="status"
         >
           <p class="max-w-sm">
@@ -1778,7 +1804,7 @@ defineExpose({
       <div
         v-if="externalDropPreview"
         data-testid="external-image-drop-preview"
-        class="shrink-0 border-t border-border bg-background px-4 py-3"
+        class="shrink-0 border-t border-border  px-4 py-3"
       >
         <div class="flex items-start justify-between gap-2">
           <p class="min-w-0 text-[11px] leading-snug text-muted-foreground">
@@ -1808,6 +1834,178 @@ defineExpose({
           class="mt-2 max-h-72 max-w-full rounded-md border border-border/60 object-contain shadow-sm"
           draggable="false"
         />
+      </div>
+    </div>    
+
+    <div
+      id="file-search-sidebar"
+      class="absolute inset-y-0 right-0 z-10 flex w-[286px] flex-col overflow-hidden p-2 transition-all duration-300 ease-out"
+      :class="
+        sidebarCollapsed
+          ? 'pointer-events-none translate-x-full opacity-0'
+          : 'pointer-events-auto translate-x-0 opacity-100'
+      "
+    >    
+      <div
+        class="border border-border text-foreground flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg bg-sidebar"
+      >      
+        
+          <div
+            data-testid="file-search-header"
+            class="shrink-0 flex flex-col gap-1 p-1"
+          >
+            <div class="relative min-w-0">
+              <Search
+                class="pointer-events-none absolute top-1/2 left-2.5 h-3.5 w-3.5 -translate-y-1/2"
+              />
+              <Input
+                id="file-search"
+                ref="searchInput"
+                v-model="query"
+                data-testid="file-search-input"
+                type="text"
+                :placeholder="searchPlaceholder"
+                class="h-8 min-w-0 w-full rounded-md bg-background border border-input py-1 pr-2 pl-8 text-xs font-normal focus-visible:ring-2"
+                :disabled="!hasWorkspace"
+              />
+            </div>
+            <div
+              class="flex flex-nowrap items-center gap-0.5 overflow-x-auto rounded-md border border-border/70 bg-background [scrollbar-width:thin]"
+              role="group"
+              aria-label="Search scope and file explorer actions"
+            >
+              <PillTabs
+                data-testid="file-search-scope"
+                :model-value="searchMode"
+                size="xs"
+                aria-label="Search scope"
+                :tabs="searchModeTabs"
+                @update:model-value="onSearchModeRequest"
+              />
+              <span
+                class="mx-0.5 h-4 w-px shrink-0 self-center bg-border/70"
+                aria-hidden="true"
+              />
+              <div
+                class="ml-auto flex shrink-0 items-center gap-0.5 pl-0.5"
+                role="toolbar"
+                aria-label="File explorer actions"
+              >
+                <Button
+                  data-testid="refresh-file-explorer"
+                  variant="ghost"
+                  size="icon-xs"
+                  class="size-7 shrink-0"
+                  :disabled="!hasWorkspace || isSearching"
+                  :title="'Refresh file explorer'"
+                  @click="loadFileSummaries"
+                >
+                  <RefreshCw class="h-3.5 w-3.5" aria-hidden="true" />
+                  <span class="sr-only">Refresh file explorer</span>
+                </Button>
+                <Button
+                  data-testid="add-file"
+                  variant="ghost"
+                  size="icon-xs"
+                  class="size-7 shrink-0"
+                  :disabled="!hasWorkspace"
+                  :title="'Add file'"
+                  @click="handleAddFile()"
+                >
+                  <FilePlus class="h-3.5 w-3.5" aria-hidden="true" />
+                  <span class="sr-only">Add file</span>
+                </Button>
+                <Button
+                  data-testid="add-folder"
+                  variant="ghost"
+                  size="icon-xs"
+                  class="size-7 shrink-0"
+                  :disabled="!hasWorkspace"
+                  :title="'Add folder'"
+                  @click="handleAddFolder()"
+                >
+                  <FolderPlus class="h-3.5 w-3.5" aria-hidden="true" />
+                  <span class="sr-only">Add folder</span>
+                </Button>
+                <Button
+                  data-testid="file-search-sidebar-collapse"
+                  variant="ghost"
+                  size="icon-xs"
+                  class="size-7 shrink-0"åå
+                  :title="'Hide file explorer'"
+                  @click="collapseSidebar()"
+                >
+                  <PanelLeftOpen class="h-3.5 w-3.5" aria-hidden="true" />
+                  <span class="sr-only">Hide file explorer</span>
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          <div class="min-h-0 min-w-0 flex-1">
+            <ContextMenu>
+              <ContextMenuTrigger as-child>
+                <div
+                  data-testid="file-tree-scroll"
+                  class="min-h-0 h-full min-w-0 overflow-x-auto overflow-y-auto px-2 py-2 [scrollbar-width:thin]"
+                >
+                  <p v-if="!hasWorkspace" class="px-1.5 py-2 text-xs text-muted-foreground">
+                    Open a workspace to search and edit files.
+                  </p>
+                  <p v-else-if="isSearching" class="px-1.5 py-2 text-xs text-muted-foreground">
+                    Loading files…
+                  </p>
+                  <p v-else-if="error" class="px-1.5 py-2 text-xs text-destructive">
+                    {{ error }}
+                  </p>
+                  <p
+                    v-else-if="debouncedQuery.trim() && contentSearchError"
+                    class="px-1.5 py-2 text-xs text-destructive"
+                  >
+                    {{ contentSearchError }}
+                  </p>
+                  <p
+                    v-else-if="
+                      debouncedQuery.trim() && isContentSearching && visibleTree.length === 0
+                    "
+                    class="px-1.5 py-2 text-xs text-muted-foreground"
+                  >
+                    Searching file contents…
+                  </p>
+                  <p
+                    v-else-if="visibleTree.length === 0"
+                    class="px-1.5 py-2 text-xs text-muted-foreground"
+                  >
+                    No matching files.
+                  </p>
+                  <ul v-else class="space-y-0.5 text-xs">
+                    <FileTreeNode
+                      v-for="node in visibleTree"
+                      :key="node.path"
+                      :node="node"
+                      :selected-path="selectedPath"
+                      :expanded-folders="expandedFolders"
+                      @toggle-folder="handleToggleFolder"
+                      @select-file="handleSelectFile"
+                      @add-file="onCtxAddFile"
+                      @add-folder="onCtxAddFolder"
+                      @delete-folder="onCtxDeleteFolder"
+                      @delete-file="onCtxDeleteFile"
+                      @queue-for-agent="onQueueTreeItemForAgent"
+                    />
+                  </ul>
+                </div>
+              </ContextMenuTrigger>
+              <ContextMenuContent data-testid="file-tree-context-menu" class="min-w-[11rem]">
+                <ContextMenuItem data-testid="ctx-add-file" class="text-xs" @select="onCtxAddFile()">
+                  Add file…
+                </ContextMenuItem>
+                <ContextMenuItem data-testid="ctx-add-folder" class="text-xs" @select="onCtxAddFolder()">
+                  Add folder…
+                </ContextMenuItem>
+              </ContextMenuContent>
+            </ContextMenu>
+          </div>        
       </div>
     </div>
 
@@ -1847,7 +2045,7 @@ defineExpose({
               type="text"
               autocomplete="off"
               spellcheck="false"
-              class="h-9 w-full rounded-md bg-background px-2.5 text-xs focus-visible:ring-2"
+              class="h-9 w-full rounded-md  px-2.5 text-xs focus-visible:ring-2"
               :placeholder="
                 newEntryDialogKind === 'folder'
                   ? 'e.g. src/components/MyFolder'

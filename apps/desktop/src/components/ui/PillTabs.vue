@@ -27,9 +27,13 @@ const props = withDefaults(
     ariaLabel?: string;
     /** Larger values increase hit area and label size (default matches previous fixed `xs` look). */
     size?: PillTabSize;
+    /** Full-width segmented control (e.g. sidebar center panel). */
+    variant?: "default" | "segmented";
   }>(),
-  { ariaLabel: "Tabs", size: "xs" }
+  { ariaLabel: "Tabs", size: "xs", variant: "default" }
 );
+
+const isSegmented = computed(() => props.variant === "segmented");
 
 /**
  * Dense pill triggers (narrower than generic `Button` sizes) so tab strips fit toolbars.
@@ -96,11 +100,47 @@ function onTabKeydown(event: KeyboardEvent, index: number) {
 
 <template>
   <div
+    v-if="isSegmented"
+    role="tablist"
+    data-slot="button-group"
+    :aria-label="ariaLabel"
+    class="flex w-full min-w-0 select-none"
+  >
+    <template v-for="(tab, index) in tabs" :key="tab.value">
+      <Tooltip :delay-duration="400">
+        <TooltipTrigger as-child>
+          <button
+            type="button"
+            role="tab"
+            :aria-selected="modelValue === tab.value"
+            :tabindex="modelValue === tab.value ? 0 : -1"
+            class="min-w-0 cursor-pointer flex-1 rounded-sm min-h-6 text-center leading-tight font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 text-[10px]"
+            :class="
+              modelValue === tab.value
+                ? 'bg-card border shadow-xs text-foreground'
+                : 'border border-transparent text-muted-foreground hover:bg-accent hover:text-foreground'
+            "
+            @click="select(tab.value)"
+            @keydown="onTabKeydown($event, index)"
+          >
+            <span class="flex min-w-0 flex-col items-center justify-center gap-0.5">
+              <span class="min-w-0 truncate">{{ tab.label }}</span>
+            </span>
+          </button>
+        </TooltipTrigger>
+        <TooltipContent v-if="tab.shortcutHint" side="bottom">
+          {{ tab.shortcutHint }}
+        </TooltipContent>
+      </Tooltip>
+    </template>
+  </div>
+  <div
+    v-else
     role="tablist"
     data-slot="button-group"
     :aria-label="ariaLabel"
     :class="[
-      'flex min-w-0 max-w-full flex-nowrap select-none items-center gap-0.5 overflow-x-auto overflow-y-hidden px-1 [scrollbar-width:thin]',
+      'flex min-w-0 max-w-full shadow-xs flex-nowrap select-none items-center gap-0.5 overflow-x-auto overflow-y-hidden px-1 [scrollbar-width:thin]',
       tablistPaddingClass
     ]"
   >

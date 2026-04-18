@@ -70,10 +70,10 @@ vi.mock("@/components/MonacoDiffEditor.vue", () => ({
 }));
 vi.mock("@/components/ui/PillTabs.vue", () => ({
   default: {
-    props: ["modelValue", "tabs"],
+    props: ["modelValue", "tabs", "variant"],
     emits: ["update:modelValue"],
     template: `
-      <div>
+      <div aria-label="Center panel">
         <button
           v-for="tab in tabs"
           :key="tab.value"
@@ -87,7 +87,10 @@ vi.mock("@/components/ui/PillTabs.vue", () => ({
   }
 }));
 vi.mock("@/components/ui/Button.vue", () => ({
-  default: { template: "<button><slot /></button>" }
+  default: {
+    emits: ["click"],
+    template: '<button v-bind="$attrs" @click="$emit(\'click\', $event)"><slot /></button>'
+  }
 }));
 vi.mock("@/components/ui/tooltip", () => ({
   Tooltip: { name: "Tooltip", template: "<div><slot /></div>" },
@@ -129,8 +132,17 @@ vi.mock("@/components/ThreadInlinePromptEditor.vue", () => ({
 }));
 vi.mock("@/components/ThreadSidebar.vue", () => ({
   default: {
-    props: ["threads", "inlinePromptThreadId"],
-    emits: ["select", "reorder", "rename"],
+    props: [
+      "threads",
+      "inlinePromptThreadId",
+      "projects",
+      "activeProjectId",
+      "contextLabel",
+      "scmCurrentBranch",
+      "centerPanelTabs",
+      "centerPanelTab"
+    ],
+    emits: ["select", "reorder", "rename", "selectProject", "removeProject", "update:centerPanelTab"],
     computed: {
       titles(): string {
         return this.threads.map((t: { title: string }) => t.title).join("|");
@@ -141,6 +153,44 @@ vi.mock("@/components/ThreadSidebar.vue", () => ({
     },
     template: `
       <div>
+        <button
+          type="button"
+          data-testid="project-switcher-trigger"
+          @click="$emit('selectProject', activeProjectId || (projects && projects[0] && projects[0].id))"
+        />
+        <button
+          v-for="project in projects || []"
+          :key="project.id"
+          type="button"
+          :data-project-id="project.id"
+          @click="$emit('selectProject', project.id)"
+        >
+          {{ project.name }}
+        </button>
+        <button
+          v-for="project in projects || []"
+          :key="'remove-' + project.id"
+          type="button"
+          :data-remove-project-id="project.id"
+          @click="$emit('removeProject', project.id)"
+        >
+          remove {{ project.name }}
+        </button>
+        <button
+          type="button"
+          :aria-label="'Current branch: ' + (scmCurrentBranch || 'main') + '. Open branch switcher.'"
+        />
+        <div aria-label="Center panel">
+          <button
+            v-for="tab in centerPanelTabs || []"
+            :key="tab.value"
+            type="button"
+            @click="$emit('update:centerPanelTab', tab.value)"
+          >
+            {{ tab.label }}
+          </button>
+        </div>
+        <span v-if="contextLabel" data-testid="thread-sidebar-context-label">{{ contextLabel }}</span>
         <div data-testid="thread-sidebar">{{ titles }}</div>
         <div data-testid="thread-sidebar-agents">{{ agents }}</div>
         <div data-testid="thread-sidebar-inline-prompt-thread-id">{{ inlinePromptThreadId ?? "" }}</div>
@@ -325,6 +375,8 @@ function makeMultiWorktreeSnapshot(): WorkspaceSnapshot {
 
 describe("WorkspaceLayout", () => {
   beforeEach(() => {
+    /** Collapsed thread rail so center `PillTabs` render in the main column (matches tests’ queries). */
+    localStorage.setItem("instrument.threadsSidebarCollapsed", "1");
     mockFileSearchConfirmContextSwitch.mockReset();
     mockFileSearchConfirmContextSwitch.mockResolvedValue(true);
     llmMocks.generateThreadTitle.mockReset();
@@ -334,6 +386,69 @@ describe("WorkspaceLayout", () => {
   afterEach(() => {
     delete window.workspaceApi;
     localStorage.clear();
+  });
+
+  it("shows a fixed restore button when the thread sidebar is collapsed", async () => {
+    const { default: WorkspaceLayout } = await import("../WorkspaceLayout.vue");
+
+    window.workspaceApi = {
+      getSnapshot: vi.fn<WorkspaceApi["getSnapshot"]>().mockResolvedValue(makeSnapshot("Codex CLI")),
+      changedFiles: vi.fn<WorkspaceApi["changedFiles"]>().mockResolvedValue([]),
+      isGitRepository: vi.fn<NonNullable<WorkspaceApi["isGitRepository"]>>().mockResolvedValue(true),
+      addProject: vi.fn(),
+      addWorktree: vi.fn(),
+      setActive: vi.fn(),
+      createThread: vi.fn(),
+      setActiveThread: vi.fn(),
+      deleteThread: vi.fn(),
+      renameThread: vi.fn(),
+      startRun: vi.fn(),
+      sendRunInput: vi.fn(),
+      interruptRun: vi.fn(),
+      fileDiff: vi.fn(),
+      fileMergeSides: vi.fn().mockResolvedValue({
+        kind: "ok" as const,
+        original: "",
+        modified: "",
+        originalLabel: "HEAD",
+        modifiedLabel: "Staged"
+      }),
+      stageAll: vi.fn(),
+      discardAll: vi.fn(),
+      listFiles: vi.fn(),
+      searchFiles: vi.fn(),
+      readFile: vi.fn(),
+      writeFile: vi.fn(),
+      createFile: vi.fn(),
+      deleteFile: vi.fn(),
+      createFolder: vi.fn(),
+      deleteFolder: vi.fn(),
+      applyPatch: vi.fn(),
+      ptyCreate: vi.fn().mockResolvedValue({ buffer: "" }),
+      ptyWrite: vi.fn(),
+      ptyResize: vi.fn(),
+      ptyKill: vi.fn(),
+      onPtyData: vi.fn(() => () => {}),
+      pickRepoDirectory: vi.fn(),
+      onWorkspaceChanged: vi.fn(() => () => {}),
+      onWorkingTreeFilesChanged: vi.fn(() => () => {})
+    };
+
+    const wrapper = mount(WorkspaceLayout, {
+      global: {
+        plugins: [createPinia()]
+      }
+    });
+
+    await flushPromises();
+
+    expect(wrapper.find('[data-testid="thread-sidebar-expand-fixed"]').exists()).toBe(true);
+
+    await wrapper.get('[data-testid="thread-sidebar-expand-fixed"]').trigger("click");
+    await flushPromises();
+
+    expect(wrapper.find('[data-testid="thread-sidebar-expand-fixed"]').exists()).toBe(false);
+    expect(localStorage.getItem("instrument.threadsSidebarCollapsed")).toBe("0");
   });
 
   it(

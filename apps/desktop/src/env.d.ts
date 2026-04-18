@@ -4,6 +4,7 @@ import type {
   FileDiffScope,
   FileMergeSidesResult,
   FileSummary,
+  WorktreeEditorState,
   PreviewProbeResult,
   RepoScmSnapshot,
   RepoStatusEntry,
@@ -23,6 +24,12 @@ interface WorkspaceApi {
   reorderProjects?: (payload: { orderedProjectIds: string[] }) => Promise<void>;
   addWorktree: (payload: unknown) => Promise<unknown>;
   setActive: (payload: { projectId: string | null; worktreeId: string | null; threadId: string | null }) => Promise<void>;
+  getWorktreeEditorState?: (worktreeId: string) => Promise<WorktreeEditorState | null>;
+  setWorktreeEditorState?: (payload: {
+    worktreeId: string;
+    selectedFilePath: string | null;
+    openFilePaths: string[];
+  }) => Promise<void>;
   createThread: (payload: unknown) => Promise<unknown>;
   setActiveThread: (threadId: string) => Promise<unknown>;
   deleteThread: (payload: { threadId: string }) => Promise<void>;

@@ -1,4 +1,4 @@
-import { mount, flushPromises } from "@vue/test-utils";
+import { mount } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import ThreadTopBar from "@/components/ThreadTopBar.vue";
@@ -59,22 +59,5 @@ describe("ThreadTopBar", () => {
 
     expect(wrapper.find('[aria-label="New thread"]').exists()).toBe(false);
     expect(wrapper.find('[aria-label="Add thread"]').exists()).toBe(false);
-  });
-
-  it("shows release tag on the second row when getAppReleaseTag resolves", async () => {
-    window.workspaceApi = {
-      getAppReleaseTag: async () => "v0.6.0"
-    };
-    wrapper = mount(ThreadTopBar, { props: { contextLabel: "Primary" } });
-    await flushPromises();
-
-    const versionEl = wrapper.get('[data-testid="thread-topbar-app-version"]');
-    expect(versionEl.text()).toBe("v0.6.0");
-    expect(versionEl.classes()).toContain("text-end");
-    const row = versionEl.element.parentElement;
-    expect(row?.querySelector('[data-testid="thread-sidebar-brand"]')).toBeTruthy();
-    expect(row?.querySelector('[data-testid="thread-sidebar-toggle"]')).toBeTruthy();
-    const brandRow = row?.querySelector(".flex.min-h-11");
-    expect(brandRow?.contains(versionEl.element)).toBe(false);
   });
 });

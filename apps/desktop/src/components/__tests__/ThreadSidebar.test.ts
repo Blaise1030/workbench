@@ -1,11 +1,11 @@
-import { mount } from "@vue/test-utils";
+import { flushPromises, mount } from "@vue/test-utils";
 import type { ComponentMountingOptions } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
 import { defineComponent, h, nextTick, type PropType } from "vue";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import ThreadSidebar from "@/components/ThreadSidebar.vue";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import type { RunStatus, Thread, Worktree } from "@shared/domain";
+import type { Project, RunStatus, Thread, Worktree } from "@shared/domain";
 import type { WorkspaceThreadContext } from "@/stores/workspaceStore";
 
 async function hoverFirstThreadRow(wrapper: ReturnType<typeof mountThreadSidebar>): Promise<void> {
@@ -33,7 +33,10 @@ const ThreadSidebarTestHost = defineComponent({
       default: () => new Set<string>()
     },
     showBranchPicker: { type: Boolean, default: false },
-    projectId: { type: String as PropType<string | null>, default: null }
+    projectId: { type: String as PropType<string | null>, default: null },
+    centerPanelTab: { type: String, default: "agent" },
+    projects: { type: Array as PropType<Project[]>, default: () => [] },
+    showTerminalSidebarButton: { type: Boolean, default: true }
   },
   emits: [
     "select",
@@ -45,7 +48,9 @@ const ThreadSidebarTestHost = defineComponent({
     "showBranchPicker",
     "deleteWorktreeGroup",
     "collapse",
-    "expand"
+    "expand",
+    "update:centerPanelTab",
+    "openTerminalPanel"
   ],
   setup(props, { emit }) {
     return () =>
@@ -64,6 +69,10 @@ const ThreadSidebarTestHost = defineComponent({
             staleWorktreeIds: props.staleWorktreeIds,
             showBranchPicker: props.showBranchPicker,
             projectId: props.projectId,
+            centerPanelTab: props.centerPanelTab,
+            projects: props.projects,
+            showTerminalSidebarButton: props.showTerminalSidebarButton,
+            "onUpdate:centerPanelTab": (v: string) => emit("update:centerPanelTab", v),
             onSelect: (threadId: string) => emit("select", threadId),
             onRemove: (threadId: string) => emit("remove", threadId),
             onRename: (threadId: string, newTitle: string) => emit("rename", threadId, newTitle),
@@ -74,7 +83,8 @@ const ThreadSidebarTestHost = defineComponent({
             onShowBranchPicker: () => emit("showBranchPicker"),
             onDeleteWorktreeGroup: (worktreeId: string) => emit("deleteWorktreeGroup", worktreeId),
             onCollapse: () => emit("collapse"),
-            onExpand: () => emit("expand")
+            onExpand: () => emit("expand"),
+            onOpenTerminalPanel: () => emit("openTerminalPanel")
           })
       });
   }
@@ -86,13 +96,19 @@ function mountThreadSidebar(options?: ComponentMountingOptions<typeof ThreadSide
 
 describe("ThreadSidebar", () => {
   let wrapper: ReturnType<typeof mountThreadSidebar>;
+  const prevWorkspaceApi = window.workspaceApi;
 
   beforeEach(() => {
     setActivePinia(createPinia());
+    window.workspaceApi = {
+      getAppReleaseTag: async () => null,
+      getAppUpdateAvailability: async () => null
+    } as WorkspaceApi;
   });
 
   afterEach(() => {
     wrapper?.unmount();
+    window.workspaceApi = prevWorkspaceApi;
   });
 
   const threads: Thread[] = [
@@ -150,7 +166,20 @@ describe("ThreadSidebar", () => {
     });
 
     expect(wrapper.get("aside").attributes("data-thread-sidebar-collapsed")).toBe("true");
-    expect(wrapper.get("aside").classes()).toContain("hidden");
+    expect(wrapper.get("aside").classes()).toContain("w-0");
+  });
+
+  it("renders ThreadTopBar inside the sidebar", () => {
+    wrapper = mountThreadSidebar({
+      props: {
+        threads,
+        activeThreadId: "t1",
+        contextLabel: "Primary"
+      }
+    });
+
+    expect(wrapper.find('[data-testid="thread-sidebar-brand"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="thread-sidebar-toggle"]').exists()).toBe(true);
   });
 
   it("renders a primary fallback group without a default worktree id", async () => {
@@ -166,33 +195,6 @@ describe("ThreadSidebar", () => {
 
     expect(wrapper.find('[data-thread-group-id="__sidebar-primary__"]').exists()).toBe(true);
     expect(wrapper.findAll('[data-testid="thread-row"]')).toHaveLength(3);
-  });
-
-  it("renders the expand toggle in the top bar when collapsed", async () => {
-    wrapper = mountThreadSidebar( {
-      props: {
-        threads: threeThreadsNewestFirst,
-        activeThreadId: "t1",
-        collapsed: true
-      }
-    });
-
-    await wrapper.get('[aria-label="Expand threads sidebar"]').trigger("click");
-
-    expect(wrapper.emitted("expand")).toEqual([[]]);
-  });
-
-  it("renders the collapse toggle in the top bar when expanded", async () => {
-    wrapper = mountThreadSidebar( {
-      props: {
-        threads: threeThreadsNewestFirst,
-        activeThreadId: "t1"
-      }
-    });
-
-    await wrapper.get('[aria-label="Collapse threads sidebar"]').trigger("click");
-
-    expect(wrapper.emitted("collapse")).toEqual([[]]);
   });
 
   it("shows a simple top-aligned no-threads label when empty", () => {
@@ -286,6 +288,98 @@ describe("ThreadSidebar", () => {
     expect(wrapper.find('[aria-label="Add thread to feat/auth"]').exists()).toBe(true);
   });
 
+  it("renders the add-worktree control between primary and worktree groups", () => {
+    const defaultWorktree: Worktree = {
+      id: "w-default",
+      projectId: "p1",
+      name: "main",
+      branch: "main",
+      path: "/tmp/repo",
+      isActive: true,
+      isDefault: true,
+      baseBranch: null,
+      lastActiveThreadId: "t1",
+      createdAt: "2026-04-07T00:00:00Z",
+      updatedAt: "2026-04-07T00:00:00Z"
+    };
+    const linkedWorktree: Worktree = {
+      id: "w-feat",
+      projectId: "p1",
+      name: "feat/auth",
+      branch: "feat/auth",
+      path: "/tmp/.worktrees/feat-auth",
+      isActive: false,
+      isDefault: false,
+      baseBranch: "main",
+      lastActiveThreadId: "t2",
+      createdAt: "2026-04-07T00:00:00Z",
+      updatedAt: "2026-04-07T00:00:00Z"
+    };
+
+    wrapper = mountThreadSidebar({
+      props: {
+        threads: [
+          {
+            id: "t1",
+            projectId: "p1",
+            worktreeId: "w-default",
+            title: "Primary thread",
+            agent: "codex",
+            createdAt: "2026-04-07T00:01:00Z",
+            updatedAt: "2026-04-07T00:01:00Z"
+          },
+          {
+            id: "t2",
+            projectId: "p1",
+            worktreeId: "w-feat",
+            title: "Grouped thread",
+            agent: "claude",
+            createdAt: "2026-04-07T00:02:00Z",
+            updatedAt: "2026-04-07T00:02:00Z"
+          }
+        ],
+        activeThreadId: "t1",
+        projectId: "p1",
+        defaultWorktreeId: "w-default",
+        threadContexts: [
+          makeThreadContext(defaultWorktree, [
+            {
+              id: "t1",
+              projectId: "p1",
+              worktreeId: "w-default",
+              title: "Primary thread",
+              agent: "codex",
+              createdAt: "2026-04-07T00:01:00Z",
+              updatedAt: "2026-04-07T00:01:00Z"
+            }
+          ]),
+          makeThreadContext(linkedWorktree, [
+            {
+              id: "t2",
+              projectId: "p1",
+              worktreeId: "w-feat",
+              title: "Grouped thread",
+              agent: "claude",
+              createdAt: "2026-04-07T00:02:00Z",
+              updatedAt: "2026-04-07T00:02:00Z"
+            }
+          ])
+        ]
+      }
+    });
+
+    const listChildren = wrapper
+      .get("ul.min-w-0.space-y-2.px-1\\.5")
+      .findAll(":scope > li")
+      .map((node) =>
+        node.attributes("data-testid") === "thread-sidebar-worktree-insert"
+          ? "insert"
+          : node.find('[data-testid="thread-group-header"]').attributes("data-thread-group-id")
+      );
+
+    expect(listChildren).toEqual(["w-default", "insert", "w-feat"]);
+  });
+
   it("renders a labeled add-worktree button in the footer when expanded", () => {
     wrapper = mountThreadSidebar( {
       props: {
@@ -309,11 +403,62 @@ describe("ThreadSidebar", () => {
 
     const button = wrapper.get('[aria-label="Add worktree"]');
     expect(button.attributes("data-size")).toBe("xs");
-    expect(button.classes()).toContain("self-center");
     expect(button.classes()).toContain("rounded-md");
+    expect(wrapper.find('[data-testid="thread-sidebar-footer-terminal"]').exists()).toBe(true);
   });
 
-  it("renders an icon-only add-worktree button in the footer when collapsed", () => {
+  it("shows the footer release tag when there is no update available", async () => {
+    window.workspaceApi = {
+      getAppReleaseTag: async () => "v0.6.0",
+      getAppUpdateAvailability: async () => null
+    };
+
+    wrapper = mountThreadSidebar({
+      props: {
+        threads,
+        activeThreadId: "t1",
+        projects: [{ id: "p1", name: "Project 1", repoPath: "/tmp/project", createdAt: "", updatedAt: "" }],
+        activeProjectId: "p1"
+      }
+    });
+
+    await flushPromises();
+    await nextTick();
+
+    expect(wrapper.find('[data-testid="thread-sidebar-footer-release-tag"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="project-tabs-update-trigger"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="project-tabs-update-popup"]').exists()).toBe(true);
+  });
+
+  it("shows the update button instead of the release tag when an update is available", async () => {
+    window.workspaceApi = {
+      getAppReleaseTag: async () => "v0.6.0",
+      getAppUpdateAvailability: async () => ({
+        currentVersion: "0.5.0",
+        latestVersion: "0.6.0",
+        compareUrl: "https://example.com/compare",
+        releasePageUrl: "https://example.com/release"
+      })
+    };
+
+    wrapper = mountThreadSidebar({
+      props: {
+        threads,
+        activeThreadId: "t1",
+        projects: [{ id: "p1", name: "Project 1", repoPath: "/tmp/project", createdAt: "", updatedAt: "" }],
+        activeProjectId: "p1"
+      }
+    });
+
+    await flushPromises();
+    await nextTick();
+
+    expect(wrapper.find('[data-testid="thread-sidebar-footer-release-tag"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="project-tabs-update-trigger"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="project-tabs-update-popup"]').exists()).toBe(true);
+  });
+
+  it("hides the footer add-worktree button when collapsed", () => {
     wrapper = mountThreadSidebar( {
       props: {
         threads,
@@ -323,10 +468,10 @@ describe("ThreadSidebar", () => {
       }
     });
 
-    expect(wrapper.get('[aria-label="Add worktree"]').text()).toBe("");
+    expect(wrapper.find('[aria-label="Add worktree"]').exists()).toBe(false);
   });
 
-  it("emits showBranchPicker when add worktree is clicked and cancelBranchPicker when cancel", async () => {
+  it("emits showBranchPicker when add worktree is clicked and cancelBranchPicker when the popover closes", async () => {
     wrapper = mountThreadSidebar( {
       props: {
         threads,
@@ -342,12 +487,12 @@ describe("ThreadSidebar", () => {
     wrapper.setProps({ showBranchPicker: true });
     await nextTick();
 
-    await wrapper.get('[aria-label="Cancel add worktree"]').trigger("click");
+    await wrapper.getComponent({ name: "Popover" }).vm.$emit("update:open", false);
     await nextTick();
     expect(wrapper.emitted("cancelBranchPicker")).toEqual([[]]);
   });
 
-  it("expands the sidebar before showing worktree form when collapsed footer button is clicked", async () => {
+  it("does not render the footer worktree toggle while the sidebar is collapsed", () => {
     wrapper = mountThreadSidebar( {
       props: {
         threads,
@@ -357,14 +502,12 @@ describe("ThreadSidebar", () => {
       }
     });
 
-    await wrapper.get('[data-testid="thread-sidebar-footer-worktree-toggle"]').trigger("click");
-
-    expect(wrapper.emitted("expand")).toEqual([[]]);
-    expect(wrapper.emitted("showBranchPicker")).toEqual([[]]);
+    expect(wrapper.find('[data-testid="thread-sidebar-footer-worktree-toggle"]').exists()).toBe(false);
   });
 
-  it("shows only one cancel control when the footer branch picker is open", () => {
+  it("renders the branch picker inside a popover when the footer control is open", () => {
     wrapper = mountThreadSidebar( {
+      attachTo: document.body,
       props: {
         threads,
         activeThreadId: "t1",
@@ -373,7 +516,8 @@ describe("ThreadSidebar", () => {
       }
     });
 
-    expect(wrapper.findAll("button").filter((node) => node.text().trim() === "Cancel")).toHaveLength(1);
+    expect(wrapper.getComponent({ name: "Popover" }).props("open")).toBe(true);
+    expect(wrapper.text()).toContain("Add worktree");
   });
 
   it("emits remove with threadId when a ThreadRow archive is confirmed in the window", async () => {
@@ -463,6 +607,18 @@ describe("ThreadSidebar", () => {
       props: {
         threads: [onBranch, offBranch],
         activeThreadId: "t-match",
+        projects: [
+          {
+            id: "p1",
+            name: "Project",
+            repoPath: "/tmp/project",
+            status: "idle",
+            tabOrder: 0,
+            createdAt: "2026-04-07T00:00:00Z",
+            updatedAt: "2026-04-07T00:00:00Z"
+          }
+        ],
+        activeProjectId: "p1",
         threadContexts: [
           makeThreadContext(defaultWorktree, []),
           makeThreadContext(linkedWorktree, [onBranch, offBranch])
@@ -556,13 +712,13 @@ describe("ThreadSidebar", () => {
     expect(wrapper.get('[data-thread-group-id="w-feat"]').text()).toContain("feat/auth");
     expect(
       wrapper.findAll('[data-testid="thread-group-header"]').map((node) => node.attributes("aria-expanded"))
-    ).toEqual(["true", "false"]);
+    ).toEqual(["true", "true"]);
     expect(wrapper.find('[data-testid="thread-group-threads-w-default"]').isVisible()).toBe(true);
-    expect(wrapper.find('[data-testid="thread-group-threads-w-feat"]').isVisible()).toBe(false);
+    expect(wrapper.find('[data-testid="thread-group-threads-w-feat"]').isVisible()).toBe(true);
     expect(wrapper.findAll('[data-testid="thread-row"]')).toHaveLength(2);
   });
 
-  it("expands the active linked context by default and collapses primary when inactive", () => {
+  it("starts with all context groups expanded regardless of active thread", () => {
     const primaryThread: Thread = {
       id: "t1",
       projectId: "p1",
@@ -621,9 +777,9 @@ describe("ThreadSidebar", () => {
       }
     });
 
-    expect(wrapper.get('[data-thread-group-id="w-default"]').attributes("aria-expanded")).toBe("false");
+    expect(wrapper.get('[data-thread-group-id="w-default"]').attributes("aria-expanded")).toBe("true");
     expect(wrapper.get('[data-thread-group-id="w-feat"]').attributes("aria-expanded")).toBe("true");
-    expect(wrapper.find('[data-testid="thread-group-threads-w-default"]').isVisible()).toBe(false);
+    expect(wrapper.find('[data-testid="thread-group-threads-w-default"]').isVisible()).toBe(true);
     expect(wrapper.find('[data-testid="thread-group-threads-w-feat"]').isVisible()).toBe(true);
   });
 
@@ -694,7 +850,7 @@ describe("ThreadSidebar", () => {
     expect(wrapper.emitted("select")).toEqual([["t2"]]);
   });
 
-  it("expands the newly active context when the active thread changes", async () => {
+  it("does not expand a context group when the active thread moves into it if the user collapsed it", async () => {
     const defaultWorktree: Worktree = {
       id: "w-default",
       projectId: "p1",
@@ -753,6 +909,9 @@ describe("ThreadSidebar", () => {
       }
     });
 
+    expect(wrapper.get('[data-thread-group-id="w-feat"]').attributes("aria-expanded")).toBe("true");
+
+    await wrapper.get('[data-thread-group-id="w-feat"]').trigger("click");
     expect(wrapper.get('[data-thread-group-id="w-feat"]').attributes("aria-expanded")).toBe("false");
 
     await wrapper.setProps({
@@ -763,8 +922,8 @@ describe("ThreadSidebar", () => {
       ]
     });
 
-    expect(wrapper.get('[data-thread-group-id="w-feat"]').attributes("aria-expanded")).toBe("true");
-    expect(wrapper.find('[data-testid="thread-group-threads-w-feat"]').isVisible()).toBe(true);
+    expect(wrapper.get('[data-thread-group-id="w-feat"]').attributes("aria-expanded")).toBe("false");
+    expect(wrapper.find('[data-testid="thread-group-threads-w-feat"]').isVisible()).toBe(false);
   });
 
   it("renders grouped threadContexts in the order supplied (newest-first from the store)", () => {
@@ -1004,7 +1163,7 @@ describe("ThreadSidebar", () => {
       expect.stringContaining("w-untracked")
     ]);
     expect(wrapper.text()).toContain("Recovered fallback thread");
-    expect(wrapper.find('[data-testid="thread-group-threads-w-untracked"]').isVisible()).toBe(false);
+    expect(wrapper.find('[data-testid="thread-group-threads-w-untracked"]').isVisible()).toBe(true);
   });
 
   it("renders fallback Primary first when threadContexts omits the default context", () => {
@@ -1116,10 +1275,10 @@ describe("ThreadSidebar", () => {
       }
     });
 
-    expect(wrapper.get('[data-thread-group-id="w-feat"]').attributes("aria-expanded")).toBe("false");
+    expect(wrapper.get('[data-thread-group-id="w-feat"]').attributes("aria-expanded")).toBe("true");
 
     await wrapper.get('[data-thread-group-id="w-feat"]').trigger("click");
-    expect(wrapper.get('[data-thread-group-id="w-feat"]').attributes("aria-expanded")).toBe("true");
+    expect(wrapper.get('[data-thread-group-id="w-feat"]').attributes("aria-expanded")).toBe("false");
 
     await wrapper.setProps({
       threads: [primaryThread],
@@ -1136,11 +1295,11 @@ describe("ThreadSidebar", () => {
       ]
     });
 
-    expect(wrapper.get('[data-thread-group-id="w-feat"]').attributes("aria-expanded")).toBe("true");
-    expect(wrapper.find('[data-testid="thread-group-threads-w-feat"]').isVisible()).toBe(true);
+    expect(wrapper.get('[data-thread-group-id="w-feat"]').attributes("aria-expanded")).toBe("false");
+    expect(wrapper.find('[data-testid="thread-group-threads-w-feat"]').isVisible()).toBe(false);
   });
 
-  it("keeps manual collapse preference while active and restores it once inactive again", async () => {
+  it("keeps manual collapse when the active thread is in that group and after switching away", async () => {
     const defaultWorktree: Worktree = {
       id: "w-default",
       projectId: "p1",
@@ -1199,9 +1358,6 @@ describe("ThreadSidebar", () => {
       }
     });
 
-    expect(wrapper.get('[data-thread-group-id="w-feat"]').attributes("aria-expanded")).toBe("false");
-
-    await wrapper.get('[data-thread-group-id="w-feat"]').trigger("click");
     expect(wrapper.get('[data-thread-group-id="w-feat"]').attributes("aria-expanded")).toBe("true");
 
     await wrapper.get('[data-thread-group-id="w-feat"]').trigger("click");
@@ -1215,17 +1371,10 @@ describe("ThreadSidebar", () => {
       ]
     });
 
-    expect(wrapper.get('[data-thread-group-id="w-feat"]').attributes("aria-expanded")).toBe("true");
-
-    await wrapper.setProps({
-      threadContexts: [
-        makeThreadContext(defaultWorktree, [primaryThread]),
-        makeThreadContext(linkedWorktree, [groupedThread])
-      ]
-    });
-
-    expect(wrapper.get('[data-thread-group-id="w-feat"]').attributes("aria-expanded")).toBe("true");
-    expect(wrapper.find('[data-testid="thread-group-threads-w-feat"]').isVisible()).toBe(true);
+    expect(wrapper.get('[data-thread-group-id="w-feat"]').attributes("aria-expanded")).toBe("false");
+    expect(
+      (wrapper.get('[data-testid="thread-group-threads-w-feat"]').element as HTMLElement).style.display
+    ).toBe("none");
 
     await wrapper.setProps({
       activeThreadId: "t1",
@@ -1327,7 +1476,7 @@ describe("ThreadSidebar", () => {
       }
     });
 
-    expect(wrapper.get("aside").classes()).toContain("hidden");
+    expect(wrapper.get("aside").classes()).toContain("w-0");
   });
 
   it("hides stale worktree callouts when the group is collapsed", async () => {
@@ -1364,8 +1513,6 @@ describe("ThreadSidebar", () => {
         staleWorktreeIds: new Set(["w-feat"])
       }
     });
-
-    await wrapper.get('[data-thread-group-id="w-feat"]').trigger("click");
 
     expect(wrapper.text()).toContain("Delete group & threads");
 
@@ -1492,7 +1639,7 @@ describe("ThreadSidebar", () => {
     expect(wrapper.find('[data-testid="thread-group-show-more-w1"]').exists()).toBe(true);
   });
 
-  it("auto-expands the thread list when the active thread is past the 12th row", async () => {
+  it("does not auto-expand the thread list when the active thread is past the 12th row", async () => {
     const manyThreads: Thread[] = Array.from({ length: 13 }, (_, i) => ({
       id: `t${i + 1}`,
       projectId: "p1",
@@ -1512,8 +1659,9 @@ describe("ThreadSidebar", () => {
     });
 
     const list = wrapper.get('[data-testid="thread-group-threads-w1"]');
-    expect(list.findAll('[data-testid="thread-row"]')).toHaveLength(13);
-    expect(wrapper.find('[data-testid="thread-group-show-less-w1"]').exists()).toBe(true);
+    expect(list.findAll('[data-testid="thread-row"]')).toHaveLength(12);
+    expect(wrapper.find('[data-testid="thread-group-show-more-w1"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="thread-group-show-less-w1"]').exists()).toBe(false);
   });
 
 });

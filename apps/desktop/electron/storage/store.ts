@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import Database from "better-sqlite3";
 import type { Project, Thread, ThreadSession, Worktree } from "../../src/shared/domain.js";
-import type { WorkspaceSnapshot } from "../../src/shared/ipc.js";
+import type { WorkspaceSnapshot, WorktreeEditorState } from "../../src/shared/ipc.js";
 
 const DEFAULT_DB_FILE = "workspace.db";
 type DatabaseInstance = import("better-sqlite3").Database;
@@ -130,6 +130,27 @@ export class WorkspaceStore {
       .run();
     this.db
       .prepare("INSERT OR IGNORE INTO app_state (id, active_project_id, active_worktree_id, active_thread_id) VALUES (1, NULL, NULL, NULL)")
+      .run();
+    const hasOpenFilePathsJson = this.db
+      .prepare("SELECT 1 FROM pragma_table_info('worktree_editor_state') WHERE name = 'open_file_paths_json' LIMIT 1")
+      .get();
+    if (!hasOpenFilePathsJson) {
+      this.db.prepare("ALTER TABLE worktree_editor_state ADD COLUMN open_file_paths_json TEXT NOT NULL DEFAULT '[]'").run();
+      this.db
+        .prepare(
+          `UPDATE worktree_editor_state
+           SET open_file_paths_json = CASE
+             WHEN selected_file_path IS NULL OR trim(selected_file_path) = '' THEN '[]'
+             ELSE json_array(selected_file_path)
+           END`
+        )
+        .run();
+    }
+    this.db
+      .prepare(
+        `DELETE FROM worktree_editor_state
+         WHERE worktree_id NOT IN (SELECT id FROM worktrees)`
+      )
       .run();
   }
 
@@ -445,6 +466,75 @@ export class WorkspaceStore {
       )
       .get(id) as ThreadTableRow | undefined;
     return row ? WorkspaceStore.rowToThread(row) : null;
+  }
+
+  getWorktreeEditorState(worktreeId: string): WorktreeEditorState | null {
+    const row = this.db
+      .prepare(
+        `SELECT
+           worktree_id AS worktreeId,
+           selected_file_path AS selectedFilePath,
+           open_file_paths_json AS openFilePathsJson,
+           updated_at AS updatedAt
+         FROM worktree_editor_state
+         WHERE worktree_id = ?`
+      )
+      .get(worktreeId) as
+      | {
+          worktreeId: string;
+          selectedFilePath: string | null;
+          openFilePathsJson: string;
+          updatedAt: string;
+        }
+      | undefined;
+    if (!row) return null;
+    let openFilePaths: string[] = [];
+    try {
+      const parsed = JSON.parse(row.openFilePathsJson) as unknown;
+      if (Array.isArray(parsed)) {
+        openFilePaths = parsed.filter((value): value is string => typeof value === "string" && value.trim().length > 0);
+      }
+    } catch {
+      openFilePaths = [];
+    }
+    if (row.selectedFilePath && !openFilePaths.includes(row.selectedFilePath)) {
+      openFilePaths.unshift(row.selectedFilePath);
+    }
+    return {
+      worktreeId: row.worktreeId,
+      selectedFilePath: row.selectedFilePath,
+      openFilePaths,
+      updatedAt: row.updatedAt
+    };
+  }
+
+  setWorktreeEditorState(worktreeId: string, selectedFilePath: string | null, openFilePaths: string[]): void {
+    const worktreeExists = this.db.prepare("SELECT 1 FROM worktrees WHERE id = ? LIMIT 1").get(worktreeId);
+    if (!worktreeExists) {
+      throw new Error(`Cannot persist editor state for missing worktree ${worktreeId}`);
+    }
+    const normalizedOpenFilePaths = Array.from(
+      new Set(
+        openFilePaths
+          .filter((value): value is string => typeof value === "string")
+          .map((value) => value.trim())
+          .filter((value) => value.length > 0)
+      )
+    );
+    if (selectedFilePath && !normalizedOpenFilePaths.includes(selectedFilePath)) {
+      normalizedOpenFilePaths.unshift(selectedFilePath);
+    }
+    const updatedAt = new Date().toISOString();
+    this.db
+      .prepare(
+        `INSERT INTO worktree_editor_state (worktree_id, selected_file_path, open_file_paths_json, updated_at)
+         VALUES (?, ?, ?, ?)
+         ON CONFLICT(worktree_id) DO UPDATE SET
+           selected_file_path=excluded.selected_file_path,
+           open_file_paths_json=excluded.open_file_paths_json,
+           updated_at=excluded.updated_at`
+      )
+      .run(worktreeId, selectedFilePath, JSON.stringify(normalizedOpenFilePaths), updatedAt);
   }
 
   setActiveState(activeProjectId: string | null, activeWorktreeId: string | null, activeThreadId: string | null): void {

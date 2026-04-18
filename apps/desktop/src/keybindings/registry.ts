@@ -256,7 +256,7 @@ export const KEYBINDING_DEFINITIONS: KeybindingDefinition[] = [
   },
   {
     id: "focusPreviewPanel",
-    label: "Switch to Preview tab",
+    label: "Switch to Browser tab",
     category: "Navigation",
     shortcut: mod("KeyB", { shift: true }),
     notes: "In-app browser preview; works while the integrated terminal is focused."

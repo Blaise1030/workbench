@@ -2,7 +2,12 @@ import { randomUUID } from "node:crypto";
 import path from "node:path";
 import type { Project, Thread, ThreadAgent, Worktree } from "../../src/shared/domain.js";
 import { isValidPersistedResumeId } from "../../src/shared/resumeSessionId.js";
-import type { CreateThreadInput, CreateWorktreeGroupInput, WorkspaceSnapshot } from "../../src/shared/ipc.js";
+import type {
+  CreateThreadInput,
+  CreateWorktreeGroupInput,
+  WorkspaceSnapshot,
+  WorktreeEditorState
+} from "../../src/shared/ipc.js";
 import { WorkspaceStore } from "../storage/store.js";
 
 export interface GitAdapter {
@@ -257,6 +262,18 @@ export class WorkspaceService {
 
   setActive(projectId: string | null, worktreeId: string | null, threadId: string | null): void {
     this.store.setActiveState(projectId, worktreeId, threadId);
+  }
+
+  getWorktreeEditorState(worktreeId: string): WorktreeEditorState | null {
+    return this.store.getWorktreeEditorState(worktreeId);
+  }
+
+  setWorktreeEditorState(
+    worktreeId: string,
+    selectedFilePath: string | null,
+    openFilePaths: string[]
+  ): void {
+    this.store.setWorktreeEditorState(worktreeId, selectedFilePath, openFilePaths);
   }
 
   async createWorktreeGroup(input: CreateWorktreeGroupInput): Promise<Worktree> {
