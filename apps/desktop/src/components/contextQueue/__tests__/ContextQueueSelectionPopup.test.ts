@@ -75,6 +75,26 @@ describe("ContextQueueSelectionPopup", () => {
     expect(wrapper.emitted("sendToAgent")).toHaveLength(1);
   });
 
+  it("renders and emits goToFile when a resolved file path is provided", async () => {
+    wrapper = mount(ContextQueueSelectionPopup, {
+      attachTo: document.body,
+      props: {
+        visible: true,
+        anchor: { left: 10, top: 10, width: 1, height: 1 },
+        goToFilePath: "apps/desktop/src/App.vue"
+      }
+    });
+
+    await wrapper.vm.$nextTick();
+    const button = document.body.querySelector(
+      '[data-testid="context-queue-selection-go-to-file"]'
+    ) as HTMLButtonElement;
+    expect(button).toBeTruthy();
+    await button.click();
+
+    expect(wrapper.emitted("goToFile")).toHaveLength(1);
+  });
+
   it("does not dismiss when scroll fires inside a Monaco editor subtree", async () => {
     const monacoHost = document.createElement("div");
     monacoHost.className = "monaco-editor";

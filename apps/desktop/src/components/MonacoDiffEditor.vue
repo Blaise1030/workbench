@@ -5,9 +5,14 @@ import { applyMonacoGithubTheme } from "@/lib/monacoGithubTheme";
 import { monacoLanguageIdFromPath } from "@/lib/monacoLanguage";
 import ContextQueueSelectionPopup from "@/components/contextQueue/ContextQueueSelectionPopup.vue";
 import { buildPasteText } from "@/contextQueue/formatters";
-import { injectContextToAgentKey, threadContextQueueKey } from "@/contextQueue/injectionKeys";
+import {
+  injectContextToAgentKey,
+  openWorkspaceFileKey,
+  threadContextQueueKey
+} from "@/contextQueue/injectionKeys";
 import type { QueueCapture, QueueItem } from "@/contextQueue/types";
 import type { Rect } from "@/lib/contextQueueAnchor";
+import { resolveSelectionFilePath } from "@/lib/selectionFilePath";
 import { useToast } from "@/composables/useToast";
 
 type ScmDiffLayout = "split" | "unified";
@@ -17,19 +22,23 @@ const props = withDefaults(
     original: string;
     modified: string;
     filePath: string;
+    worktreePath?: string | null;
     layout?: ScmDiffLayout;
     activeThreadId?: string | null;
   }>(),
-  { layout: "split", activeThreadId: null }
+  { worktreePath: null, layout: "split", activeThreadId: null }
 );
 
 const hostRef = ref<HTMLDivElement | null>(null);
 const selectionPopupVisible = ref(false);
 const selectionPopupAnchor = ref<Rect | null>(null);
 const pendingSelection = ref<{ text: string; lineStart: number; lineEnd: number } | null>(null);
+const pendingSelectionGoToPath = ref<string | null>(null);
+let pendingSelectionGoToSeq = 0;
 
 const threadQueue = inject(threadContextQueueKey, undefined);
 const injectContextToAgent = inject(injectContextToAgentKey, undefined);
+const openWorkspaceFile = inject(openWorkspaceFileKey, undefined);
 const toast = useToast();
 
 let diffEditor: monaco.editor.IStandaloneDiffEditor | null = null;
@@ -54,11 +63,13 @@ function attachSelectionListener(): void {
     if (!threadQueue) {
       selectionPopupVisible.value = false;
       pendingSelection.value = null;
+      pendingSelectionGoToPath.value = null;
       return;
     }
     if (e.selection.isEmpty()) {
       selectionPopupVisible.value = false;
       pendingSelection.value = null;
+      pendingSelectionGoToPath.value = null;
       return;
     }
     const model = modEditor.getModel();
@@ -67,6 +78,7 @@ function attachSelectionListener(): void {
     if (!text.trim()) {
       selectionPopupVisible.value = false;
       pendingSelection.value = null;
+      pendingSelectionGoToPath.value = null;
       return;
     }
     const domNode = modEditor.getDomNode();
@@ -88,7 +100,18 @@ function attachSelectionListener(): void {
       height: coords.height
     };
     selectionPopupVisible.value = true;
+    void updateSelectionGoToPath(text);
   });
+}
+
+async function updateSelectionGoToPath(selectedText: string): Promise<void> {
+  const seq = ++pendingSelectionGoToSeq;
+  pendingSelectionGoToPath.value = null;
+  const api = typeof window !== "undefined" ? window.workspaceApi ?? null : null;
+  const resolved = await resolveSelectionFilePath(api, props.worktreePath, selectedText);
+  if (seq !== pendingSelectionGoToSeq) return;
+  if (pendingSelection.value?.text !== selectedText) return;
+  pendingSelectionGoToPath.value = resolved;
 }
 
 onMounted(() => {
@@ -163,6 +186,7 @@ watch(
 function dismissSelectionPopup(): void {
   selectionPopupVisible.value = false;
   selectionPopupAnchor.value = null;
+  pendingSelectionGoToPath.value = null;
 }
 
 function onQueueDiffSelection(): void {
@@ -223,6 +247,17 @@ async function onInjectDiffSelectionToAgent(): Promise<void> {
   dismissSelectionPopup();
   pendingSelection.value = null;
 }
+
+async function onGoToDiffSelectionFile(): Promise<void> {
+  const path = pendingSelectionGoToPath.value;
+  if (!path || !openWorkspaceFile) {
+    dismissSelectionPopup();
+    return;
+  }
+  await openWorkspaceFile(path);
+  dismissSelectionPopup();
+  pendingSelection.value = null;
+}
 </script>
 
 <template>
@@ -234,7 +269,9 @@ async function onInjectDiffSelectionToAgent(): Promise<void> {
     <ContextQueueSelectionPopup
       :visible="selectionPopupVisible"
       :anchor="selectionPopupAnchor"
+      :go-to-file-path="pendingSelectionGoToPath"
       @queue="onQueueDiffSelection"
+      @go-to-file="onGoToDiffSelectionFile"
       @send-to-agent="onInjectDiffSelectionToAgent"
       @dismiss="dismissSelectionPopup"
     />

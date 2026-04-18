@@ -6,9 +6,14 @@ import { Loader2 } from "lucide-vue-next";
 import { computed, inject, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import ContextQueueSelectionPopup from "@/components/contextQueue/ContextQueueSelectionPopup.vue";
 import { buildPasteText } from "@/contextQueue/formatters";
-import { injectContextToAgentKey, threadContextQueueKey } from "@/contextQueue/injectionKeys";
+import {
+  injectContextToAgentKey,
+  openWorkspaceFileKey,
+  threadContextQueueKey
+} from "@/contextQueue/injectionKeys";
 import type { QueueCapture, QueueItem } from "@/contextQueue/types";
 import type { Rect } from "@/lib/contextQueueAnchor";
+import { resolveSelectionFilePath } from "@/lib/selectionFilePath";
 import { useToast } from "@/composables/useToast";
 import type { PendingAgentBootstrap } from "@shared/pendingAgentBootstrap";
 
@@ -74,10 +79,13 @@ const paneAriaLabel = computed(() =>
 
 const threadQueue = inject(threadContextQueueKey, undefined);
 const injectContextToAgent = inject(injectContextToAgentKey, undefined);
+const openWorkspaceFile = inject(openWorkspaceFileKey, undefined);
 const toast = useToast();
 const terminalQueueVisible = ref(false);
 const terminalQueueAnchor = ref<Rect | null>(null);
 const pendingTerminalText = ref("");
+const pendingTerminalGoToPath = ref<string | null>(null);
+let pendingTerminalGoToSeq = 0;
 /** Last pointer-up inside the terminal (viewport); used when xterm has no DOM selection layer. */
 const lastTerminalPointerClient = ref<{ x: number; y: number } | null>(null);
 let terminalQueuePointerCleanup: (() => void) | null = null;
@@ -371,18 +379,21 @@ onMounted(async () => {
       if (!terminal || !threadQueue || !props.threadId) {
         terminalQueueVisible.value = false;
         terminalQueueAnchor.value = null;
+        pendingTerminalGoToPath.value = null;
         return;
       }
       if (!terminal.hasSelection()) {
         terminalQueueVisible.value = false;
         terminalQueueAnchor.value = null;
         pendingTerminalText.value = "";
+        pendingTerminalGoToPath.value = null;
         return;
       }
       const text = terminal.getSelection().trim();
       if (!text) {
         terminalQueueVisible.value = false;
         terminalQueueAnchor.value = null;
+        pendingTerminalGoToPath.value = null;
         return;
       }
       pendingTerminalText.value = terminal.getSelection();
@@ -391,6 +402,7 @@ onMounted(async () => {
         terminalQueueAnchor.value = terminalSelectionAnchorRect(wrap);
         terminalQueueVisible.value = true;
       }
+      void updateTerminalSelectionGoToPath(terminal.getSelection());
     });
   });
 });
@@ -398,6 +410,16 @@ onMounted(async () => {
 function dismissTerminalQueuePopup(): void {
   terminalQueueVisible.value = false;
   terminalQueueAnchor.value = null;
+  pendingTerminalGoToPath.value = null;
+}
+
+async function updateTerminalSelectionGoToPath(selectedText: string): Promise<void> {
+  const seq = ++pendingTerminalGoToSeq;
+  pendingTerminalGoToPath.value = null;
+  const resolved = await resolveSelectionFilePath(getApi(), props.cwd, selectedText);
+  if (seq !== pendingTerminalGoToSeq) return;
+  if (pendingTerminalText.value !== selectedText) return;
+  pendingTerminalGoToPath.value = resolved;
 }
 
 function onQueueTerminalSelection(): void {
@@ -452,6 +474,18 @@ async function onInjectTerminalSelectionToAgent(): Promise<void> {
     dismissTerminalQueuePopup();
     pendingTerminalText.value = "";
   }
+}
+
+async function onGoToTerminalSelectionFile(): Promise<void> {
+  const path = pendingTerminalGoToPath.value;
+  if (!path || !openWorkspaceFile) {
+    dismissTerminalQueuePopup();
+    return;
+  }
+  await openWorkspaceFile(path);
+  terminal?.clearSelection();
+  dismissTerminalQueuePopup();
+  pendingTerminalText.value = "";
 }
 
 onBeforeUnmount(() => {
@@ -548,7 +582,9 @@ defineExpose({ focus: focusTerminal, refresh: refreshTerminal });
     <ContextQueueSelectionPopup
       :visible="terminalQueueVisible"
       :anchor="terminalQueueAnchor"
+      :go-to-file-path="pendingTerminalGoToPath"
       @queue="onQueueTerminalSelection"
+      @go-to-file="onGoToTerminalSelectionFile"
       @send-to-agent="onInjectTerminalSelectionToAgent"
       @dismiss="dismissTerminalQueuePopup"
     />

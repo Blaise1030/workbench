@@ -13,3 +13,8 @@ export type InjectContextToAgentFn = (
 ) => Promise<boolean>;
 
 export const injectContextToAgentKey: InjectionKey<InjectContextToAgentFn> = Symbol("injectContextToAgent");
+
+/** Open a worktree-relative file in the files pane. */
+export type OpenWorkspaceFileFn = (path: string) => Promise<void>;
+
+export const openWorkspaceFileKey: InjectionKey<OpenWorkspaceFileFn> = Symbol("openWorkspaceFile");

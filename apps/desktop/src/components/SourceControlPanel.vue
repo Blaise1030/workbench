@@ -741,6 +741,7 @@ onBeforeUnmount(() => {
             :original="mergeResult.original"
             :modified="mergeResult.modified"
             :file-path="selectedEntry?.path ?? ''"
+            :worktree-path="props.scmCwd"
             :active-thread-id="props.activeThreadId"
           />
         </div>

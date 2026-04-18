@@ -11,12 +11,14 @@ const CONTEXT_QUEUE_SELECTION_QUEUE_ENABLED = false;
 const props = defineProps<{
   visible: boolean;
   anchor: Rect | null;
+  goToFilePath?: string | null;
 }>();
 
 const emit = defineEmits<{
   queue: [];
   /** Send this capture straight to the agent PTY (skip the review queue). */
   sendToAgent: [];
+  goToFile: [];
   dismiss: [];
 }>();
 
@@ -62,6 +64,7 @@ function scheduleReposition(): void {
 }
 
 const showPopup = computed(() => props.visible && props.anchor != null);
+const showGoToFile = computed(() => Boolean(props.goToFilePath));
 
 let popupResizeObserver: ResizeObserver | null = null;
 
@@ -177,6 +180,17 @@ onUnmounted(() => {
       }"
       @pointerdown.stop
     >
+      <Button
+        v-if="showGoToFile"
+        variant="ghost"
+        size="xs"
+        class="gap-1 text-muted-foreground hover:text-foreground"
+        data-testid="context-queue-selection-go-to-file"
+        :title="props.goToFilePath ? `Go to ${props.goToFilePath}` : 'Go to file'"
+        @click="emit('goToFile')"
+      >
+        <span>Go to File</span>
+      </Button>
       <Button
         variant="ghost"
         size="xs"

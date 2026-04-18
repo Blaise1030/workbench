@@ -31,6 +31,7 @@ import { formatFolderListingFromFiles } from "@/contextQueue/folderListing";
 import { injectContextToAgentKey, threadContextQueueKey } from "@/contextQueue/injectionKeys";
 import type { QueueCapture, QueueItem } from "@/contextQueue/types";
 import type { Rect } from "@/lib/contextQueueAnchor";
+import { resolveSelectionFilePath } from "@/lib/selectionFilePath";
 import { useToast } from "@/composables/useToast";
 import Input from "@/components/ui/Input.vue";
 import PillTabs, { type PillTabItem } from "@/components/ui/PillTabs.vue";
@@ -395,11 +396,14 @@ const monacoEditorRef = ref<InstanceType<typeof MonacoEditor> | null>(null);
 const fileEditorQueueVisible = ref(false);
 const fileEditorQueueAnchor = ref<Rect | null>(null);
 const pendingFileEditorSelection = ref<{ text: string; lineStart: number; lineEnd: number } | null>(null);
+const pendingFileEditorGoToPath = ref<string | null>(null);
+let pendingFileEditorGoToSeq = 0;
 
 function dismissFileEditorQueuePopup(): void {
   fileEditorQueueVisible.value = false;
   fileEditorQueueAnchor.value = null;
   pendingFileEditorSelection.value = null;
+  pendingFileEditorGoToPath.value = null;
 }
 
 function makeOpenFileTab(path: string): OpenFileTab {
@@ -434,6 +438,26 @@ function onEditorQueueableSelection(payload: QueueableEditorSelection | null): v
   };
   fileEditorQueueAnchor.value = payload.anchor;
   fileEditorQueueVisible.value = true;
+  void updatePendingFileEditorGoToPath(payload.selectedText);
+}
+
+async function updatePendingFileEditorGoToPath(selectedText: string): Promise<void> {
+  const seq = ++pendingFileEditorGoToSeq;
+  pendingFileEditorGoToPath.value = null;
+  const resolved = await resolveSelectionFilePath(getApi(), props.worktreePath, selectedText);
+  if (seq !== pendingFileEditorGoToSeq) return;
+  if (pendingFileEditorSelection.value?.text !== selectedText) return;
+  pendingFileEditorGoToPath.value = resolved;
+}
+
+async function openSelectedFilePath(): Promise<void> {
+  const path = pendingFileEditorGoToPath.value;
+  if (!path) {
+    dismissFileEditorQueuePopup();
+    return;
+  }
+  await handleSelectFile(path);
+  dismissFileEditorQueuePopup();
 }
 
 function confirmFileEditorQueue(): void {
@@ -2141,7 +2165,9 @@ defineExpose({
     <ContextQueueSelectionPopup
       :visible="fileEditorQueueVisible"
       :anchor="fileEditorQueueAnchor"
+      :go-to-file-path="pendingFileEditorGoToPath"
       @queue="confirmFileEditorQueue"
+      @go-to-file="openSelectedFilePath"
       @send-to-agent="injectFileEditorSelectionToAgent"
       @dismiss="dismissFileEditorQueuePopup"
     />

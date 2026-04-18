@@ -15,7 +15,11 @@ import WorkspaceLauncherModal from "@/components/WorkspaceLauncherModal.vue";
 import ThreadInlinePromptEditor from "@/components/ThreadInlinePromptEditor.vue";
 import BranchPicker from "@/components/BranchPicker.vue";
 import { injectContextQueue } from "@/contextQueue/injectContextQueue";
-import { injectContextToAgentKey, threadContextQueueKey } from "@/contextQueue/injectionKeys";
+import {
+  injectContextToAgentKey,
+  openWorkspaceFileKey,
+  threadContextQueueKey
+} from "@/contextQueue/injectionKeys";
 import type { QueueItem } from "@/contextQueue/types";
 import { useThreadContextQueue } from "@/composables/useThreadContextQueue";
 import ThreadSidebar from "@/components/ThreadSidebar.vue";
@@ -218,6 +222,9 @@ async function injectContextItemsToActiveAgent(
 }
 
 provide(injectContextToAgentKey, injectContextItemsToActiveAgent);
+provide(openWorkspaceFileKey, async (path: string) => {
+  await handleScmOpenFileInEditor(path);
+});
 
 async function onContextQueueConfirmed(items: QueueItem[]): Promise<void> {
   const tid = workspace.activeThreadId;
