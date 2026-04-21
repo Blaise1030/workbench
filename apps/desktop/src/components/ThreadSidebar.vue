@@ -634,6 +634,10 @@ const worktreeSidebarNodes = computed<ContextNode[]>(() =>
   sidebarNodes.value.filter((node) => node.isWorktree)
 );
 
+const hasActiveWorktreeThread = computed(() =>
+  worktreeSidebarNodes.value.some((n) => n.threads.some((t) => t.isActive))
+);
+
 const expandedContexts = computed<Set<string>>(() => {
   const expanded = new Set<string>();
   for (const group of branchFilteredContextGroups.value) {
@@ -727,7 +731,7 @@ async function openAppUpdateUrl(url: string): Promise<void> {
           data-testid="project-switcher-trigger"
           size="sm"
           class="w-full max-h-7 h-7 bg-background"
-          :class="{ 'ms-12': !isFullscreen }"
+          :class="{ 'ms-19': !isFullscreen }"
           :aria-label="`Active project: ${activeProject?.name ?? 'None'}`"
           :title="activeProject?.repoPath ?? undefined"
         >
@@ -841,7 +845,7 @@ async function openAppUpdateUrl(url: string): Promise<void> {
             >
               <div class="flex flex-col gap-2 px-1 py-1">
                 <template v-if="node.isPrimary">
-                  <div class="flex min-w-0 items-start">
+                  <div v-if="!hasActiveWorktreeThread" class="flex min-w-0 items-start">
                     <ScmBranchCombobox
                       v-if="showToolbarBranchSwitcher"
                       variant="toolbar"
