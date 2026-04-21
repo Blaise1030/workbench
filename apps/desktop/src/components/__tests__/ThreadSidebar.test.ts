@@ -1664,4 +1664,25 @@ describe("ThreadSidebar", () => {
     expect(wrapper.find('[data-testid="thread-group-show-less-w1"]').exists()).toBe(false);
   });
 
+  it("hides center panel tabs when no thread is selected", () => {
+    wrapper = mountThreadSidebar({
+      props: {
+        threads,
+        activeThreadId: null
+      }
+    });
+
+    expect(wrapper.find('[aria-label="Center panel"]').exists()).toBe(false);
+  });
+
+  it("shows center panel tabs when a thread is selected", () => {
+    wrapper = mountThreadSidebar({
+      props: {
+        threads,
+        activeThreadId: "t1"
+      }
+    });
+
+    expect(wrapper.find('[aria-label="Center panel"]').exists()).toBe(true);
+  });
 });
