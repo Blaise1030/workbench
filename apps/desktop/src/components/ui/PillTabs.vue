@@ -104,7 +104,7 @@ function onTabKeydown(event: KeyboardEvent, index: number) {
     role="tablist"
     data-slot="button-group"
     :aria-label="ariaLabel"
-    class="flex w-full min-w-0 select-none"
+    class="flex w-full min-w-0 gap-1 select-none bg-background p-1 border rounded-sm"
   >
     <template v-for="(tab, index) in tabs" :key="tab.value">
       <Tooltip :delay-duration="400">
@@ -114,7 +114,7 @@ function onTabKeydown(event: KeyboardEvent, index: number) {
             role="tab"
             :aria-selected="modelValue === tab.value"
             :tabindex="modelValue === tab.value ? 0 : -1"
-            class="min-w-0 cursor-pointer flex-1 rounded-sm min-h-6 text-center leading-tight font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 text-[10px]"
+            class="min-w-0 cursor-pointer px-2 rounded-sm min-h-6 text-center leading-tight font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 text-[10px]"
             :class="
               modelValue === tab.value
                 ? 'bg-card border shadow-xs text-foreground'

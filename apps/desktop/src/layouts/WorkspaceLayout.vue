@@ -1908,7 +1908,7 @@ watch(
 
     <section v-else class="relative flex min-h-0 flex-1 overflow-hidden">      
       <section
-        class="absolute inset-y-0 left-0 z-20 flex w-[270px] min-h-0 min-w-0 flex-col overflow-hidden py-2 ps-2 transition-all duration-300 ease-out"
+        class="absolute inset-y-0 left-0 z-20 flex w-[270px] min-h-0 min-w-0 flex-col overflow-hidden transition-all duration-300 ease-out"
         :class="
           threadsSidebarCollapsed
             ? 'pointer-events-none -translate-x-full opacity-0'
@@ -1918,7 +1918,7 @@ watch(
         <ThreadSidebar
           ref="threadSidebarRef"
           v-model:center-panel-tab="topCenterTabModel"
-          class="min-h-0 min-w-0 flex-1 border rounded-lg bg-sidebar border-border"
+          class="min-h-0 min-w-0 flex-1 bg-sidebar border-r border-border"
           :collapsed="threadsSidebarCollapsed"
           :context-label="activeContextLabel"
           :threads="workspace.activeProjectThreads"
