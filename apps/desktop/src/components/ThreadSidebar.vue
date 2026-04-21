@@ -719,8 +719,7 @@ async function openAppUpdateUrl(url: string): Promise<void> {
     <div v-if="!collapsed" class="flex shrink-0 select-none items-center gap-1 px-1 py-1">
       <Select
         v-if="projects.length > 0"
-        class="flex-1"
-        :class="{ 'ms-12': isFullscreen }"
+        class="flex-1 ms-12"
         :model-value="activeProjectId ?? undefined"
         @update:model-value="onProjectFooterSelectValue"
       >
@@ -766,7 +765,7 @@ async function openAppUpdateUrl(url: string): Promise<void> {
           </SelectItem>
         </SelectContent>
       </Select>
-      <div v-else class="flex-1" :class="{ 'ms-12': isFullscreen }" />
+      <div v-else class="flex-1 ms-12" />
       <Button
         type="button"
         size="icon-sm"
