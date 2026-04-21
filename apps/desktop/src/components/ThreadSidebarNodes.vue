@@ -206,6 +206,8 @@ const contextNeedsIdleAttention = computed(
       </Button>
     </div>
 
+    <slot name="header-extra" />
+
     <ul
       v-show="isExpanded"
       class="ml-2.5 space-y-0.5 border-l border-border pl-2"
