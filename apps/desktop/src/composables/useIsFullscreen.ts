@@ -1,19 +1,19 @@
 import { onMounted, onUnmounted, ref } from "vue";
 
 export function useIsFullscreen() {
-  const isFullscreen = ref(false);
+  const query = window.matchMedia("(display-mode: fullscreen)");
+  const isFullscreen = ref(query.matches);
 
-  function check() {
-    isFullscreen.value = window.outerHeight >= screen.height;
+  function onChange(e: MediaQueryListEvent) {
+    isFullscreen.value = e.matches;
   }
 
   onMounted(() => {
-    check();
-    window.addEventListener("resize", check);
+    query.addEventListener("change", onChange);
   });
 
   onUnmounted(() => {
-    window.removeEventListener("resize", check);
+    query.removeEventListener("change", onChange);
   });
 
   return { isFullscreen };
