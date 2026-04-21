@@ -288,21 +288,21 @@ const filterByCurrentBranch = ref(false);
 /** Group uiKeys whose thread list is expanded past the preview count. */
 const threadListExpandedByGroupUiKey = ref<Set<string>>(new Set());
 const openCollapsedGroupId = ref<string | null>(null);
-const collapsedPopoverHoverCloseTimer = ref<ReturnType<typeof setTimeout> | null>(null);
+let collapsedPopoverHoverCloseTimer: ReturnType<typeof setTimeout> | null = null;
 
 function clearCollapsedPopoverHoverTimer(): void {
-  const t = collapsedPopoverHoverCloseTimer.value;
+  const t = collapsedPopoverHoverCloseTimer;
   if (t) {
     clearTimeout(t);
-    collapsedPopoverHoverCloseTimer.value = null;
+    collapsedPopoverHoverCloseTimer = null;
   }
 }
 
 function scheduleCollapsedPopoverClose(): void {
   clearCollapsedPopoverHoverTimer();
-  collapsedPopoverHoverCloseTimer.value = setTimeout(() => {
+  collapsedPopoverHoverCloseTimer = setTimeout(() => {
     openCollapsedGroupId.value = null;
-    collapsedPopoverHoverCloseTimer.value = null;
+    collapsedPopoverHoverCloseTimer = null;
   }, 300);
 }
 
@@ -823,7 +823,7 @@ async function openAppUpdateUrl(url: string): Promise<void> {
     </section>
     <div v-else class="flex min-h-0 flex-1 flex-col">
       <div class="min-h-0 relative flex-1 flex flex-col overflow-y-auto">        
-        <div class="sticky top-0 z-10 h-3 w-full shrink-0 bg-gradient-to-b from-sidebar via-sidebar/60 to-transparent pointer-events-none" />
+        <div class="sticky top-0 z-10 h-3 w-full shrink-0 bg-gradient-to-b from-transparent to-transparent pointer-events-none" />
         <ul class="min-w-0 space-y-2 px-1.5 pb-1">
           <ThreadSidebarNodes
             v-for="node in primarySidebarNodes"
@@ -964,7 +964,7 @@ async function openAppUpdateUrl(url: string): Promise<void> {
             </template>
           </ThreadSidebarNodes>
         </ul>
-        <div class="sticky bottom-0 z-10 h-5 w-full shrink-0 bg-gradient-to-t from-sidebar via-sidebar/60 to-transparent pointer-events-none" />
+        <div class="sticky bottom-0 z-10 h-5 w-full shrink-0 bg-gradient-to-t from-transparent to-transparent pointer-events-none" />
       </div>
     </div>
     <footer
