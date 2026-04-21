@@ -935,7 +935,18 @@ async function openAppUpdateUrl(url: string): Promise<void> {
             @select-thread="emit('select', $event)"
             @remove-thread="emit('remove', $event)"
             @rename-thread="(id, title) => emit('rename', id, title)"
-          />
+          >
+            <template v-if="node.threads.some(t => t.isActive)" #header-extra>
+              <div class="px-1 pb-1">
+                <PillTabs
+                  v-model="centerPanelTab"
+                  variant="segmented"
+                  :tabs="centerPanelTabs"
+                  aria-label="Center panel"
+                />
+              </div>
+            </template>
+          </ThreadSidebarNodes>
         </ul>
       </div>
     </div>
