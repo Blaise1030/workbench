@@ -2,13 +2,13 @@
 import type { Project, RunStatus, Thread, Worktree } from "@shared/domain";
 import type { AppUpdateAvailability } from "@shared/ipc";
 import type { WorkspaceThreadContext } from "@/stores/workspaceStore";
-import { Download, FileText, Plus, Settings, Terminal, X } from "lucide-vue-next";
+import { Download, FileText, PanelLeftClose, Plus, Settings, Terminal, X } from "lucide-vue-next";
 import type { CSSProperties } from "vue";
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import BranchPicker from "@/components/BranchPicker.vue";
 import ThemeToggle from "@/components/ThemeToggle.vue";
 import ContextQueueReviewDropdown from "@/components/contextQueue/ContextQueueReviewDropdown.vue";
-import ThreadTopBar from "@/components/ThreadTopBar.vue";
+import { useIsFullscreen } from "@/composables/useIsFullscreen";
 import ThreadRow from "@/components/ThreadRow.vue";
 import ScmBranchCombobox from "@/components/ScmBranchCombobox.vue";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -33,6 +33,7 @@ import { useKeybindingsStore } from "@/stores/keybindingsStore";
 import ThreadSidebarNodes, { type ThreadSidebarNodeData } from "@/components/ThreadSidebarNodes.vue";
 
 const keybindings = useKeybindingsStore();
+const { isFullscreen } = useIsFullscreen();
 function titleWithShortcut(label: string, id: KeybindingId): string {
   return keybindings.titleWithShortcut(label, id);
 }
@@ -714,25 +715,19 @@ async function openAppUpdateUrl(url: string): Promise<void> {
     :class="collapsed ? 'w-0':''"
     :data-thread-sidebar-collapsed="collapsed ? 'true' : undefined"
   > 
-    <ThreadTopBar
-      :collapsed="collapsed"
-      :context-label="contextLabel"
-      @collapse="emit('collapse')"
-      @expand="emit('expand')"
-    />
-    <div
-      v-if="!collapsed && projects.length > 0"
-      class="flex w-full min-w-0 flex-col gap-2 pb-2"
-    >
-      <div class="px-1">
-        <Select
+    <!-- Header row: project selector + collapse button -->
+    <div v-if="!collapsed" class="flex shrink-0 select-none items-center gap-1 px-1 py-1">
+      <Select
+        v-if="projects.length > 0"
+        class="flex-1"
+        :class="{ 'ms-12': isFullscreen }"
         :model-value="activeProjectId ?? undefined"
         @update:model-value="onProjectFooterSelectValue"
       >
         <SelectTrigger
           data-testid="project-switcher-trigger"
           size="sm"
-          class="w-full max-h-7 h-7 bg-background"          
+          class="w-full max-h-7 h-7 bg-background"
           :aria-label="`Active project: ${activeProject?.name ?? 'None'}`"
           :title="activeProject?.repoPath ?? undefined"
         >
@@ -771,7 +766,23 @@ async function openAppUpdateUrl(url: string): Promise<void> {
           </SelectItem>
         </SelectContent>
       </Select>
-      </div>      
+      <div v-else class="flex-1" :class="{ 'ms-12': isFullscreen }" />
+      <Button
+        type="button"
+        size="icon-sm"
+        variant="outline"
+        aria-label="Collapse threads sidebar"
+        :title="titleWithShortcut('Collapse threads sidebar', 'toggleThreadSidebar')"
+        data-testid="thread-sidebar-toggle"
+        @click="emit('collapse')"
+      >
+        <PanelLeftClose class="size-4" />
+      </Button>
+    </div>
+    <div
+      v-if="!collapsed && projects.length > 0"
+      class="flex w-full min-w-0 flex-col gap-1 pb-2"
+    >
       <div class="flex w-full min-w-0 flex-col gap-1">
         <ContextQueueReviewDropdown
           v-if="activeThreadId && contextQueueItems.length > 0"
@@ -828,7 +839,7 @@ async function openAppUpdateUrl(url: string): Promise<void> {
               v-if="node.kind === 'context' && (node.isPrimary || node.threads.some(t => t.isActive))"
               #header-extra
             >
-              <div class="flex flex-col gap-2 px-1 pb-1">
+              <div class="flex flex-col gap-2 px-1 py-1">
                 <template v-if="node.isPrimary">
                   <div class="flex min-w-0 items-start">
                     <ScmBranchCombobox
