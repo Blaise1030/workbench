@@ -14,11 +14,12 @@ export interface GitHeadWatcherOptions {
 }
 
 /**
- * Watches each worktree's `HEAD` so branch changes from an external terminal (or other tools)
- * still refresh SCM state and persisted worktree branch names.
+ * Watches each worktree's `HEAD` and `index` so branch changes and staging operations
+ * from an external terminal (or other tools) still refresh SCM state and persisted
+ * worktree branch names.
  */
 export class GitHeadWatcher {
-  private readonly watchers = new Map<string, fs.FSWatcher>();
+  private readonly watchers = new Map<string, fs.FSWatcher[]>();
   private readonly pendingAttach = new Set<string>();
   private debounceTimer: ReturnType<typeof setTimeout> | null = null;
   private pendingCwds = new Set<string>();
@@ -30,7 +31,7 @@ export class GitHeadWatcher {
 
     for (const cwd of this.watchers.keys()) {
       if (!desired.has(cwd)) {
-        this.watchers.get(cwd)?.close();
+        for (const w of this.watchers.get(cwd) ?? []) w.close();
         this.watchers.delete(cwd);
       }
     }
@@ -47,7 +48,9 @@ export class GitHeadWatcher {
       this.debounceTimer = null;
     }
     this.pendingCwds.clear();
-    for (const w of this.watchers.values()) w.close();
+    for (const ws of this.watchers.values()) {
+      for (const w of ws) w.close();
+    }
     this.watchers.clear();
     this.pendingAttach.clear();
   }
@@ -56,17 +59,26 @@ export class GitHeadWatcher {
     const normalized = path.normalize(cwd);
     this.pendingAttach.add(normalized);
     try {
-      const headPath = await this.opts.diffService.resolveGitHeadFilePath(normalized);
-      if (!headPath || this.watchers.has(normalized)) return;
+      const paths = await this.opts.diffService.resolveGitWatchPaths(normalized);
+      if (!paths || this.watchers.has(normalized)) return;
 
-      const watcher = fs.watch(headPath, () => {
-        this.scheduleRefresh(normalized);
-      });
-      watcher.on("error", () => {
-        watcher.close();
+      const cwdWatchers: fs.FSWatcher[] = [];
+      const onError = (): void => {
+        for (const w of cwdWatchers) {
+          try { w.close(); } catch { /* ignore */ }
+        }
         this.watchers.delete(normalized);
-      });
-      this.watchers.set(normalized, watcher);
+      };
+
+      for (const watchPath of [paths.headPath, paths.indexPath]) {
+        const watcher = fs.watch(watchPath, () => {
+          this.scheduleRefresh(normalized);
+        });
+        watcher.on("error", onError);
+        cwdWatchers.push(watcher);
+      }
+
+      this.watchers.set(normalized, cwdWatchers);
     } catch {
       /* not a git worktree or unreadable */
     } finally {

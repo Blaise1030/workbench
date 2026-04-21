@@ -104,7 +104,7 @@ function onTabKeydown(event: KeyboardEvent, index: number) {
     role="tablist"
     data-slot="button-group"
     :aria-label="ariaLabel"
-    class="flex w-full min-w-0 gap-1 select-none bg-background p-1 border rounded-sm"
+    class="flex w-fit min-w-0 mx-auto gap-1 select-none bg-muted dark:bg-background p-0.5 px-0.5 border rounded-md"
   >
     <template v-for="(tab, index) in tabs" :key="tab.value">
       <Tooltip :delay-duration="400">

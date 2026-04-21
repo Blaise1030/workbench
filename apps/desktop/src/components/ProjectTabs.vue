@@ -72,6 +72,7 @@ const props = withDefaults(
     projects: Project[];
     worktrees: Worktree[];
     activeProjectId: string | null;
+    activeThreadId?: string | null;
     /** All threads (across projects) for attention chrome on tabs. */
     threads?: readonly Thread[];
     /** Matches ThreadSidebar: background idle completion on a non-visible PTY. */
@@ -80,6 +81,7 @@ const props = withDefaults(
     runStatusByThreadId?: Readonly<Record<string, RunStatus>>;
   }>(),
   {
+    activeThreadId: null,
     threads: () => [],
     idleAttentionByThreadId: () => ({}),
     runStatusByThreadId: () => ({})
@@ -97,6 +99,13 @@ const emit = defineEmits<{
 const activeProject = computed(
   () => props.projects.find((p) => p.id === props.activeProjectId) ?? props.projects[0] ?? null
 );
+
+const activeProjectHasActiveThread = computed(() => {
+  if (!props.activeThreadId || !activeProject.value) return false;
+  return props.threads.some(
+    (t) => t.id === props.activeThreadId && t.projectId === activeProject.value!.id
+  );
+});
 
 const projectMenuOpen = ref(false);
 
@@ -181,6 +190,7 @@ function onProjectSwitcherChange(projectId: string): void {
             type="button"
             variant="outline"
             size="sm"
+            :class="activeProjectHasActiveThread ? 'bg-accent' : ''"
             class="h-8 w-full min-w-0 justify-between gap-1.5 px-2 font-normal"
             :aria-label="`Active project: ${activeProject?.name ?? 'None'}`"
             :title="activeProject?.repoPath ?? undefined"

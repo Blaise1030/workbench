@@ -659,6 +659,13 @@ function applyRepoStatusSelection(status: RepoStatusEntry[]): void {
   selectedScmScope.value = firstUnstaged ? "unstaged" : null;
 }
 
+function mergeSidesEqual(a: FileMergeSidesResult | null, b: FileMergeSidesResult): boolean {
+  if (!a || a.kind !== b.kind) return false;
+  if (a.kind === "ok" && b.kind === "ok") return a.original === b.original && a.modified === b.modified;
+  if (a.kind === "error" && b.kind === "error") return a.message === b.message;
+  return a.kind === "binary";
+}
+
 async function loadSelectedMerge(): Promise<void> {
   const api = getApi();
   const path = selectedScmPath.value;
@@ -681,7 +688,9 @@ async function loadSelectedMerge(): Promise<void> {
   const key = cacheKey(cwd, path, scope);
   const cached = diffCache.get(key);
   if (cached != null) {
-    selectedMergeResult.value = cached;
+    if (!mergeSidesEqual(selectedMergeResult.value, cached)) {
+      selectedMergeResult.value = cached;
+    }
     selectedDiffLoading.value = false;
     return;
   }
@@ -693,13 +702,17 @@ async function loadSelectedMerge(): Promise<void> {
     selectedDiffLoading.value = false;
     return;
   }
-  selectedMergeResult.value = null;
-  selectedDiffLoading.value = true;
+  // Only show the loading spinner when we have no existing content to display.
+  // For background re-fetches (e.g. after a file save), keep the old diff visible.
+  const hasExisting = selectedMergeResult.value !== null;
+  if (!hasExisting) selectedDiffLoading.value = true;
   try {
     const result = await api.fileMergeSides(cwd, path, scope);
     if (seq !== selectedDiffSeq || workspace.activeWorktree?.path !== cwd) return;
-    selectedMergeResult.value = result;
     diffCache.set(key, result);
+    if (!mergeSidesEqual(selectedMergeResult.value, result)) {
+      selectedMergeResult.value = result;
+    }
   } catch (error) {
     if (seq !== selectedDiffSeq || workspace.activeWorktree?.path !== cwd) return;
     selectedMergeResult.value = {
@@ -774,7 +787,13 @@ async function refreshRepoStatus(): Promise<void> {
       scmMeta.value = { shortLabel: "", branch: "", lastCommitSubject: null };
     }
     applyRepoStatusSelection(statusEntries);
-    diffCache.clear();
+    // Only evict the selected file's cache so it re-fetches fresh content;
+    // other entries stay warm for quick switching between files.
+    const selPath = selectedScmPath.value;
+    const selScope = selectedScmScope.value;
+    if (selPath && selScope) {
+      diffCache.delete(cacheKey(cwd, selPath, selScope));
+    }
     await loadSelectedMerge();
   } catch (error) {
     if (seq !== diffRefreshSeq || workspace.activeWorktree?.path !== cwd) return;
@@ -1874,6 +1893,7 @@ watch(
       :idle-attention-by-thread-id="ptyIdleAttentionByThreadId"
       :run-status-by-thread-id="ptyRunStatusByThreadId"
       :active-project-id="workspace.activeProjectId"
+      :active-thread-id="workspace.activeThreadId"
       @select="handleSelectProject"
       @remove="handleRemoveProject"
       @create="handleCreateProject"

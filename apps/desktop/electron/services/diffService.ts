@@ -409,6 +409,20 @@ export class DiffService {
     }
   }
 
+  /** Absolute paths to `HEAD` and `index` for this worktree (suitable for `fs.watch`). */
+  async resolveGitWatchPaths(cwd: string): Promise<{ headPath: string; indexPath: string } | null> {
+    try {
+      const { stdout } = await execFileAsync("git", ["-C", cwd, "rev-parse", "--git-dir"], {
+        maxBuffer: 64 * 1024,
+        encoding: "utf8"
+      });
+      const gitDir = resolve(cwd, stdout.trim());
+      return { headPath: resolve(gitDir, "HEAD"), indexPath: resolve(gitDir, "index") };
+    } catch {
+      return null;
+    }
+  }
+
   async readAbbrevRefHead(cwd: string): Promise<string | null> {
     try {
       const { stdout } = await execFileAsync("git", ["-C", cwd, "rev-parse", "--abbrev-ref", "HEAD"], {

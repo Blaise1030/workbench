@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { RunStatus, Thread } from "@shared/domain";
-import { computed, nextTick, ref } from "vue";
+import { computed, nextTick, ref, watch } from "vue";
 import { Archive } from "lucide-vue-next";
 import AgentIcon from "@/components/ui/AgentIcon.vue";
 import Button from "@/components/ui/Button.vue";
@@ -28,6 +28,17 @@ const emit = defineEmits<{
 
 const rowHovered = ref(false);
 const isEditing = ref(false);
+const titleRef = ref<HTMLElement | null>(null);
+const marqueePx = ref(0);
+
+watch(rowHovered, (hovered) => {
+  if (hovered && titleRef.value) {
+    const el = titleRef.value;
+    marqueePx.value = Math.max(0, el.scrollWidth - el.clientWidth);
+  } else {
+    marqueePx.value = 0;
+  }
+});
 const editValue = ref("");
 const editContentRef = ref<HTMLElement | null>(null);
 
@@ -207,47 +218,47 @@ function handleArchiveClick(): void {
     <template v-else>
       <template v-if="!isEditing">
         <div class="flex w-full min-w-0 flex-1 flex-col overflow-hidden">
-          <Tooltip :delay-duration="300">
-            <TooltipTrigger as-child>
+          <span
+            data-testid="thread-select"
+            class="flex w-full min-w-0 cursor-pointer items-center gap-1.5 overflow-hidden rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background"
+            tabindex="0"
+            role="button"
+            :aria-current="isActive ? 'true' : undefined"
+            :aria-label="rowAriaLabel"
+            @dblclick.stop.prevent="startRename"
+            @keydown.enter.prevent="emit('select')"
+            @keydown.space.prevent="emit('select')"
+          >
+            <span
+              v-if="hideAgentIcon"
+              data-testid="thread-agent-icon-pending"
+              class="inline-block size-3 shrink-0 rounded-sm border border-dashed border-muted-foreground/35"
+              aria-hidden="true"
+            />
+            <AgentIcon
+              v-else
+              :agent="thread.agent"
+              :size="12"
+              class="shrink-0"
+              :class="iconClass"
+            />
+            <span class="min-w-0 flex-1 basis-0 overflow-hidden">
               <span
-                data-testid="thread-select"
-                class="flex w-full min-w-0 cursor-pointer items-center gap-1.5 overflow-hidden rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background"
-                tabindex="0"
-                role="button"
-                :aria-current="isActive ? 'true' : undefined"
-                :aria-label="rowAriaLabel"                
-                @dblclick.stop.prevent="startRename"
-                @keydown.enter.prevent="emit('select')"
-                @keydown.space.prevent="emit('select')"
+                ref="titleRef"
+                data-testid="thread-title-truncated"
+                class="block w-full min-w-0 text-left text-xs leading-none text-foreground"
+                :class="rowHovered ? 'whitespace-nowrap' : 'truncate'"
+                :style="{
+                  transform: rowHovered && marqueePx > 0 ? `translateX(-${marqueePx}px)` : 'translateX(0)',
+                  transition: rowHovered && marqueePx > 0
+                    ? `transform ${Math.min(3, marqueePx / 50)}s linear 0.5s`
+                    : 'transform 0.2s ease-out'
+                }"
               >
-                <span
-                  v-if="hideAgentIcon"
-                  data-testid="thread-agent-icon-pending"
-                  class="inline-block size-3 shrink-0 rounded-sm border border-dashed border-muted-foreground/35"
-                  aria-hidden="true"
-                />
-                <AgentIcon
-                  v-else
-                  :agent="thread.agent"
-                  :size="12"
-                  class="shrink-0"
-                  :class="iconClass"
-                />
-                <span class="min-w-0 flex-1 basis-0 overflow-hidden">
-                  <span
-                    data-testid="thread-title-truncated"
-                    class="block w-full min-w-0 truncate text-left text-xs leading-none text-foreground"
-                  >
-                    {{ thread.title }}
-                  </span>
-                </span>
+                {{ thread.title }}
               </span>
-            </TooltipTrigger>
-            <TooltipContent side="right" class="max-w-[min(24rem,calc(100vw-2rem))] text-xs">
-              <div class="break-words font-medium leading-snug">{{ thread.title }}</div>
-              <div v-if="statusDetail" class="mt-1 text-muted-foreground">{{ statusDetail }}</div>
-            </TooltipContent>
-          </Tooltip>
+            </span>
+          </span>
         </div>
       </template>
       <template v-else>

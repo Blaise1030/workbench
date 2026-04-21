@@ -101,6 +101,12 @@ const contextNeedsIdleAttention = computed(
     props.node.kind === "context" &&
     props.node.threads.some((t) => t.needsIdleAttention)
 );
+
+const contextHasActiveThread = computed(
+  () =>
+    props.node.kind === "context" &&
+    props.node.threads.some((t) => t.isActive)
+);
 </script>
 
 <template>
@@ -115,7 +121,9 @@ const contextNeedsIdleAttention = computed(
               ? 'text-destructive hover:bg-muted'
               : contextNeedsIdleAttention
                 ? 'bg-blue-500/12 ring-1 ring-blue-500/45 text-foreground dark:bg-blue-400/14 dark:ring-blue-400/50'
-                : 'text-foreground hover:bg-muted',
+                : contextHasActiveThread
+                  ? 'bg-accent text-foreground'
+                  : 'text-foreground hover:bg-muted',
           ]"
         >
           <button
@@ -170,7 +178,9 @@ const contextNeedsIdleAttention = computed(
           ? 'text-destructive hover:bg-muted'
           : contextNeedsIdleAttention
             ? 'bg-blue-500/12 ring-1 ring-blue-500/45 text-foreground dark:bg-blue-400/14 dark:ring-blue-400/50'
-            : 'text-foreground hover:bg-muted',
+            : contextHasActiveThread
+              ? 'bg-accent text-foreground'
+              : 'text-foreground hover:bg-muted',
       ]"
     >
       <button
@@ -210,7 +220,7 @@ const contextNeedsIdleAttention = computed(
 
     <ul
       v-show="isExpanded"
-      class="ml-2.5 space-y-0.5 border-l border-border pl-2"
+      class="ml-2.5 space-y-0.5 border-l border-border pl-1"
       :data-testid="'thread-group-threads-' + node.id"
       :data-thread-group-id="node.id"
     >
@@ -224,7 +234,7 @@ const contextNeedsIdleAttention = computed(
       </template>
       <template v-else>
         <template v-for="(sg, sgIdx) in subgroupsWithNodes" :key="sgIdx">
-          <li role="presentation" class="list-none pb-0.5 pt-2 first:pt-0">
+          <li role="presentation" class="list-none p-0.5 first:pt-0">
             <span class="text-[8px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
               {{ sg.label }}
             </span>

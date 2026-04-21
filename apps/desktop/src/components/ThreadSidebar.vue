@@ -720,7 +720,7 @@ async function openAppUpdateUrl(url: string): Promise<void> {
     :data-thread-sidebar-collapsed="collapsed ? 'true' : undefined"
   > 
     <!-- Header row: project selector + collapse button -->
-    <div v-if="!collapsed" class="flex shrink-0 select-none items-center gap-1 px-2 py-1 pt-2">
+    <div v-if="!collapsed" class="flex shrink-0 select-none items-center gap-1 px-3 pt-2">
       <Select
         v-if="projects.length > 0"
         class="flex-1"
@@ -785,7 +785,7 @@ async function openAppUpdateUrl(url: string): Promise<void> {
     </div>
     <div
       v-if="!collapsed && projects.length > 0"
-      class="flex w-full min-w-0 flex-col gap-1 pb-2"
+      class="flex w-full min-w-0 flex-col gap-1 pb-1.5"
     >
       <div class="flex w-full min-w-0 flex-col gap-1">
         <ContextQueueReviewDropdown
@@ -801,7 +801,7 @@ async function openAppUpdateUrl(url: string): Promise<void> {
     </div>
     <section
       v-if="threads.length === 0"
-      class="flex min-h-0 flex-1 flex-col pt-6 pb-3"
+      class="flex min-h-0 flex-1 flex-col pt-6 pb-2"
       :class="collapsed ? 'px-1' : 'px-3'"
     >
       <div class="flex flex-col items-center gap-3 text-center">
@@ -822,8 +822,9 @@ async function openAppUpdateUrl(url: string): Promise<void> {
       </div>      
     </section>
     <div v-else class="flex min-h-0 flex-1 flex-col">
-      <div class="min-h-0 relative flex-1 flex flex-col gap-2 overflow-y-auto">        
-        <ul class="min-w-0 space-y-2 px-1.5">
+      <div class="min-h-0 relative flex-1 flex flex-col overflow-y-auto">        
+        <div class="sticky top-0 z-10 h-3 w-full shrink-0 bg-gradient-to-b from-sidebar via-sidebar/60 to-transparent pointer-events-none" />
+        <ul class="min-w-0 space-y-2 px-1.5 pb-1">
           <ThreadSidebarNodes
             v-for="node in primarySidebarNodes"
             :key="node.id"
@@ -884,7 +885,7 @@ async function openAppUpdateUrl(url: string): Promise<void> {
                     </label>
                   </div>
                 </template>
-                <div v-if="node.threads.some(t => t.isActive)" class="w-full">
+                <div v-if="node.threads.some(t => t.isActive)" class="w-full pt-1">
                   <PillTabs
                     v-model="centerPanelTab"
                     variant="segmented"
@@ -952,7 +953,7 @@ async function openAppUpdateUrl(url: string): Promise<void> {
             @rename-thread="(id, title) => emit('rename', id, title)"
           >
             <template v-if="node.threads.some(t => t.isActive)" #header-extra>
-              <div class="px-1 pb-1">
+              <div class="px-1 pt-1">
                 <PillTabs
                   v-model="centerPanelTab"
                   variant="segmented"
@@ -963,6 +964,7 @@ async function openAppUpdateUrl(url: string): Promise<void> {
             </template>
           </ThreadSidebarNodes>
         </ul>
+        <div class="sticky bottom-0 z-10 h-5 w-full shrink-0 bg-gradient-to-t from-sidebar via-sidebar/60 to-transparent pointer-events-none" />
       </div>
     </div>
     <footer
