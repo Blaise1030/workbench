@@ -871,7 +871,58 @@ async function openAppUpdateUrl(url: string): Promise<void> {
             @select-thread="emit('select', $event)"
             @remove-thread="emit('remove', $event)"
             @rename-thread="(id, title) => emit('rename', id, title)"
-          />
+          >
+            <template v-if="node.kind === 'context' && node.isPrimary" #header-extra>
+              <div class="flex flex-col gap-2 px-1 pb-1">
+                <div class="flex min-w-0 items-start">
+                  <ScmBranchCombobox
+                    v-if="showToolbarBranchSwitcher"
+                    variant="toolbar"
+                    :branch-line="scmBranchLine"
+                    :current-branch="scmCurrentBranch"
+                    :project-id="projectId ?? ''"
+                    :cwd="scmCwd"
+                    switcher-enabled
+                    @branch-changed="emit('branchChanged')"
+                  />
+                  <Badge
+                    v-else-if="contextLabel"
+                    variant="outline"
+                    class="shrink-0 text-[10px] text-muted-foreground"
+                  >
+                    {{ contextLabel }}
+                  </Badge>
+                </div>
+                <div
+                  v-if="branchFilterAvailable"
+                  class="flex items-center gap-2 px-2"
+                  title="Threads created on the checked-out branch in each group."
+                >
+                  <Switch
+                    id="thread-sidebar-filter-current-branch"
+                    v-model="filterByCurrentBranch"
+                    class="shrink-0"
+                    data-testid="thread-sidebar-filter-current-branch"
+                    aria-label="Threads from this branch only"
+                  />
+                  <label
+                    class="min-w-0 user-select-none cursor-pointer text-left text-[11px] leading-snug text-muted-foreground"
+                    for="thread-sidebar-filter-current-branch"
+                  >
+                    Threads from this branch only
+                  </label>
+                </div>
+                <div v-if="activeThreadId" class="w-full">
+                  <PillTabs
+                    v-model="centerPanelTab"
+                    variant="segmented"
+                    :tabs="centerPanelTabs"
+                    aria-label="Center panel"
+                  />
+                </div>
+              </div>
+            </template>
+          </ThreadSidebarNodes>
           <li
             v-if="projectId && !collapsed"
             class="py-1"
