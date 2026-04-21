@@ -26,6 +26,7 @@ import ThreadSidebar from "@/components/ThreadSidebar.vue";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAgentBootstrapCommands } from "@/composables/useAgentBootstrapCommands";
 import { expandUserSkillRoot, useAgentSkillRoots } from "@/composables/useAgentSkillRoots";
+import { useWorktreeHealth } from "@/composables/useWorktreeHealth";
 import { threadAgentResumeCommand } from "@shared/threadAgentBootstrap";
 import type { PendingAgentBootstrap } from "@shared/pendingAgentBootstrap";
 import { isValidPersistedResumeId } from "@shared/resumeSessionId";
@@ -1327,17 +1328,6 @@ async function handleDeleteWorktreeGroup(worktreeId: string): Promise<void> {
   }
 }
 
-async function checkWorktreeHealth(): Promise<void> {
-  const api = getApi();
-  if (!api?.worktreeHealth) return;
-
-  const nextStale = new Set<string>();
-  for (const wt of workspace.threadGroups) {
-    const { exists } = await api.worktreeHealth(wt.id);
-    if (!exists) nextStale.add(wt.id);
-  }
-  staleWorktreeIds.value = nextStale;
-}
 
 async function handleSelectThread(threadId: string): Promise<void> {
   mainCenterTab.value = "agent";
@@ -1687,15 +1677,11 @@ onMounted(async () => {
       handleConfigureCommands();
     });
   }
-  worktreeHealthInterval = setInterval(() => void checkWorktreeHealth(), 60_000);
-  void checkWorktreeHealth();
+  useWorktreeHealth(workspace, staleWorktreeIds);
 });
-
-let worktreeHealthInterval: ReturnType<typeof setInterval> | null = null;
 
 onBeforeUnmount(() => {
   window.removeEventListener("keydown", onInlinePromptCmdEnter, { capture: true });
-  if (worktreeHealthInterval) clearInterval(worktreeHealthInterval);
   disposeOpenWorkspaceSettings?.();
   disposeOpenWorkspaceSettings = null;
   disposeWorkspaceChanged?.();
@@ -1857,7 +1843,7 @@ watch(
 </script>
 
 <template>
-  <main class="relative flex h-screen flex-col">
+  <main class="relative flex h-screen flex-col bg-background/50">
     <div
       v-if="workspace.projects.length === 0"
       class="pointer-events-none absolute top-2 right-2 z-10"
@@ -1938,7 +1924,7 @@ watch(
         <ThreadSidebar
           ref="threadSidebarRef"
           v-model:center-panel-tab="topCenterTabModel"
-          class="min-h-0 min-w-0 flex-1 bg-sidebar border-r border-border"
+          class="min-h-0 min-w-0 flex-1 sidebar-glass border-r border-sidebar-border"
           :collapsed="threadsSidebarCollapsed"
           :context-label="activeContextLabel"
           :threads="workspace.activeProjectThreads"
@@ -1985,7 +1971,7 @@ watch(
         />
       </section>
       <section
-        class="flex min-h-0 min-w-0 flex-1 flex-col border-r border-border bg-muted transition-[margin] duration-300 ease-out"
+        class="isolate overflow-hidden flex min-h-0 min-w-0 flex-1 flex-col border-r border-border bg-muted transition-[margin] duration-300 ease-out"
         :class="threadsSidebarCollapsed ? 'ml-0' : 'ml-[270px]'"
       >
         <div
