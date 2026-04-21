@@ -10,7 +10,8 @@ export interface RunConsole {
 
 export const useRunStore = defineStore("run", {
   state: () => ({
-    runs: [] as RunConsole[]
+    runs: [] as RunConsole[],
+    _index: new Map<string, RunConsole>()
   }),
   getters: {
     /** Latest run status keyed by threadId. Runs are stored newest-first. */
@@ -24,14 +25,15 @@ export const useRunStore = defineStore("run", {
   },
   actions: {
     start(runId: string, threadId: string): void {
-      this.runs.unshift({ runId, threadId, status: "running", output: [] });
+      const entry: RunConsole = { runId, threadId, status: "running", output: [] };
+      this.runs.unshift(entry);
+      this._index.set(runId, entry);
     },
     append(runId: string, line: string): void {
-      const run = this.runs.find((r) => r.runId === runId);
-      if (run) run.output.push(line);
+      this._index.get(runId)?.output.push(line);
     },
     setStatus(runId: string, status: RunStatus): void {
-      const run = this.runs.find((r) => r.runId === runId);
+      const run = this._index.get(runId);
       if (run) run.status = status;
     }
   }
