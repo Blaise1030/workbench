@@ -238,6 +238,13 @@ function createMainWindow(): BrowserWindow {
   } else {
     void win.loadFile(path.join(__dirname, "../dist/index.html"));
   }
+  win.on("enter-full-screen", () => {
+    win.webContents.send(IPC_CHANNELS.windowFullscreenChanged, true);
+  });
+  win.on("leave-full-screen", () => {
+    win.webContents.send(IPC_CHANNELS.windowFullscreenChanged, false);
+  });
+
   win.on("close", (event) => {
     if (hasConfirmedClose) return;
     event.preventDefault();

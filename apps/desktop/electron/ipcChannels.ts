@@ -1,6 +1,7 @@
 /** Canonical IPC channel names for main/renderer. Sandboxed preload inlines the same strings (see `preload.ts`). */
 
 export const IPC_CHANNELS = {
+  windowFullscreenChanged: "window:fullscreenChanged",
   workspaceGetSnapshot: "workspace:getSnapshot",
   workspaceAddProject: "workspace:addProject",
   workspaceRemoveProject: "workspace:removeProject",

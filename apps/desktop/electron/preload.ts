@@ -221,6 +221,11 @@ contextBridge.exposeInMainWorld("workspaceApi", {
     ipcRenderer.on(IPC_CHANNELS.terminalPtyData, handler);
     return () => ipcRenderer.off(IPC_CHANNELS.terminalPtyData, handler);
   },
+  onWindowFullscreenChanged: (callback: (isFullscreen: boolean) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, isFullscreen: boolean) => callback(isFullscreen);
+    ipcRenderer.on(IPC_CHANNELS.windowFullscreenChanged, handler);
+    return () => ipcRenderer.off(IPC_CHANNELS.windowFullscreenChanged, handler);
+  },
   onWorkspaceChanged: (callback: () => void) => {
     const handler = () => callback();
     ipcRenderer.on(IPC_CHANNELS.workspaceDidChange, handler);

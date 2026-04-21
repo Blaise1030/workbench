@@ -86,6 +86,7 @@ interface WorkspaceApi {
   /** Replay scrollback from the main process into xterm (Electron only). */
   ptyGetBuffer?: (sessionId: string) => Promise<{ buffer: string }>;
   onPtyData: (callback: (sessionId: string, data: string) => void) => () => void;
+  onWindowFullscreenChanged?: (callback: (isFullscreen: boolean) => void) => () => void;
   onWorkspaceChanged?: (callback: () => void) => () => void;
   /** After save/create/delete/applyPatch in the active repo (Electron); refresh git diff. */
   onWorkingTreeFilesChanged?: (callback: () => void) => () => void;
