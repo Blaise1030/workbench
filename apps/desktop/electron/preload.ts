@@ -14,6 +14,7 @@ import type {
  * with `electron/ipcChannels.ts` (see `electron/__tests__/preloadIpcChannelsParity.test.ts`).
  */
 const IPC_CHANNELS = {
+  windowFullscreenChanged: "window:fullscreenChanged",
   workspaceGetSnapshot: "workspace:getSnapshot",
   workspaceAddProject: "workspace:addProject",
   workspaceRemoveProject: "workspace:removeProject",
