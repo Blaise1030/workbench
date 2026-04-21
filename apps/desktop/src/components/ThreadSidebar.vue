@@ -772,7 +772,7 @@ async function openAppUpdateUrl(url: string): Promise<void> {
         </SelectContent>
       </Select>
       </div>      
-      <div class="flex flex-col items-flex w-full min-w-0 gap-1">                
+      <div class="flex w-full min-w-0 flex-col gap-1">
         <ContextQueueReviewDropdown
           v-if="activeThreadId && contextQueueItems.length > 0"
           ref="contextQueueReviewRef"
@@ -782,54 +782,6 @@ async function openAppUpdateUrl(url: string): Promise<void> {
           @confirm="emit('contextQueueConfirm', $event)"
           @persist-draft="emit('contextQueuePersistDraft', $event)"
         />
-        <div class="flex flex-col gap-2">          
-        <div class="flex min-w-0 items-start">
-          <ScmBranchCombobox
-            v-if="showToolbarBranchSwitcher"
-            variant="toolbar"                    
-            :branch-line="scmBranchLine"
-            :current-branch="scmCurrentBranch"
-            :project-id="projectId ?? ''"
-            :cwd="scmCwd"
-            switcher-enabled
-            @branch-changed="emit('branchChanged')"
-          />
-          <Badge
-            v-else-if="contextLabel"
-            variant="outline"
-            class="shrink-0 text-[10px] text-muted-foreground"
-          >
-            {{ contextLabel }}
-          </Badge>
-        </div>  
-        <div
-          v-if="branchFilterAvailable"
-          class="flex items-center gap-2 px-2"
-          title="Threads created on the checked-out branch in each group."
-        >
-          <Switch
-            id="thread-sidebar-filter-current-branch"
-            v-model="filterByCurrentBranch"
-            class="shrink-0"
-            data-testid="thread-sidebar-filter-current-branch"
-            aria-label="Threads from this branch only"
-          />
-          <label
-            class="min-w-0 user-select-none cursor-pointer text-left text-[11px] leading-snug text-muted-foreground"
-            for="thread-sidebar-filter-current-branch"
-          >
-            Threads from this branch only
-          </label>
-        </div>
-        <div class="w-full px-1">
-            <PillTabs             
-              v-model="centerPanelTab"
-              variant="segmented"          
-              :tabs="centerPanelTabs"
-              aria-label="Center panel"
-            />
-        </div>   
-        </div>
       </div>
     </div>
     <section
