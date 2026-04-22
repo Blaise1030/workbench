@@ -27,9 +27,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { useAgentBootstrapCommands } from "@/composables/useAgentBootstrapCommands";
 import { expandUserSkillRoot, useAgentSkillRoots } from "@/composables/useAgentSkillRoots";
 import { useWorktreeHealth } from "@/composables/useWorktreeHealth";
-import { threadAgentResumeCommand } from "@shared/threadAgentBootstrap";
+import { useThreadNavigation } from "@/composables/useThreadNavigation";
 import type { PendingAgentBootstrap } from "@shared/pendingAgentBootstrap";
-import { isValidPersistedResumeId } from "@shared/resumeSessionId";
 import {
   clearInlineThreadDraft,
   loadInlineThreadDraft,
@@ -515,24 +514,6 @@ function toggleTerminalPanelFromShortcut(): void {
 /** After creating a thread from the agent menu, run the agent’s bootstrap CLI once in that PTY. */
 const pendingAgentBootstrap = ref<PendingAgentBootstrap | null>(null);
 
-/** If a thread has a stored resumeId and is in "resumable" state, auto-set its bootstrap command. */
-function maybeSetResumeBootstrap(threadId: string | null): void {
-  if (!threadId) return;
-  const thread = workspace.threads.find((t) => t.id === threadId);
-  if (!thread) return;
-  const session = workspace.threadSessionFor(threadId);
-  if (
-    !session?.resumeId ||
-    session.status !== "resumable" ||
-    !isValidPersistedResumeId(session.resumeId)
-  ) return;
-  if (pendingAgentBootstrap.value?.threadId === threadId) return;
-  pendingAgentBootstrap.value = {
-    threadId,
-    command: threadAgentResumeCommand(thread.agent, session.resumeId),
-    mode: "resume"
-  };
-}
 const repoDirectoryInput = ref<HTMLInputElement | null>(null);
 let pendingRepoDirectoryResolve: ((value: string | null) => void) | null = null;
 let disposeWorkspaceChanged: (() => void) | null = null;
@@ -1501,25 +1482,6 @@ function handleConfigureCommands(): void {
   agentCommandsSettingsOpen.value = true;
 }
 
-function goPrevThread(): void {
-  const threads = workspace.activeThreads;
-  const cur = workspace.activeThreadId;
-  if (threads.length === 0) return;
-  const i = cur ? threads.findIndex((t) => t.id === cur) : 0;
-  const prev = i <= 0 ? threads.length - 1 : i - 1;
-  const t = threads[prev];
-  if (t) void handleSelectThread(t.id);
-}
-
-function goNextThread(): void {
-  const threads = workspace.activeThreads;
-  const cur = workspace.activeThreadId;
-  if (threads.length === 0) return;
-  const i = cur ? threads.findIndex((t) => t.id === cur) : -1;
-  const next = i < 0 || i >= threads.length - 1 ? 0 : i + 1;
-  const t = threads[next];
-  if (t) void handleSelectThread(t.id);
-}
 
 function toggleThreadsSidebar(): void {
   threadsSidebarCollapsed.value = !threadsSidebarCollapsed.value;
@@ -1609,6 +1571,12 @@ async function onLauncherPickWorktree(worktreeId: string): Promise<void> {
 
 usePreviewModalOcclusion();
 
+const { goPrevThread, goNextThread, maybeSetResumeBootstrap } = useThreadNavigation(
+  workspace,
+  pendingAgentBootstrap,
+  handleSelectThread
+);
+
 useWorkspaceKeybindings(
   {
     workspaceUiActive: () => hasActiveWorkspace.value,
@@ -1689,15 +1657,6 @@ onBeforeUnmount(() => {
   disposeWorkingTreeFilesChanged?.();
   disposeWorkingTreeFilesChanged = null;
 });
-
-watch(
-  () => workspace.activeThreadId,
-  (id) => {
-    const pending = pendingAgentBootstrap.value;
-    if (pending && id !== pending.threadId) pendingAgentBootstrap.value = null;
-    maybeSetResumeBootstrap(id);
-  }
-);
 
 watch(
   () =>
