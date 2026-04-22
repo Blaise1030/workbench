@@ -190,7 +190,7 @@ function onProjectSwitcherChange(projectId: string): void {
             type="button"
             variant="outline"
             size="sm"
-            :class="activeProjectHasActiveThread ? 'bg-accent' : ''"
+            :class="activeProjectHasActiveThread ? 'bg-accent' : 'bg-background'"
             class="h-8 w-full min-w-0 justify-between gap-1.5 px-2 font-normal"
             :aria-label="`Active project: ${activeProject?.name ?? 'None'}`"
             :title="activeProject?.repoPath ?? undefined"

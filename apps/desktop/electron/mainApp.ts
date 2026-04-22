@@ -206,6 +206,10 @@ function createMainWindow(): BrowserWindow {
     width: 1600,
     height: 980,
     icon: devAppIconPath(),
+    transparent: true,
+    backgroundColor: "#00000000",
+    vibrancy: process.platform === "darwin" ? "under-window" : undefined,
+    visualEffectState: process.platform === "darwin" ? "active" : undefined,
     titleBarStyle: 'hidden',
     titleBarOverlay: true,    
     trafficLightPosition: { x: 14, y: 14 }, // only relevant with native traffic lights

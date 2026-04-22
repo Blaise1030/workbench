@@ -165,7 +165,7 @@ function handleArchiveClick(): void {
       props.needsIdleAttention
         ? 'bg-blue-500/12 ring-1 ring-blue-500/45 dark:bg-blue-400/14 dark:ring-blue-400/50'
         : isActive
-          ? 'bg-accent'
+          ? 'bg-black/5 dark:bg-muted/60'
           : 'active:bg-accent/90'
     ]"
     @mouseenter="rowHovered = true"

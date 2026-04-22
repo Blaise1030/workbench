@@ -1265,7 +1265,7 @@ async function confirmDiscardIfDirty(): Promise<boolean> {
   });
 }
 
-async function loadFileSummaries(): Promise<void> {
+async function loadFileSummaries(silent = false): Promise<void> {
   const api = getApi();
   const cwd = props.worktreePath;
   if (!api || !cwd) {
@@ -1275,14 +1275,16 @@ async function loadFileSummaries(): Promise<void> {
   }
 
   const seq = ++fileSummariesSeq;
-  isSearching.value = true;
+  if (!silent) isSearching.value = true;
   error.value = null;
 
   try {
     const files = await api.listFiles(cwd);
     if (seq !== fileSummariesSeq || props.worktreePath !== cwd) return;
     allFiles.value = files;
-    expandedFolders.value = defaultExpandedFolders(files);
+    if (expandedFolders.value.size === 0) {
+      expandedFolders.value = defaultExpandedFolders(files);
+    }
   } catch (searchError) {
     if (seq !== fileSummariesSeq || props.worktreePath !== cwd) return;
     allFiles.value = [];
@@ -1552,12 +1554,12 @@ onMounted(() => {
   const api = getApi();
   if (api?.onWorkspaceChanged) {
     disposeWorkspaceChanged = api.onWorkspaceChanged(() => {
-      void loadFileSummaries();
+      void loadFileSummaries(true);
     });
   }
   if (api?.onWorkingTreeFilesChanged) {
     disposeWorkingTreeFilesChanged = api.onWorkingTreeFilesChanged(() => {
-      void loadFileSummaries();
+      void loadFileSummaries(true);
     });
   }
   document.addEventListener("keydown", onGlobalKeydown);
@@ -1895,9 +1897,8 @@ defineExpose({
       "
     >    
       <div
-        class="border border-border text-foreground flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg bg-sidebar"
-      >      
-        
+        class="border border-border text-foreground flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg sidebar-glass"
+      >
           <div
             data-testid="file-search-header"
             class="shrink-0 flex flex-col gap-1 p-1"

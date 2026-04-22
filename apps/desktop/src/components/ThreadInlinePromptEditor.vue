@@ -135,13 +135,13 @@ defineExpose({ submit });
   >
     <div
       aria-hidden="true"
-      class="thread-inline-prompt-editor__shader pointer-events-none fixed inset-0 overflow-hidden"
+      class="thread-inline-prompt-editor__shader pointer-events-none absolute inset-y-0 right-0 overflow-hidden"
     >
       <img
         :src="ditherImageSrc"
         alt=""
         :class="[
-          'h-full w-full object-cover',
+          'h-full w-full object-cover object-left',
           isDarkTheme ? 'invert' : undefined
         ]"
       />

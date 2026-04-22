@@ -1,9 +1,18 @@
 /// <reference types="vite/client" />
 import type {
+  AddProjectInput,
+  AddWorktreeInput,
   AppUpdateAvailability,
+  CreateThreadInput,
+  CreateWorktreeGroupInput,
+  DeleteThreadInput,
   FileDiffScope,
   FileMergeSidesResult,
   FileSummary,
+  RemoveProjectInput,
+  RenameThreadInput,
+  ReorderProjectsInput,
+  UpdateThreadInput,
   WorktreeEditorState,
   PreviewProbeResult,
   RepoScmSnapshot,
@@ -19,10 +28,10 @@ declare module "*.vue" {
 
 interface WorkspaceApi {
   getSnapshot: () => Promise<unknown>;
-  addProject: (payload: unknown) => Promise<unknown>;
-  removeProject?: (payload: { projectId: string }) => Promise<void>;
-  reorderProjects?: (payload: { orderedProjectIds: string[] }) => Promise<void>;
-  addWorktree: (payload: unknown) => Promise<unknown>;
+  addProject: (payload: AddProjectInput) => Promise<unknown>;
+  removeProject?: (payload: RemoveProjectInput) => Promise<void>;
+  reorderProjects?: (payload: ReorderProjectsInput) => Promise<void>;
+  addWorktree: (payload: AddWorktreeInput) => Promise<unknown>;
   setActive: (payload: { projectId: string | null; worktreeId: string | null; threadId: string | null }) => Promise<void>;
   getWorktreeEditorState?: (worktreeId: string) => Promise<WorktreeEditorState | null>;
   setWorktreeEditorState?: (payload: {
@@ -30,12 +39,14 @@ interface WorkspaceApi {
     selectedFilePath: string | null;
     openFilePaths: string[];
   }) => Promise<void>;
-  createThread: (payload: unknown) => Promise<unknown>;
+  createThread: (payload: CreateThreadInput) => Promise<unknown>;
   setActiveThread: (threadId: string) => Promise<unknown>;
-  deleteThread: (payload: { threadId: string }) => Promise<void>;
-  renameThread: (payload: { threadId: string; title: string }) => Promise<void>;
-  updateThread?: (payload: { threadId: string; title?: string; agent?: import("@shared/domain").ThreadAgent }) => Promise<void>;
-  startRun: (payload: unknown) => Promise<string>;
+  deleteThread: (payload: DeleteThreadInput) => Promise<void>;
+  renameThread: (payload: RenameThreadInput) => Promise<void>;
+  updateThread?: (payload: UpdateThreadInput) => Promise<void>;
+  createWorktreeGroup?: (payload: CreateWorktreeGroupInput) => Promise<unknown>;
+  deleteWorktreeGroup?: (payload: { worktreeId: string }) => Promise<void>;
+  startRun: (payload: { agent: string; cwd: string; prompt: string }) => Promise<string>;
   sendRunInput: (runId: string, input: string) => Promise<void>;
   interruptRun: (runId: string) => Promise<void>;
   changedFiles: (cwd: string) => Promise<string[]>;
@@ -75,7 +86,7 @@ interface WorkspaceApi {
   deleteFile: (cwd: string, relativePath: string) => Promise<void>;
   createFolder: (cwd: string, relativePath: string) => Promise<void>;
   deleteFolder: (cwd: string, relativePath: string) => Promise<void>;
-  applyPatch: (payload: unknown) => Promise<void>;
+  applyPatch: (payload: { cwd: string; relativeFilePath: string; content: string }) => Promise<void>;
   /** @param sessionId Thread id or `__wt:${worktreeId}` when no thread is selected. */
   ptyCreate: (sessionId: string, cwd: string, worktreeId: string) => Promise<{ buffer: string; created?: boolean }>;
   ptyWrite: (sessionId: string, data: string) => Promise<void>;

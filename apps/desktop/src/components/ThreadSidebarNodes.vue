@@ -119,10 +119,10 @@ const contextHasActiveThread = computed(
           :class="[
             node.isStale
               ? 'text-destructive hover:bg-muted'
-              : contextNeedsIdleAttention
-                ? 'bg-blue-500/12 ring-1 ring-blue-500/45 text-foreground dark:bg-blue-400/14 dark:ring-blue-400/50'
-                : contextHasActiveThread
-                  ? 'bg-accent text-foreground'
+              : contextHasActiveThread
+                ? 'bg-accent/30 text-foreground'
+                : contextNeedsIdleAttention
+                  ? 'bg-blue-500/12 ring-1 ring-blue-500/45 text-foreground dark:bg-blue-400/14 dark:ring-blue-400/50'
                   : 'text-foreground hover:bg-muted',
           ]"
         >
@@ -134,9 +134,9 @@ const contextHasActiveThread = computed(
             :aria-expanded="isExpanded"
             @click="emit('toggleContext', node.id)"
           >
-            <span class="w-3.5 shrink-0 text-center text-lg leading-none text-muted-foreground">
-              {{ isExpanded ? "▾" : "▸" }}
-            </span>
+            
+            <ChevronDown size="10" v-if="isExpanded"/>
+            <ChevronUp size="10" v-else />
             <span
               v-if="contextBadge"
               class="shrink-0 text-[11px] leading-none"
@@ -176,10 +176,10 @@ const contextHasActiveThread = computed(
       :class="[
         node.isStale
           ? 'text-destructive hover:bg-muted'
-          : contextNeedsIdleAttention
-            ? 'bg-blue-500/12 ring-1 ring-blue-500/45 text-foreground dark:bg-blue-400/14 dark:ring-blue-400/50'
-            : contextHasActiveThread
-              ? 'bg-accent text-foreground'
+          : contextHasActiveThread
+            ? 'bg-black/5 dark:bg-accent/60 text-foreground'
+            : contextNeedsIdleAttention
+              ? 'bg-blue-500/12 ring-1 ring-blue-500/45 text-foreground dark:bg-blue-400/14 dark:ring-blue-400/50'
               : 'text-foreground hover:bg-muted',
       ]"
     >
@@ -191,9 +191,8 @@ const contextHasActiveThread = computed(
         :aria-expanded="isExpanded"
         @click="emit('toggleContext', node.id)"
       >
-        <span class="w-3.5 shrink-0 text-center text-lg leading-none text-muted-foreground">
-          {{ isExpanded ? "▾" : "▸" }}
-        </span>
+        <ChevronDown size="10" v-if="isExpanded"/>
+        <ChevronUp size="10" v-else />
         <span
           v-if="contextBadge"
           class="shrink-0 text-[11px] leading-none"

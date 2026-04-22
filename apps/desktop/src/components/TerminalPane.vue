@@ -563,7 +563,7 @@ defineExpose({ focus: focusTerminal, refresh: refreshTerminal });
 <template>
   <section
     data-instrument-terminal
-    class="relative flex bg-background h-full min-h-0 min-w-0 flex-col overflow-hidden px-3 pt-1 pb-0 text-card-foreground text-xs border-t border-border"
+    class="relative flex bg-background h-full min-h-0 min-w-0 flex-col overflow-hidden px-3 pt-1 pb-0 text-card-foreground text-xs"
     role="document"
     :aria-label="paneAriaLabel"
   >
