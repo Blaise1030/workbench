@@ -66,7 +66,7 @@ function handleCreate(): void {
   <div
     :class="
       cn(
-        'rounded-md border border-border bg-card p-2.5 shadow-sm',
+        'rounded-md border border-border bg-background/40 p-2.5 shadow-sm',
         props.variant === 'footer'
           ? 'mx-0 my-0 w-full'
           : props.variant === 'popover'
@@ -92,7 +92,7 @@ function handleCreate(): void {
       <label class="mb-1 block text-[10px] text-muted-foreground">Base branch</label>
       <ScmBranchCombobox
         v-if="!loading && branches.length > 0"
-        v-model:current-branch="baseBranch"
+        v-model:current-branch="baseBranch"        
         mode="pick"
         variant="footer"
         :branch-line="null"
