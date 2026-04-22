@@ -28,7 +28,7 @@ import { useAgentBootstrapCommands } from "@/composables/useAgentBootstrapComman
 import { expandUserSkillRoot, useAgentSkillRoots } from "@/composables/useAgentSkillRoots";
 import { useWorktreeHealth } from "@/composables/useWorktreeHealth";
 import { useThreadNavigation } from "@/composables/useThreadNavigation";
-import { useScmState } from "@/composables/useScmState";
+import { useScmStore } from "@/stores/scmStore";
 import type { PendingAgentBootstrap } from "@shared/pendingAgentBootstrap";
 import {
   clearInlineThreadDraft,
@@ -83,24 +83,7 @@ const { skillRoots: agentSkillRoots, applySaved: applySavedAgentSkillRoots } = u
 const agentCommandsSettingsOpen = ref(false);
 const toast = useToast();
 const localLlm = reactive(useLocalLlm());
-const scmCommitMessage = ref("");
-const scmFetchBusy = ref(false);
-const scmPushBusy = ref(false);
-const scmCommitBusy = ref(false);
-const {
-  hasGitRepository,
-  repoStatus,
-  scmMeta,
-  selectedScmPath,
-  selectedScmScope,
-  selectedMergeResult,
-  selectedDiffLoading,
-  diffCache,
-  cacheKey,
-  applyRepoStatusSelection,
-  loadSelectedMerge,
-  refreshRepoStatus
-} = useScmState(workspace);
+const scm = useScmStore();
 
 const THREADS_SIDEBAR_COLLAPSED_KEY = "instrument.threadsSidebarCollapsed";
 function readThreadsSidebarCollapsed(): boolean {
@@ -314,7 +297,7 @@ const isInNonDefaultWorktree = computed(
 );
 const showTopBarBranchSwitcher = computed(
   () =>
-    hasGitRepository.value === true &&
+    scm.hasGitRepository === true &&
     !isInNonDefaultWorktree.value &&
     Boolean(workspace.activeProjectId && workspace.activeWorktree?.path)
 );
@@ -327,7 +310,7 @@ const topCenterPanelTabs = computed<PillTabItem[]>(() => {
       shortcutHint: keybindings.shortcutLabelForId("focusAgentTab")
     }
   ];
-  if (hasGitRepository.value === true) {
+  if (scm.hasGitRepository === true) {
     tabs.push({
       value: "diff",
       label: "🌿 Git",
@@ -517,7 +500,7 @@ let disposeWorkingTreeFilesChanged: (() => void) | null = null;
 let disposeOpenWorkspaceSettings: (() => void) | null = null;
 
 const scmBranchLine = computed(() => {
-  const { shortLabel, branch } = scmMeta.value;
+  const { shortLabel, branch } = scm.scmMeta;
   if (!branch) return null as string | null;
   return shortLabel ? `${shortLabel} / ${branch}` : branch;
 });
@@ -568,18 +551,14 @@ watch(
   { deep: true, immediate: true }
 );
 
-const scmFetchAvailable = computed(() => Boolean(getApi()?.gitFetch));
-const scmPushAvailable = computed(() => Boolean(getApi()?.gitPush));
-const scmCommitAvailable = computed(() => Boolean(getApi()?.commitStaged));
-
 const scmHasStagedFiles = computed(() =>
-  repoStatus.value.some((e) => Boolean(e.stagedKind) && !e.isUntracked)
+  scm.repoStatus.some((e) => Boolean(e.stagedKind) && !e.isUntracked)
 );
 
 const scmSuggestCommitAvailable = computed(
   () =>
     Boolean(getApi()?.stagedUnifiedDiff) &&
-    hasGitRepository.value === true
+    scm.hasGitRepository === true
 );
 
 const scmSuggestCommitBusy = computed(
@@ -614,7 +593,7 @@ async function handleInitializeGit(): Promise<void> {
   }
   try {
     await api.initGitRepository(cwd);
-    await refreshRepoStatus();
+    await scm.refreshRepoStatus();
   } catch (e) {
     toast.error(
       "Could not initialize Git",
@@ -704,7 +683,7 @@ async function handleCreateProject(): Promise<void> {
   const payload: AddProjectInput = { name, repoPath, defaultBranch };
   const snapshot = (await api.addProject(payload)) as WorkspaceSnapshot;
   await refreshSnapshot(snapshot);
-  await refreshRepoStatus();
+  await scm.refreshRepoStatus();
 }
 
 async function syncWorktrees(projectId: string): Promise<void> {
@@ -738,7 +717,7 @@ async function handleSelectProject(projectId: string): Promise<void> {
   if (!(await confirmFilesContextSwitch(fallbackWorktreeId))) return;
   await api.setActive({ projectId, worktreeId: fallbackWorktreeId, threadId: fallbackThreadId });
   await refreshSnapshot();
-  await refreshRepoStatus();
+  await scm.refreshRepoStatus();
 }
 
 async function handleRemoveProject(projectId: string): Promise<void> {
@@ -751,7 +730,7 @@ async function handleRemoveProject(projectId: string): Promise<void> {
   const payload: RemoveProjectInput = { projectId };
   await api.removeProject(payload);
   await refreshSnapshot();
-  await refreshRepoStatus();
+  await scm.refreshRepoStatus();
 }
 
 async function handleSelectWorktree(worktreeId: string): Promise<boolean> {
@@ -768,7 +747,7 @@ async function handleSelectWorktree(worktreeId: string): Promise<boolean> {
     threadId: targetWt.lastActiveThreadId ?? firstThreadInWt
   });
   await refreshSnapshot();
-  await refreshRepoStatus();
+  await scm.refreshRepoStatus();
   return true;
 }
 
@@ -1132,145 +1111,18 @@ async function handleSelectThread(threadId: string): Promise<void> {
     threadId
   });
   await refreshSnapshot();
-  await refreshRepoStatus();
+  await scm.refreshRepoStatus();
   clearPtyIdleAttention(threadId);
-}
-
-async function handleStageSelected(paths: string[]): Promise<void> {
-  const api = getApi();
-  if (!api || !workspace.activeWorktree || paths.length === 0) return;
-  if (api.stagePaths) {
-    await api.stagePaths(workspace.activeWorktree.path, paths);
-  } else {
-    await api.stageAll(workspace.activeWorktree.path);
-  }
-  await refreshRepoStatus();
-}
-
-async function handleUnstageSelected(paths: string[]): Promise<void> {
-  const api = getApi();
-  if (!api || !workspace.activeWorktree || paths.length === 0) return;
-  if (!api.unstagePaths) {
-    toast.error("Cannot unstage selection", "Restart the desktop app so per-file unstage is available.");
-    return;
-  }
-  await api.unstagePaths(workspace.activeWorktree.path, paths);
-  await refreshRepoStatus();
-}
-
-async function handleDiscardSelected(paths: string[]): Promise<void> {
-  const api = getApi();
-  if (!api || !workspace.activeWorktree || paths.length === 0) return;
-  if (!api.discardPaths) {
-    toast.error(
-      "Cannot discard selection",
-      "Restart the desktop app so per-file discard is available, or discard from the terminal."
-    );
-    return;
-  }
-  const label = paths.length === 1 ? paths[0]! : `${paths.length} files`;
-  const confirmed = window.confirm(`Discard changes to ${label}?`);
-  if (!confirmed) return;
-  await api.discardPaths(workspace.activeWorktree.path, paths);
-  await refreshRepoStatus();
-}
-
-async function handleStageAll(): Promise<void> {
-  const api = getApi();
-  if (!api || !workspace.activeWorktree) return;
-  await api.stageAll(workspace.activeWorktree.path);
-  await refreshRepoStatus();
-}
-
-async function handleUnstageAll(): Promise<void> {
-  const api = getApi();
-  if (!api || !workspace.activeWorktree) return;
-  if (!api.unstageAll) {
-    toast.error("Cannot unstage all", "Restart the desktop app so unstage-all is available.");
-    return;
-  }
-  await api.unstageAll(workspace.activeWorktree.path);
-  await refreshRepoStatus();
-}
-
-async function handleDiscardAll(): Promise<void> {
-  const api = getApi();
-  if (!api || !workspace.activeWorktree) return;
-  const confirmed = window.confirm("Discard all working tree changes?");
-  if (!confirmed) return;
-  await api.discardAll(workspace.activeWorktree.path);
-  await refreshRepoStatus();
-}
-
-async function handleScmFetch(): Promise<void> {
-  const api = getApi();
-  const cwd = workspace.activeWorktree?.path;
-  if (!api?.gitFetch || !cwd) return;
-  scmFetchBusy.value = true;
-  try {
-    await api.gitFetch(cwd);
-    await refreshRepoStatus();
-  } catch (e) {
-    toast.error("Fetch failed", e instanceof Error ? e.message : "Something went wrong.");
-  } finally {
-    scmFetchBusy.value = false;
-  }
-}
-
-async function handleScmPush(): Promise<void> {
-  const api = getApi();
-  const cwd = workspace.activeWorktree?.path;
-  if (!api?.gitPush || !cwd) return;
-  scmPushBusy.value = true;
-  try {
-    await api.gitPush(cwd);
-    await refreshRepoStatus();
-    toast.success("Push succeeded", `Branch \`${scmMeta.value.branch}\` was pushed to the remote.`);
-  } catch (e) {
-    toast.error("Push failed", e instanceof Error ? e.message : "Something went wrong.");
-  } finally {
-    scmPushBusy.value = false;
-  }
-}
-
-async function handleScmCommit(): Promise<void> {
-  const message = scmCommitMessage.value.trim();
-  if (!message) return;
-  const api = getApi();
-  const cwd = workspace.activeWorktree?.path;
-  if (!api?.commitStaged || !cwd) {
-    toast.error(
-      "Commit unavailable",
-      "Commit from the UI requires the desktop app with an up-to-date build, or use git commit in the terminal."
-    );
-    return;
-  }
-  scmCommitBusy.value = true;
-  try {
-    await api.commitStaged(cwd, message);
-    scmCommitMessage.value = "";
-    await refreshRepoStatus();
-  } catch (e) {
-    toast.error("Commit failed", e instanceof Error ? e.message : "Something went wrong.");
-  } finally {
-    scmCommitBusy.value = false;
-  }
 }
 
 async function handleScmSuggestCommit(): Promise<void> {
   await localLlm.suggestFromStaged(workspace.activeWorktree?.path ?? null);
   if (localLlm.commitSuggestState === "ready" && localLlm.commitCandidates.length > 0) {
-    scmCommitMessage.value = localLlm.commitCandidates[0];
+    scm.scmCommitMessage = localLlm.commitCandidates[0] ?? "";
   }
   if (localLlm.commitSuggestState === "error" && localLlm.commitSuggestError) {
     toast.error("Could not suggest commit", localLlm.commitSuggestError);
   }
-}
-
-function handleSelectScmEntry(payload: { path: string; scope: "staged" | "unstaged" }): void {
-  selectedScmPath.value = payload.path;
-  selectedScmScope.value = payload.scope;
-  void loadSelectedMerge();
 }
 
 async function handleScmOpenFileInEditor(path: string): Promise<void> {
@@ -1385,7 +1237,7 @@ useWorkspaceKeybindings(
     centerTab: () => mainCenterTab.value,
     shellSlotIds: () => shellSlotIds.value,
     terminalPanelOpen: () => terminalPanelOpen.value,
-    scmActionsAvailable: () => hasGitRepository.value === true,
+    scmActionsAvailable: () => scm.hasGitRepository === true,
     launcherConsumesNavShortcuts: () => workspaceLauncherOpen.value,
     onSelectCenterTab: (tab) => {
       if (tab === "agent" || tab === "diff" || tab === "files" || tab === "preview") {
@@ -1406,7 +1258,7 @@ useWorkspaceKeybindings(
     onFocusFileSearch: focusFileSearchShortcut,
     onToggleWorkspaceLauncher: toggleWorkspaceLauncher,
     onStageAllDiff: () => {
-      void handleStageAll();
+      void scm.stageAll();
     },
     onOpenSettings: handleConfigureCommands
   },
@@ -1429,7 +1281,7 @@ onMounted(async () => {
   if (workspace.activeProjectId) {
     await syncWorktrees(workspace.activeProjectId);
   }
-  await refreshRepoStatus();
+  await scm.refreshRepoStatus();
   const api = getApi();
   if (api?.onWorkspaceChanged) {
     disposeWorkspaceChanged = api.onWorkspaceChanged(() => {
@@ -1438,7 +1290,7 @@ onMounted(async () => {
   }
   if (api?.onWorkingTreeFilesChanged) {
     disposeWorkingTreeFilesChanged = api.onWorkingTreeFilesChanged(() => {
-      void refreshRepoStatus();
+      void scm.refreshRepoStatus();
     });
   }
   if (api?.onOpenWorkspaceSettings) {
@@ -1478,9 +1330,7 @@ watch(
       shellSlotIds.value = [];
       mainCenterTab.value = "agent";
       shellOverlayTab.value = "agent";
-      hasGitRepository.value = null;
     } else if (prev !== wt) {
-      hasGitRepository.value = null;
       const saved = loadTerminalLayout(wt);
       if (saved) {
         shellSlotIds.value = saved.shellSlotIds;
@@ -1508,7 +1358,7 @@ watch(
       }
       selectFirstShellTerminalIfPanelOpen();
     }
-    await refreshRepoStatus();
+    await scm.refreshRepoStatus();
   },
   { immediate: true }
 );
@@ -1544,7 +1394,7 @@ watch(shellSlotIds, (ids) => {
 watch(
   () => mainCenterTab.value,
   (tab, prevTab) => {
-    if (tab === "diff") void refreshRepoStatus();
+    if (tab === "diff") void scm.refreshRepoStatus();
     if (tab === "files" && prevTab !== "files") {
       void nextTick(() => {
         fileSearchRef.value?.refreshFileExplorer?.();
@@ -1590,7 +1440,7 @@ watch(
 );
 
 watch(
-  () => [mainCenterTab.value, hasGitRepository.value] as const,
+  () => [mainCenterTab.value, scm.hasGitRepository] as const,
   ([tab, git]) => {
     // Only leave Git tab when we know there is no repo. While `null` (loading), switching away
     // fights async refresh and can contribute to recursive update / focus churn.
@@ -1700,7 +1550,7 @@ watch(
           :inline-prompt-thread-id="inlinePromptThreadId"
           :show-toolbar-branch-switcher="showTopBarBranchSwitcher"
           :scm-branch-line="scmBranchLine"
-          :scm-current-branch="scmMeta.branch"
+          :scm-current-branch="scm.scmMeta.branch"
           :scm-cwd="workspace.activeWorktree?.path ?? ''"
           :show-terminal-sidebar-button="showThreadSidebarTerminalButton"
           :center-panel-tabs="topCenterPanelTabs"
@@ -1720,7 +1570,7 @@ watch(
           @collapse="threadsSidebarCollapsed = true"
           @expand="threadsSidebarCollapsed = false"
           @add-thread-inline="openInlineThreadPrompt"
-          @branch-changed="void refreshRepoStatus()"
+          @branch-changed="void scm.refreshRepoStatus()"
           @context-queue-confirm="onContextQueueConfirmed"
           @context-queue-persist-draft="onContextQueuePersistDraft"
           @select-project="handleSelectProject"
@@ -1735,7 +1585,7 @@ watch(
         :class="threadsSidebarCollapsed ? 'ml-0' : 'ml-[270px]'"
       >
         <div
-          v-if="activeWorktreeHasThreads && hasGitRepository === false"
+          v-if="activeWorktreeHasThreads && scm.hasGitRepository === false"
           data-testid="workspace-no-git-empty-state"
           class="flex shrink-0 flex-col gap-3 border-b border-border bg-muted/20 px-4 py-4"
         >
@@ -1766,48 +1616,20 @@ watch(
                 >
                   <div v-show="mainCenterTab === 'diff'" class="flex min-h-0 flex-1 flex-col overflow-hidden">
                     <SourceControlPanel
-                      v-if="hasGitRepository"
-                      v-model:commit-message="scmCommitMessage"
+                      v-if="scm.hasGitRepository"
                       :context-label="activeContextLabel"
-                      :repo-status="repoStatus"
-                      :branch-line="scmBranchLine"
-                      :scm-branch="scmMeta.branch"
                       :project-id="workspace.activeProjectId"
-                      :scm-cwd="workspace.activeWorktree?.path ?? null"
                       :allow-scm-branch-switcher="!isInNonDefaultWorktree"
-                      :last-commit-subject="scmMeta.lastCommitSubject"
-                      :scm-fetch-available="scmFetchAvailable"
-                      :scm-push-available="scmPushAvailable"
-                      :scm-commit-available="scmCommitAvailable"
-                      :scm-fetch-busy="scmFetchBusy"
-                      :scm-push-busy="scmPushBusy"
-                      :scm-commit-busy="scmCommitBusy"
                       :suggest-commit-available="scmSuggestCommitAvailable"
                       :suggest-commit-disabled-reason="scmSuggestCommitDisabledReason"
                       :suggest-commit-busy="scmSuggestCommitBusy"
                       :suggest-commit-gpu-ok="localLlm.webGpuOk"
                       :suggest-commit-truncated="localLlm.lastStagedTruncated"
-                      :commit-candidates="localLlm.commitCandidates"
-                      :selected-path="selectedScmPath"
-                      :selected-scope="selectedScmScope"
-                      :merge-result="selectedMergeResult"
-                      :merge-loading="selectedDiffLoading"
                       :show-thread-sidebar-expand="threadsSidebarCollapsed"
                       :active-thread-id="workspace.activeThreadId"
-                      @select-entry="handleSelectScmEntry"
-                      @stage-all="handleStageAll"
-                      @unstage-all="handleUnstageAll"
-                      @discard-all="handleDiscardAll"
-                      @stage-paths="handleStageSelected"
-                      @unstage-paths="handleUnstageSelected"
-                      @discard-paths="handleDiscardSelected"
                       @expand-thread-sidebar="expandThreadsSidebar"
-                      @fetch="handleScmFetch"
-                      @push="handleScmPush"
-                      @commit="handleScmCommit"
                       @suggest-commit="handleScmSuggestCommit"
                       @open-file-in-editor="handleScmOpenFileInEditor"
-                      @branch-changed="void refreshRepoStatus()"
                     />
                   </div>
                   <div

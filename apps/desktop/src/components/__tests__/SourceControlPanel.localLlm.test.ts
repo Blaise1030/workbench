@@ -1,5 +1,6 @@
 import { mount } from "@vue/test-utils";
-import { describe, expect, it, vi } from "vitest";
+import { createPinia, setActivePinia } from "pinia";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/components/MonacoDiffEditor.vue", () => ({
   default: { name: "MonacoDiffEditorStub", template: "<div />" }
@@ -7,15 +8,13 @@ vi.mock("@/components/MonacoDiffEditor.vue", () => ({
 
 import SourceControlPanel from "@/components/SourceControlPanel.vue";
 
-const baseProps = {
-  repoStatus: [] as const,
-  selectedPath: null,
-  selectedScope: null as "staged" | "unstaged" | null,
-  mergeResult: null,
-  mergeLoading: false
-};
+const baseProps = {};
 
 describe("SourceControlPanel local LLM controls", () => {
+  beforeEach(() => {
+    setActivePinia(createPinia());
+  });
+
   it("does not render Suggest when feature flag is off", () => {
     const wrapper = mount(SourceControlPanel, {
       shallow: true,

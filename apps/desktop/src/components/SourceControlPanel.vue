@@ -27,8 +27,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu";
-import type { FileMergeSidesResult, RepoStatusEntry } from "@shared/ipc";
 import MonacoDiffEditor from "@/components/MonacoDiffEditor.vue";
+import { useScmStore } from "@/stores/scmStore";
+import { useWorkspaceStore } from "@/stores/workspaceStore";
 
 const SCM_DIFF_LAYOUT_KEY = "instrument.scmDiffLayout";
 type ScmDiffLayout = "split" | "unified";
@@ -55,7 +56,16 @@ watch(scmDiffLayout, (v) => {
   }
 });
 
-const commitMessage = defineModel<string>("commitMessage", { default: "" });
+const scm = useScmStore();
+const workspace = useWorkspaceStore();
+
+const scmFetchAvailable = computed(() => !!window.workspaceApi?.gitFetch);
+const scmPushAvailable = computed(() => !!window.workspaceApi?.gitPush);
+const scmCommitAvailable = computed(() => !!window.workspaceApi?.commitStaged);
+
+const mergeResultOk = computed(() =>
+  scm.selectedMergeResult?.kind === "ok" ? scm.selectedMergeResult : null
+);
 
 type SectionId = "staged" | "unstaged" | "untracked";
 type EntryScope = "staged" | "unstaged";
@@ -73,28 +83,11 @@ type FlatItem =
 
 const props = withDefaults(
   defineProps<{
-    repoStatus: RepoStatusEntry[];
-    /** One-line repo context, e.g. `folder / main` from `RepoScmSnapshot`. */
-    branchLine?: string | null;
-    /** Short `HEAD` name for branch switcher (same source as `RepoScmSnapshot.branch`). */
-    scmBranch?: string;
     projectId?: string | null;
-    /** Active worktree path (repo status / checkout cwd). */
-    scmCwd?: string | null;
     /** Allow in-panel branch checkout; off when the project uses linked worktrees (sidebar layout). */
     allowScmBranchSwitcher?: boolean;
-    /** Latest commit subject from `git log -1`; shown as a one-click draft hint. */
-    lastCommitSubject?: string | null;
     /** Active worktree label shown in the panel chrome. */
     contextLabel?: string | null;
-    /** Desktop preload exposes `gitFetch`. */
-    scmFetchAvailable?: boolean;
-    /** Desktop preload exposes `gitPush`. */
-    scmPushAvailable?: boolean;
-    scmCommitAvailable?: boolean;
-    scmFetchBusy?: boolean;
-    scmPushBusy?: boolean;
-    scmCommitBusy?: boolean;
     /** When true, show local LLM “Suggest” control (parent gates on IPC + staged changes). */
     suggestCommitAvailable?: boolean;
     /** Tooltip / `title` when suggest is disabled (e.g. WebGPU unavailable). */
@@ -103,28 +96,14 @@ const props = withDefaults(
     /** `null` = WebGPU not probed yet; `false` = suggest disabled with explanation. */
     suggestCommitGpuOk?: boolean | null;
     suggestCommitTruncated?: boolean;
-    selectedPath: string | null;
-    selectedScope: EntryScope | null;
-    mergeResult: FileMergeSidesResult | null;
-    mergeLoading: boolean;
     showThreadSidebarExpand?: boolean;
     /** Thread id for context-queue capture in the diff viewer. */
     activeThreadId?: string | null;
   }>(),
   {
-    branchLine: null,
-    scmBranch: "",
     projectId: null,
-    scmCwd: null,
     allowScmBranchSwitcher: false,
-    lastCommitSubject: null,
     contextLabel: null,
-    scmFetchAvailable: false,
-    scmPushAvailable: false,
-    scmCommitAvailable: false,
-    scmFetchBusy: false,
-    scmPushBusy: false,
-    scmCommitBusy: false,
     suggestCommitAvailable: false,
     suggestCommitDisabledReason: null,
     suggestCommitBusy: false,
@@ -136,20 +115,9 @@ const props = withDefaults(
 );
 
 const emit = defineEmits<{
-  selectEntry: [payload: { path: string; scope: EntryScope }];
-  stageAll: [];
-  unstageAll: [];
-  discardAll: [];
-  stagePaths: [paths: string[]];
-  unstagePaths: [paths: string[]];
-  discardPaths: [paths: string[]];
-  fetch: [];
-  push: [];
-  commit: [];
   suggestCommit: [];
   openFileInEditor: [path: string];
   expandThreadSidebar: [];
-  branchChanged: [];
 }>();
 
 /** Max characters for the directory prefix before we collapse with `…/` (filename stays full). */
@@ -195,7 +163,7 @@ let sidebarResizeObserver: ResizeObserver | null = null;
 
 function sectionEntries(section: SectionId): FlatItem[] {
   if (section === "staged") {
-    return props.repoStatus
+    return scm.repoStatus
       .filter((entry) => entry.stagedKind && !entry.isUntracked)
       .map((entry) => ({
         kind: "entry" as const,
@@ -208,7 +176,7 @@ function sectionEntries(section: SectionId): FlatItem[] {
       }));
   }
   if (section === "unstaged") {
-    return props.repoStatus
+    return scm.repoStatus
       .filter((entry) => entry.unstagedKind && !entry.isUntracked)
       .map((entry) => ({
         kind: "entry" as const,
@@ -221,7 +189,7 @@ function sectionEntries(section: SectionId): FlatItem[] {
         muted: entry.originalPath ?? undefined
       }));
   }
-  return props.repoStatus
+  return scm.repoStatus
     .filter((entry) => entry.isUntracked)
     .map((entry) => ({
       kind: "entry" as const,
@@ -238,15 +206,15 @@ const unstagedEntries = computed(() => sectionEntries("unstaged"));
 const untrackedEntries = computed(() => sectionEntries("untracked"));
 
 const hasStagedChanges = computed(() =>
-  props.repoStatus.some((e) => Boolean(e.stagedKind) && !e.isUntracked)
+  scm.repoStatus.some((e) => Boolean(e.stagedKind) && !e.isUntracked)
 );
 
 const canCommit = computed(
   () =>
-    props.scmCommitAvailable &&
-    !props.scmCommitBusy &&
+    scmCommitAvailable.value &&
+    !scm.scmCommitBusy &&
     hasStagedChanges.value &&
-    Boolean(commitMessage.value.trim())
+    Boolean(scm.scmCommitMessage.trim())
 );
 
 const suggestCommitDisabled = computed(() => {
@@ -279,8 +247,8 @@ function toggleSection(id: SectionId): void {
 }
 
 function applyLastCommitSubject(): void {
-  const s = props.lastCommitSubject;
-  if (s) commitMessage.value = s;
+  const s = scm.scmMeta.lastCommitSubject;
+  if (s) scm.scmCommitMessage = s;
 }
 
 const flatItems = computed<FlatItem[]>(() => {
@@ -315,10 +283,10 @@ const totalChanges = computed(
 );
 
 const selectedEntry = computed(() => {
-  if (!props.selectedPath || !props.selectedScope) return null;
+  if (!scm.selectedScmPath || !scm.selectedScmScope) return null;
   return flatItems.value.find(
     (item) =>
-      item.kind === "entry" && item.path === props.selectedPath && item.scope === props.selectedScope
+      item.kind === "entry" && item.path === scm.selectedScmPath && item.scope === scm.selectedScmScope
   );
 });
 
@@ -537,37 +505,37 @@ function entryRowClasses(sectionId: SectionId): string {
 }
 
 function selectEntry(path: string, scope: EntryScope): void {
-  emit("selectEntry", { path, scope });
+  scm.selectScmEntry({ path, scope });
 }
 
 function actionStageSelected(): void {
   const bulk = checkedWorktreePaths.value;
   if (bulk.length > 0) {
-    emit("stagePaths", bulk);
+    void scm.stageSelected(bulk);
     return;
   }
   if (!selectedEntry.value || selectedEntry.value.scope !== "unstaged") return;
-  emit("stagePaths", [selectedEntry.value.path]);
+  void scm.stageSelected([selectedEntry.value.path]);
 }
 
 function actionUnstageSelected(): void {
   const bulk = checkedStagedPaths.value;
   if (bulk.length > 0) {
-    emit("unstagePaths", bulk);
+    void scm.unstageSelected(bulk);
     return;
   }
   if (!selectedEntry.value || selectedEntry.value.scope !== "staged") return;
-  emit("unstagePaths", [selectedEntry.value.path]);
+  void scm.unstageSelected([selectedEntry.value.path]);
 }
 
 function actionDiscardSelected(): void {
   const bulk = checkedWorktreePaths.value;
   if (bulk.length > 0) {
-    emit("discardPaths", bulk);
+    void scm.discardSelected(bulk);
     return;
   }
   if (!selectedEntry.value || selectedEntry.value.scope !== "unstaged") return;
-  emit("discardPaths", [selectedEntry.value.path]);
+  void scm.discardSelected([selectedEntry.value.path]);
 }
 
 watch(
@@ -648,7 +616,7 @@ onBeforeUnmount(() => {
           </p>
         </div>
         <div
-          v-if="selectedEntry && mergeResult?.kind === 'ok'"
+          v-if="selectedEntry && scm.selectedMergeResult?.kind === 'ok'"
           class="flex shrink-0 items-center gap-px rounded-md border border-border p-px"
           role="group"
           aria-label="Diff layout"
@@ -692,7 +660,7 @@ onBeforeUnmount(() => {
       </header>
 
       <div class="flex min-h-0 flex-1 flex-col overflow-hidden">
-        <div v-if="mergeLoading" class="flex h-full items-center justify-center text-[11px] text-muted-foreground">
+        <div v-if="scm.selectedDiffLoading" class="flex h-full items-center justify-center text-[11px] text-muted-foreground">
           Loading diff…
         </div>
         <div
@@ -705,50 +673,50 @@ onBeforeUnmount(() => {
           <p class="max-w-xs text-xs text-muted-foreground">{{ emptyMessage.replace('✨ ', '') }}</p>
         </div>
         <div
-          v-else-if="mergeResult?.kind === 'error'"
+          v-else-if="scm.selectedMergeResult?.kind === 'error'"
           class="flex h-full items-center justify-center px-4 text-center text-[11px] text-destructive"
           role="alert"
         >
-          {{ mergeResult.message }}
+          {{ scm.selectedMergeResult?.kind === 'error' ? scm.selectedMergeResult.message : '' }}
         </div>
         <div
-          v-else-if="mergeResult?.kind === 'binary'"
+          v-else-if="scm.selectedMergeResult?.kind === 'binary'"
           class="flex h-full items-center justify-center px-4 text-center text-[11px] text-muted-foreground"
           role="status"
         >
           Binary file — side-by-side text diff is not shown.
         </div>
-        <div v-else-if="mergeResult?.kind === 'ok'" class="flex min-h-0 flex-1 flex-col overflow-hidden">
+        <div v-else-if="scm.selectedMergeResult?.kind === 'ok'" class="flex min-h-0 flex-1 flex-col overflow-hidden">
           <p
             class="shrink-0 border-b border-border bg-muted/15 px-2 py-1 font-mono text-[10px] leading-tight text-muted-foreground"
           >
             <template v-if="scmDiffLayout === 'split'">
-              <span class="font-medium text-foreground">{{ mergeResult.originalLabel }}</span>
+              <span class="font-medium text-foreground">{{ mergeResultOk?.originalLabel }}</span>
               · left —
-              <span class="font-medium text-foreground">{{ mergeResult.modifiedLabel }}</span>
+              <span class="font-medium text-foreground">{{ mergeResultOk?.modifiedLabel }}</span>
               · right
             </template>
             <template v-else>
               Unified —
-              <span class="font-medium text-foreground">{{ mergeResult.originalLabel }}</span>
+              <span class="font-medium text-foreground">{{ mergeResultOk?.originalLabel }}</span>
               vs
-              <span class="font-medium text-foreground">{{ mergeResult.modifiedLabel }}</span>
+              <span class="font-medium text-foreground">{{ mergeResultOk?.modifiedLabel }}</span>
             </template>
           </p>
           <MonacoDiffEditor
             class="min-h-0 flex-1"
             :layout="scmDiffLayout"
-            :original="mergeResult.original"
-            :modified="mergeResult.modified"
+            :original="mergeResultOk?.original ?? ''"
+            :modified="mergeResultOk?.modified ?? ''"
             :file-path="selectedEntry?.path ?? ''"
-            :worktree-path="props.scmCwd"
+            :worktree-path="workspace.activeWorktree?.path ?? null"
             :active-thread-id="props.activeThreadId"
           />
         </div>
       </div>
     </div>
     <div class="p-2 h-full">
-      <aside class="flex h-full min-h-0 w-[270px] rounded overflow-hidden shrink-0 flex-col border rounded-lg border-border bg-sidebar">
+      <aside class="flex h-full min-h-0 w-[270px] rounded overflow-hidden shrink-0 flex-col border rounded-lg border-border sidebar-glass">
       <header
         class="flex h-9 items-center border-b border-border px-2"
         aria-label="Source control"
@@ -798,15 +766,15 @@ onBeforeUnmount(() => {
                 Discard Selected
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem class="text-xs" @select="emit('stageAll')">
+              <DropdownMenuItem class="text-xs" @select="void scm.stageAll()">
                 <ChevronsUp class="h-3 w-3 shrink-0" />
                 Stage All
               </DropdownMenuItem>
-              <DropdownMenuItem class="text-xs" @select="emit('unstageAll')">
+              <DropdownMenuItem class="text-xs" @select="void scm.unstageAll()">
                 <ChevronsDown class="h-3 w-3 shrink-0" />
                 Unstage All
               </DropdownMenuItem>
-              <DropdownMenuItem variant="destructive" class="text-xs" @select="emit('discardAll')">
+              <DropdownMenuItem variant="destructive" class="text-xs" @select="void scm.discardAll()">
                 <Trash2 class="h-3 w-3 shrink-0" />
                 Discard All
               </DropdownMenuItem>
@@ -875,7 +843,7 @@ onBeforeUnmount(() => {
               v-else
               class="absolute inset-x-0 flex items-center"
               :class="[
-                selectedPath === metric.item.path && selectedScope === metric.item.scope
+                scm.selectedScmPath === metric.item.path && scm.selectedScmScope === metric.item.scope
                   ? 'z-[1] border-b border-primary/25 bg-primary/18 text-foreground ring-1 ring-inset ring-primary/30 dark:bg-primary/22'
                   : entryRowClasses(metric.item.sectionId)
               ]"
@@ -887,7 +855,7 @@ onBeforeUnmount(() => {
                 size="xs"
                 class="flex min-w-0 flex-1 items-center gap-1 px-2 py-1 text-left transition-colors"
                 :class="
-                  selectedPath === metric.item.path && selectedScope === metric.item.scope
+                  scm.selectedScmPath === metric.item.path && scm.selectedScmScope === metric.item.scope
                     ? 'text-foreground'
                     : 'text-muted-foreground'
                 "
@@ -926,12 +894,12 @@ onBeforeUnmount(() => {
       <footer class="flex shrink-0 flex-col border-t border-border bg-muted/10">
         <div class="flex items-center justify-between gap-2 px-2 py-1">
           <ScmBranchCombobox
-            :branch-line="branchLine"
-            :current-branch="scmBranch"
-            :project-id="projectId ?? ''"
-            :cwd="scmCwd ?? ''"
-            :switcher-enabled="allowScmBranchSwitcher"
-            @branch-changed="emit('branchChanged')"
+            :branch-line="scm.scmMeta.shortLabel"
+            :current-branch="scm.scmMeta.branch"
+            :project-id="props.projectId ?? ''"
+            :cwd="workspace.activeWorktree?.path ?? ''"
+            :switcher-enabled="props.allowScmBranchSwitcher"
+            @branch-changed="void scm.refreshRepoStatus()"
           />
           <div
             v-if="scmFetchAvailable || scmPushAvailable"
@@ -943,11 +911,11 @@ onBeforeUnmount(() => {
               size="xs"
               variant="outline"
               class="h-6 shrink-0 gap-1 px-2 text-[10px]"
-              :disabled="scmFetchBusy || scmPushBusy"
+              :disabled="scm.scmFetchBusy || scm.scmPushBusy"
               aria-label="Fetch from remote"
-              @click="emit('fetch')"
+              @click="void scm.scmFetch()"
             >
-              <Loader2 v-if="scmFetchBusy" class="h-2.5 w-2.5 shrink-0 animate-spin" aria-hidden="true" />
+              <Loader2 v-if="scm.scmFetchBusy" class="h-2.5 w-2.5 shrink-0 animate-spin" aria-hidden="true" />
               <ArrowDownToLine
                 v-else
                 class="h-2.5 w-2.5 shrink-0 opacity-80"
@@ -962,12 +930,12 @@ onBeforeUnmount(() => {
               size="xs"
               variant="outline"
               class="h-6 shrink-0 gap-1 px-2 text-[10px]"
-              :disabled="scmPushBusy || scmFetchBusy"
+              :disabled="scm.scmPushBusy || scm.scmFetchBusy"
               aria-label="Push current branch to remote"
               title="Push current branch (upstream must be set)"
-              @click="emit('push')"
+              @click="void scm.scmPush()"
             >
-              <Loader2 v-if="scmPushBusy" class="h-2.5 w-2.5 shrink-0 animate-spin" aria-hidden="true" />
+              <Loader2 v-if="scm.scmPushBusy" class="h-2.5 w-2.5 shrink-0 animate-spin" aria-hidden="true" />
               <ArrowUpFromLine
                 v-else
                 class="h-2.5 w-2.5 shrink-0 opacity-80"
@@ -981,7 +949,7 @@ onBeforeUnmount(() => {
 
         <div class="relative border-t border-border bg-background">
           <textarea
-            v-model="commitMessage"
+            v-model="scm.scmCommitMessage"
             rows="4"
             placeholder="Enter commit message"
             aria-label="Commit message draft"
@@ -1036,9 +1004,9 @@ onBeforeUnmount(() => {
             class="h-7 shrink-0 px-3 text-[10px]"
             :disabled="!canCommit"
             aria-label="Commit staged changes"
-            @click="emit('commit')"
+            @click="void scm.scmCommit()"
           >
-            <Loader2 v-if="scmCommitBusy" class="mr-1 h-3 w-3 animate-spin" aria-hidden="true" />
+            <Loader2 v-if="scm.scmCommitBusy" class="mr-1 h-3 w-3 animate-spin" aria-hidden="true" />
             Commit
           </Button>
         </div>
