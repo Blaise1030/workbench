@@ -26,6 +26,11 @@ declare module "*.vue" {
   export default component;
 }
 
+interface ImportMetaEnv {
+  readonly VITE_WORKSPACE_SNAPSHOT_TRANSPORT?: "ipc" | "rpc" | "http";
+  readonly VITE_WORKSPACE_SNAPSHOT_HTTP_URL?: string;
+}
+
 interface WorkspaceApi {
   getSnapshot: () => Promise<unknown>;
   addProject: (payload: AddProjectInput) => Promise<unknown>;

@@ -26,7 +26,6 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Switch } from "@/components/ui/switch";
 import type { QueueItem } from "@/contextQueue/types";
-import { groupThreadsByRelativeDate } from "@/lib/threadDateGroups";
 import type { KeybindingId } from "@/keybindings/registry";
 import { shortcutForModDigitSlot } from "@/keybindings/registry";
 import { useKeybindingsStore } from "@/stores/keybindingsStore";

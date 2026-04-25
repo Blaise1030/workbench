@@ -1,3 +1,4 @@
+import { QueryClient, VueQueryPlugin } from "@tanstack/vue-query";
 import { createPinia } from "pinia";
 import { createApp } from "vue";
 import App from "./App.vue";
@@ -17,7 +18,10 @@ window.addEventListener("drop", (e) => {
   e.preventDefault();
 });
 
+const queryClient = new QueryClient();
+
 const app = createApp(App);
 app.use(createPinia());
+app.use(VueQueryPlugin, { queryClient });
 app.use(router);
 app.mount("#app");
