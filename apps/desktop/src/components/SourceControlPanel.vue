@@ -17,8 +17,8 @@ import {
   Trash2,
   Undo2
 } from "lucide-vue-next";
-import Button from "@/components/ui/Button.vue";
-import Badge from "@/components/ui/Badge.vue";
+import {Button} from "@/components/ui/button";;
+import { Badge } from "@/components/ui/badge/index";
 import ScmBranchCombobox from "@/components/ScmBranchCombobox.vue";
 import {
   DropdownMenu,

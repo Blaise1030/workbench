@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { RouterView } from "vue-router";
-import SonnerToasts from "@/components/ui/SonnerToasts.vue";
+import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import "./styles/globals.css";
 </script>
 
 <template>
   <TooltipProvider>
     <RouterView />
-    <SonnerToasts />
+    <Toaster />
   </TooltipProvider>
 </template>

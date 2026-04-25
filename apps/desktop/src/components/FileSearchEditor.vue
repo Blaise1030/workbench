@@ -14,8 +14,8 @@ import {
   X
 } from "lucide-vue-next";
 import type { FileSummary } from "@shared/ipc";
-import Button from "@/components/ui/Button.vue";
-import { badgeVariants } from "@/components/ui/badge";
+import {Button} from "@/components/ui/button";;
+import { badgeVariants } from "@/components/ui/badge/index";
 import { cn } from "@/lib/utils";
 import {
   ContextMenu,
@@ -33,8 +33,8 @@ import type { QueueCapture, QueueItem } from "@/contextQueue/types";
 import type { Rect } from "@/lib/contextQueueAnchor";
 import { resolveSelectionFilePath } from "@/lib/selectionFilePath";
 import { useToast } from "@/composables/useToast";
-import Input from "@/components/ui/Input.vue";
-import PillTabs, { type PillTabItem } from "@/components/ui/PillTabs.vue";
+import { Input } from "@/components/ui/input";
+import PillTabs, { type PillTabItem } from "@/components/ui/pill-tabs";
 import {
   AlertDialog,
   AlertDialogAction,

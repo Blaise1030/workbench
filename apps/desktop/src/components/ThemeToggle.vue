@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { Laptop, Moon, Sun } from "lucide-vue-next";
-import Button from "@/components/ui/Button.vue";
+import {Button} from "@/components/ui/button";;
 import type { ButtonSize, ButtonVariant } from "@/components/ui/button";
 import { useColorScheme, type ColorSchemePreference } from "@/composables/useColorScheme";
 

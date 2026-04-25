@@ -4,7 +4,7 @@ import type { AppUpdateAvailability } from "@shared/ipc";
 import { ChevronDown, Download, FileText, Plus, Settings, X, PanelRightClose } from "lucide-vue-next";
 import { computed, onMounted, ref } from "vue";
 import ThemeToggle from "@/components/ThemeToggle.vue";
-import Button from "@/components/ui/Button.vue";
+import {Button} from "@/components/ui/button";;
 import {
   DropdownMenu,
   DropdownMenuContent,

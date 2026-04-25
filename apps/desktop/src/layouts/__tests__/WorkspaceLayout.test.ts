@@ -70,7 +70,7 @@ vi.mock("@/components/DiffReviewPanel.vue", () => ({
 vi.mock("@/components/MonacoDiffEditor.vue", () => ({
   default: { template: '<div data-testid="monaco-diff-editor-stub" />' }
 }));
-vi.mock("@/components/ui/PillTabs.vue", () => ({
+vi.mock("@/components/ui/pill-tabs", () => ({
   default: {
     props: ["modelValue", "tabs", "variant"],
     emits: ["update:modelValue"],

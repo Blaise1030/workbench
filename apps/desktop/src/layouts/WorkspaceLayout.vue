@@ -1,20 +1,17 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeMount, onBeforeUnmount, onMounted, provide, reactive, ref, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, provide, reactive, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { ChevronDown, ChevronUp, PanelLeftOpen, Plus, Settings } from "lucide-vue-next";
-import Button from "@/components/ui/Button.vue";
+import { ChevronDown, PanelLeftOpen, Plus, Settings } from "lucide-vue-next";
+import {Button} from "@/components/ui/button";
 import SourceControlPanel from "@/components/SourceControlPanel.vue";
 import PreviewPanel from "@/components/PreviewPanel.vue";
 import ContextQueueReviewDropdown from "@/components/contextQueue/ContextQueueReviewDropdown.vue";
-import PillTabs, { type PillTabItem } from "@/components/ui/PillTabs.vue";
+import PillTabs, { type PillTabItem } from "@/components/ui/pill-tabs";
 import ProjectTabs from "@/components/ProjectTabs.vue";
 import TerminalPane from "@/components/TerminalPane.vue";
 import ThemeToggle from "@/components/ThemeToggle.vue";
-import AgentCommandsSettingsDialog from "@/components/AgentCommandsSettingsDialog.vue";
 import FileSearchEditor from "@/components/FileSearchEditor.vue";
-import WorkspaceLauncherModal from "@/components/WorkspaceLauncherModal.vue";
 import ThreadInlinePromptEditor from "@/components/ThreadInlinePromptEditor.vue";
-import BranchPicker from "@/components/BranchPicker.vue";
 import { injectContextQueue } from "@/contextQueue/injectContextQueue";
 import {
   injectContextToAgentKey,
@@ -63,8 +60,7 @@ import type { Thread, ThreadAgent, ThreadCreateWithAgentPayload } from "@shared/
 import type {
   AddProjectInput,
   DeleteThreadInput,
-  RemoveProjectInput,
-  RepoStatusEntry,
+  RemoveProjectInput,  
   RenameThreadInput,
   WorkspaceSnapshot
 } from "@shared/ipc";
@@ -75,7 +71,6 @@ const active = useActiveWorkspace();
 const activeProjectId = active.activeProjectId;
 const activeWorktreeId = active.activeWorktreeId;
 const activeThreadId = active.activeThreadId;
-const activeProject = active.activeProject;
 const activeWorktree = active.activeWorktree;
 const activeThreads = active.activeThreads;
 const activeProjectThreads = active.activeProjectThreads;
@@ -1414,6 +1409,12 @@ watch(
     if (route.name !== "thread") return;
     const stillExists = workspace.threads.some((t) => t.id === currentThreadId);
     if (stillExists) return;
+    const projectId = activeProjectId.value;
+    if (!projectId) return;
+    if (!workspace.projects.some((p) => p.id === projectId)) {
+      // URL can still name a removed project until syncRouteFromSnapshot runs; don't navigate with stale params.
+      return;
+    }
     const fallback = workspace.threads.find((t) => t.worktreeId === activeWorktreeId.value);
     if (fallback && activeProjectId.value && activeBranch.value) {
       void router.replace({
@@ -1439,6 +1440,9 @@ watch(
     if (!wt) {
       shellSlotIds.value = [];
       shellOverlayTab.value = "agent";
+      // Stale URL vs store: refreshSnapshot or thread routing will re-resolve; keep a project tab — do not
+      // clobber the router with `/` (would fight syncRouteFromSnapshot, e.g. after removing a project).
+      if (workspace.projects.length > 0) return;
       void router.push({ name: "welcome" });
     } else if (prev !== wt) {
       const saved = loadTerminalLayout(wt);
@@ -1935,22 +1939,5 @@ watch(
         </div>
       </section>
     </section>
-
-    <WorkspaceLauncherModal
-      v-model="workspaceLauncherOpen"
-      @pick-thread="onLauncherPickThread"
-      @pick-file="onLauncherPickFile"
-      @pick-command="onLauncherPickCommand"
-      @pick-project="onLauncherPickProject"
-      @pick-worktree="onLauncherPickWorktree"
-    />
-
-    <AgentCommandsSettingsDialog
-      v-model="agentCommandsSettingsOpen"
-      :commands="commands"
-      :skill-roots="agentSkillRoots"
-      @save="onSaveAgentSettings"
-    />
-
   </main>
 </template>

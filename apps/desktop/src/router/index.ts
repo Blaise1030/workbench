@@ -1,5 +1,6 @@
 import { createMemoryHistory, createRouter } from "vue-router";
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.vue";
+import Layout from "@/layouts/Layout.vue";
 import { useWorkspaceStore } from "@/stores/workspaceStore";
 import { decodeBranch, encodeBranch } from "./branchParam";
 
@@ -9,33 +10,45 @@ export const router = createRouter({
     {
       path: "/",
       name: "welcome",
-      component: WorkspaceLayout
+      component: WorkspaceLayout      
     },
     {
-      path: "/:projectId/:branch/thread/:threadId",
-      name: "thread",
-      component: WorkspaceLayout
-    },
-    {
-      path: "/:projectId/:branch/git",
+      path: "/:projectId/:branch",
       name: "git",
-      component: WorkspaceLayout
-    },
-    {
-      path: "/:projectId/:branch/files/:filename+",
-      name: "file",
-      component: WorkspaceLayout
-    },
-    {
-      path: "/:projectId/:branch/files",
-      name: "files",
-      component: WorkspaceLayout
-    },
-    {
-      path: "/:projectId/:branch/preview",
-      name: "preview",
-      component: WorkspaceLayout
-    }
+      component: Layout,
+      children: [
+        {
+          path: "thread/:threadId",
+          name: "thread",
+          component: WorkspaceLayout
+        },
+        {
+          path: "git",
+          name: "gitPanel",
+          component: WorkspaceLayout
+        },
+        {
+          path: "preview",
+          name: "previewPanel",
+          component: WorkspaceLayout
+        },
+        {
+          path: "files",
+          name: "filePanel",          
+          children: [
+            {
+              path: "",
+              name: "filesDefault",
+              component: WorkspaceLayout
+            },
+            {
+              path: ":filename+",              
+              component: WorkspaceLayout
+            }
+          ]
+        },        
+      ],
+    },    
   ]
 });
 

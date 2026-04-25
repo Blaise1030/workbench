@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref } from "vue";
-import Button from "@/components/ui/Button.vue";
+import {Button} from "@/components/ui/button";;
 
 const filePath = ref("src/App.vue");
 const content = ref("");

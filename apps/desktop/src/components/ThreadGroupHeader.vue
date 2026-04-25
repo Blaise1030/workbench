@@ -3,8 +3,8 @@ defineOptions({ inheritAttrs: false });
 
 import { ChevronDown, Archive, ChevronRight, EllipsisVertical, Plus, Trash2 } from "lucide-vue-next";
 import { computed, ref } from "vue";
-import Badge from "@/components/ui/Badge.vue";
-import Button from "@/components/ui/Button.vue";
+import { Badge } from "@/components/ui/badge/index";
+import {Button} from "@/components/ui/button";;
 import {
   DropdownMenu,
   DropdownMenuContent,

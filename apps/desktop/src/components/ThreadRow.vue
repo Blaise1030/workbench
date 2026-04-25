@@ -3,7 +3,7 @@ import type { RunStatus, Thread } from "@shared/domain";
 import { computed, nextTick, ref, watch } from "vue";
 import { Archive } from "lucide-vue-next";
 import AgentIcon from "@/components/ui/AgentIcon.vue";
-import Button from "@/components/ui/Button.vue";
+import {Button} from "@/components/ui/button";;
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 const props = withDefaults(

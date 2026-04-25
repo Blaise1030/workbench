@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { PanelLeftClose, PanelLeftOpen } from "lucide-vue-next";
-import Badge from "@/components/ui/Badge.vue";
-import Button from "@/components/ui/Button.vue";
+import { Badge } from "@/components/ui/badge/index";
+import {Button} from "@/components/ui/button";;
 import WorkbenchLogoMark from "@/components/WorkbenchLogoMark.vue";
 import { APP_BRAND_BADGE, APP_PRERELEASE_BADGE } from "@/constants/appMeta";
 import type { KeybindingId } from "@/keybindings/registry";

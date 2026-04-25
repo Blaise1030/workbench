@@ -6,9 +6,9 @@ import { EditorContent, useEditor } from "@tiptap/vue-3";
 import { Check, Paperclip, X } from "lucide-vue-next";
 import type { Ref } from "vue";
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
-import Button from "@/components/ui/Button.vue";
-import Textarea from "@/components/ui/Textarea.vue";
-import { badgeVariants } from "@/components/ui/badge";
+import {Button} from "@/components/ui/button";;
+import { Textarea } from "@/components/ui/textarea";
+import { badgeVariants } from "@/components/ui/badge/index";
 import {
   createThreadCreatePromptExtensions,
   isThreadCreateSuggestionActive,

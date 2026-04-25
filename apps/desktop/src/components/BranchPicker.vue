@@ -2,8 +2,8 @@
 import { ref, computed, onMounted } from "vue";
 import { cn } from "@/lib/utils";
 import ScmBranchCombobox from "@/components/ScmBranchCombobox.vue";
-import Button from "@/components/ui/Button.vue";
-import Input from "@/components/ui/Input.vue";
+import {Button} from "@/components/ui/button";;
+import { Input } from "@/components/ui/input";
 
 const props = withDefaults(
   defineProps<{

@@ -121,7 +121,7 @@ import { BookMarked, MessageSquarePlus, Paperclip, X } from "lucide-vue-next";
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, unref } from "vue";
 import { useKeybindingsStore } from "@/stores/keybindingsStore";
 import AgentIcon from "@/components/ui/AgentIcon.vue";
-import Button from "@/components/ui/Button.vue";
+import {Button} from "@/components/ui/button";;
 import { badgeVariants } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { isImageFile, pathFromFile, type LocalFileAttachment } from "@/lib/localFileAttachment";

@@ -1,49 +1,31 @@
 <script setup lang="ts">
-import type { ComboboxContentEmits, ComboboxContentProps } from "reka-ui"
-import type { HTMLAttributes } from "vue"
-import { computed } from "vue"
-import { reactiveOmit } from "@vueuse/core"
-import { ComboboxContent, ComboboxPortal, useForwardPropsEmits } from "reka-ui"
-import { previewNativeCollisionEl } from "@/composables/previewNativeViewportTop"
-import { cn } from "@/lib/utils"
+import type { ComboboxContentEmits, ComboboxContentProps } from 'reka-ui'
+import type { HTMLAttributes } from 'vue'
+import { reactiveOmit } from '@vueuse/core'
+import { ComboboxContent, ComboboxPortal, useForwardPropsEmits } from 'reka-ui'
+import { cn } from '@/lib/utils'
 
 defineOptions({
   inheritAttrs: false,
 })
 
-const props = withDefaults(defineProps<ComboboxContentProps & { class?: HTMLAttributes["class"] }>(), {
-  position: "popper",
-  align: "center",
+const props = withDefaults(defineProps<ComboboxContentProps & { class?: HTMLAttributes['class'] }>(), {
+  position: 'popper',
+  align: 'center',
   sideOffset: 4,
 })
 const emits = defineEmits<ComboboxContentEmits>()
 
-const delegatedProps = reactiveOmit(props, "class", "collisionBoundary")
+const delegatedProps = reactiveOmit(props, 'class')
 const forwarded = useForwardPropsEmits(delegatedProps, emits)
-
-/** Same as `PopoverContent`: keep the list away from the native preview `BrowserView` region. */
-const collisionBoundaryMerged = computed((): Element[] | undefined => {
-  const p = props.collisionBoundary
-  const list: Element[] = []
-  if (Array.isArray(p)) {
-    for (const x of p) {
-      if (x) list.push(x)
-    }
-  } else if (p) {
-    list.push(p)
-  }
-  const mirror = previewNativeCollisionEl.value
-  if (mirror) list.push(mirror)
-  return list.length > 0 ? list : undefined
-})
 </script>
 
 <template>
   <ComboboxPortal>
     <ComboboxContent
-      data-slot="combobox-list"
-      v-bind="{ ...$attrs, ...forwarded, collisionBoundary: collisionBoundaryMerged }"
-      :class="cn('z-50 w-[200px] rounded-md border bg-popover text-popover-foreground origin-(--reka-combobox-content-transform-origin) overflow-hidden shadow-md outline-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2', props.class)"
+      data-slot="combobox-content"
+      v-bind="{ ...$attrs, ...forwarded }"
+      :class="cn('bg-popover text-popover-foreground data-open:animate-in data-closed:animate-out data-closed:fade-out-0 data-open:fade-in-0 data-closed:zoom-out-95 data-open:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 ring-foreground/10 *:data-[slot=input-group]:bg-input/20 dark:bg-popover max-h-72 min-w-32 overflow-hidden rounded-lg shadow-md ring-1 duration-100 *:data-[slot=input-group]:m-1 *:data-[slot=input-group]:mb-0 *:data-[slot=input-group]:h-7 *:data-[slot=input-group]:border-none *:data-[slot=input-group]:shadow-none data-[side=inline-start]:slide-in-from-right-2 data-[side=inline-end]:slide-in-from-left-2 cn-menu-translucent group/combobox-content z-50 w-[var(--reka-combobox-trigger-width)]', props.class)"
     >
       <slot />
     </ComboboxContent>

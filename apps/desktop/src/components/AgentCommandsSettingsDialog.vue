@@ -2,10 +2,10 @@
 import type { ThreadAgent } from "@shared/domain";
 import { THREAD_AGENT_BOOTSTRAP_COMMAND } from "@shared/threadAgentBootstrap";
 import { computed, nextTick, onBeforeUnmount, ref, watch } from "vue";
-import Button from "@/components/ui/Button.vue";
-import Checkbox from "@/components/ui/Checkbox.vue";
+import {Button} from "@/components/ui/button";;
+import { Checkbox } from "@/components/ui/checkbox";
 import AgentIcon from "@/components/ui/AgentIcon.vue";
-import PillTabs, { type PillTabItem } from "@/components/ui/PillTabs.vue";
+import PillTabs, { type PillTabItem } from "@/components/ui/pill-tabs";
 import {
   Dialog,
   DialogContent,

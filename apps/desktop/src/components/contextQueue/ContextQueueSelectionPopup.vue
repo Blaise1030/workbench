@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onUnmounted, ref, watch } from "vue";
-import Button from "@/components/ui/Button.vue";
+import {Button} from "@/components/ui/button";;
 import { clampPopupRect, type Rect } from "@/lib/contextQueueAnchor";
 import { eventMatchesBinding, findDefinitionIn, type KeybindingId } from "@/keybindings/registry";
 import { useKeybindingsStore } from "@/stores/keybindingsStore";

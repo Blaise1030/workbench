@@ -12,9 +12,9 @@ import { useIsFullscreen } from "@/composables/useIsFullscreen";
 import ThreadRow from "@/components/ThreadRow.vue";
 import ScmBranchCombobox from "@/components/ScmBranchCombobox.vue";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import Badge from "@/components/ui/Badge.vue";
-import Button from "@/components/ui/Button.vue";
-import PillTabs, { type PillTabItem } from "@/components/ui/PillTabs.vue";
+import { Badge } from "@/components/ui/badge/index";
+import {Button} from "@/components/ui/button";;
+import PillTabs, { type PillTabItem } from "@/components/ui/pill-tabs";
 import {
   Select,
   SelectContent,
@@ -24,7 +24,7 @@ import {
   SelectValue
 } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import Switch from "@/components/ui/Switch.vue";
+import { Switch } from "@/components/ui/switch";
 import type { QueueItem } from "@/contextQueue/types";
 import { groupThreadsByRelativeDate } from "@/lib/threadDateGroups";
 import type { KeybindingId } from "@/keybindings/registry";

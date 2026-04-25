@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import Button from "@/components/ui/Button.vue";
-import Textarea from "@/components/ui/Textarea.vue";
+import {Button} from "@/components/ui/button";;
+import { Textarea } from "@/components/ui/textarea";
 import TerminalPane from "@/components/TerminalPane.vue";
 import type { PendingAgentBootstrap } from "@shared/pendingAgentBootstrap";
 

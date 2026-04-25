@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch, watchEffect } from "vue";
-import Button from "@/components/ui/Button.vue";
+import {Button} from "@/components/ui/button";;
 import type { KeybindingId } from "@/keybindings/registry";
 import { useKeybindingsStore } from "@/stores/keybindingsStore";
 import { pathsFromUnifiedDiff } from "@shared/diffPaths";

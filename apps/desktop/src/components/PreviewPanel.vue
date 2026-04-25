@@ -100,9 +100,9 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import { setPreviewNativeCollisionEl, setPreviewNativeViewportTopPx } from "@/composables/previewNativeViewportTop";
-import Button from "@/components/ui/Button.vue";
-import Badge from "@/components/ui/Badge.vue";
-import type { BadgeVariant } from "@/components/ui/badge";
+import {Button} from "@/components/ui/button";;
+import { Badge } from "@/components/ui/badge/index";
+import type { BadgeVariants } from "@/components/ui/badge/index";
 import { Bug, ChevronLeft, ChevronRight, PanelLeftOpen, RotateCw } from "lucide-vue-next";
 import type { PreviewLoadStatePayload } from "@shared/ipc";
 import {
@@ -208,7 +208,7 @@ watch(
   { immediate: true }
 );
 
-const loadBadge = computed((): null | { label: string; title: string; variant: BadgeVariant } => {
+const loadBadge = computed((): null | { label: string; title: string; variant: BadgeVariants["variant"] } => {
   const s = loadState.value;
   if (!s) return null;
   if (s.kind === "loading") {

@@ -11,8 +11,8 @@ import {
   ComboboxList,
   ComboboxTrigger,
   ComboboxViewport
-} from "@/components/ui/combobox";
-import { buttonClass } from "@/components/ui/button";
+} from "@/components/ui/combobox";``
+import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/composables/useToast";
 
@@ -112,7 +112,7 @@ const triggerClass = computed(() => {
   const busy = checkoutBusy.value ? "pointer-events-none opacity-60" : "";
   if (isPickMode.value) {
     return cn(
-      buttonClass({
+      buttonVariants({
         variant: "outline",
         size: "sm",
         className:
@@ -123,7 +123,7 @@ const triggerClass = computed(() => {
   }
   if (props.variant === "toolbar") {
     return cn(
-      buttonClass({
+      buttonVariants({
         variant: "outline",
         size: "xs",
         className:

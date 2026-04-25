@@ -1,26 +1,21 @@
 <script setup lang="ts">
-import type { DialogOverlayProps } from "reka-ui";
-import type { HTMLAttributes } from "vue";
-import { reactiveOmit } from "@vueuse/core";
-import { DialogOverlay, useForwardProps } from "reka-ui";
-import { cn } from "@/lib/utils";
+import type { DialogOverlayProps } from 'reka-ui'
+import type { HTMLAttributes } from 'vue'
+import { reactiveOmit } from '@vueuse/core'
+import { DialogOverlay } from 'reka-ui'
+import { cn } from '@/lib/utils'
 
-defineOptions({ inheritAttrs: false });
+const props = defineProps<DialogOverlayProps & { class?: HTMLAttributes['class'] }>()
 
-const props = defineProps<DialogOverlayProps & { class?: HTMLAttributes["class"] }>();
-const delegatedProps = reactiveOmit(props, "class");
-const forwardedProps = useForwardProps(delegatedProps);
+const delegatedProps = reactiveOmit(props, 'class')
 </script>
 
 <template>
   <DialogOverlay
     data-slot="dialog-overlay"
-    v-bind="{ ...$attrs, ...forwardedProps }"
-    :class="
-      cn(
-        'fixed inset-0 z-50 bg-background/70 backdrop-blur-xs duration-150 ease-out data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
-        props.class
-      )
-    "
-  />
+    v-bind="delegatedProps"
+    :class="cn('data-open:animate-in data-closed:animate-out data-closed:fade-out-0 data-open:fade-in-0 bg-black/80 duration-100 supports-backdrop-filter:backdrop-blur-xs fixed inset-0 isolate z-50', props.class)"
+  >
+    <slot />
+  </DialogOverlay>
 </template>

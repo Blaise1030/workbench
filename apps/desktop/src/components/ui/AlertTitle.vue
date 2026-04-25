@@ -1,16 +1,9 @@
 <script setup lang="ts">
-import { computed, useAttrs } from "vue";
-import { alertTitleClass } from "@/components/ui/alert";
-
-const attrs = useAttrs();
-
-const mergedClassName = computed(() =>
-  [alertTitleClass, typeof attrs.class === "string" ? attrs.class : undefined].filter(Boolean).join(" ")
-);
+import { AlertTitle as AlertTitlePrimitive } from "@/components/ui/alert/index";
 </script>
 
 <template>
-  <div v-bind="attrs" data-slot="alert-title" :class="mergedClassName">
+  <AlertTitlePrimitive v-bind="$attrs">
     <slot />
-  </div>
+  </AlertTitlePrimitive>
 </template>

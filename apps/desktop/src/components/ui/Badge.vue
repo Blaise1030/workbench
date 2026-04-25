@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, useAttrs } from "vue";
 import { cn } from "@/lib/utils";
-import { badgeVariants, type BadgeVariant } from "@/components/ui/badge";
+import { badgeVariants, type BadgeVariants } from "@/components/ui/badge/index";
 
 const props = withDefaults(
   defineProps<{
