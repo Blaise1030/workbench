@@ -55,6 +55,12 @@ export interface AddWorktreeInput {
   worktreePath: string;
 }
 
+/** One row from `git worktree list --porcelain` (checked-out branch name). */
+export interface GitWorktreeListEntry {
+  path: string;
+  branch: string;
+}
+
 export interface DeleteThreadInput {
   threadId: string;
 }

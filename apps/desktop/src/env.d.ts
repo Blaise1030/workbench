@@ -17,7 +17,8 @@ import type {
   PreviewProbeResult,
   RepoScmSnapshot,
   RepoStatusEntry,
-  StagedUnifiedDiffResult
+  StagedUnifiedDiffResult,
+  GitWorktreeListEntry
 } from "@shared/ipc";
 
 declare module "*.vue" {
@@ -63,6 +64,8 @@ interface WorkspaceApi {
   commitStaged?: (cwd: string, message: string) => Promise<void>;
   /** Checkout a local branch in `cwd` (Electron); updates persisted worktree branch when path is known. */
   gitCheckoutBranch?: (cwd: string, branch: string) => Promise<void>;
+  /** Lists Git worktrees for the repo containing the registered worktree root `cwd`. */
+  gitListWorktrees?: (cwd: string) => Promise<GitWorktreeListEntry[]>;
   listBranches?: (projectId: string) => Promise<string[]>;
   fileDiff: (cwd: string, file: string, scope?: FileDiffScope) => Promise<string>;
   /** Two full texts for Git merge diff (Electron); optional on older preload builds. */

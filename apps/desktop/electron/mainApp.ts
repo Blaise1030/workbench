@@ -491,6 +491,10 @@ function registerIpc(workspaceService: WorkspaceService): void {
     assertCwdIsRegistered(payload.cwd);
     return diffService.commitStaged(payload.cwd, payload.message);
   });
+  ipcMain.handle(IPC_CHANNELS.diffGitListWorktrees, (_, cwd: string) => {
+    assertCwdIsRegistered(cwd);
+    return gitAdapter.worktreeList(cwd);
+  });
   ipcMain.handle(IPC_CHANNELS.diffGitCheckoutBranch, async (_, payload: { cwd: string; branch: string }) => {
     assertCwdIsRegistered(payload.cwd);
     await diffService.checkoutBranch(payload.cwd, payload.branch);

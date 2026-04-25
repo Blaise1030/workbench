@@ -38,6 +38,8 @@ export const IPC_CHANNELS = {
   diffGitCommit: "diff:gitCommit",
   /** Checkout an existing local branch in the given worktree directory. */
   diffGitCheckoutBranch: "diff:gitCheckoutBranch",
+  /** `git worktree list --porcelain` for the repo containing the given registered worktree path. */
+  diffGitListWorktrees: "diff:gitListWorktrees",
   diffIsGitRepository: "diff:isGitRepository",
   diffInitGitRepository: "diff:initGitRepository",
   filesList: "files:list",

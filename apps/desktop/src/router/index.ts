@@ -20,7 +20,34 @@ export const router = createRouter({
         {
           path: "thread/:threadId",
           name: "thread",
-          component: WorkspaceLayout
+          component: WorkspaceLayout,
+          children: [
+            {
+              path: "git",
+              name: "gitPanel",
+              component: WorkspaceLayout
+            },
+            {
+              path: "preview",
+              name: "previewPanel",
+              component: WorkspaceLayout
+            },
+            {
+              path: "files",
+              name: "filePanel",          
+              children: [
+                {
+                  path: "",
+                  name: "filesDefault",
+                  component: WorkspaceLayout
+                },
+                {
+                  path: ":filename+",              
+                  component: WorkspaceLayout
+                }
+              ]
+            },
+          ]
         },
         {
           path: "git",
