@@ -1,19 +1,18 @@
 import { flushPromises, mount } from "@vue/test-utils";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import type { Component } from "vue";
 import type { PreviewProbeResult } from "@shared/ipc";
 import { setPreviewNativeCollisionEl, setPreviewNativeViewportTopPx } from "@/composables/previewNativeViewportTop";
-import PreviewPanel from "../PreviewPanel.vue";
 
-const { previewPanelWorkspaceStub } = vi.hoisted(() => {
-  const { reactive } = require("vue") as typeof import("vue");
-  const previewPanelWorkspaceStub = reactive<{ activeWorktreeId: string | null }>({
-    activeWorktreeId: "wt-test-1"
-  });
-  return { previewPanelWorkspaceStub };
+const { previewPanelActiveWorktreeId } = vi.hoisted(() => {
+  const { ref } = require("vue") as typeof import("vue");
+  return { previewPanelActiveWorktreeId: ref<string | null>("wt-test-1") };
 });
 
-vi.mock("@/stores/workspaceStore", () => ({
-  useWorkspaceStore: () => previewPanelWorkspaceStub
+vi.mock("@/composables/useActiveWorkspace", () => ({
+  useActiveWorkspace: () => ({
+    activeWorktreeId: previewPanelActiveWorktreeId
+  })
 }));
 
 function makePreviewApi() {
@@ -53,13 +52,19 @@ async function flushPreviewNavigation(wrapper: ReturnType<typeof mount>): Promis
 }
 
 describe("PreviewPanel", () => {
+  let PreviewPanel: Component;
   let previewApi: ReturnType<typeof makePreviewApi>;
+
+  beforeAll(async () => {
+    const mod = await import("../PreviewPanel.vue");
+    PreviewPanel = mod.default;
+  });
 
   beforeEach(() => {
     localStorage.clear();
     setPreviewNativeViewportTopPx(null);
     setPreviewNativeCollisionEl(null);
-    previewPanelWorkspaceStub.activeWorktreeId = "wt-test-1";
+    previewPanelActiveWorktreeId.value = "wt-test-1";
     previewApi = makePreviewApi();
     Object.defineProperty(window, "previewApi", { value: previewApi, writable: true, configurable: true });
   });
@@ -150,7 +155,7 @@ describe("PreviewPanel", () => {
   it("swaps input and preview URL when active worktree changes", async () => {
     localStorage.setItem("instrument.previewPanelUrl.wt-test-1", "http://localhost:1");
     localStorage.setItem("instrument.previewPanelUrl.wt-test-2", "http://localhost:2");
-    previewPanelWorkspaceStub.activeWorktreeId = "wt-test-1";
+    previewPanelActiveWorktreeId.value = "wt-test-1";
     const wrapper = mount(PreviewPanel, { attachTo: document.body });
     await flushPreviewNavigation(wrapper);
     await wrapper.vm.$nextTick();
@@ -158,7 +163,7 @@ describe("PreviewPanel", () => {
       "http://localhost:1"
     );
     expect(previewApi.loadNativeUrl).toHaveBeenCalledWith("http://localhost:1");
-    previewPanelWorkspaceStub.activeWorktreeId = "wt-test-2";
+    previewPanelActiveWorktreeId.value = "wt-test-2";
     await wrapper.vm.$nextTick();
     await wrapper.vm.$nextTick();
     await flushPreviewNavigation(wrapper);
@@ -256,16 +261,16 @@ describe("PreviewPanel", () => {
     localStorage.setItem("instrument.previewPanelUrl.wt-test-1", "http://localhost:1111");
     localStorage.setItem("instrument.previewPanelUrl.wt-test-2", "http://localhost:2222");
     localStorage.setItem("instrument.previewPanelDevtoolsOpen.wt-test-1", "1");
-    previewPanelWorkspaceStub.activeWorktreeId = "wt-test-1";
+    previewPanelActiveWorktreeId.value = "wt-test-1";
     const wrapper = mount(PreviewPanel, { attachTo: document.body });
     await flushPreviewNavigation(wrapper);
     expect(previewApi.toggleEmbeddedDevTools).toHaveBeenCalledTimes(1);
 
-    previewPanelWorkspaceStub.activeWorktreeId = "wt-test-2";
+    previewPanelActiveWorktreeId.value = "wt-test-2";
     await flushPreviewNavigation(wrapper);
     expect(previewApi.toggleEmbeddedDevTools).toHaveBeenCalledTimes(1);
 
-    previewPanelWorkspaceStub.activeWorktreeId = "wt-test-1";
+    previewPanelActiveWorktreeId.value = "wt-test-1";
     await flushPreviewNavigation(wrapper);
     expect(previewApi.toggleEmbeddedDevTools).toHaveBeenCalledTimes(2);
     wrapper.unmount();

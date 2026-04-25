@@ -19,6 +19,7 @@ import {
 } from "@/lib/workspaceLauncherSearch";
 import { findDefinitionIn, formatShortcut } from "@/keybindings/registry";
 import { useKeybindingsStore } from "@/stores/keybindingsStore";
+import { useActiveWorkspace } from "@/composables/useActiveWorkspace";
 import { useWorkspaceStore } from "@/stores/workspaceStore";
 import type { FileSummary } from "@shared/ipc";
 import type { ThreadAgent } from "@shared/domain";
@@ -34,6 +35,7 @@ const emit = defineEmits<{
 }>();
 
 const workspace = useWorkspaceStore();
+const active = useActiveWorkspace();
 const keybindings = useKeybindingsStore();
 
 const query = ref("");
@@ -70,13 +72,13 @@ const rows = computed<LauncherRow[]>(() => {
     parsed.value,
     commandSearchText.value,
     workspace.projects,
-    workspace.activeProjectId,
+    active.activeProjectId.value,
     workspace.worktrees,
-    workspace.activeWorktreeId
+    active.activeWorktreeId.value
   );
   const rest = searchLauncherRows(
     parsed.value,
-    workspace.activeThreads,
+    active.activeThreads.value,
     branchFiles.value,
     []
   );
@@ -102,17 +104,17 @@ const emptyHint = computed(() => {
 
 async function loadIndexes(): Promise<void> {
   const api = getApi();
-  const active = workspace.activeWorktree;
+  const activeWt = active.activeWorktree.value;
   loadError.value = null;
   branchFiles.value = [];
 
-  if (!api || !active) {
+  if (!api || !activeWt) {
     return;
   }
 
   loading.value = true;
   try {
-    const listed = await api.listFiles(active.path);
+    const listed = await api.listFiles(activeWt.path);
     branchFiles.value = listed.map((f: FileSummary) => ({ relativePath: f.relativePath }));
   } catch (e) {
     loadError.value = e instanceof Error ? e.message : "Could not load files.";

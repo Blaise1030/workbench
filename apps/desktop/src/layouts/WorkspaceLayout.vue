@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeMount, onBeforeUnmount, onMounted, provide, reactive, ref, watch } from "vue";
+import { useRoute, useRouter } from "vue-router";
 import { ChevronDown, ChevronUp, PanelLeftOpen, Plus, Settings } from "lucide-vue-next";
 import Button from "@/components/ui/Button.vue";
 import SourceControlPanel from "@/components/SourceControlPanel.vue";
@@ -27,7 +28,9 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { useAgentBootstrapCommands } from "@/composables/useAgentBootstrapCommands";
 import { expandUserSkillRoot, useAgentSkillRoots } from "@/composables/useAgentSkillRoots";
 import { useWorktreeHealth } from "@/composables/useWorktreeHealth";
+import { useActiveWorkspace } from "@/composables/useActiveWorkspace";
 import { useThreadNavigation } from "@/composables/useThreadNavigation";
+import { encodeBranch } from "@/router/branchParam";
 import { useScmStore } from "@/stores/scmStore";
 import type { PendingAgentBootstrap } from "@shared/pendingAgentBootstrap";
 import {
@@ -66,11 +69,27 @@ import type {
   WorkspaceSnapshot
 } from "@shared/ipc";
 const workspace = useWorkspaceStore();
+const route = useRoute();
+const router = useRouter();
+const active = useActiveWorkspace();
+const activeProjectId = active.activeProjectId;
+const activeWorktreeId = active.activeWorktreeId;
+const activeThreadId = active.activeThreadId;
+const activeProject = active.activeProject;
+const activeWorktree = active.activeWorktree;
+const activeThreads = active.activeThreads;
+const activeProjectThreads = active.activeProjectThreads;
+const defaultWorktree = active.defaultWorktree;
+const threadGroups = active.threadGroups;
+const threadContexts = active.threadContexts;
+const hasActiveWorkspace = active.hasActiveWorkspace;
+const activeBranch = active.activeBranch;
+const activeContextBadge = active.activeContextBadge;
 const threadContextQueue = useThreadContextQueue();
 provide(threadContextQueueKey, threadContextQueue);
 
 const contextQueueItems = computed((): QueueItem[] => {
-  const id = workspace.activeThreadId;
+  const id = activeThreadId.value;
   return id ? threadContextQueue.itemsFor(id) : [];
 });
 
@@ -108,8 +127,38 @@ watch(threadsSidebarCollapsed, (collapsed) => {
   }
 });
 
-/** Top pills: Agent / Git / Files (never `shell:*`). */
-const mainCenterTab = ref<"agent" | "diff" | "files" | "preview">("agent");
+/** Top pills: Agent / Git / Files (never `shell:*`); follows vue-router. */
+const mainCenterTab = computed<"agent" | "diff" | "files" | "preview">(() => {
+  const name = route.name;
+  if (name === "git") return "diff";
+  if (name === "files" || name === "file") return "files";
+  if (name === "preview") return "preview";
+  return "agent";
+});
+
+/** Navigate center chrome from keybindings, persistence restore, and legacy call sites. */
+async function navigateToCenterTab(
+  tab: "agent" | "diff" | "files" | "preview"
+): Promise<void> {
+  const pid = activeProjectId.value;
+  const branch = activeBranch.value;
+  if (!pid || !branch) return;
+  const eb = encodeBranch(branch);
+  if (tab === "agent") {
+    const tid = activeThreadId.value ?? activeThreads.value[0]?.id;
+    if (tid) {
+      await router.push({ name: "thread", params: { projectId: pid, branch: eb, threadId: tid } });
+    } else {
+      await router.push({ name: "files", params: { projectId: pid, branch: eb } });
+    }
+  } else if (tab === "diff") {
+    await router.push({ name: "git", params: { projectId: pid, branch: eb } });
+  } else if (tab === "files") {
+    await router.push({ name: "files", params: { projectId: pid, branch: eb } });
+  } else {
+    await router.push({ name: "preview", params: { projectId: pid, branch: eb } });
+  }
+}
 /** Preview tab is browser-like; hide the stacked terminal strip so it is not confused with the webview. */
 const suppressStackedTerminalChrome = computed(() => mainCenterTab.value === "preview");
 /** Sidebar footer control mirrors the former floating “open terminals” affordance. */
@@ -174,9 +223,18 @@ async function injectContextItemsToActiveAgent(
   items: QueueItem[],
   opts?: { sessionId?: string }
 ): Promise<boolean> {
-  const tid = opts?.sessionId ?? workspace.activeThreadId;
+  const tid = opts?.sessionId ?? activeThreadId.value;
   if (!tid) return false;
-  mainCenterTab.value = "agent";
+  const t = workspace.threads.find((x) => x.id === tid);
+  const wt = t ? workspace.worktrees.find((w) => w.id === t.worktreeId) : null;
+  if (t && wt) {
+    void router.push({
+      name: "thread",
+      params: { projectId: t.projectId, branch: encodeBranch(wt.branch), threadId: tid }
+    });
+  } else {
+    void navigateToCenterTab("agent");
+  }
   shellOverlayTab.value = "agent";
   await nextTick();
   agentTerminalPaneRef.value?.focus?.();
@@ -206,7 +264,7 @@ provide(openWorkspaceFileKey, async (path: string) => {
 });
 
 async function onContextQueueConfirmed(items: QueueItem[]): Promise<void> {
-  const tid = workspace.activeThreadId;
+  const tid = activeThreadId.value;
   if (!tid) return;
   const ok = await injectContextItemsToActiveAgent(items);
   if (!ok) return;
@@ -216,7 +274,7 @@ async function onContextQueueConfirmed(items: QueueItem[]): Promise<void> {
 }
 
 function onContextQueuePersistDraft(items: QueueItem[]): void {
-  const tid = workspace.activeThreadId;
+  const tid = activeThreadId.value;
   if (!tid) return;
   threadContextQueue.replaceItems(tid, items);
 }
@@ -243,7 +301,7 @@ watch(
   () => threadContextQueue.lastEnqueueEvent.value,
   (evt) => {
     if (!evt) return;
-    if (evt.threadId !== workspace.activeThreadId) return;
+    if (evt.threadId !== activeThreadId.value) return;
     void nextTick(() => {
       if (threadsSidebarCollapsed.value) {
         contextQueueCollapsedRef.value?.openReview();
@@ -271,7 +329,7 @@ const inlinePromptThreadContextLabel = computed(() => {
   if (!tid) return null;
   const thread = workspace.threads.find((t) => t.id === tid);
   if (!thread) return null;
-  const ctx = workspace.threadContexts.find((c) => c.worktreeId === thread.worktreeId);
+  const ctx = threadContexts.value.find((c) => c.worktreeId === thread.worktreeId);
   return ctx?.displayLabel ?? null;
 });
 const fileSearchRef = ref<InstanceType<typeof FileSearchEditor> | null>(null);
@@ -279,12 +337,11 @@ const keybindings = useKeybindingsStore();
 const keybindingsEnabled = ref(true);
 const showBranchPicker = ref(false);
 const staleWorktreeIds = ref<Set<string>>(new Set());
-const activeContextBadge = computed(() => workspace.activeContextBadge);
 const activeContextLabel = computed(() => activeContextBadge.value?.displayLabel ?? null);
 
 /** Thread name in the center toolbar between the branch control and view tabs. */
 const toolbarActiveThread = computed(() => {
-  const id = workspace.activeThreadId;
+  const id = activeThreadId.value;
   if (!id) return null;
   return workspace.threads.find((t) => t.id === id) ?? null;
 });
@@ -292,14 +349,13 @@ const toolbarActiveThread = computed(() => {
 /** Center bar: branch combobox shows for Git repos unless the active worktree is a non-default worktree. */
 const isInNonDefaultWorktree = computed(
   () =>
-    workspace.threadGroups.length > 0 &&
-    workspace.activeWorktreeId !== workspace.defaultWorktree?.id
+    threadGroups.value.length > 0 && activeWorktreeId.value !== defaultWorktree.value?.id
 );
 const showTopBarBranchSwitcher = computed(
   () =>
     scm.hasGitRepository === true &&
     !isInNonDefaultWorktree.value &&
-    Boolean(workspace.activeProjectId && workspace.activeWorktree?.path)
+    Boolean(activeProjectId.value && activeWorktree.value?.path)
 );
 /** Top row: workspace views only (terminal sessions switch from the bottom terminal bar). */
 const topCenterPanelTabs = computed<PillTabItem[]>(() => {
@@ -350,10 +406,10 @@ const bottomTerminalBarTabs = computed<PillTabItem[]>(() => {
 const topCenterTabModel = computed({
   get: () => mainCenterTab.value,
   set: (v: string) => {
-    if (v === "diff") mainCenterTab.value = "diff";
-    else if (v === "files") mainCenterTab.value = "files";
-    else if (v === "preview") mainCenterTab.value = "preview";
-    else mainCenterTab.value = "agent";
+    if (v === "diff") void navigateToCenterTab("diff");
+    else if (v === "files") void navigateToCenterTab("files");
+    else if (v === "preview") void navigateToCenterTab("preview");
+    else void navigateToCenterTab("agent");
   }
 });
 
@@ -370,11 +426,11 @@ const bottomShellTabModel = computed({
 
 /** PTY session used for attention sounds: shell tab if selected, else thread agent. */
 const visiblePtySessionId = computed(() => {
-  const wt = workspace.activeWorktreeId;
+  const wt = activeWorktreeId.value;
   if (shellOverlayTab.value.startsWith("shell:") && wt) {
     return `__shell:${wt}:${shellOverlayTab.value.slice("shell:".length)}`;
   }
-  return visibleTerminalSessionId(workspace.activeThreadId, wt);
+  return visibleTerminalSessionId(activeThreadId.value, wt);
 });
 
 useTerminalAttentionSounds({
@@ -391,7 +447,7 @@ const {
   clearIdleAttention: clearPtyIdleAttention,
   markUserInput: markPtyUserInput
 } = useThreadPtyRunStatus(computed(() => workspace.threads), {
-  activeThreadId: computed(() => workspace.activeThreadId),
+  activeThreadId,
   notificationsEnabled: terminalNotificationsEnabled
 });
 
@@ -431,7 +487,7 @@ async function performCloseShellTab(tabValue: string): Promise<void> {
   if (!tabValue.startsWith("shell:")) return;
   const slotId = tabValue.slice("shell:".length);
   const api = getApi();
-  const wt = workspace.activeWorktreeId;
+  const wt = activeWorktreeId.value;
   if (api && wt) {
     try {
       await api.ptyKill(`__shell:${wt}:${slotId}`);
@@ -505,16 +561,12 @@ const scmBranchLine = computed(() => {
   return shortLabel ? `${shortLabel} / ${branch}` : branch;
 });
 
-/** Main panels (threads, terminal, diff) require an active worktree path. */
-const hasActiveWorkspace = computed(() => Boolean(workspace.activeWorktree));
-const activeWorktreeHasThreads = computed(() => workspace.activeThreads.length > 0);
+const activeWorktreeHasThreads = computed(() => activeThreads.value.length > 0);
 
 /** Files is always rooted at the accepted active worktree context. */
-const fileExplorerWorktree = computed(() => workspace.activeWorktree);
+const fileExplorerWorktree = activeWorktree;
 
-const activeWorktreePath = computed(
-  () => workspace.worktrees.find((w) => w.id === workspace.activeWorktreeId)?.path ?? null
-);
+const activeWorktreePath = computed(() => activeWorktree.value?.path ?? null);
 
 function getApi(): WorkspaceApi | null {
   return window.workspaceApi ?? null;
@@ -572,17 +624,47 @@ const scmSuggestCommitDisabledReason = computed(() => {
   return null;
 });
 
+async function syncRouteFromSnapshot(
+  next: Pick<WorkspaceSnapshot, "activeProjectId" | "activeWorktreeId" | "activeThreadId">
+): Promise<void> {
+  if (!next.activeProjectId) {
+    await router.replace({ name: "welcome" });
+    return;
+  }
+  const wt = workspace.worktrees.find((w) => w.id === next.activeWorktreeId);
+  if (!wt) {
+    await router.replace({ name: "welcome" });
+    return;
+  }
+  if (next.activeThreadId) {
+    await router.replace({
+      name: "thread",
+      params: {
+        projectId: next.activeProjectId,
+        branch: encodeBranch(wt.branch),
+        threadId: next.activeThreadId
+      }
+    });
+  } else {
+    await router.replace({
+      name: "files",
+      params: { projectId: next.activeProjectId, branch: encodeBranch(wt.branch) }
+    });
+  }
+}
+
 async function refreshSnapshot(snapshot?: WorkspaceSnapshot): Promise<void> {
   const api = getApi();
   if (!api) return;
   const next = snapshot ?? ((await api.getSnapshot()) as WorkspaceSnapshot);
   workspace.hydrate(next);
+  await syncRouteFromSnapshot(next);
 }
 
 
 async function handleInitializeGit(): Promise<void> {
   const api = getApi();
-  const cwd = workspace.activeWorktree?.path;
+  const cwd = activeWorktree.value?.path;
   if (!cwd) return;
   if (!api?.initGitRepository) {
     toast.error(
@@ -694,7 +776,7 @@ async function syncWorktrees(projectId: string): Promise<void> {
 }
 
 async function confirmFilesContextSwitch(nextWorktreeId: string | null): Promise<boolean> {
-  const currentWorktreeId = workspace.activeWorktreeId;
+  const currentWorktreeId = activeWorktreeId.value;
   if (!currentWorktreeId || nextWorktreeId === currentWorktreeId) return true;
 
   const nextWorktreePath =
@@ -707,15 +789,21 @@ async function handleSelectProject(projectId: string): Promise<void> {
   const api = getApi();
   if (!api) return;
   await syncWorktrees(projectId);
-  const project = workspace.projects.find((entry) => entry.id === projectId);
-  const fallbackWorktreeId =
-    project?.lastActiveWorktreeId ??
-    workspace.worktrees.find((worktree) => worktree.projectId === projectId)?.id ??
-    null;
-  const fallbackThreadId =
-    workspace.worktrees.find((worktree) => worktree.id === fallbackWorktreeId)?.lastActiveThreadId ?? null;
-  if (!(await confirmFilesContextSwitch(fallbackWorktreeId))) return;
-  await api.setActive({ projectId, worktreeId: fallbackWorktreeId, threadId: fallbackThreadId });
+  const project = workspace.projects.find((p) => p.id === projectId);
+  if (!project) return;
+  const worktree =
+    workspace.worktrees.find(
+      (w) => w.projectId === projectId && w.id === project.lastActiveWorktreeId
+    ) ?? workspace.worktrees.find((w) => w.projectId === projectId && w.isDefault);
+  if (!worktree) return;
+  if (!(await confirmFilesContextSwitch(worktree.id))) return;
+  const lastThreadId = worktree.lastActiveThreadId;
+  const thread =
+    (lastThreadId && workspace.threads.find((t) => t.id === lastThreadId)) ||
+    workspace.threads.find((t) => t.worktreeId === worktree.id);
+  if (api.setActive) {
+    await api.setActive({ projectId, worktreeId: worktree.id, threadId: thread?.id ?? null });
+  }
   await refreshSnapshot();
   await scm.refreshRepoStatus();
 }
@@ -738,14 +826,16 @@ async function handleSelectWorktree(worktreeId: string): Promise<boolean> {
   if (!api) return false;
   const targetWt = workspace.worktrees.find((w) => w.id === worktreeId);
   if (!targetWt) return false;
-  if (workspace.activeWorktreeId === targetWt.id) return true;
+  if (activeWorktreeId.value === targetWt.id) return true;
   if (!(await confirmFilesContextSwitch(targetWt.id))) return false;
-  const firstThreadInWt = workspace.threads.find((t) => t.worktreeId === targetWt.id)?.id ?? null;
-  await api.setActive({
-    projectId: targetWt.projectId,
-    worktreeId: targetWt.id,
-    threadId: targetWt.lastActiveThreadId ?? firstThreadInWt
-  });
+  const projectId = targetWt.projectId;
+  const lastThreadId = targetWt.lastActiveThreadId;
+  const thread =
+    (lastThreadId && workspace.threads.find((t) => t.id === lastThreadId)) ||
+    workspace.threads.find((t) => t.worktreeId === worktreeId);
+  if (api.setActive) {
+    await api.setActive({ projectId, worktreeId, threadId: thread?.id ?? null });
+  }
   await refreshSnapshot();
   await scm.refreshRepoStatus();
   return true;
@@ -865,7 +955,7 @@ function onAgentTerminalStdinChunk(sessionId: string, data: string): void {
 
 function defaultTitleForAgent(agent: ThreadAgent): string {
   const label = THREAD_AGENT_LABELS[agent];
-  const sameAgentCount = workspace.activeThreads.filter((t) => t.agent === agent).length;
+  const sameAgentCount = activeThreads.value.filter((t) => t.agent === agent).length;
   if (sameAgentCount === 0) return label;
   const stamp = new Date().toLocaleString(undefined, {
     month: "short",
@@ -979,9 +1069,9 @@ async function handleRemoveThread(threadId: string): Promise<void> {
   if (threadWt && loadInlineThreadDraft(threadWt) === threadId) {
     clearInlineThreadDraft(threadWt);
   }
-  const wasActive = workspace.activeThreadId === threadId;
+  const wasActive = activeThreadId.value === threadId;
   const nextThread = wasActive
-    ? workspace.activeThreads.find((t) => t.id !== threadId) ?? null
+    ? activeThreads.value.find((t) => t.id !== threadId) ?? null
     : null;
   workspace.removeThreadLocal(threadId);
   try {
@@ -990,8 +1080,8 @@ async function handleRemoveThread(threadId: string): Promise<void> {
     await api.deleteThread(payload);
     if (wasActive) {
       await api.setActive({
-        projectId: workspace.activeProjectId,
-        worktreeId: workspace.activeWorktreeId,
+        projectId: activeProjectId.value,
+        worktreeId: activeWorktreeId.value,
         threadId: nextThread?.id ?? null
       });
     }
@@ -1012,7 +1102,7 @@ async function handleRenameThread(threadId: string, newTitle: string): Promise<v
 }
 
 function tryRestoreInlineThreadDraft(): void {
-  const wt = workspace.activeWorktreeId;
+  const wt = activeWorktreeId.value;
   if (!wt) return;
   const draftId = loadInlineThreadDraft(wt);
   if (!draftId) return;
@@ -1020,7 +1110,7 @@ function tryRestoreInlineThreadDraft(): void {
     clearInlineThreadDraft(wt);
     return;
   }
-  if (workspace.activeThreadId !== draftId) return;
+  if (activeThreadId.value !== draftId) return;
   inlinePromptThreadId.value = draftId;
 }
 
@@ -1028,7 +1118,7 @@ async function openInlineThreadPrompt(worktreeId: string): Promise<void> {
   const api = getApi();
   if (!api) return;
   const projectId =
-    workspace.activeProjectId ??
+    activeProjectId.value ??
     workspace.worktrees.find((worktree) => worktree.id === worktreeId)?.projectId ??
     null;
   if (!projectId) return;
@@ -1042,7 +1132,6 @@ async function openInlineThreadPrompt(worktreeId: string): Promise<void> {
   await refreshSnapshot();
   inlinePromptThreadId.value = created.id;
   saveInlineThreadDraft(worktreeId, created.id);
-  mainCenterTab.value = "agent";
 }
 
 function openAddThreadFromToolbarOrEmpty(): void {
@@ -1053,7 +1142,7 @@ function openAddThreadFromToolbarOrEmpty(): void {
 
 async function handleCreateWorktreeGroup(branch: string, baseBranch: string | null): Promise<void> {
   const api = getApi();
-  const projectId = workspace.activeProjectId;
+  const projectId = activeProjectId.value;
   if (!api?.createWorktreeGroup || !projectId) return;
 
   try {
@@ -1074,7 +1163,7 @@ async function handleDeleteWorktreeGroup(worktreeId: string): Promise<void> {
 
   try {
     // Kill PTY sessions for all threads in the group before removing the worktree directory
-    const groupThreads = workspace.activeProjectThreads.filter((t) => t.worktreeId === worktreeId);
+    const groupThreads = activeProjectThreads.value.filter((t) => t.worktreeId === worktreeId);
     await Promise.all(
       groupThreads.map((t) => api.ptyKill(t.id).catch(() => { /* session may already be gone */ }))
     );
@@ -1091,32 +1180,26 @@ async function handleDeleteWorktreeGroup(worktreeId: string): Promise<void> {
 
 
 async function handleSelectThread(threadId: string): Promise<void> {
-  mainCenterTab.value = "agent";
+  const targetThread = workspace.threads.find((t) => t.id === threadId);
+  if (!targetThread) return;
+  const targetWt = workspace.worktrees.find((w) => w.id === targetThread.worktreeId);
+  if (!targetWt) return;
+  const projectId = targetThread.projectId;
   const api = getApi();
   if (!api) return;
-  const targetThread = workspace.threads.find((thread) => thread.id === threadId);
-  if (!targetThread) return;
-  if (targetThread.worktreeId === workspace.activeWorktreeId && api.setActiveThread) {
-    const snapshot = (await api.setActiveThread(threadId)) as WorkspaceSnapshot;
-    await refreshSnapshot(snapshot);
-    clearPtyIdleAttention(threadId);
-    return;
+  if (api.setActiveThread && targetThread.worktreeId === activeWorktreeId.value) {
+    await api.setActiveThread(threadId);
+  } else if (api.setActive) {
+    if (!(await confirmFilesContextSwitch(targetThread.worktreeId))) return;
+    await api.setActive({ projectId, worktreeId: targetWt.id, threadId });
   }
-  if (!(await confirmFilesContextSwitch(targetThread.worktreeId))) return;
-  const targetWorktree =
-    workspace.worktrees.find((worktree) => worktree.id === targetThread.worktreeId) ?? null;
-  await api.setActive({
-    projectId: targetWorktree?.projectId ?? targetThread.projectId,
-    worktreeId: targetThread.worktreeId,
-    threadId
-  });
   await refreshSnapshot();
   await scm.refreshRepoStatus();
   clearPtyIdleAttention(threadId);
 }
 
 async function handleScmSuggestCommit(): Promise<void> {
-  await localLlm.suggestFromStaged(workspace.activeWorktree?.path ?? null);
+  await localLlm.suggestFromStaged(activeWorktree.value?.path ?? null);
   if (localLlm.commitSuggestState === "ready" && localLlm.commitCandidates.length > 0) {
     scm.scmCommitMessage = localLlm.commitCandidates[0] ?? "";
   }
@@ -1126,7 +1209,7 @@ async function handleScmSuggestCommit(): Promise<void> {
 }
 
 async function handleScmOpenFileInEditor(path: string): Promise<void> {
-  mainCenterTab.value = "files";
+  await navigateToCenterTab("files");
   await nextTick();
   await fileSearchRef.value?.openWorkspaceFile(path);
 }
@@ -1145,17 +1228,14 @@ function expandThreadsSidebar(): void {
 }
 
 function resolvePrimaryWorktreeId(): string | null {
-  const defaultId = workspace.defaultWorktree?.id ?? null;
+  const defaultId = defaultWorktree.value?.id ?? null;
   if (defaultId) return defaultId;
-
-  const primaryContextId = workspace.threadContexts.find((context) => context.isDefault)?.worktreeId ?? null;
+  const primaryContextId = threadContexts.value.find((context) => context.isDefault)?.worktreeId ?? null;
   if (primaryContextId) return primaryContextId;
-
-  if (workspace.activeWorktreeId) return workspace.activeWorktreeId;
-
-  const firstActiveProjectWorktree =
-    workspace.worktrees.find((worktree) => worktree.projectId === workspace.activeProjectId)?.id ?? null;
-  return firstActiveProjectWorktree;
+  if (activeWorktreeId.value) return activeWorktreeId.value;
+  return (
+    workspace.worktrees.find((worktree) => worktree.projectId === activeProjectId.value)?.id ?? null
+  );
 }
 
 const workspaceLauncherOpen = ref(false);
@@ -1167,7 +1247,7 @@ function openNewThreadMenuFromShortcut(): void {
 }
 
 function focusFileSearchShortcut(): void {
-  mainCenterTab.value = "files";
+  void navigateToCenterTab("files");
   void nextTick(() => {
     fileSearchRef.value?.focusSearch();
   });
@@ -1199,15 +1279,15 @@ async function onLauncherPickFile(payload: {
   const targetWt =
     payload.worktreeId != null
       ? workspace.worktrees.find((w) => w.id === payload.worktreeId)
-      : workspace.activeWorktree;
+      : activeWorktree.value;
   if (!targetWt) return;
 
-  if (workspace.activeWorktreeId !== targetWt.id) {
+  if (activeWorktreeId.value !== targetWt.id) {
     const switched = await handleSelectWorktree(targetWt.id);
     if (!switched) return;
   }
 
-  mainCenterTab.value = "files";
+  await navigateToCenterTab("files");
   await nextTick();
   await fileSearchRef.value?.openWorkspaceFile(payload.relativePath);
 }
@@ -1226,9 +1306,11 @@ usePreviewModalOcclusion();
 
 const { goPrevThread, goNextThread, maybeSetResumeBootstrap } = useThreadNavigation(
   workspace,
-  pendingAgentBootstrap,
-  handleSelectThread
+  active,
+  pendingAgentBootstrap
 );
+
+useWorktreeHealth(workspace, threadGroups, staleWorktreeIds);
 
 useWorkspaceKeybindings(
   {
@@ -1241,7 +1323,7 @@ useWorkspaceKeybindings(
     launcherConsumesNavShortcuts: () => workspaceLauncherOpen.value,
     onSelectCenterTab: (tab) => {
       if (tab === "agent" || tab === "diff" || tab === "files" || tab === "preview") {
-        mainCenterTab.value = tab;
+        void navigateToCenterTab(tab);
         return;
       }
       if (tab.startsWith("shell:")) {
@@ -1276,13 +1358,15 @@ function onInlinePromptCmdEnter(ev: KeyboardEvent): void {
 
 onMounted(async () => {
   window.addEventListener("keydown", onInlinePromptCmdEnter, { capture: true });
-  await refreshSnapshot();
-  maybeSetResumeBootstrap(workspace.activeThreadId);
-  if (workspace.activeProjectId) {
-    await syncWorktrees(workspace.activeProjectId);
+  const api = getApi();
+  if (api) {
+    await refreshSnapshot();
+  }
+  maybeSetResumeBootstrap(activeThreadId.value);
+  if (activeProjectId.value) {
+    await syncWorktrees(activeProjectId.value);
   }
   await scm.refreshRepoStatus();
-  const api = getApi();
   if (api?.onWorkspaceChanged) {
     disposeWorkspaceChanged = api.onWorkspaceChanged(() => {
       void refreshSnapshot();
@@ -1298,7 +1382,6 @@ onMounted(async () => {
       handleConfigureCommands();
     });
   }
-  useWorktreeHealth(workspace, staleWorktreeIds);
 });
 
 onBeforeUnmount(() => {
@@ -1313,7 +1396,7 @@ onBeforeUnmount(() => {
 
 watch(
   () =>
-    `${workspace.activeWorktreeId ?? ""}\0${workspace.activeThreadId ?? ""}\0${workspace.threads
+    `${activeWorktreeId.value ?? ""}\0${activeThreadId.value ?? ""}\0${workspace.threads
       .map((t) => t.id)
       .sort()
       .join(",")}`,
@@ -1324,22 +1407,49 @@ watch(
 );
 
 watch(
-  () => workspace.activeWorktreeId,
+  () => workspace.threads.map((t) => t.id).join(","),
+  () => {
+    const currentThreadId = activeThreadId.value;
+    if (!currentThreadId) return;
+    if (route.name !== "thread") return;
+    const stillExists = workspace.threads.some((t) => t.id === currentThreadId);
+    if (stillExists) return;
+    const fallback = workspace.threads.find((t) => t.worktreeId === activeWorktreeId.value);
+    if (fallback && activeProjectId.value && activeBranch.value) {
+      void router.replace({
+        name: "thread",
+        params: {
+          projectId: activeProjectId.value,
+          branch: encodeBranch(activeBranch.value),
+          threadId: fallback.id
+        }
+      });
+    } else if (activeProjectId.value && activeBranch.value) {
+      void router.replace({
+        name: "files",
+        params: { projectId: activeProjectId.value, branch: encodeBranch(activeBranch.value) }
+      });
+    }
+  }
+);
+
+watch(
+  () => activeWorktreeId.value,
   async (wt, prev) => {
     if (!wt) {
       shellSlotIds.value = [];
-      mainCenterTab.value = "agent";
       shellOverlayTab.value = "agent";
+      void router.push({ name: "welcome" });
     } else if (prev !== wt) {
       const saved = loadTerminalLayout(wt);
       if (saved) {
         shellSlotIds.value = saved.shellSlotIds;
         const resolvedMain = resolveCenterTab(saved.centerTab, saved.shellSlotIds);
         if (resolvedMain.startsWith("shell:")) {
-          mainCenterTab.value = "agent";
+          void navigateToCenterTab("agent");
           shellOverlayTab.value = resolveShellOverlayTab(resolvedMain, saved.shellSlotIds);
         } else {
-          mainCenterTab.value = resolvedMain as "agent" | "diff" | "files" | "preview";
+          void navigateToCenterTab(resolvedMain as "agent" | "diff" | "files" | "preview");
           shellOverlayTab.value = saved.shellOverlayTab
             ? resolveShellOverlayTab(saved.shellOverlayTab, saved.shellSlotIds)
             : "agent";
@@ -1370,10 +1480,10 @@ watch(
     shellSlotIds,
     terminalPanelOpen,
     terminalPanelHeight,
-    () => workspace.activeWorktreeId
+    activeWorktreeId
   ],
   () => {
-    const wt = workspace.activeWorktreeId;
+    const wt = activeWorktreeId.value;
     if (!wt) return;
     saveTerminalLayout(wt, {
       centerTab: mainCenterTab.value,
@@ -1445,7 +1555,7 @@ watch(
     // Only leave Git tab when we know there is no repo. While `null` (loading), switching away
     // fights async refresh and can contribute to recursive update / focus churn.
     if (tab === "diff" && git === false) {
-      mainCenterTab.value = "agent";
+      void navigateToCenterTab("agent");
     }
   },
   { flush: "post" }
@@ -1488,8 +1598,8 @@ watch(
       :threads="workspace.threads"
       :idle-attention-by-thread-id="ptyIdleAttentionByThreadId"
       :run-status-by-thread-id="ptyRunStatusByThreadId"
-      :active-project-id="workspace.activeProjectId"
-      :active-thread-id="workspace.activeThreadId"
+      :active-project-id="activeProjectId"
+      :active-thread-id="activeThreadId"
       @select="handleSelectProject"
       @remove="handleRemoveProject"
       @create="handleCreateProject"
@@ -1537,21 +1647,21 @@ watch(
           class="min-h-0 min-w-0 flex-1 sidebar-glass border-r border-sidebar-border"
           :collapsed="threadsSidebarCollapsed"
           :context-label="activeContextLabel"
-          :threads="workspace.activeProjectThreads"
-          :active-thread-id="workspace.activeThreadId"
+          :threads="activeProjectThreads"
+          :active-thread-id="activeThreadId"
           :run-status-by-thread-id="ptyRunStatusByThreadId"
           :idle-attention-by-thread-id="ptyIdleAttentionByThreadId"
-          :thread-groups="workspace.threadGroups"
-          :thread-contexts="workspace.threadContexts"
-          :default-worktree-id="workspace.defaultWorktree?.id ?? null"
+          :thread-groups="threadGroups"
+          :thread-contexts="threadContexts"
+          :default-worktree-id="defaultWorktree?.id ?? null"
           :stale-worktree-ids="staleWorktreeIds"
           :show-branch-picker="showBranchPicker"
-          :project-id="workspace.activeProjectId"
+          :project-id="activeProjectId"
           :inline-prompt-thread-id="inlinePromptThreadId"
           :show-toolbar-branch-switcher="showTopBarBranchSwitcher"
           :scm-branch-line="scmBranchLine"
           :scm-current-branch="scm.scmMeta.branch"
-          :scm-cwd="workspace.activeWorktree?.path ?? ''"
+          :scm-cwd="activeWorktree?.path ?? ''"
           :show-terminal-sidebar-button="showThreadSidebarTerminalButton"
           :center-panel-tabs="topCenterPanelTabs"
           :context-queue-items="contextQueueItems"
@@ -1559,7 +1669,7 @@ watch(
           :projects="workspace.projects"
           :project-tab-worktrees="workspace.worktrees"
           :project-tab-threads="workspace.threads"
-          :active-project-id="workspace.activeProjectId"
+          :active-project-id="activeProjectId"
           @show-branch-picker="showBranchPicker = true"
           @cancel-branch-picker="showBranchPicker = false"
           @create-worktree-group="handleCreateWorktreeGroup"
@@ -1618,7 +1728,7 @@ watch(
                     <SourceControlPanel
                       v-if="scm.hasGitRepository"
                       :context-label="activeContextLabel"
-                      :project-id="workspace.activeProjectId"
+                      :project-id="activeProjectId"
                       :allow-scm-branch-switcher="!isInNonDefaultWorktree"
                       :suggest-commit-available="scmSuggestCommitAvailable"
                       :suggest-commit-disabled-reason="scmSuggestCommitDisabledReason"
@@ -1626,7 +1736,7 @@ watch(
                       :suggest-commit-gpu-ok="localLlm.webGpuOk"
                       :suggest-commit-truncated="localLlm.lastStagedTruncated"
                       :show-thread-sidebar-expand="threadsSidebarCollapsed"
-                      :active-thread-id="workspace.activeThreadId"
+                      :active-thread-id="activeThreadId"
                       @expand-thread-sidebar="expandThreadsSidebar"
                       @suggest-commit="handleScmSuggestCommit"
                       @open-file-in-editor="handleScmOpenFileInEditor"
@@ -1641,7 +1751,7 @@ watch(
                       ref="fileSearchRef"
                       :worktree-id="fileExplorerWorktree?.id ?? null"
                       :worktree-path="fileExplorerWorktree?.path ?? null"
-                      :active-thread-id="workspace.activeThreadId"
+                      :active-thread-id="activeThreadId"
                       :show-thread-sidebar-expand="threadsSidebarCollapsed"
                       @expand-thread-sidebar="expandThreadsSidebar"
                     />
@@ -1695,10 +1805,10 @@ watch(
                       </Button>
                     </section>
                     <ThreadInlinePromptEditor
-                      v-else-if="inlinePromptThreadId && workspace.activeThreadId === inlinePromptThreadId"
+                      v-else-if="inlinePromptThreadId && activeThreadId === inlinePromptThreadId"
                       ref="inlinePromptEditorRef"
-                      :worktree-id="workspace.activeWorktreeId ?? ''"
-                      :worktree-path="workspace.activeWorktree?.path ?? null"
+                      :worktree-id="activeWorktreeId ?? ''"
+                      :worktree-path="activeWorktree?.path ?? null"
                       :thread-context-label="inlinePromptThreadContextLabel"
                       @submit="onInlinePromptSubmit"
                       @cancel="onInlinePromptCancel"
@@ -1707,9 +1817,9 @@ watch(
                       v-else
                       ref="agentTerminalPaneRef"
                       pty-kind="agent"
-                      :worktree-id="workspace.activeWorktreeId ?? ''"
-                      :thread-id="workspace.activeThreadId ?? ''"
-                      :cwd="workspace.activeWorktree?.path ?? ''"
+                      :worktree-id="activeWorktreeId ?? ''"
+                      :thread-id="activeThreadId ?? ''"
+                      :cwd="activeWorktree?.path ?? ''"
                       :pending-agent-bootstrap="pendingAgentBootstrap"
                       @bootstrap-consumed="onTerminalBootstrapConsumed"
                       @stdin-chunk="onAgentTerminalStdinChunk"
@@ -1800,9 +1910,9 @@ watch(
                           :ref="(el) => setShellTerminalPaneRef(slotId, el)"
                           pty-kind="shell"
                           :shell-slot-id="slotId"
-                          :worktree-id="workspace.activeWorktreeId ?? ''"
-                          :thread-id="workspace.activeThreadId ?? ''"
-                          :cwd="workspace.activeWorktree?.path ?? ''"
+                          :worktree-id="activeWorktreeId ?? ''"
+                          :thread-id="activeThreadId ?? ''"
+                          :cwd="activeWorktree?.path ?? ''"
                           :queue-session-label="overlayShellQueueSessionLabel(slotId)"
                           @user-typed="markPtyUserInput"
                         />

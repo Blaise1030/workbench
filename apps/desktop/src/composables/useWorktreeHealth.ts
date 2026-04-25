@@ -1,8 +1,10 @@
-import { onBeforeUnmount, type Ref } from "vue";
+import { onBeforeUnmount, type ComputedRef, type Ref } from "vue";
+import type { Worktree } from "@shared/domain";
 import type { useWorkspaceStore } from "@/stores/workspaceStore";
 
 export function useWorktreeHealth(
   workspace: ReturnType<typeof useWorkspaceStore>,
+  threadGroups: ComputedRef<Worktree[]>,
   staleWorktreeIds: Ref<Set<string>>
 ): void {
   async function checkWorktreeHealth(): Promise<void> {
@@ -10,7 +12,7 @@ export function useWorktreeHealth(
     if (!api?.worktreeHealth) return;
 
     const nextStale = new Set<string>();
-    for (const wt of workspace.threadGroups) {
+    for (const wt of threadGroups.value) {
       const { exists } = await api.worktreeHealth(wt.id);
       if (!exists) nextStale.add(wt.id);
     }

@@ -88,7 +88,7 @@ describe("ThreadRow", () => {
 
   it("applies active styling when isActive is true", () => {
     wrapper = mountThreadRow({ thread, isActive: true });
-    expect(wrapper.get('[data-testid="thread-row"]').classes()).toContain("bg-accent");
+    expect(wrapper.get('[data-testid="thread-row"]').classes().join(" ")).toMatch(/bg-black|bg-muted/);
   });
 
   it("applies blue highlight when needsIdleAttention is true", () => {

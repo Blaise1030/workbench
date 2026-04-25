@@ -3,6 +3,7 @@ import { createApp } from "vue";
 import App from "./App.vue";
 import { initColorSchemeFromStorage } from "./composables/useColorScheme";
 import { initUiThemePresetFromStorage } from "./composables/useUiThemePreset";
+import { router } from "./router/index";
 import "./styles/globals.css";
 
 initColorSchemeFromStorage();
@@ -18,4 +19,5 @@ window.addEventListener("drop", (e) => {
 
 const app = createApp(App);
 app.use(createPinia());
+app.use(router);
 app.mount("#app");

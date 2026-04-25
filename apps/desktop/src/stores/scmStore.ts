@@ -1,8 +1,10 @@
-import { ref } from "vue";
+import { computed, ref } from "vue";
+import { useRoute } from "vue-router";
 import { defineStore } from "pinia";
 import { LruMap } from "@/lib/lruMap";
 import { useWorkspaceStore } from "@/stores/workspaceStore";
 import { useToast } from "@/composables/useToast";
+import { decodeBranch } from "@/router/branchParam";
 import type { FileDiffScope, FileMergeSidesResult, RepoScmSnapshot, RepoStatusEntry } from "@shared/ipc";
 
 const DIFF_MERGE_CACHE_MAX = 24;
@@ -10,8 +12,17 @@ const DIFF_MERGE_CACHE_MAX = 24;
 export type ScmMeta = { shortLabel: string; branch: string; lastCommitSubject: string | null };
 
 export const useScmStore = defineStore("scm", () => {
+  const route = useRoute();
   const workspace = useWorkspaceStore();
   const toast = useToast();
+
+  const activeWorktree = computed(() => {
+    const projectId = route.params.projectId;
+    const branch = route.params.branch;
+    if (typeof projectId !== "string" || typeof branch !== "string") return undefined;
+    const decoded = decodeBranch(branch);
+    return workspace.worktrees.find((w) => w.projectId === projectId && w.branch === decoded);
+  });
 
   // ── State ────────────────────────────────────────────────────────────────
   const hasGitRepository = ref<boolean | null>(null);
@@ -78,7 +89,7 @@ export const useScmStore = defineStore("scm", () => {
     const api = window.workspaceApi ?? null;
     const path = selectedScmPath.value;
     const scope = selectedScmScope.value;
-    if (!api || !workspace.activeWorktree || !path || !scope) {
+    if (!api || !activeWorktree.value || !path || !scope) {
       selectedMergeResult.value = null;
       selectedDiffLoading.value = false;
       return;
@@ -89,7 +100,7 @@ export const useScmStore = defineStore("scm", () => {
       return;
     }
     const seq = ++selectedDiffSeq;
-    const cwd = workspace.activeWorktree.path;
+    const cwd = activeWorktree.value.path;
     const key = cacheKey(cwd, path, scope);
     const cached = diffCache.get(key);
     if (cached != null) {
@@ -106,11 +117,11 @@ export const useScmStore = defineStore("scm", () => {
     if (!hasExisting) selectedDiffLoading.value = true;
     try {
       const result = await api.fileMergeSides(cwd, path, scope);
-      if (seq !== selectedDiffSeq || workspace.activeWorktree?.path !== cwd) return;
+      if (seq !== selectedDiffSeq || activeWorktree.value?.path !== cwd) return;
       diffCache.set(key, result);
       if (!mergeSidesEqual(selectedMergeResult.value, result)) selectedMergeResult.value = result;
     } catch (error) {
-      if (seq !== selectedDiffSeq || workspace.activeWorktree?.path !== cwd) return;
+      if (seq !== selectedDiffSeq || activeWorktree.value?.path !== cwd) return;
       selectedMergeResult.value = { kind: "error", message: error instanceof Error ? error.message : "Could not load diff." };
     } finally {
       if (seq === selectedDiffSeq) selectedDiffLoading.value = false;
@@ -119,7 +130,7 @@ export const useScmStore = defineStore("scm", () => {
 
   async function refreshRepoStatus(): Promise<void> {
     const api = window.workspaceApi ?? null;
-    if (!api || !workspace.activeWorktree) {
+    if (!api || !activeWorktree.value) {
       hasGitRepository.value = null;
       repoStatus.value = [];
       scmMeta.value = { shortLabel: "", branch: "", lastCommitSubject: null };
@@ -131,12 +142,12 @@ export const useScmStore = defineStore("scm", () => {
       return;
     }
     const seq = ++diffRefreshSeq;
-    const cwd = workspace.activeWorktree.path;
+    const cwd = activeWorktree.value.path;
 
     if (api.isGitRepository) {
       let insideGit = false;
       try { insideGit = await api.isGitRepository(cwd); } catch { insideGit = false; }
-      if (seq !== diffRefreshSeq || workspace.activeWorktree?.path !== cwd) return;
+      if (seq !== diffRefreshSeq || activeWorktree.value?.path !== cwd) return;
       hasGitRepository.value = insideGit;
       if (!insideGit) {
         repoStatus.value = [];
@@ -149,7 +160,7 @@ export const useScmStore = defineStore("scm", () => {
         return;
       }
     } else {
-      if (seq !== diffRefreshSeq || workspace.activeWorktree?.path !== cwd) return;
+      if (seq !== diffRefreshSeq || activeWorktree.value?.path !== cwd) return;
       hasGitRepository.value = true;
     }
 
@@ -160,7 +171,7 @@ export const useScmStore = defineStore("scm", () => {
             path, originalPath: null, stagedKind: null,
             unstagedKind: "modified" as const, isUntracked: false
           }));
-      if (seq !== diffRefreshSeq || workspace.activeWorktree?.path !== cwd) return;
+      if (seq !== diffRefreshSeq || activeWorktree.value?.path !== cwd) return;
       const { entries: statusEntries, meta } = normalizeRepoStatusResult(rawStatus);
       repoStatus.value = statusEntries;
       scmMeta.value = meta
@@ -172,7 +183,7 @@ export const useScmStore = defineStore("scm", () => {
       if (selPath && selScope) diffCache.delete(cacheKey(cwd, selPath, selScope));
       await loadSelectedMerge();
     } catch (error) {
-      if (seq !== diffRefreshSeq || workspace.activeWorktree?.path !== cwd) return;
+      if (seq !== diffRefreshSeq || activeWorktree.value?.path !== cwd) return;
       repoStatus.value = [];
       scmMeta.value = { shortLabel: "", branch: "", lastCommitSubject: null };
       const message = error instanceof Error ? error.message : "";
@@ -199,29 +210,29 @@ export const useScmStore = defineStore("scm", () => {
 
   async function stageSelected(paths: string[]): Promise<void> {
     const api = window.workspaceApi ?? null;
-    if (!api || !workspace.activeWorktree || paths.length === 0) return;
+    if (!api || !activeWorktree.value || paths.length === 0) return;
     if (api.stagePaths) {
-      await api.stagePaths(workspace.activeWorktree.path, paths);
+      await api.stagePaths(activeWorktree.value.path, paths);
     } else {
-      await api.stageAll(workspace.activeWorktree.path);
+      await api.stageAll(activeWorktree.value.path);
     }
     await refreshRepoStatus();
   }
 
   async function unstageSelected(paths: string[]): Promise<void> {
     const api = window.workspaceApi ?? null;
-    if (!api || !workspace.activeWorktree || paths.length === 0) return;
+    if (!api || !activeWorktree.value || paths.length === 0) return;
     if (!api.unstagePaths) {
       toast.error("Cannot unstage selection", "Restart the desktop app so per-file unstage is available.");
       return;
     }
-    await api.unstagePaths(workspace.activeWorktree.path, paths);
+    await api.unstagePaths(activeWorktree.value.path, paths);
     await refreshRepoStatus();
   }
 
   async function discardSelected(paths: string[]): Promise<void> {
     const api = window.workspaceApi ?? null;
-    if (!api || !workspace.activeWorktree || paths.length === 0) return;
+    if (!api || !activeWorktree.value || paths.length === 0) return;
     if (!api.discardPaths) {
       toast.error("Cannot discard selection", "Restart the desktop app so per-file discard is available, or discard from the terminal.");
       return;
@@ -229,40 +240,40 @@ export const useScmStore = defineStore("scm", () => {
     const label = paths.length === 1 ? paths[0]! : `${paths.length} files`;
     const confirmed = window.confirm(`Discard changes to ${label}?`);
     if (!confirmed) return;
-    await api.discardPaths(workspace.activeWorktree.path, paths);
+    await api.discardPaths(activeWorktree.value.path, paths);
     await refreshRepoStatus();
   }
 
   async function stageAll(): Promise<void> {
     const api = window.workspaceApi ?? null;
-    if (!api || !workspace.activeWorktree) return;
-    await api.stageAll(workspace.activeWorktree.path);
+    if (!api || !activeWorktree.value) return;
+    await api.stageAll(activeWorktree.value.path);
     await refreshRepoStatus();
   }
 
   async function unstageAll(): Promise<void> {
     const api = window.workspaceApi ?? null;
-    if (!api || !workspace.activeWorktree) return;
+    if (!api || !activeWorktree.value) return;
     if (!api.unstageAll) {
       toast.error("Cannot unstage all", "Restart the desktop app so unstage-all is available.");
       return;
     }
-    await api.unstageAll(workspace.activeWorktree.path);
+    await api.unstageAll(activeWorktree.value.path);
     await refreshRepoStatus();
   }
 
   async function discardAll(): Promise<void> {
     const api = window.workspaceApi ?? null;
-    if (!api || !workspace.activeWorktree) return;
+    if (!api || !activeWorktree.value) return;
     const confirmed = window.confirm("Discard all working tree changes?");
     if (!confirmed) return;
-    await api.discardAll(workspace.activeWorktree.path);
+    await api.discardAll(activeWorktree.value.path);
     await refreshRepoStatus();
   }
 
   async function scmFetch(): Promise<void> {
     const api = window.workspaceApi ?? null;
-    const cwd = workspace.activeWorktree?.path;
+    const cwd = activeWorktree.value?.path;
     if (!api?.gitFetch || !cwd) return;
     scmFetchBusy.value = true;
     try {
@@ -277,7 +288,7 @@ export const useScmStore = defineStore("scm", () => {
 
   async function scmPush(): Promise<void> {
     const api = window.workspaceApi ?? null;
-    const cwd = workspace.activeWorktree?.path;
+    const cwd = activeWorktree.value?.path;
     if (!api?.gitPush || !cwd) return;
     scmPushBusy.value = true;
     try {
@@ -295,7 +306,7 @@ export const useScmStore = defineStore("scm", () => {
     const message = scmCommitMessage.value.trim();
     if (!message) return;
     const api = window.workspaceApi ?? null;
-    const cwd = workspace.activeWorktree?.path;
+    const cwd = activeWorktree.value?.path;
     if (!api?.commitStaged || !cwd) {
       toast.error("Commit unavailable", "Commit from the UI requires the desktop app with an up-to-date build, or use git commit in the terminal.");
       return;

@@ -28,6 +28,7 @@ import {
   DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu";
 import MonacoDiffEditor from "@/components/MonacoDiffEditor.vue";
+import { useActiveWorkspace } from "@/composables/useActiveWorkspace";
 import { useScmStore } from "@/stores/scmStore";
 import { useWorkspaceStore } from "@/stores/workspaceStore";
 
@@ -58,6 +59,7 @@ watch(scmDiffLayout, (v) => {
 
 const scm = useScmStore();
 const workspace = useWorkspaceStore();
+const { activeWorktree } = useActiveWorkspace();
 
 const scmFetchAvailable = computed(() => !!window.workspaceApi?.gitFetch);
 const scmPushAvailable = computed(() => !!window.workspaceApi?.gitPush);
@@ -709,7 +711,7 @@ onBeforeUnmount(() => {
             :original="mergeResultOk?.original ?? ''"
             :modified="mergeResultOk?.modified ?? ''"
             :file-path="selectedEntry?.path ?? ''"
-            :worktree-path="workspace.activeWorktree?.path ?? null"
+            :worktree-path="activeWorktree?.path ?? null"
             :active-thread-id="props.activeThreadId"
           />
         </div>
@@ -897,7 +899,7 @@ onBeforeUnmount(() => {
             :branch-line="scm.scmMeta.shortLabel"
             :current-branch="scm.scmMeta.branch"
             :project-id="props.projectId ?? ''"
-            :cwd="workspace.activeWorktree?.path ?? ''"
+            :cwd="activeWorktree?.path ?? ''"
             :switcher-enabled="props.allowScmBranchSwitcher"
             @branch-changed="void scm.refreshRepoStatus()"
           />

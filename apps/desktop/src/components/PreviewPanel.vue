@@ -111,9 +111,9 @@ import {
   savePreviewPanelDevtoolsOpen,
   savePreviewPanelUrl
 } from "@/composables/usePreviewPanelUrlPersistence";
-import { useWorkspaceStore } from "@/stores/workspaceStore";
+import { useActiveWorkspace } from "@/composables/useActiveWorkspace";
 
-const workspace = useWorkspaceStore();
+const { activeWorktreeId } = useActiveWorkspace();
 const props = withDefaults(
   defineProps<{
     isVisible?: boolean;
@@ -171,7 +171,7 @@ const collisionMirrorStyle = computed(() => {
 const loadState = ref<PreviewLoadStatePayload | null>(null);
 
 watch(
-  () => workspace.activeWorktreeId,
+  () => activeWorktreeId.value,
   (worktreeId, prevWorktreeId) => {
     loadState.value = null;
     if (prevWorktreeId != null && prevWorktreeId !== worktreeId) {
@@ -435,7 +435,7 @@ function navigate(): void {
   if (!raw) return;
   const url = normalizeUrl(raw);
   urlInput.value = url;
-  savePreviewPanelUrl(workspace.activeWorktreeId, url);
+  savePreviewPanelUrl(activeWorktreeId.value, url);
   loadSeq += 1;
   const seq = loadSeq;
   loadState.value = { kind: "loading", url: "" };
@@ -466,7 +466,7 @@ async function toggleEmbeddedDevTools(): Promise<void> {
     if (r.ok) {
       previewDevtoolsOpen.value = r.open;
       persistedDevtoolsOpen.value = r.open;
-      savePreviewPanelDevtoolsOpen(workspace.activeWorktreeId, r.open);
+      savePreviewPanelDevtoolsOpen(activeWorktreeId.value, r.open);
     } else {
       previewDevtoolsOpen.value = false;
     }
@@ -507,14 +507,14 @@ onMounted(() => {
   });
   offNavigationUrl = getApi()?.onNavigationUrl?.((url, back, forward) => {
     urlInput.value = url;
-    savePreviewPanelUrl(workspace.activeWorktreeId, url);
+    savePreviewPanelUrl(activeWorktreeId.value, url);
     canGoBack.value = back;
     canGoForward.value = forward;
   });
   offNavigationStateChanged = getApi()?.onNavigationStateChanged?.((state) => {
     if (state.url) {
       urlInput.value = state.url;
-      savePreviewPanelUrl(workspace.activeWorktreeId, state.url);
+      savePreviewPanelUrl(activeWorktreeId.value, state.url);
     }
     canGoBack.value = state.canGoBack;
     canGoForward.value = state.canGoForward;

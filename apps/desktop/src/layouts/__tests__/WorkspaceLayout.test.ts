@@ -1,6 +1,8 @@
 import { mount, flushPromises } from "@vue/test-utils";
 import { createPinia } from "pinia";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { encodeBranch } from "@/router/branchParam";
+import { createTestRouter } from "@/test-utils/createTestRouter";
 import type { WorkspaceSnapshot } from "@shared/ipc";
 import type { ThreadCreateWithAgentPayload } from "@shared/domain";
 
@@ -436,7 +438,7 @@ describe("WorkspaceLayout", () => {
 
     const wrapper = mount(WorkspaceLayout, {
       global: {
-        plugins: [createPinia()]
+        plugins: [createPinia(), await createTestRouter("/")]
       }
     });
 
@@ -510,7 +512,7 @@ describe("WorkspaceLayout", () => {
 
     const wrapper = mount(WorkspaceLayout, {
       global: {
-        plugins: [createPinia()]
+        plugins: [createPinia(), await createTestRouter("/")]
       }
     });
 
@@ -578,7 +580,7 @@ describe("WorkspaceLayout", () => {
 
     const wrapper = mount(WorkspaceLayout, {
       global: {
-        plugins: [createPinia()]
+        plugins: [createPinia(), await createTestRouter("/")]
       }
     });
 
@@ -644,7 +646,7 @@ describe("WorkspaceLayout", () => {
 
     const wrapper = mount(WorkspaceLayout, {
       global: {
-        plugins: [createPinia()]
+        plugins: [createPinia(), await createTestRouter("/")]
       }
     });
 
@@ -719,7 +721,7 @@ describe("WorkspaceLayout", () => {
 
     const wrapper = mount(WorkspaceLayout, {
       global: {
-        plugins: [createPinia()]
+        plugins: [createPinia(), await createTestRouter("/")]
       }
     });
 
@@ -782,7 +784,7 @@ describe("WorkspaceLayout", () => {
 
     const wrapper = mount(WorkspaceLayout, {
       global: {
-        plugins: [createPinia()]
+        plugins: [createPinia(), await createTestRouter("/")]
       }
     });
 
@@ -843,7 +845,7 @@ describe("WorkspaceLayout", () => {
 
     const wrapper = mount(WorkspaceLayout, {
       global: {
-        plugins: [createPinia()]
+        plugins: [createPinia(), await createTestRouter("/")]
       }
     });
 
@@ -935,7 +937,7 @@ describe("WorkspaceLayout", () => {
 
     const wrapper = mount(WorkspaceLayout, {
       global: {
-        plugins: [createPinia()]
+        plugins: [createPinia(), await createTestRouter("/")]
       }
     });
 
@@ -1022,7 +1024,7 @@ describe("WorkspaceLayout", () => {
 
     const wrapper = mount(WorkspaceLayout, {
       global: {
-        plugins: [createPinia()]
+        plugins: [createPinia(), await createTestRouter("/")]
       }
     });
 
@@ -1088,7 +1090,7 @@ describe("WorkspaceLayout", () => {
 
     const wrapper = mount(WorkspaceLayout, {
       global: {
-        plugins: [createPinia()]
+        plugins: [createPinia(), await createTestRouter("/")]
       }
     });
 
@@ -1159,7 +1161,7 @@ describe("WorkspaceLayout", () => {
 
     const wrapper = mount(WorkspaceLayout, {
       global: {
-        plugins: [createPinia()]
+        plugins: [createPinia(), await createTestRouter("/")]
       }
     });
 
@@ -1170,7 +1172,7 @@ describe("WorkspaceLayout", () => {
     expect(setActive).toHaveBeenCalledWith({
       projectId: "project-1",
       worktreeId: "worktree-1",
-      threadId: null
+      threadId: "thread-1"
     });
   });
 
@@ -1234,7 +1236,7 @@ describe("WorkspaceLayout", () => {
 
     const wrapper = mount(WorkspaceLayout, {
       global: {
-        plugins: [createPinia()]
+        plugins: [createPinia(), await createTestRouter("/")]
       }
     });
 
@@ -1310,7 +1312,7 @@ describe("WorkspaceLayout", () => {
 
     const wrapper = mount(WorkspaceLayout, {
       global: {
-        plugins: [createPinia()]
+        plugins: [createPinia(), await createTestRouter("/")]
       }
     });
 
@@ -1389,7 +1391,7 @@ describe("WorkspaceLayout", () => {
 
     const wrapper = mount(WorkspaceLayout, {
       global: {
-        plugins: [createPinia()]
+        plugins: [createPinia(), await createTestRouter("/")]
       }
     });
 
@@ -1455,7 +1457,7 @@ describe("WorkspaceLayout", () => {
 
     const wrapper = mount(WorkspaceLayout, {
       global: {
-        plugins: [createPinia()]
+        plugins: [createPinia(), await createTestRouter("/")]
       }
     });
 
@@ -1546,7 +1548,7 @@ describe("WorkspaceLayout", () => {
 
     const wrapper = mount(WorkspaceLayout, {
       global: {
-        plugins: [createPinia()]
+        plugins: [createPinia(), await createTestRouter("/")]
       }
     });
 
@@ -1619,7 +1621,7 @@ describe("WorkspaceLayout", () => {
 
     const wrapper = mount(WorkspaceLayout, {
       global: {
-        plugins: [createPinia()]
+        plugins: [createPinia(), await createTestRouter("/")]
       }
     });
 
@@ -1773,15 +1775,25 @@ describe("WorkspaceLayout", () => {
       onWorkingTreeFilesChanged: vi.fn(() => () => {})
     };
 
+    const b = encodeBranch("main");
     const wrapper = mount(WorkspaceLayout, {
       global: {
-        plugins: [createPinia()]
+        plugins: [createPinia(), await createTestRouter(`/project-1/${b}/thread/thread-1`)]
       }
     });
 
     await flushPromises();
+    expect(
+      wrapper.find('[data-testid="thread-sidebar"]').exists(),
+      "expected workspace route + snapshot hydrate to show the thread rail"
+    ).toBe(true);
+
     await wrapper.get('[data-remove-project-id="project-1"]').trigger("click");
-    await flushPromises();
+    for (let i = 0; i < 40; i++) {
+      await flushPromises();
+      const sb = wrapper.find('[data-testid="thread-sidebar"]');
+      if (sb.exists() && sb.text().includes("Other workspace")) break;
+    }
 
     expect(confirmSpy).toHaveBeenCalledWith("Remove instrument from workspace tabs?");
     expect(removeProject).toHaveBeenCalledWith({ projectId: "project-1" });
@@ -1899,7 +1911,7 @@ describe("WorkspaceLayout", () => {
 
     const wrapper = mount(WorkspaceLayout, {
       global: {
-        plugins: [createPinia()]
+        plugins: [createPinia(), await createTestRouter("/")]
       }
     });
 
@@ -2032,7 +2044,7 @@ describe("WorkspaceLayout", () => {
 
     const wrapper = mount(WorkspaceLayout, {
       global: {
-        plugins: [createPinia()]
+        plugins: [createPinia(), await createTestRouter("/")]
       }
     });
 
@@ -2165,7 +2177,7 @@ describe("WorkspaceLayout", () => {
 
     const wrapper = mount(WorkspaceLayout, {
       global: {
-        plugins: [createPinia()]
+        plugins: [createPinia(), await createTestRouter("/")]
       }
     });
 
