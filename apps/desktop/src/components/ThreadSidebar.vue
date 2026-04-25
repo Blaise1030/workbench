@@ -723,15 +723,14 @@ async function openAppUpdateUrl(url: string): Promise<void> {
     <div v-if="!collapsed" class="flex shrink-0 select-none items-center gap-1 px-3 pt-2">
       <Select
         v-if="projects.length > 0"
-        class="flex-1"
         :model-value="activeProjectId ?? undefined"
         @update:model-value="onProjectFooterSelectValue"
       >      
         <SelectTrigger
           data-testid="project-switcher-trigger"
           size="sm"
-          class="w-full max-h-7 h-7 bg-background"
-          :class="{ 'ms-19': !isFullscreen }"
+          class="flex-1 max-h-7 h-7 bg-background"
+          :class="{ 'ms-19': !isFullscreen, 'max-w-[145px]': !isFullscreen }"
           :aria-label="`Active project: ${activeProject?.name ?? 'None'}`"
           :title="activeProject?.repoPath ?? undefined"
         >
@@ -770,7 +769,7 @@ async function openAppUpdateUrl(url: string): Promise<void> {
           </SelectItem>
         </SelectContent>
       </Select>
-      <div v-else class="flex-1" :class="{ 'ms-12': !isFullscreen }" />
+      <div v-else class="flex-1" :class="{ 'ms-12': !isFullscreen, 'max-w-[145px]': !isFullscreen }" />
       <Button
         type="button"
         size="icon-sm"

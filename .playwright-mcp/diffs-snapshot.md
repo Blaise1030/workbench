@@ -1,0 +1,141 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - banner [ref=e3]:
+      - generic [ref=e4]:
+        - link "Diffs" [ref=e5] [cursor=pointer]:
+          - /url: /
+        - generic [ref=e6]
+      - navigation [ref=e8]:
+        - link "Home" [ref=e9] [cursor=pointer]:
+          - /url: /
+        - link "Docs":
+          - /url: /docs
+        - link "Trees" [ref=e10] [cursor=pointer]:
+          - /url: https://trees.software
+        - link "Discord" [ref=e12] [cursor=pointer]:
+          - /url: https://discord.gg/pierre
+        - link "GitHub" [ref=e13] [cursor=pointer]:
+          - /url: https://github.com/pierrecomputer/pierre
+    - generic [ref=e14]:
+      - navigation [ref=e15]:
+        - link "Overview" [ref=e16] [cursor=pointer]:
+          - /url: "#overview"
+        - link "Rendering Diffs" [ref=e17] [cursor=pointer]:
+          - /url: "#rendering-diffs"
+        - link "Merge conflict resolution UI" [ref=e18] [cursor=pointer]:
+          - /url: "#conflicts"
+        - link "Installation" [ref=e19] [cursor=pointer]:
+          - /url: "#installation"
+        - link "Package Exports" [ref=e20] [cursor=pointer]:
+          - /url: "#installation-package-exports"
+        - link "Core Types" [ref=e21] [cursor=pointer]:
+          - /url: "#core-types"
+        - link "FileContents" [ref=e22] [cursor=pointer]:
+          - /url: "#core-types-filecontents"
+        - link "FileDiffMetadata" [ref=e23] [cursor=pointer]:
+          - /url: "#core-types-filediffmetadata"
+        - link "Creating Diffs" [ref=e24] [cursor=pointer]:
+          - /url: "#core-types-creating-diffs"
+        - link "React API" [ref=e25] [cursor=pointer]:
+          - /url: "#react-api"
+        - link "Components" [ref=e26] [cursor=pointer]:
+          - /url: "#react-api-components"
+        - link "Shared Props" [ref=e27] [cursor=pointer]:
+          - /url: "#react-api-shared-props"
+        - link "Vanilla JS API" [ref=e28] [cursor=pointer]:
+          - /url: "#vanilla-js-api"
+        - link "Components" [ref=e29] [cursor=pointer]:
+          - /url: "#vanilla-js-api-components"
+        - link "Props" [ref=e30] [cursor=pointer]:
+          - /url: "#vanilla-js-api-props"
+        - link "Renderers" [ref=e31] [cursor=pointer]:
+          - /url: "#vanilla-js-api-renderers"
+        - link "Virtualization" [ref=e32] [cursor=pointer]:
+          - /url: "#virtualization"
+        - link "Getting Started" [ref=e33] [cursor=pointer]:
+          - /url: "#virtualization-getting-started"
+        - link "React" [ref=e34] [cursor=pointer]:
+          - /url: "#virtualization-react"
+        - link "Vanilla JavaScript" [ref=e35] [cursor=pointer]:
+          - /url: "#virtualization-vanilla-javascript"
+        - link "Notes" [ref=e36] [cursor=pointer]:
+          - /url: "#virtualization-notes"
+        - link "Hunk Separators" [ref=e37] [cursor=pointer]:
+          - /url: "#hunk-separators"
+        - link "Built-in Types" [ref=e38] [cursor=pointer]:
+          - /url: "#hunk-separators-built-in-types"
+        - link "Custom CSS Example" [ref=e39] [cursor=pointer]:
+          - /url: "#hunk-separators-custom-css-example"
+        - link "Utilities" [ref=e40] [cursor=pointer]:
+          - /url: "#utilities"
+        - link "diffAcceptRejectHunk" [ref=e41] [cursor=pointer]:
+          - /url: "#utilities-diffacceptrejecthunk"
+        - link "resolveMergeConflict" [ref=e42] [cursor=pointer]:
+          - /url: "#utilities-resolvemergeconflict"
+        - link "disposeHighlighter" [ref=e43] [cursor=pointer]:
+          - /url: "#utilities-disposehighlighter"
+        - link "getSharedHighlighter" [ref=e44] [cursor=pointer]:
+          - /url: "#utilities-getsharedhighlighter"
+        - link "parseDiffFromFile" [ref=e45] [cursor=pointer]:
+          - /url: "#utilities-parsedifffromfile"
+        - link "parsePatchFiles" [ref=e46] [cursor=pointer]:
+          - /url: "#utilities-parsepatchfiles"
+        - link "trimPatchContext" [ref=e47] [cursor=pointer]:
+          - /url: "#utilities-trimpatchcontext"
+        - link "preloadHighlighter" [ref=e48] [cursor=pointer]:
+          - /url: "#utilities-preloadhighlighter"
+        - link "registerCustomTheme" [ref=e49] [cursor=pointer]:
+          - /url: "#utilities-registercustomtheme"
+        - link "registerCustomLanguage" [ref=e50] [cursor=pointer]:
+          - /url: "#utilities-registercustomlanguage"
+        - link "setLanguageOverride" [ref=e51] [cursor=pointer]:
+          - /url: "#utilities-setlanguageoverride"
+        - link "Styling" [ref=e52] [cursor=pointer]:
+          - /url: "#styling"
+        - 'link "Advanced: Unsafe CSS" [ref=e53] [cursor=pointer]':
+          - /url: "#styling-advanced-unsafe-css"
+        - link "Themes" [ref=e54] [cursor=pointer]:
+          - /url: "#themes"
+        - link "Token Hooks" [ref=e55] [cursor=pointer]:
+          - /url: "#token-hooks"
+        - link "Worker Pool" [ref=e56] [cursor=pointer]:
+          - /url: "#worker-pool"
+        - link "Setup" [ref=e57] [cursor=pointer]:
+          - /url: "#worker-pool-setup"
+        - link "Usage" [ref=e58] [cursor=pointer]:
+          - /url: "#worker-pool-usage"
+        - link "Render Cache" [ref=e59] [cursor=pointer]:
+          - /url: "#worker-pool-render-cache"
+        - link "API Reference" [ref=e60] [cursor=pointer]:
+          - /url: "#worker-pool-api-reference"
+        - link "Architecture" [ref=e61] [cursor=pointer]:
+          - /url: "#worker-pool-architecture"
+        - link "SSR" [ref=e62] [cursor=pointer]:
+          - /url: "#ssr"
+        - link "Usage" [ref=e63] [cursor=pointer]:
+          - /url: "#ssr-usage"
+        - link "Preloaders" [ref=e64] [cursor=pointer]:
+          - /url: "#ssr-preloaders"
+      - generic [ref=e65]:
+        - generic [ref=e66]
+        - generic [ref=e290]
+        - generic [ref=e448]
+        - generic [ref=e499]
+        - generic [ref=e1081]
+        - generic [ref=e2014]
+        - generic [ref=e3621]
+        - generic [ref=e4209]
+        - generic [ref=e4922]
+        - generic [ref=e6034]
+        - generic [ref=e6274]
+        - generic [ref=e6308]
+        - generic [ref=e6600]
+        - generic [ref=e7975]
+    - contentinfo [ref=e8512]:
+      - generic [ref=e8513]:
+        - generic [ref=e8514]: © 2026 The Pierre Computer Co.
+        - generic [ref=e8516]
+        - generic [ref=e8523]
+        - generic [ref=e8528]
+  - region "Notifications alt+T"
+  - alert [ref=e8534]
