@@ -40,6 +40,8 @@ export const IPC_CHANNELS = {
   diffGitCheckoutBranch: "diff:gitCheckoutBranch",
   /** `git worktree list --porcelain` for the repo containing the given registered worktree path. */
   diffGitListWorktrees: "diff:gitListWorktrees",
+  /** Local branches excluding those already checked out on another worktree (from `cwd`'s repo). */
+  diffGitListBranchesExcludingWorktrees: "diff:gitListBranchesExcludingWorktrees",
   diffIsGitRepository: "diff:isGitRepository",
   diffInitGitRepository: "diff:initGitRepository",
   filesList: "files:list",

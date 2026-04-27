@@ -66,6 +66,8 @@ interface WorkspaceApi {
   gitCheckoutBranch?: (cwd: string, branch: string) => Promise<void>;
   /** Lists Git worktrees for the repo containing the registered worktree root `cwd`. */
   gitListWorktrees?: (cwd: string) => Promise<GitWorktreeListEntry[]>;
+  /** Local branches not checked out on another linked worktree (see `GitService.listBranchesExcludingWorktrees`). */
+  gitListBranchesExcludingWorktrees?: (cwd: string) => Promise<string[]>;
   listBranches?: (projectId: string) => Promise<string[]>;
   fileDiff: (cwd: string, file: string, scope?: FileDiffScope) => Promise<string>;
   /** Two full texts for Git merge diff (Electron); optional on older preload builds. */

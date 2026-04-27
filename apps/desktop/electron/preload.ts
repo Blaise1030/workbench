@@ -60,6 +60,7 @@ const IPC_CHANNELS = {
   diffGitCommit: "diff:gitCommit",
   diffGitCheckoutBranch: "diff:gitCheckoutBranch",
   diffGitListWorktrees: "diff:gitListWorktrees",
+  diffGitListBranchesExcludingWorktrees: "diff:gitListBranchesExcludingWorktrees",
   diffIsGitRepository: "diff:isGitRepository",
   diffInitGitRepository: "diff:initGitRepository",
   filesList: "files:list",
@@ -191,6 +192,8 @@ contextBridge.exposeInMainWorld("workspaceApi", {
     ipcRenderer.invoke(IPC_CHANNELS.diffGitCheckoutBranch, { cwd, branch }),
   gitListWorktrees: (cwd: string) =>
     ipcRenderer.invoke(IPC_CHANNELS.diffGitListWorktrees, cwd) as Promise<GitWorktreeListEntry[]>,
+  gitListBranchesExcludingWorktrees: (cwd: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.diffGitListBranchesExcludingWorktrees, cwd) as Promise<string[]>,
   listFiles: (cwd: string) => ipcRenderer.invoke(IPC_CHANNELS.filesList, cwd),
   searchFiles: (cwd: string, query: string) => ipcRenderer.invoke(IPC_CHANNELS.filesSearch, { cwd, query }),
   searchFileContents: (cwd: string, query: string) =>

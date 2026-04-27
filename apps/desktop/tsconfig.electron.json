@@ -9,8 +9,13 @@
     "allowSyntheticDefaultImports": true,
     "types": ["node"],
     "outDir": "dist-electron",
-    "rootDir": "."
+    "rootDir": ".",
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"],
+      "@shared/*": ["src/shared/*"]
+    }
   },
-  "include": ["electron/**/*.ts", "src/shared/**/*.ts"],
+  "include": ["electron/**/*.ts", "src/shared/**/*.ts", "src/services/git/ipcGitService.ts"],
   "exclude": ["node_modules", "dist", "dist-electron", "electron/**/__tests__/**"]
 }

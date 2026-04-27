@@ -33,7 +33,9 @@ import { EditService } from "./services/editService.js";
 import { FileService } from "./services/fileService.js";
 import { RunService } from "./services/runService.js";
 import { PtyService } from "./services/ptyService.js";
+import { simpleGit } from "simple-git";
 import { createGitAdapter } from "./services/gitAdapter.js";
+import { filterLocalBranchesExcludingOtherWorktrees } from "../src/services/git/ipcGitService.js";
 import { shouldAllowAppClose } from "./lifecycle/closeConfirmation.js";
 import { buildCloseConfirmationDetail } from "./lifecycle/closeConfirmation.js";
 import { collectResumeIdsFromActiveTerminals } from "./lifecycle/quitResumeCapture.js";
@@ -494,6 +496,15 @@ function registerIpc(workspaceService: WorkspaceService): void {
   ipcMain.handle(IPC_CHANNELS.diffGitListWorktrees, (_, cwd: string) => {
     assertCwdIsRegistered(cwd);
     return gitAdapter.worktreeList(cwd);
+  });
+  ipcMain.handle(IPC_CHANNELS.diffGitListBranchesExcludingWorktrees, async (_, cwd: string) => {
+    assertCwdIsRegistered(cwd);
+    const git = simpleGit(cwd);
+    const [branchResult, raw] = await Promise.all([
+      git.branchLocal(),
+      git.raw(["worktree", "list", "--porcelain"])
+    ]);
+    return filterLocalBranchesExcludingOtherWorktrees(cwd, branchResult.all, raw);
   });
   ipcMain.handle(IPC_CHANNELS.diffGitCheckoutBranch, async (_, payload: { cwd: string; branch: string }) => {
     assertCwdIsRegistered(payload.cwd);
