@@ -37,6 +37,7 @@ const appContext = useAppContext();
 const queryClient = useQueryClient();
 const route = useRoute();
 const router = useRouter();
+const filterMode = ref(false);
 const projectId = computed(() => route.params.projectId as string);
 
 function onNavigateBack() {  
@@ -94,6 +95,14 @@ const { data: threadsGroup } = useQuery({
     }));
   },
 });
+
+const filterByBranch = (threads: (Thread & {threadPath: string})[], branch: string): (Thread & {threadPath: string})[] =>{
+  if (filterMode.value) {
+    return threads.filter((thread) => thread.createdBranch === branch);
+  }
+  return threads;
+}
+
 </script>
 
 <template>
@@ -158,21 +167,24 @@ const { data: threadsGroup } = useQuery({
               </div>              
               <CollapsibleTrigger
                 v-else
-                class="group/label w-full flex [&[data-state=open]>svg]:rotate-90"
+                class="group/label w-full flex items-center [&[data-state=open]>svg]:rotate-90"
               >               
                 <ChevronRight
                   class="transition-transform group-data-[state=open]/collapsible:rotate-90 mr-1"
                 />
-                {{ value?.branch }}
+                <span class="flex-1 text-start text-foreground">{{ value?.branch }}</span>
+                <Button size="icon-sm" variant="ghost" class="ms-auto">
+                  <PlusIcon />
+                </Button>
               </CollapsibleTrigger>
             </SidebarGroupLabel>
             <CollapsibleContent>
               <div class="gap-2 py-1 flex flex-col px-1.5">
                 <div class="flex gap-1" v-if="index === 0">
-                  <Switch />
-                  <Label class="text-muted-foreground"
-                    >Threads from this branch only</Label
-                  >
+                  <Switch v-model="filterMode" />
+                  <Label class="text-muted-foreground">
+                    Threads from this branch only
+                  </Label>
                 </div>
                 <div class="pb-1 flex gap-0.5" v-if="branchId === value.branch">
                   <Button
@@ -194,10 +206,10 @@ const { data: threadsGroup } = useQuery({
               <SidebarGroupContent>
                 <SidebarMenu :class="index === 0 ? 'px-1' : ''">
                   <SidebarMenuItem
-                    v-for="thread in showMoreToggleState[value?.branch]
-                      ? value?.threads
-                      : value?.threads?.splice(0, 10)"
                     :key="thread?.id"
+                    v-for="thread in showMoreToggleState[value?.branch]
+                      ? filterByBranch(value?.threads, value?.branch)
+                      : filterByBranch(value?.threads, value?.branch)?.splice(0, 10)"                    
                   >
                     <SidebarMenuButton
                       :title="thread?.title"
@@ -215,7 +227,7 @@ const { data: threadsGroup } = useQuery({
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                   <Button
-                    v-if="value?.threads.length > 10"
+                    v-if="filterByBranch(value?.threads, value?.branch).length > 10"
                     size="xs"
                     variant="link"
                     class="w-fit underline"
@@ -227,7 +239,7 @@ const { data: threadsGroup } = useQuery({
                   >
                     Show
                     {{ showMoreToggleState[value?.branch] ? "less" : "all" }}
-                    ({{ value?.threads?.splice(10)?.length }})
+                    ({{ filterByBranch(value?.threads, value?.branch)?.splice(10)?.length }})
                   </Button>
                 </SidebarMenu>
               </SidebarGroupContent>
