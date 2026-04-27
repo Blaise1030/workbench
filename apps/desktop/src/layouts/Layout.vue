@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, onBeforeUnmount, ref } from "vue";
 import { useAppContext } from "@/app-context/useAppContext";
 import {
   Sidebar,
@@ -21,20 +21,31 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { ChevronRight } from "lucide-vue-next";
+import { ButtonGroup } from "@/components/ui/button-group";
+import { ChevronRight, PlusIcon, ChevronLeft } from "lucide-vue-next";
 import type { Project, Thread } from "@/shared/domain";
 import { useQuery, useQueryClient } from "@tanstack/vue-query";
-import { useRoute } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import AgentIcon from "@/components/ui/AgentIcon.vue";
 import { Button } from "@/components/ui/button";
 import Switch from "@/components/ui/Switch.vue";
 import Label from "@/components/ui/label/Label.vue";
 import TrackedBranchSelector from "@/components/TrackedBranchSelector.vue";
+import SidebarTrigger from "@/components/ui/sidebar/SidebarTrigger.vue";
 
 const appContext = useAppContext();
 const queryClient = useQueryClient();
 const route = useRoute();
+const router = useRouter();
 const projectId = computed(() => route.params.projectId as string);
+
+function onNavigateBack() {  
+  router.back();
+}
+
+function onNavigateForward() {  
+  router.forward();
+}
 const branchId = computed(() => route.params.branch as string);
 const showMoreToggleState = ref<{ [k: string]: boolean }>({});
 
@@ -88,24 +99,47 @@ const { data: threadsGroup } = useQuery({
 <template>
   <SidebarProvider>
     <Sidebar collapsible="offcanvas">
-      <SidebarHeader class="flex flex-col w-full gap-2">        
-       
+      <SidebarHeader class="flex justify-end w-full gap-2">        
+        <div class="flex items-center gap-1 justify-end">
+          <SidebarTrigger class="border" />
+          <ButtonGroup>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon-sm"              
+              aria-label="Back"
+              @click="onNavigateBack"
+            >
+              <ChevronLeft />
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon-sm"
+              aria-label="Forward"
+              @click="onNavigateForward"
+            >
+              <ChevronRight />
+            </Button>
+          </ButtonGroup>
+        </div>        
       </SidebarHeader>
       <SidebarContent class="gap-0 flex flex-col">
         <SidebarGroup
           v-for="(value, index) in threadsGroup"
           class="gap-0 flex flex-col"
+          :class="index === 0 ? 'px-1' : ''"
         >
           <Collapsible default-open class="group/collapsible p-0">
-            <SidebarGroupLabel as-child class="px-0.5">
+            <SidebarGroupLabel as-child class="px-0">
               <div v-if="index === 0" class="flex gap-0.5">
                 <CollapsibleTrigger                
-                  class="group/label flex [&[data-state=open]>svg]:rotate-90"
+                  class="group/label bg-transparent aria-expanded:bg-transparent flex [&[data-state=open]>svg]:rotate-90"
                   as-child
                 >
-                  <Button size="icon-sm" variant="ghost">
+                  <Button size="icon-sm" variant="ghost" class="bg-transparent">
                     <ChevronRight
-                      class="transition-transform group-data-[state=open]/collapsible:rotate-90"
+                      class="transition-transform size-4 group-data-[state=open]/collapsible:rotate-90"
                     />                    
                   </Button>
                 </CollapsibleTrigger>
@@ -118,6 +152,9 @@ const { data: threadsGroup } = useQuery({
                     "
                   />
                 </div>
+                <Button size="icon-sm" variant="ghost">
+                  <PlusIcon />
+                </Button>
               </div>              
               <CollapsibleTrigger
                 v-else
@@ -130,7 +167,7 @@ const { data: threadsGroup } = useQuery({
               </CollapsibleTrigger>
             </SidebarGroupLabel>
             <CollapsibleContent>
-              <div class="gap-2 flex flex-col px-1.5">
+              <div class="gap-2 py-1 flex flex-col px-1.5">
                 <div class="flex gap-1" v-if="index === 0">
                   <Switch />
                   <Label class="text-muted-foreground"
@@ -155,7 +192,7 @@ const { data: threadsGroup } = useQuery({
               </div>
 
               <SidebarGroupContent>
-                <SidebarMenu>
+                <SidebarMenu :class="index === 0 ? 'px-1' : ''">
                   <SidebarMenuItem
                     v-for="thread in showMoreToggleState[value?.branch]
                       ? value?.threads

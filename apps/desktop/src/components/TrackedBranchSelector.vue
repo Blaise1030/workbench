@@ -96,10 +96,10 @@ async function onModelUpdate(value: unknown): Promise<void> {
     :disabled="checkoutBusy"
     open-on-click
     @update:open="open = $event"
-    @update:model-value="onModelUpdate"
+    @update:model-value="onModelUpdate"    
   >
     <ComboboxAnchor>
-      <ComboboxTrigger    
+      <ComboboxTrigger
         type="button"
         as-child
         :disabled="checkoutBusy"
@@ -114,7 +114,7 @@ async function onModelUpdate(value: unknown): Promise<void> {
         </Button>
       </ComboboxTrigger>
     </ComboboxAnchor>
-    <ComboboxList>
+    <ComboboxList align="center" class="min-w-[240px]">
       <div class="p-1">
         <ComboboxInput placeholder="Search branch…" class="text-xs" />
       </div>      
@@ -131,18 +131,11 @@ async function onModelUpdate(value: unknown): Promise<void> {
           <ComboboxItem
             v-for="b in branches"
             :key="b"
+            checked="true"
             :value="b"
             :text="b"
             class="justify-start"
-          >
-            <span
-              class="flex size-4 shrink-0 items-center justify-center text-muted-foreground"
-              aria-hidden="true"
-            >
-              <ComboboxItemIndicator>
-                <Check class="size-3.5" />
-              </ComboboxItemIndicator>
-            </span>
+          >                      
             <span class="min-w-0 flex-1 truncate text-start text-xs">{{ b }}</span>
           </ComboboxItem>
         </template>
