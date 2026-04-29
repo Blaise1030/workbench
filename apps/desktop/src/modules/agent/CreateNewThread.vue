@@ -144,7 +144,7 @@ async function onCancel(): Promise<void> {
   const pid = projectId.value;
   const eb = branchParam.value;
   if (pid && eb) {
-    await router.push({ name: "files", params: { projectId: pid, branch: eb } });
+    await router.push({ name: "threadNew", params: { projectId: pid, branch: eb } });
   } else {
     router.back();
   }
@@ -184,7 +184,7 @@ async function onSubmit(payload: ThreadCreateWithAgentPayload): Promise<void> {
   await refreshWorkspace();
   const eb = encodeBranch(worktree.value?.branch ?? decodeBranch(branchParam.value));
   await router.replace({
-    name: "thread",
+    name: "agent",
     params: { projectId: projectId.value, branch: eb, threadId }
   });
 }

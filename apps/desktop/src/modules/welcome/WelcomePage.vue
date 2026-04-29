@@ -65,12 +65,12 @@ async function navigateToProject(targetProjectId: string): Promise<void> {
   const eb = encodeBranch(worktree.branch);
   if (thread) {
     await router.push({
-      name: "thread",
+      name: "agent",
       params: { projectId: targetProjectId, branch: eb, threadId: thread.id },
     });
   } else {
     await router.push({
-      name: "files",
+      name: "threadNew",
       params: { projectId: targetProjectId, branch: eb },
     });
   }

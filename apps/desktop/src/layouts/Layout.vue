@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { useAppContext } from "@/app-context/useAppContext";
+import { useActiveWorkspace } from "@/composables/useActiveWorkspace";
 import {
   Sidebar,
   SidebarContent,
@@ -43,6 +44,32 @@ const route = useRoute();
 const router = useRouter();
 const filterMode = ref(false);
 const projectId = computed(() => route.params.projectId as string);
+
+const { activeThreadId } = useActiveWorkspace();
+
+const panelTabs = [
+  { value: "agent",       label: "Agent" },
+  { value: "gitPanel",    label: "Git" },
+  { value: "previewPanel",label: "Browser" },
+  { value: "filesPanel",  label: "Files" },
+] as const;
+
+const activeTab = computed<string>(() => {
+  const name = route.name as string;
+  if (name === "gitPanel") return "gitPanel";
+  if (name === "previewPanel") return "previewPanel";
+  if (name === "filesPanel" || name === "fileDetail") return "filesPanel";
+  return "agent";
+});
+
+function onTabChange(value: string): void {
+  const tid = activeThreadId.value;
+  if (!tid) return;
+  void router.push({
+    name: value,
+    params: { projectId: projectId.value, branch: branchId.value, threadId: tid },
+  });
+}
 
 function onNavigateBack() {  
   router.back();
@@ -104,7 +131,7 @@ const { data: threadsGroup } = useQuery({
       branch,
       threads: (threadsMap[branch] ?? [])?.map((thread) => ({
         ...thread,
-        threadPath: `/${projectId.value}/${thread.createdBranch}/thread/${thread.id}`,
+        threadPath: `/${projectId.value}/${encodeBranch(thread.createdBranch ?? '')}/thread/${thread.id}`,
       })),
     }));
   },
@@ -227,20 +254,20 @@ function openTerminalPanel(): void {
                     Threads from this branch only
                   </Label>
                 </div>
-                <div class="pb-1 flex gap-0.5" v-if="branchId === value.branch">
+                <div
+                  v-if="value.threads.some(t => t.id === activeThreadId)"
+                  class="pb-1 flex flex-wrap gap-0.5"
+                >
                   <Button
+                    v-for="tab in panelTabs"
+                    :key="tab.value"
                     size="sm"
-                    variant="outline"
-                    as-child
-                    class="bg-background"
+                    :variant="activeTab === tab.value ? 'outline' : 'ghost'"                    
+                    :class="activeTab === tab.value ? 'bg-background' : ''"
+                    @click="onTabChange(tab.value)"
                   >
-                    <RouterLink to="/"> Agent </RouterLink>
+                    {{ tab.label }}
                   </Button>
-                  <Button size="sm" variant="ghost">
-                    <RouterLink to="/"> Git </RouterLink>
-                  </Button>
-                  <Button size="sm" variant="ghost"> Files </Button>
-                  <Button size="sm" variant="ghost"> Preview </Button>
                 </div>
               </div>
 
@@ -257,7 +284,7 @@ function openTerminalPanel(): void {
                       size="sm"
                       as-child
                       class="whitespace-nowrap group-item"
-                      :is-active="route.path === thread.threadPath"
+                      :is-active="route.path.startsWith(thread.threadPath)"
                     >
                       <RouterLink :to="thread?.threadPath">
                         <AgentIcon :agent="thread?.agent" />

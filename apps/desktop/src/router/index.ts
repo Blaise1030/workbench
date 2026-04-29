@@ -1,8 +1,12 @@
 import { createMemoryHistory, createRouter } from "vue-router";
-import WorkspaceLayout from "@/layouts/WorkspaceLayout.vue";
 import Layout from "@/layouts/Layout.vue";
+import ThreadLayout from "@/layouts/ThreadLayout.vue";
 import WelcomePage from "@/modules/welcome/WelcomePage.vue";
 import CreateNewThread from "@/modules/agent/CreateNewThread.vue";
+import AgentPage from "@/modules/agent/AgentPage.vue";
+import GitPage from "@/modules/git/GitPage.vue";
+import BrowserPage from "@/modules/browser/BrowserPage.vue";
+import ExplorerPage from "@/modules/explorer/ExplorerPage.vue";
 import { useWorkspaceStore } from "@/stores/workspaceStore";
 import { decodeBranch, encodeBranch } from "./branchParam";
 
@@ -16,7 +20,7 @@ export const router = createRouter({
     },
     {
       path: "/:projectId/:branch",
-      name: "git",
+      name: "workspace",
       component: Layout,
       children: [
         {
@@ -26,42 +30,43 @@ export const router = createRouter({
         },
         {
           path: "thread/:threadId",
-          name: "thread",
-          component: WorkspaceLayout,
+          component: ThreadLayout,
           children: [
             {
               path: "",
-              redirect: { name: "threadNew" }
+              redirect: { name: "agent" },
+            },
+            {
+              path: "agent",
+              name: "agent",
+              component: AgentPage,
             },
             {
               path: "git",
               name: "gitPanel",
-              component: WorkspaceLayout
+              component: GitPage,
             },
             {
               path: "preview",
               name: "previewPanel",
-              component: WorkspaceLayout
+              component: BrowserPage,
             },
             {
               path: "files",
-              name: "filePanel",          
+              name: "filesPanel",
+              component: ExplorerPage,
               children: [
                 {
-                  path: "",
-                  name: "filesDefault",
-                  component: WorkspaceLayout
+                  path: ":filename+",
+                  name: "fileDetail",
+                  component: ExplorerPage,
                 },
-                {
-                  path: ":filename+",              
-                  component: WorkspaceLayout
-                }
-              ]
+              ],
             },
-          ]
-        },        
+          ],
+        },
       ],
-    },    
+    },
   ]
 });
 
@@ -89,11 +94,11 @@ router.beforeEach((to) => {
       const fallbackThread = workspace.threads.find((t) => t.worktreeId === primary.id);
       if (fallbackThread) {
         return {
-          name: "thread",
+          name: "agent",
           params: { projectId, branch: eb, threadId: fallbackThread.id }
         };
       }
-      return { name: "files", params: { projectId, branch: eb } };
+      return { name: "threadNew", params: { projectId, branch: eb } };
     }
 
     if (threadId) {
@@ -101,9 +106,9 @@ router.beforeEach((to) => {
       if (!thread) {
         const fallback = workspace.threads.find((t) => t.worktreeId === worktree.id);
         if (fallback) {
-          return { name: "thread", params: { projectId, branch, threadId: fallback.id } };
+          return { name: "agent", params: { projectId, branch, threadId: fallback.id } };
         }
-        return { name: "files", params: { projectId, branch } };
+        return { name: "threadNew", params: { projectId, branch } };
       }
     }
   }

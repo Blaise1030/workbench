@@ -57,7 +57,7 @@ export function useThreadNavigation(
     const wt = workspace.worktrees.find((w) => w.id === t.worktreeId);
     if (!wt) return;
     void router.push({
-      name: "thread",
+      name: "agent",
       params: { projectId: t.projectId, branch: encodeBranch(wt.branch), threadId: t.id }
     });
   }
@@ -73,7 +73,7 @@ export function useThreadNavigation(
     const wt = workspace.worktrees.find((w) => w.id === t.worktreeId);
     if (!wt) return;
     void router.push({
-      name: "thread",
+      name: "agent",
       params: { projectId: t.projectId, branch: encodeBranch(wt.branch), threadId: t.id }
     });
   }

@@ -1,17 +1,26 @@
 import { createMemoryHistory, createRouter, type RouteLocationRaw } from "vue-router";
-import WorkspaceLayout from "@/layouts/WorkspaceLayout.vue";
+import { defineComponent } from "vue";
+
+const Stub = defineComponent({ template: "<div />" });
 
 /** Await before mounting so the first `useRoute()` in components matches `initialRoute` (unlike `void router.push` which races the first render). */
 export async function createTestRouter(initialRoute: RouteLocationRaw = "/") {
   const r = createRouter({
     history: createMemoryHistory(),
     routes: [
-      { path: "/", name: "welcome", component: WorkspaceLayout },
-      { path: "/:projectId/:branch/thread/:threadId", name: "thread", component: WorkspaceLayout },
-      { path: "/:projectId/:branch/git", name: "git", component: WorkspaceLayout },
-      { path: "/:projectId/:branch/files/:filename+", name: "file", component: WorkspaceLayout },
-      { path: "/:projectId/:branch/files", name: "files", component: WorkspaceLayout },
-      { path: "/:projectId/:branch/preview", name: "preview", component: WorkspaceLayout }
+      { path: "/", name: "welcome", component: Stub },
+      { path: "/:projectId/:branch/thread/new", name: "threadNew", component: Stub },
+      {
+        path: "/:projectId/:branch/thread/:threadId",
+        component: Stub,
+        children: [
+          { path: "agent", name: "agent", component: Stub },
+          { path: "git", name: "gitPanel", component: Stub },
+          { path: "preview", name: "previewPanel", component: Stub },
+          { path: "files", name: "filesPanel", component: Stub },
+          { path: "files/:filename+", name: "fileDetail", component: Stub },
+        ],
+      },
     ]
   });
 
