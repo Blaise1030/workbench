@@ -53,6 +53,7 @@ import { readPreferredThreadAgent } from "@/composables/usePreferredThreadAgent"
 import { formatShortcut, MOD_DIGIT_SLOT_CODES } from "@/keybindings/registry";
 import { useKeybindingsStore } from "@/stores/keybindingsStore";
 import { deriveThreadTitleFromLine } from "@/lib/deriveThreadTitleFromLine";
+import { takePendingAgentBootstrapForThread } from "@/lib/pendingAgentBootstrapSession";
 import { useWorkspaceStore } from "@/stores/workspaceStore";
 import { useThreadPtyRunStatus } from "@/composables/useThreadPtyRunStatus";
 import { visibleTerminalSessionId } from "@/terminal/attentionRules";
@@ -1356,6 +1357,15 @@ onMounted(async () => {
   const api = getApi();
   if (api) {
     await refreshSnapshot();
+  }
+  const activeTid = activeThreadId.value;
+  if (activeTid) {
+    const stashed = takePendingAgentBootstrapForThread(activeTid);
+    if (stashed) {
+      pendingAgentBootstrap.value = stashed;
+      firstLineTitleCaptureThreadId.value = stashed.threadId;
+      terminalTitleDraftBuffer.value = "";
+    }
   }
   maybeSetResumeBootstrap(activeThreadId.value);
   if (activeProjectId.value) {

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref } from "vue";
+import { computed, ref } from "vue";
 import { useAppContext } from "@/app-context/useAppContext";
 import {
   Sidebar,
@@ -26,12 +26,16 @@ import { ChevronRight, PlusIcon, ChevronLeft } from "lucide-vue-next";
 import type { Project, Thread } from "@/shared/domain";
 import { useQuery, useQueryClient } from "@tanstack/vue-query";
 import { useRoute, useRouter } from "vue-router";
+import { encodeBranch } from "@/router/branchParam";
 import AgentIcon from "@/components/ui/AgentIcon.vue";
 import { Button } from "@/components/ui/button";
 import Switch from "@/components/ui/Switch.vue";
 import Label from "@/components/ui/label/Label.vue";
 import TrackedBranchSelector from "@/components/TrackedBranchSelector.vue";
 import SidebarTrigger from "@/components/ui/sidebar/SidebarTrigger.vue";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Terminal, Settings } from "lucide-vue-next";
+import ThemeToggle from "@/components/ThemeToggle.vue";
 
 const appContext = useAppContext();
 const queryClient = useQueryClient();
@@ -47,6 +51,16 @@ function onNavigateBack() {
 function onNavigateForward() {  
   router.forward();
 }
+
+function goNewThread(branch: string): void {
+  const pid = projectId.value;
+  if (!pid || !branch) return;
+  void router.push({
+    name: "threadNew",
+    params: { projectId: pid, branch: encodeBranch(branch) },
+  });
+}
+
 const branchId = computed(() => route.params.branch as string);
 const showMoreToggleState = ref<{ [k: string]: boolean }>({});
 
@@ -101,6 +115,18 @@ const filterByBranch = (threads: (Thread & {threadPath: string})[], branch: stri
     return threads.filter((thread) => thread.createdBranch === branch);
   }
   return threads;
+}
+
+function openFeedbackIssue(): void {
+  window.open("https://github.com/instrument-ai/instrument/issues", "_blank");
+}
+
+function openSettings(): void {
+  router.push({ name: "settings" });
+}
+
+function openTerminalPanel(): void {
+  router.push({ name: "terminal" });
 }
 
 </script>
@@ -161,7 +187,14 @@ const filterByBranch = (threads: (Thread & {threadPath: string})[], branch: stri
                     "
                   />
                 </div>
-                <Button size="icon-sm" variant="ghost">
+                <Button
+                  type="button"
+                  size="icon-sm"
+                  variant="ghost"
+                  aria-label="New thread on this branch"
+                  title="New thread"
+                  @click.stop="goNewThread(value.branch)"
+                >
                   <PlusIcon />
                 </Button>
               </div>              
@@ -173,7 +206,15 @@ const filterByBranch = (threads: (Thread & {threadPath: string})[], branch: stri
                   class="transition-transform group-data-[state=open]/collapsible:rotate-90 mr-1"
                 />
                 <span class="flex-1 text-start text-foreground">{{ value?.branch }}</span>
-                <Button size="icon-sm" variant="ghost" class="ms-auto">
+                <Button
+                  type="button"
+                  size="icon-sm"
+                  variant="ghost"
+                  class="ms-auto"
+                  aria-label="New thread on this branch"
+                  title="New thread"
+                  @click.stop="goNewThread(value.branch)"
+                >
                   <PlusIcon />
                 </Button>
               </CollapsibleTrigger>
@@ -247,7 +288,51 @@ const filterByBranch = (threads: (Thread & {threadPath: string})[], branch: stri
           </Collapsible>
         </SidebarGroup>
       </SidebarContent>
-      <SidebarFooter> Footer </SidebarFooter>
+      <SidebarFooter class="flex flex-row"> 
+        <Button
+          type="button"
+          variant="outline"
+          size="icon-sm"
+          aria-label="Raise feedback"
+          title="Raise an issue on GitHub"
+          data-testid="workspace-feedback-button"
+          @click="openFeedbackIssue"
+          class="text-sm"
+        >
+          <span aria-hidden="true">💬</span>
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          size="icon-sm"
+          aria-label="Settings"          
+          @click="openSettings"
+        >
+          <Settings :stroke-width="1.9" />
+        </Button>
+        <ThemeToggle
+            variant="outline"
+            size="icon-sm"            
+        /> 
+        <div class="flex-1"/>       
+        <Tooltip>
+          <TooltipTrigger as-child>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon-sm"
+              class="shrink-0"
+              data-testid="thread-sidebar-footer-terminal"
+              @click="openTerminalPanel"
+            >
+              <Terminal class="size-3" aria-hidden="true" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="top">
+            Show terminal
+          </TooltipContent>
+        </Tooltip>
+       </SidebarFooter>
       <SidebarRail />
     </Sidebar>
     <SidebarInset>

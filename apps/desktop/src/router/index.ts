@@ -1,6 +1,8 @@
 import { createMemoryHistory, createRouter } from "vue-router";
 import WorkspaceLayout from "@/layouts/WorkspaceLayout.vue";
 import Layout from "@/layouts/Layout.vue";
+import WelcomePage from "@/modules/welcome/WelcomePage.vue";
+import CreateNewThread from "@/modules/agent/CreateNewThread.vue";
 import { useWorkspaceStore } from "@/stores/workspaceStore";
 import { decodeBranch, encodeBranch } from "./branchParam";
 
@@ -10,7 +12,7 @@ export const router = createRouter({
     {
       path: "/",
       name: "welcome",
-      component: WorkspaceLayout      
+      component: WelcomePage,
     },
     {
       path: "/:projectId/:branch",
@@ -18,10 +20,19 @@ export const router = createRouter({
       component: Layout,
       children: [
         {
+          path: "thread/new",
+          name: "threadNew",
+          component: CreateNewThread,
+        },
+        {
           path: "thread/:threadId",
           name: "thread",
           component: WorkspaceLayout,
           children: [
+            {
+              path: "",
+              redirect: { name: "threadNew" }
+            },
             {
               path: "git",
               name: "gitPanel",
@@ -47,31 +58,6 @@ export const router = createRouter({
                 }
               ]
             },
-          ]
-        },
-        {
-          path: "git",
-          name: "gitPanel",
-          component: WorkspaceLayout
-        },
-        {
-          path: "preview",
-          name: "previewPanel",
-          component: WorkspaceLayout
-        },
-        {
-          path: "files",
-          name: "filePanel",          
-          children: [
-            {
-              path: "",
-              name: "filesDefault",
-              component: WorkspaceLayout
-            },
-            {
-              path: ":filename+",              
-              component: WorkspaceLayout
-            }
           ]
         },        
       ],
