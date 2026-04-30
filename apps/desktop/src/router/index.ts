@@ -1,6 +1,5 @@
 import { createMemoryHistory, createRouter } from "vue-router";
 import Layout from "@/layouts/Layout.vue";
-import ThreadLayout from "@/layouts/ThreadLayout.vue";
 import WelcomePage from "@/modules/welcome/WelcomePage.vue";
 import CreateNewThread from "@/modules/agent/CreateNewThread.vue";
 import AgentPage from "@/modules/agent/AgentPage.vue";
@@ -9,6 +8,7 @@ import BrowserPage from "@/modules/browser/BrowserPage.vue";
 import ExplorerPage from "@/modules/explorer/ExplorerPage.vue";
 import { useWorkspaceStore } from "@/stores/workspaceStore";
 import { decodeBranch, encodeBranch } from "./branchParam";
+import { persistWorkspaceRouteFromNavigation } from "./workspaceRouteMemory";
 
 export const router = createRouter({
   history: createMemoryHistory(),
@@ -30,7 +30,6 @@ export const router = createRouter({
         },
         {
           path: "thread/:threadId",
-          component: ThreadLayout,
           children: [
             {
               path: "",
@@ -114,4 +113,8 @@ router.beforeEach((to) => {
   }
 
   return true;
+});
+
+router.afterEach((to) => {
+  persistWorkspaceRouteFromNavigation(to);
 });

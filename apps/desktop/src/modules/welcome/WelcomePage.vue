@@ -1,15 +1,12 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { useQuery } from "@tanstack/vue-query";
-import { useRouter } from "vue-router";
 import { ChevronRight, FolderOpen } from "lucide-vue-next";
 import type { WorkspaceSnapshot } from "@shared/ipc";
-import { encodeBranch } from "@/router/branchParam";
-import { useWorkspaceStore } from "@/stores/workspaceStore";
+import { useNavigateToProject } from "@/composables/useNavigateToProject";
 import { Button } from "@/components/ui/button";
 
-const router = useRouter();
-const workspace = useWorkspaceStore();
+const { navigateToProject } = useNavigateToProject();
 
 const { data: welcomeProjects, isPending: welcomeProjectsPending } = useQuery({
   queryKey: ["welcomeProjects"],
@@ -19,62 +16,6 @@ const { data: welcomeProjects, isPending: welcomeProjectsPending } = useQuery({
     return [...(res.projects ?? [])].sort((a, b) => a.tabOrder - b.tabOrder);
   },
 });
-
-async function navigateToProject(targetProjectId: string): Promise<void> {
-  const api = window.workspaceApi;
-  if (!api?.getSnapshot) return;
-
-  let snapshot = (await api.getSnapshot()) as WorkspaceSnapshot;
-  workspace.hydrate(snapshot);
-
-  if (api.syncWorktrees) {
-    const synced = await api.syncWorktrees(targetProjectId);
-    if (synced) {
-      workspace.hydrate(synced as WorkspaceSnapshot);
-    }
-  }
-
-  snapshot = (await api.getSnapshot()) as WorkspaceSnapshot;
-  workspace.hydrate(snapshot);
-
-  const project = workspace.projects.find((p) => p.id === targetProjectId);
-  if (!project) return;
-
-  const worktree =
-    workspace.worktrees.find(
-      (w) => w.projectId === targetProjectId && w.id === project.lastActiveWorktreeId
-    ) ?? workspace.worktrees.find((w) => w.projectId === targetProjectId && w.isDefault);
-  if (!worktree) return;
-
-  const lastThreadId = worktree.lastActiveThreadId;
-  const thread =
-    (lastThreadId && workspace.threads.find((t) => t.id === lastThreadId)) ||
-    workspace.threads.find((t) => t.worktreeId === worktree.id);
-
-  if (api.setActive) {
-    await api.setActive({
-      projectId: targetProjectId,
-      worktreeId: worktree.id,
-      threadId: thread?.id ?? null,
-    });
-  }
-
-  snapshot = (await api.getSnapshot()) as WorkspaceSnapshot;
-  workspace.hydrate(snapshot);
-
-  const eb = encodeBranch(worktree.branch);
-  if (thread) {
-    await router.push({
-      name: "agent",
-      params: { projectId: targetProjectId, branch: eb, threadId: thread.id },
-    });
-  } else {
-    await router.push({
-      name: "threadNew",
-      params: { projectId: targetProjectId, branch: eb },
-    });
-  }
-}
 </script>
 
 <template>
