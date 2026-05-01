@@ -828,9 +828,9 @@ async function openAppUpdateUrl(url: string): Promise<void> {
         <div class="sticky top-0 z-10 h-3 w-full shrink-0 bg-gradient-to-b from-transparent to-transparent pointer-events-none" />
         <ul class="min-w-0 space-y-2 px-1.5 pb-1">
           <ThreadSidebarNodes
-            v-for="node in primarySidebarNodes"
-            :key="node.id"
-            :node="node"
+            v-if="primarySidebarNodeFirst"
+            :key="primarySidebarNodeFirst.id"
+            :node="primarySidebarNodeFirst"
             :expanded-contexts="expandedContexts"
             :collapsed="collapsed"
             @toggle-context="toggleGroup"
@@ -843,11 +843,11 @@ async function openAppUpdateUrl(url: string): Promise<void> {
             @rename-thread="(id, title) => emit('rename', id, title)"
           >
             <template
-              v-if="node.kind === 'context' && (node.isPrimary || node.threads.some(t => t.isActive))"
+              v-if="primarySidebarNodeFirst.kind === 'context' && (primarySidebarNodeFirst.isPrimary || primarySidebarNodeFirst.threads.some((t) => t.isActive))"
               #header-extra
             >
               <div class="flex flex-col gap-2 px-1 py-1">
-                <template v-if="node.isPrimary">
+                <template v-if="primarySidebarNodeFirst.isPrimary">
                   <div v-if="!hasActiveWorktreeThread" class="flex min-w-0 items-start">
                     <ScmBranchCombobox
                       v-if="showToolbarBranchSwitcher"
@@ -887,7 +887,78 @@ async function openAppUpdateUrl(url: string): Promise<void> {
                     </label>
                   </div>
                 </template>
-                <div v-if="node.threads.some(t => t.isActive)" class="w-full pt-1">
+                <div v-if="primarySidebarNodeFirst.threads.some((t) => t.isActive)" class="w-full pt-1">
+                  <PillTabs
+                    v-model="centerPanelTab"
+                    variant="segmented"
+                    :tabs="centerPanelTabs"
+                    aria-label="Center panel"
+                  />
+                </div>
+              </div>
+            </template>
+          </ThreadSidebarNodes>
+          <ThreadSidebarNodes
+            v-for="node in primarySidebarNodesAfterFirst"
+            :key="node.id"
+            :node="node"
+            :expanded-contexts="expandedContexts"
+            :collapsed="collapsed"
+            @toggle-context="toggleGroup"
+            @add-thread="emit('addThreadInline', $event)"
+            @delete-context="(id) => emit('deleteWorktreeGroup', id)"
+            @expand-thread-list="expandThreadListForGroup"
+            @collapse-thread-list="collapseThreadListForGroup"
+            @select-thread="emit('select', $event)"
+            @remove-thread="emit('remove', $event)"
+            @rename-thread="(id, title) => emit('rename', id, title)"
+          >
+            <template
+              v-if="node.kind === 'context' && (node.isPrimary || node.threads.some((t) => t.isActive))"
+              #header-extra
+            >
+              <div class="flex flex-col gap-2 px-1 py-1">
+                <template v-if="node.isPrimary">
+                  <div v-if="!hasActiveWorktreeThread" class="flex min-w-0 items-start">
+                    <ScmBranchCombobox
+                      v-if="showToolbarBranchSwitcher"
+                      variant="toolbar"
+                      :branch-line="scmBranchLine"
+                      :current-branch="scmCurrentBranch"
+                      :project-id="projectId ?? ''"
+                      :cwd="scmCwd"
+                      switcher-enabled
+                      @branch-changed="emit('branchChanged')"
+                    />
+                    <Badge
+                      v-else-if="contextLabel"
+                      variant="outline"
+                      class="shrink-0 text-[10px] text-muted-foreground"
+                    >
+                      {{ contextLabel }}
+                    </Badge>
+                  </div>
+                  <div
+                    v-if="branchFilterAvailable"
+                    class="flex items-center gap-2 px-2"
+                    title="Threads created on the checked-out branch in each group."
+                  >
+                    <Switch
+                      id="thread-sidebar-filter-current-branch-rest"
+                      v-model="filterByCurrentBranch"
+                      class="shrink-0"
+                      data-testid="thread-sidebar-filter-current-branch-secondary"
+                      aria-label="Threads from this branch only"
+                    />
+                    <label
+                      class="min-w-0 user-select-none cursor-pointer text-left text-[11px] leading-snug text-muted-foreground"
+                      for="thread-sidebar-filter-current-branch-rest"
+                    >
+                      Threads from this branch only
+                    </label>
+                  </div>
+                </template>
+                <div v-if="node.threads.some((t) => t.isActive)" class="w-full pt-1">
                   <PillTabs
                     v-model="centerPanelTab"
                     variant="segmented"
