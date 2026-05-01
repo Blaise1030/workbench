@@ -898,6 +898,47 @@ async function openAppUpdateUrl(url: string): Promise<void> {
               </div>
             </template>
           </ThreadSidebarNodes>
+          <li
+            v-if="projectId && !collapsed"
+            class="py-1"
+            data-testid="thread-sidebar-worktree-insert"
+          >
+            <div class="flex items-center gap-2">
+              <div class="h-px flex-1 bg-border/80" />
+              <Popover :open="showBranchPicker" @update:open="handleBranchPickerOpenChange">
+                <PopoverTrigger as-child>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="xs"
+                    class="rounded-md"
+                    aria-label="Add worktree"
+                    title="Add a linked worktree"
+                    :disabled="!projectId"
+                    data-testid="thread-sidebar-footer-worktree-toggle"
+                  >
+                    <Plus class="h-5 w-5 shrink-0" />
+                    <span class="whitespace-nowrap">Add worktree</span>
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent
+                  align="center"
+                  side="bottom"
+                  class="p-2 max-w-[240px]"
+                  data-testid="thread-sidebar-worktree-popover"
+                >
+                  <BranchPicker
+                    v-if="projectId"
+                    variant="popover"
+                    :project-id="projectId"
+                    @create="(branch, baseBranch) => emit('createWorktreeGroup', branch, baseBranch)"
+                    @cancel="emit('cancelBranchPicker')"
+                  />
+                </PopoverContent>
+              </Popover>
+              <div class="h-px flex-1 bg-border/80" />
+            </div>
+          </li>
           <ThreadSidebarNodes
             v-for="node in primarySidebarNodesAfterFirst"
             :key="node.id"
@@ -969,47 +1010,6 @@ async function openAppUpdateUrl(url: string): Promise<void> {
               </div>
             </template>
           </ThreadSidebarNodes>
-          <li
-            v-if="projectId && !collapsed"
-            class="py-1"
-            data-testid="thread-sidebar-worktree-insert"
-          >
-            <div class="flex items-center gap-2">
-              <div class="h-px flex-1 bg-border/80" />
-              <Popover :open="showBranchPicker" @update:open="handleBranchPickerOpenChange">
-                <PopoverTrigger as-child>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="xs"
-                    class="rounded-md"
-                    aria-label="Add worktree"
-                    title="Add a linked worktree"
-                    :disabled="!projectId"
-                    data-testid="thread-sidebar-footer-worktree-toggle"
-                  >
-                    <Plus class="h-5 w-5 shrink-0" />
-                    <span class="whitespace-nowrap">Add worktree</span>
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent
-                  align="center"
-                  side="bottom"
-                  class="p-2 max-w-[240px]"
-                  data-testid="thread-sidebar-worktree-popover"
-                >
-                  <BranchPicker
-                    v-if="projectId"
-                    variant="popover"
-                    :project-id="projectId"
-                    @create="(branch, baseBranch) => emit('createWorktreeGroup', branch, baseBranch)"
-                    @cancel="emit('cancelBranchPicker')"
-                  />
-                </PopoverContent>
-              </Popover>
-              <div class="h-px flex-1 bg-border/80" />
-            </div>
-          </li>
           <ThreadSidebarNodes
             v-for="node in worktreeSidebarNodes"
             :key="node.id"
