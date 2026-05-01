@@ -629,6 +629,10 @@ const primarySidebarNodes = computed<ContextNode[]>(() =>
   sidebarNodes.value.filter((node) => !node.isWorktree)
 );
 
+const primarySidebarNodeFirst = computed<ContextNode | null>(() => primarySidebarNodes.value[0] ?? null);
+
+const primarySidebarNodesAfterFirst = computed<ContextNode[]>(() => primarySidebarNodes.value.slice(1));
+
 const worktreeSidebarNodes = computed<ContextNode[]>(() =>
   sidebarNodes.value.filter((node) => node.isWorktree)
 );
