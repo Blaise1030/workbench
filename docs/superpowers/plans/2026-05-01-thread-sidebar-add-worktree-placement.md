@@ -79,7 +79,12 @@ Locate the opening:
 
 through the closing `</ThreadSidebarNodes>` that appears **immediately before** the `<li` with `data-testid="thread-sidebar-worktree-insert"`.
 
-Delete that entire `ThreadSidebarNodes` + `v-for` block and substitute the following **two** blocks in order.
+Delete that entire `ThreadSidebarNodes` + `v-for` block and substitute the following blocks in this **exact order** (common mistake: putting the add-worktree `<li>` after Block B instead of between A and B):
+
+1. **Block A** — first primary node only  
+2. **Add-worktree `<li>`** — unchanged (move it here from its old position after the full primary loop)  
+3. **Block B** — `v-for="node in primarySidebarNodesAfterFirst"`  
+4. Existing `worktreeSidebarNodes` loop (unchanged)
 
 **Block A — first primary node only**
 
@@ -237,9 +242,9 @@ Delete that entire `ThreadSidebarNodes` + `v-for` block and substitute the follo
 
 If `primarySidebarNodesAfterFirst` is always empty in production, the duplicate `id` issue never surfaces — the distinct ids still satisfy HTML validity if the slice ever gains entries.
 
-- [ ] **Step 2: Leave add-worktree `<li>` and worktree loop unchanged**
+- [ ] **Step 2: Leave add-worktree `<li>` and worktree loop unchanged (but move `<li>` between Block A and Block B)**
 
-Do not move `data-testid="thread-sidebar-worktree-insert"` or alter popover / `BranchPicker` props.
+The add-worktree row must sit **after Block A and before Block B** (not after Block B). Do not alter popover / `BranchPicker` props or `data-testid` values on that row.
 
 - [ ] **Step 3: Run typecheck**
 
