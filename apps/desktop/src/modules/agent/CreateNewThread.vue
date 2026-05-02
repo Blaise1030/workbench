@@ -1,15 +1,15 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref } from "vue";
+import { computed } from "vue";
+import { useQueryClient } from "@tanstack/vue-query";
 import { useRoute, useRouter } from "vue-router";
 import { toast } from "vue-sonner";
 import ThreadInlinePromptEditor from "@/components/ThreadInlinePromptEditor.vue";
 import { useAgentBootstrapCommands } from "@/composables/useAgentBootstrapCommands";
-import { readPreferredThreadAgent } from "@/composables/usePreferredThreadAgent";
 import { decodeBranch, encodeBranch } from "@/router/branchParam";
 import { stashPendingAgentBootstrap } from "@/lib/pendingAgentBootstrapSession";
 import { useWorkspaceStore, worktreeBranchNameContextLabel } from "@/stores/workspaceStore";
 import type { Thread, ThreadAgent, ThreadCreateWithAgentPayload } from "@shared/domain";
-import type { DeleteThreadInput, WorkspaceSnapshot } from "@shared/ipc";
+import type { WorkspaceSnapshot } from "@shared/ipc";
 import type { PendingAgentBootstrap } from "@shared/pendingAgentBootstrap";
 
 const THREAD_AGENT_LABELS: Record<ThreadAgent, string> = {
@@ -21,6 +21,7 @@ const THREAD_AGENT_LABELS: Record<ThreadAgent, string> = {
 
 const route = useRoute();
 const router = useRouter();
+const queryClient = useQueryClient();
 const workspace = useWorkspaceStore();
 const { bootstrapCommandLineWithPrompt } = useAgentBootstrapCommands();
 
@@ -37,20 +38,21 @@ const threadContextLabel = computed(() =>
   worktree.value ? worktreeBranchNameContextLabel(worktree.value) : null
 );
 
-const draftThreadId = ref<string | null>(null);
-const createError = ref<string | null>(null);
-const ready = ref(false);
-const submitted = ref(false);
-
-function getApi() {
-  return window.workspaceApi ?? null;
-}
+const createError = computed(() => {
+  if (!projectId.value?.trim() || !branchParam.value?.trim()) {
+    return "Missing project or branch.";
+  }
+  if (!worktree.value) {
+    return "This worktree is not available. Return to the workspace and try again.";
+  }
+  return null;
+});
 
 async function refreshWorkspace(): Promise<void> {
-   const api = getApi();
-  if (!api?.getSnapshot) return null;
+  const api = window.workspaceApi;
+  if (!api?.getSnapshot) return;
   const snap = (await api.getSnapshot()) as WorkspaceSnapshot;
-  return workspace.hydrate(snap);
+  workspace.hydrate(snap);
 }
 
 function defaultTitleForAgent(agent: ThreadAgent): string {
@@ -74,123 +76,53 @@ function resolveNewThreadTitle(payload: ThreadCreateWithAgentPayload, agent: Thr
   return defaultTitleForAgent(agent);
 }
 
-async function removeDraftThread(threadId: string): Promise<void> {
-  const api = getApi();
-  if (!api) return;
-  const meta = await refreshWorkspace();
-  const threadWt = workspace.threads.find((t) => t.id === threadId)?.worktreeId;
-  const wasActive = meta?.activeThreadId === threadId;
-  const nextThread =
-    threadWt != null
-      ? workspace.threads.find((t) => t.worktreeId === threadWt && t.id !== threadId) ?? null
-      : null;
-  workspace.removeThreadLocal(threadId);
-  try {
-    await api.ptyKill(threadId);
-    const payload: DeleteThreadInput = { threadId };
-    await api.deleteThread(payload);
-    if (wasActive && projectId.value && threadWt) {
-      await api.setActive({
-        projectId: projectId.value,
-        worktreeId: threadWt,
-        threadId: nextThread?.id ?? null
-      });
-    }
-    await refreshWorkspace();
-  } catch {
-    await refreshWorkspace();
-  }
-}
-
-async function ensureDraftThread(): Promise<void> {
-  const wt = worktree.value;
-  const pid = projectId.value;
-  const api = getApi();
-  if (!wt || !pid || !api?.createThread) {
-    createError.value = !wt ? "No workspace for this branch." : "Workspace is not available.";
-    return;
-  }
-  try {
-    await refreshWorkspace();
-    const created = (await api.createThread({
-      projectId: pid,
-      worktreeId: wt.id,
-      title: "New thread",
-      agent: readPreferredThreadAgent()
-    })) as Thread;
-    if (!created?.id) {
-      createError.value = "Could not create thread.";
-      return;
-    }
-    draftThreadId.value = created.id;
-    ready.value = true;
-    await refreshWorkspace();
-  } catch (e) {
-    createError.value = e instanceof Error ? e.message : "Could not create thread.";
-  }
-}
-
-void ensureDraftThread();
-
-onBeforeUnmount(() => {
-  if (submitted.value || !draftThreadId.value) return;
-  void removeDraftThread(draftThreadId.value);
-});
-
-async function onCancel(): Promise<void> {
-  const id = draftThreadId.value;
-  if (id) await removeDraftThread(id);
-  draftThreadId.value = null;
-  const pid = projectId.value;
-  const eb = branchParam.value;
-  if (pid && eb) {
-    await router.push({ name: "threadNew", params: { projectId: pid, branch: eb } });
-  } else {
-    router.back();
-  }
+function onCancel(): void {
+  router.back();
 }
 
 async function onSubmit(payload: ThreadCreateWithAgentPayload): Promise<void> {
-  const threadId = draftThreadId.value;
-  if (!threadId) return;
+  const wt = worktree.value;
+  const pid = projectId.value;
+  const api = window.workspaceApi;
+  if (!wt || !pid || !api?.createThread) return;
+
   const { agent, prompt } = payload;
-  const api = getApi();
-  const localDraft = workspace.threads.find((t) => t.id === threadId);
-  if (localDraft && localDraft.agent !== agent) {
-    localDraft.agent = agent;
-  }
-  if (api?.updateThread) {
-    try {
-      await api.updateThread({ threadId, agent });
-    } catch {
-      /* non-fatal */
-    }
-  }
   const title = resolveNewThreadTitle(payload, agent);
-  if (api && title !== "New thread") {
-    try {
-      await api.renameThread({ threadId, title });
-    } catch {
-      /* non-fatal */
-    }
+
+  try {
+    const created = (await api.createThread({
+      projectId: pid,
+      worktreeId: wt.id,
+      title,
+      agent
+    })) as Thread;
+
+    const boot: PendingAgentBootstrap = {
+      threadId: created.id,
+      command: bootstrapCommandLineWithPrompt(agent, prompt),
+      mode: "prompt"
+    };
+    stashPendingAgentBootstrap(boot);
+
+    await refreshWorkspace();
+    void queryClient.invalidateQueries({ queryKey: ["worktrees"] });
+    void queryClient.invalidateQueries({ queryKey: ["projectTabs"] });
+    void queryClient.invalidateQueries({ queryKey: ["projectPath"] });
+
+    const eb = encodeBranch(wt.branch);
+    await router.replace({
+      name: "agent",
+      params: { projectId: pid, branch: eb, threadId: created.id }
+    });
+  } catch (e: unknown) {
+    onSubmitError(e);
   }
-  const boot: PendingAgentBootstrap = {
-    threadId,
-    command: bootstrapCommandLineWithPrompt(agent, prompt),
-    mode: "prompt"
-  };
-  stashPendingAgentBootstrap(boot);
-  submitted.value = true;
-  await refreshWorkspace();
-  const eb = encodeBranch(worktree.value?.branch ?? decodeBranch(branchParam.value));
-  await router.replace({
-    name: "agent",
-    params: { projectId: projectId.value, branch: eb, threadId }
-  });
 }
 
 function onSubmitError(e: unknown): void {
-  toast.error("Could not start thread", e instanceof Error ? e.message : "Something went wrong.");
+  toast.error("Could not start thread", {
+    description: e instanceof Error ? e.message : "Something went wrong."
+  });
 }
 </script>
 
@@ -209,16 +141,13 @@ function onSubmitError(e: unknown): void {
         Back to workspace
       </button>
     </div>
-    <div v-else-if="!ready" class="flex flex-1 items-center justify-center text-sm text-muted-foreground">
-      Preparing new thread…
-    </div>
     <ThreadInlinePromptEditor
-      v-else-if="draftThreadId && worktree"
+      v-else-if="worktree"
       :worktree-id="worktree.id"
       :worktree-path="worktree.path"
       :thread-context-label="threadContextLabel"
       @submit="(p) => void onSubmit(p).catch(onSubmitError)"
-      @cancel="() => void onCancel()"
+      @cancel="onCancel"
     />
   </div>
 </template>

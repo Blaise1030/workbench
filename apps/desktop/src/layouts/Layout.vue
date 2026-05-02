@@ -2,10 +2,12 @@
 import { computed, ref } from "vue";
 import { useAppContext } from "@/app-context/useAppContext";
 import { useActiveWorkspace } from "@/composables/useActiveWorkspace";
+import { useAddProjectFromDirectoryPick } from "@/composables/useAddProjectFromDirectoryPick";
 import { useNavigateToProject } from "@/composables/useNavigateToProject";
 import {
   Sidebar,
   SidebarContent,
+  SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
@@ -58,6 +60,17 @@ async function navigateToProject(targetProjectId: string): Promise<void> {
   void queryClient.invalidateQueries({ queryKey: ["projectPath"] });
   void queryClient.invalidateQueries({ queryKey: ["projectTabs"] });
 }
+
+const { pickAndAddProject } = useAddProjectFromDirectoryPick({
+  navigateToProject,
+});
+
+const canAddProject = computed(() => {
+  if (typeof window === "undefined") return false;
+  return Boolean(
+    appContext.value.gitService && window.workspaceApi?.pickRepoDirectory,
+  );
+});
 
 const panelTabs = [
   { value: "agent", label: "Agent" },
@@ -188,159 +201,84 @@ function openTerminalPanel(): void {
 </script>
 
 <template>
-  <div
-    style="--header-height: 44px"
-    class="max-h-screen overflow-hidden relative"
-  >
+  <div style="--header-height: 44px" class="max-h-screen overflow-hidden relative">
     <SidebarProvider class="flex flex-col">
-      <nav
-        class="h-(--header-height) bg-sidebar sticky top-0 left-0 z-10 flex min-w-0 items-center gap-1 border-b"
-      >
+      <nav class="h-(--header-height) bg-sidebar sticky top-0 left-0 z-10 flex min-w-0 items-center gap-1 border-b">
         <div class="flex shrink-0 items-center justify-end gap-1 ps-20">
           <SidebarTrigger class="border" />
           <ButtonGroup>
-            <Button
-              type="button"
-              variant="outline"
-              size="icon-sm"
-              aria-label="Back"
-              @click="onNavigateBack"
-            >
+            <Button type="button" variant="outline" size="icon-sm" aria-label="Back" @click="onNavigateBack">
               <ChevronLeft />
             </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="icon-sm"
-              aria-label="Forward"
-              @click="onNavigateForward"
-            >
+            <Button type="button" variant="outline" size="icon-sm" aria-label="Forward" @click="onNavigateForward">
               <ChevronRight />
             </Button>
           </ButtonGroup>
         </div>
-        <div class="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
-          <Button
-            v-for="value in projectTabs ?? []"
-            :key="value.id"
-            type="button" 
-            class="shrink-0"
-            :variant="value.id === projectId ? 'outline' : 'ghost'"
-            :class="value.id === projectId ? 'bg-background' : ''"
-            :aria-current="value.id === projectId ? 'page' : undefined"
-            @click="navigateToProject(value.id)"
-          >
-            {{ value.name }}
-          </Button>
+        <div class="flex min-w-0 flex-1 items-center gap-1">
+          <div class="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
+            <Button v-for="value in projectTabs ?? []" :key="value.id" type="button" class="shrink-0"
+              :variant="value.id === projectId ? 'outline' : 'ghost'"
+              :class="value.id === projectId ? 'bg-background' : ''"
+              :aria-current="value.id === projectId ? 'page' : undefined" @click="navigateToProject(value.id)">
+              {{ value.name }}
+            </Button>
+            <Button type="button" variant="outline" size="icon-sm" class="shrink-0" aria-label="Add project"
+              title="Add project" data-testid="header-add-project" :disabled="!canAddProject"
+              @click="void pickAndAddProject()">
+              <PlusIcon />
+            </Button>
+          </div>
+
         </div>
         <div class="flex shrink-0 items-center gap-1 pe-2 ps-1">
-          <Button
-            type="button"
-            variant="outline"
-            size="icon-sm"
-            aria-label="Raise feedback"
-            title="Raise an issue on GitHub"
-            data-testid="workspace-feedback-button"
-            class="text-sm"
-            @click="openFeedbackIssue"
-          >
+          <Button type="button" variant="outline" size="icon-sm" aria-label="Raise feedback"
+            title="Raise an issue on GitHub" data-testid="workspace-feedback-button" class="text-sm"
+            @click="openFeedbackIssue">
             <span aria-hidden="true">💬</span>
           </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="icon-sm"
-            aria-label="Settings"
-            @click="openSettings"
-          >
+          <Button type="button" variant="outline" size="icon-sm" aria-label="Settings" @click="openSettings">
             <Settings :stroke-width="1.9" />
           </Button>
           <ThemeToggle variant="outline" size="icon-sm" />
-          <Tooltip>
-            <TooltipTrigger as-child>
-              <Button
-                type="button"
-                variant="outline"
-                size="icon-sm"
-                class="shrink-0"
-                data-testid="thread-sidebar-footer-terminal"
-                @click="openTerminalPanel"
-              >
-                <Terminal class="size-3" aria-hidden="true" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="top"> Show terminal </TooltipContent>
-          </Tooltip>
         </div>
       </nav>
       <div className="flex flex-1">
-        <Sidebar
-          class="top-(--header-height) h-[calc(100dvh-var(--header-height))]"
-        >
+        <Sidebar class="top-(--header-height) h-[calc(100dvh-var(--header-height))]">
           <SidebarContent class="gap-0 flex flex-col">
-            <SidebarGroup
-              v-for="(value, index) in threadsGroup"
-              class="gap-0 flex flex-col"
-              :class="index === 0 ? 'px-1' : ''"
-            >
+            <SidebarGroup v-for="(value, index) in threadsGroup" class="gap-0 flex flex-col"
+              :class="index === 0 ? 'px-1' : ''">
               <Collapsible default-open class="group/collapsible p-0">
                 <SidebarGroupLabel as-child class="px-0">
                   <div v-if="index === 0" class="flex gap-0.5">
                     <CollapsibleTrigger
                       class="group/label bg-transparent aria-expanded:bg-transparent flex [&[data-state=open]>svg]:rotate-90"
-                      as-child
-                    >
-                      <Button
-                        size="icon-sm"
-                        variant="ghost"
-                        class="bg-transparent"
-                      >
+                      as-child>
+                      <Button size="icon-sm" variant="ghost" class="bg-transparent">
                         <ChevronRight
-                          class="transition-transform size-4 group-data-[state=open]/collapsible:rotate-90"
-                        />
+                          class="transition-transform size-4 group-data-[state=open]/collapsible:rotate-90" />
                       </Button>
                     </CollapsibleTrigger>
                     <div class="flex-1">
-                      <TrackedBranchSelector
-                        v-if="projectPath"
-                        :cwd="projectPath"
-                        @branch-changed="
-                          void queryClient.invalidateQueries({
-                            queryKey: ['worktrees'],
-                          })
-                        "
-                      />
+                      <TrackedBranchSelector v-if="projectPath" :cwd="projectPath" @branch-changed="
+                        void queryClient.invalidateQueries({
+                          queryKey: ['worktrees'],
+                        })
+                        " />
                     </div>
-                    <Button
-                      type="button"
-                      size="icon-sm"
-                      variant="ghost"
-                      aria-label="New thread on this branch"
-                      title="New thread"
-                      @click.stop="goNewThread(value.branch)"
-                    >
+                    <Button type="button" size="icon-sm" variant="ghost" aria-label="New thread on this branch"
+                      title="New thread" @click.stop="goNewThread(value.branch)">
                       <PlusIcon />
                     </Button>
                   </div>
-                  <CollapsibleTrigger
-                    v-else
-                    class="group/label w-full flex items-center [&[data-state=open]>svg]:rotate-90"
-                  >
-                    <ChevronRight
-                      class="transition-transform group-data-[state=open]/collapsible:rotate-90 mr-1"
-                    />
+                  <CollapsibleTrigger v-else
+                    class="group/label w-full flex items-center [&[data-state=open]>svg]:rotate-90">
+                    <ChevronRight class="transition-transform group-data-[state=open]/collapsible:rotate-90 mr-1" />
                     <span class="flex-1 text-start text-foreground">{{
                       value?.branch
-                    }}</span>
-                    <Button
-                      type="button"
-                      size="icon-sm"
-                      variant="ghost"
-                      class="ms-auto"
-                      aria-label="New thread on this branch"
-                      title="New thread"
-                      @click.stop="goNewThread(value.branch)"
-                    >
+                      }}</span>
+                    <Button type="button" size="icon-sm" variant="ghost" class="ms-auto"
+                      aria-label="New thread on this branch" title="New thread" @click.stop="goNewThread(value.branch)">
                       <PlusIcon />
                     </Button>
                   </CollapsibleTrigger>
@@ -353,18 +291,10 @@ function openTerminalPanel(): void {
                         Threads from this branch only
                       </Label>
                     </div>
-                    <div
-                      v-if="value.threads.some((t) => t.id === activeThreadId)"
-                      class="pb-1 flex flex-wrap gap-0.5"
-                    >
-                      <Button
-                        v-for="tab in panelTabs"
-                        :key="tab.value"
-                        size="sm"
+                    <div v-if="value.threads.some((t) => t.id === activeThreadId)" class="pb-1 flex flex-wrap gap-0.5">
+                      <Button v-for="tab in panelTabs" :key="tab.value" size="sm"
                         :variant="activeTab === tab.value ? 'outline' : 'ghost'"
-                        :class="activeTab === tab.value ? 'bg-background' : ''"
-                        @click="onTabChange(tab.value)"
-                      >
+                        :class="activeTab === tab.value ? 'bg-background' : ''" @click="onTabChange(tab.value)">
                         {{ tab.label }}
                       </Button>
                     </div>
@@ -372,22 +302,14 @@ function openTerminalPanel(): void {
 
                   <SidebarGroupContent>
                     <SidebarMenu :class="index === 0 ? 'px-1' : ''">
-                      <SidebarMenuItem
-                        :key="thread?.id"
-                        v-for="thread in showMoreToggleState[value?.branch]
-                          ? filterByBranch(value?.threads, value?.branch)
-                          : filterByBranch(
-                              value?.threads,
-                              value?.branch,
-                            )?.splice(0, 10)"
-                      >
-                        <SidebarMenuButton
-                          :title="thread?.title"
-                          size="sm"
-                          as-child
-                          class="whitespace-nowrap group-item"
-                          :is-active="route.path.startsWith(thread.threadPath)"
-                        >
+                      <SidebarMenuItem :key="thread?.id" v-for="thread in showMoreToggleState[value?.branch]
+                        ? filterByBranch(value?.threads, value?.branch)
+                        : filterByBranch(
+                          value?.threads,
+                          value?.branch,
+                        )?.splice(0, 10)">
+                        <SidebarMenuButton :title="thread?.title" size="sm" as-child
+                          class="whitespace-nowrap group-item" :is-active="route.path.startsWith(thread.threadPath)">
                           <RouterLink :to="thread?.threadPath">
                             <AgentIcon :agent="thread?.agent" />
                             <span class="truncate">
@@ -396,20 +318,14 @@ function openTerminalPanel(): void {
                           </RouterLink>
                         </SidebarMenuButton>
                       </SidebarMenuItem>
-                      <Button
-                        v-if="
-                          filterByBranch(value?.threads, value?.branch).length >
-                          10
-                        "
-                        size="xs"
-                        variant="link"
-                        class="w-fit underline"
-                        @click="
+                      <Button v-if="
+                        filterByBranch(value?.threads, value?.branch).length >
+                        10
+                      " size="xs" variant="link" class="w-fit underline" @click="
                           showMoreToggleState[value?.branch] = !Boolean(
                             showMoreToggleState[value?.branch],
                           )
-                        "
-                      >
+                          ">
                         Show
                         {{
                           showMoreToggleState[value?.branch] ? "less" : "all"
@@ -425,7 +341,18 @@ function openTerminalPanel(): void {
                 </CollapsibleContent>
               </Collapsible>
             </SidebarGroup>
-          </SidebarContent>
+          </SidebarContent>          
+          <SidebarFooter class="flex flex-row items-center justify-end">
+            <Tooltip>
+              <TooltipTrigger as-child>
+                <Button type="button" variant="outline" size="icon-sm" class="shrink-0"
+                  data-testid="thread-sidebar-footer-terminal" @click="openTerminalPanel">
+                  <Terminal class="size-3" aria-hidden="true" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="top"> Show terminal </TooltipContent>
+            </Tooltip>
+          </SidebarFooter>
           <SidebarRail />
         </Sidebar>
         <SidebarInset class="h-[calc(100dvh-var(--header-height))]">
