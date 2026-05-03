@@ -1,5 +1,49 @@
 # Changelog
 
+## [0.12.0](https://github.com/Blaise1030/workbench/compare/v0.11.0...v0.12.0) (2026-05-03)
+
+
+### Features
+
+* add branch filtering functionality to Layout component ([78239f1](https://github.com/Blaise1030/workbench/commit/78239f10a0a9eb028cbcb2834da89bda4733c982))
+* **desktop:** composable for add-project from directory picker ([1e0cdb9](https://github.com/Blaise1030/workbench/commit/1e0cdb9de55d7035062f3bc3a98d72b76d35cdd0))
+* **desktop:** repo path helpers for add-project flow ([9c89f0f](https://github.com/Blaise1030/workbench/commit/9c89f0fb7f31a230f594acece86e05e04a797178))
+* enhance Git functionality and UI components ([beb83e9](https://github.com/Blaise1030/workbench/commit/beb83e9c69458ee8895b860293156fda2e6de587))
+* enhance layout and navigation components ([4a48669](https://github.com/Blaise1030/workbench/commit/4a486695c169403abe4f8a30013352a76e5f3428))
+* enhance Layout and WorkspaceLayout components with new features ([93db7be](https://github.com/Blaise1030/workbench/commit/93db7be55b1cc5c6f09c98ecd5ab8ea5fc1aa360))
+* enhance TrackedBranchSelector and Layout components ([22026e2](https://github.com/Blaise1030/workbench/commit/22026e238bceb0fd15a2c892b2dc5cdfbcc6620e))
+* integrate @tanstack/vue-query and enhance UI components ([61370a7](https://github.com/Blaise1030/workbench/commit/61370a7061dba972a8a0f0deeb8e197a926beeb8))
+* integrate Vue Router and update workspace components ([5798a63](https://github.com/Blaise1030/workbench/commit/5798a63e0cff9e6ed3b845bbe1a0d4230048d86a))
+* organized tabs into context for space saving in sidebar ([d4418ac](https://github.com/Blaise1030/workbench/commit/d4418acf32706128ebce40abc47674284b87fbe5))
+* refactor thread navigation and layout components for improved user experience ([e442848](https://github.com/Blaise1030/workbench/commit/e4428485c425623a2a6f8fa8985e7aaf66651a0e))
+* **sidebar:** add header-extra slot to ThreadSidebarNodes ([70aa13c](https://github.com/Blaise1030/workbench/commit/70aa13c407a547dd3411ce3a8822a6b86a932d50))
+* **sidebar:** inject branch picker and tabs into primary group slot ([400f246](https://github.com/Blaise1030/workbench/commit/400f246757f9fe325ba1bd1e82eb6bc5c9dbe7e3))
+* **sidebar:** inline project selector and collapse button on one row with fullscreen-aware margin ([da34b2c](https://github.com/Blaise1030/workbench/commit/da34b2c65e7f99ee606d71b6c9397ecef1e97f54))
+* **types:** type IPC payload parameters in preload and env.d.ts ([868bbdc](https://github.com/Blaise1030/workbench/commit/868bbdc308121c5e8ddffc4d05a888f12404a97a))
+* update dependencies and refactor UI components ([a21b6ab](https://github.com/Blaise1030/workbench/commit/a21b6abdb95525add19f2509797c8c44ebce7e6b))
+* updated layout implementation ([cd190c7](https://github.com/Blaise1030/workbench/commit/cd190c72b933c0b790109176cc8c8c54ad61865c))
+
+
+### Bug Fixes
+
+* **preload:** add windowFullscreenChanged to inline IPC_CHANNELS ([3b487de](https://github.com/Blaise1030/workbench/commit/3b487deb85fd94231bf9d63f31d4eb9381962c54))
+* **sidebar:** always apply ms-12 to project selector to clear traffic lights ([2c4b4be](https://github.com/Blaise1030/workbench/commit/2c4b4be06f4bf303be843506648f8aa252b27250))
+* **sidebar:** apply ms-12 on SelectTrigger when not in fullscreen ([bc876a6](https://github.com/Blaise1030/workbench/commit/bc876a6410753f79f3f7bcac8aa2f860c642da95))
+* **sidebar:** apply ms-12 when not fullscreen, remove when fullscreen ([f8bffc4](https://github.com/Blaise1030/workbench/commit/f8bffc42b8b1cd663044fe77d7710a66a3e221cf))
+* **sidebar:** hide branch selector in primary group when a worktree thread is active ([2c1c3f3](https://github.com/Blaise1030/workbench/commit/2c1c3f3b0e4beaca9ea338d91d812242afac7575))
+* **sidebar:** place add-worktree row after first primary, before rest ([710254c](https://github.com/Blaise1030/workbench/commit/710254c925f19d553c2e257dde8f27e2e98d3bcc))
+* **sidebar:** show tabs in worktree group slot when worktree thread is active ([9a8a905](https://github.com/Blaise1030/workbench/commit/9a8a905ab987d51ec465671aa24bd9accbb2f502))
+* **sidebar:** show tabs under whichever group has the active thread ([c350924](https://github.com/Blaise1030/workbench/commit/c350924242a8afca16b5ce6470a73f09c13fce2f))
+* updated layouts and git diff changes ([c4c63eb](https://github.com/Blaise1030/workbench/commit/c4c63eb09f04cf90276b17820cea5606228bb298))
+* **useIsFullscreen:** use Electron IPC enter/leave-full-screen events for reliable detection ([25dc5bf](https://github.com/Blaise1030/workbench/commit/25dc5bf8b4db615a036c9a29969cd9f4cf096574))
+* **useIsFullscreen:** use matchMedia display-mode for reliable Electron fullscreen detection ([6f43ca7](https://github.com/Blaise1030/workbench/commit/6f43ca7780054f42ca8dccce16c430eff01f9827))
+
+
+### Performance Improvements
+
+* convert collapsedPopoverHoverCloseTimer from ref to plain let ([9b10920](https://github.com/Blaise1030/workbench/commit/9b10920f01e04289f831e0329c112f4e8bf9cd60))
+* **runStore:** add Map index for O(1) append and setStatus lookups ([90429e1](https://github.com/Blaise1030/workbench/commit/90429e164e91d82a5e31334acb8d1fb24f7e5e34))
+
 ## [0.11.0](https://github.com/Blaise1030/workbench/compare/v0.10.0...v0.11.0) (2026-04-18)
 
 
