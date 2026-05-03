@@ -1,5 +1,18 @@
 export type RunStatus = "running" | "needsReview" | "failed" | "done";
 
+export type AppNotificationKind = "done" | "needsReview" | "failed";
+
+export interface AppNotification {
+  id: string;
+  threadId: string;
+  projectId: string;
+  kind: AppNotificationKind;
+  threadTitle: string;
+  projectName: string;
+  read: boolean;
+  createdAt: string;
+}
+
 /** Agent associated with a thread (run adapters may only support a subset). */
 export type ThreadAgent = "claude" | "cursor" | "codex" | "gemini";
 

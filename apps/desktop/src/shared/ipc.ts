@@ -1,5 +1,11 @@
 import type { Project, Thread, ThreadSession, ThreadAgent, Worktree } from "./domain";
 
+export type { AppNotification, AppNotificationKind } from "./domain";
+
+export interface MarkNotificationReadInput {
+  id: string;
+}
+
 export { IPC_CHANNELS } from "../../electron/ipcChannels.js";
 
 export interface WorkspaceSnapshot {

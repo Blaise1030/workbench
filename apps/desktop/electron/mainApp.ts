@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { randomUUID } from "node:crypto";
 import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
 import {
   previewNativeDetach,
@@ -46,6 +47,7 @@ import { HookServer } from "./services/hookServer.js";
 import { registerAllAgentHooks } from "./services/hookRegistrationService.js";
 import { handleHookEvent } from "./adapters/hookHandler.js";
 import { NotificationService } from "./services/notificationService.js";
+import { NotificationStore, registerNotificationIpc, emitNotificationsDidChange } from "./notification/index.js";
 
 function isSafePreviewOpenExternalUrl(url: string): boolean {
   try {
@@ -660,6 +662,7 @@ const dataDir = app.getPath("userData");
 const schemaSql = readWorkspaceSchemaSql();
 const store = new WorkspaceStore(dataDir);
 store.migrate(schemaSql);
+const notificationStore = new NotificationStore(store.getDatabase());
 const gitAdapter = createGitAdapter();
 const workspaceService = new WorkspaceService(store, gitAdapter);
 
@@ -675,6 +678,17 @@ void hookServer.start().then(() => {
         const thread = snapshot.threads.find((t) => t.id === tid);
         if (!thread) return;
         const project = snapshot.projects.find((p) => p.id === thread.projectId);
+        notificationStore.add({
+          id: randomUUID(),
+          threadId: thread.id,
+          projectId: thread.projectId,
+          kind,
+          threadTitle: thread.title,
+          projectName: project?.name ?? "",
+          read: false,
+          createdAt: new Date().toISOString(),
+        });
+        emitNotificationsDidChange(() => BrowserWindow.getAllWindows());
         notificationService.trigger(kind, project?.name ?? "", thread.title, () => {
           // Bring app to front and navigate to the thread
           const win = BrowserWindow.getAllWindows()[0];
@@ -705,6 +719,7 @@ ptyService.setSubmittedInputListener((sessionId, input) => {
   }
 });
 registerIpc(workspaceService);
+registerNotificationIpc(notificationStore, () => BrowserWindow.getAllWindows());
 gitHeadWatcher.syncFromSnapshot(workspaceService.getSnapshot());
 
 app.on("will-quit", () => {
