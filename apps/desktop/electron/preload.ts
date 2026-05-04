@@ -2,10 +2,12 @@ import { contextBridge, ipcRenderer, webUtils, type IpcRendererEvent } from "ele
 import type {
   AddProjectInput,
   AddWorktreeInput,
+  AppNotification,
   AppUpdateAvailability,
   CreateThreadInput,
   CreateWorktreeGroupInput,
   DeleteThreadInput,
+  MarkNotificationReadInput,
   PreviewBounds,
   PreviewDevToolsToggleResult,
   PreviewNativeLoadResult,
@@ -107,7 +109,11 @@ const IPC_CHANNELS = {
   appGetUpdateAvailability: "app:getUpdateAvailability",
   appOpenExternalUrl: "app:openExternalUrl",
   previewNavigationUrl: "preview:navigationUrl",
-  threadRunStateChanged: "thread:runStateChanged"
+  threadRunStateChanged: "thread:runStateChanged",
+  notificationsGet: "notifications:get",
+  notificationsMarkRead: "notifications:markRead",
+  notificationsMarkAllRead: "notifications:markAllRead",
+  notificationsDidChange: "notifications:didChange",
 } as const;
 
 /** Absolute repo root from the first file in a webkitdirectory pick (Electron only). */
@@ -275,6 +281,18 @@ contextBridge.exposeInMainWorld("workspaceApi", {
     ipcRenderer.on(IPC_CHANNELS.threadRunStateChanged, handler);
     return () => ipcRenderer.off(IPC_CHANNELS.threadRunStateChanged, handler);
   }
+});
+
+contextBridge.exposeInMainWorld("notificationApi", {
+  getNotifications: () => ipcRenderer.invoke(IPC_CHANNELS.notificationsGet) as Promise<AppNotification[]>,
+  markRead: (payload: MarkNotificationReadInput) =>
+    ipcRenderer.invoke(IPC_CHANNELS.notificationsMarkRead, payload) as Promise<void>,
+  markAllRead: () => ipcRenderer.invoke(IPC_CHANNELS.notificationsMarkAllRead) as Promise<void>,
+  onNotificationsChanged: (callback: () => void) => {
+    const handler = () => callback();
+    ipcRenderer.on(IPC_CHANNELS.notificationsDidChange, handler);
+    return () => ipcRenderer.off(IPC_CHANNELS.notificationsDidChange, handler);
+  },
 });
 
 contextBridge.exposeInMainWorld("previewApi", {

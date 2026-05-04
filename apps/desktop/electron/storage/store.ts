@@ -152,6 +152,28 @@ export class WorkspaceStore {
          WHERE worktree_id NOT IN (SELECT id FROM worktrees)`
       )
       .run();
+    const hasNotifications = this.db
+      .prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='notifications' LIMIT 1")
+      .get();
+    if (!hasNotifications) {
+      this.db.exec(`
+        CREATE TABLE notifications (
+          id TEXT PRIMARY KEY,
+          thread_id TEXT NOT NULL,
+          project_id TEXT NOT NULL,
+          kind TEXT NOT NULL,
+          thread_title TEXT NOT NULL,
+          project_name TEXT NOT NULL,
+          read INTEGER NOT NULL DEFAULT 0,
+          created_at TEXT NOT NULL
+        )
+      `);
+      this.db.exec("CREATE INDEX idx_notifications_created_at ON notifications(created_at DESC)");
+    }
+  }
+
+  getDatabase(): DatabaseInstance {
+    return this.db;
   }
 
   upsertProject(project: Project): void {

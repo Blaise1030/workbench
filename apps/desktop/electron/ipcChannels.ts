@@ -110,5 +110,13 @@ export const IPC_CHANNELS = {
   /** Open a validated https URL in the system browser (GitHub only). */
   appOpenExternalUrl: "app:openExternalUrl",
   /** Main → renderer: hook-derived run state for a thread (replaces PTY heuristics). */
-  threadRunStateChanged: "thread:runStateChanged"
+  threadRunStateChanged: "thread:runStateChanged",
+  /** Fetch the persisted in-app notification list (most recent 20). */
+  notificationsGet: "notifications:get",
+  /** Mark a single notification as read by id. */
+  notificationsMarkRead: "notifications:markRead",
+  /** Mark all notifications as read. */
+  notificationsMarkAllRead: "notifications:markAllRead",
+  /** Main → renderer: notification list changed (new item added or read-state updated). */
+  notificationsDidChange: "notifications:didChange",
 } as const;

@@ -85,9 +85,21 @@ CREATE TABLE IF NOT EXISTS worktree_editor_state (
   FOREIGN KEY(worktree_id) REFERENCES worktrees(id) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS notifications (
+  id TEXT PRIMARY KEY,
+  thread_id TEXT NOT NULL,
+  project_id TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  thread_title TEXT NOT NULL,
+  project_name TEXT NOT NULL,
+  read INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_worktrees_project_id ON worktrees(project_id);
 CREATE INDEX IF NOT EXISTS idx_threads_worktree_id ON threads(worktree_id);
 CREATE INDEX IF NOT EXISTS idx_runs_thread_id ON runs(thread_id);
 CREATE INDEX IF NOT EXISTS idx_runs_status ON runs(status);
 CREATE INDEX IF NOT EXISTS idx_thread_sessions_status ON thread_sessions(status);
 CREATE INDEX IF NOT EXISTS idx_events_run_id ON run_events(run_id);
+CREATE INDEX IF NOT EXISTS idx_notifications_created_at ON notifications(created_at DESC);
