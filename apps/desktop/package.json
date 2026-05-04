@@ -30,6 +30,7 @@
     "rebuild:natives": "electron-builder install-app-deps"
   },
   "dependencies": {
+    "@git-diff-view/vue": "^0.1.3",
     "@mlc-ai/web-llm": "^0.2.82",
     "@tanstack/vue-query": "^5.100.3",
     "@tanstack/vue-table": "^8.21.3",
